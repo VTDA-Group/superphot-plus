@@ -10,7 +10,6 @@ import torchvision.transforms as transforms
 from sklearn import metrics
 from sklearn import decomposition
 from sklearn import manifold
-#from tqdm.notebook import trange, tqdm
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -18,15 +17,11 @@ import copy
 import random
 import time
 import glob, os
+
 from file_paths import *
+from utils import *
+from constants import *
 
-
-INPUT_DROPOUT_FRAC = 0.2
-HIDDEN_DROPOUT_FRAC = 0.5
-SEED = 9876
-EPOCHS = 500
-VALID_RATIO = 0.9
-BATCH_SIZE = 32
 
 def save_test_probabilities(name, true_label, pred_probabilities):
     """
@@ -267,6 +262,7 @@ def run_mlp(train_data, valid_data, test_sample_features, test_sample_classes, t
     torch.cuda.manual_seed(SEED)
     torch.backends.cudnn.deterministic = True
 
+    input_dim = train_data.shape[1]
 
     train_iterator = data.DataLoader(train_data,
                                      shuffle=True,
@@ -279,7 +275,7 @@ def run_mlp(train_data, valid_data, test_sample_features, test_sample_classes, t
                                    
     #Create model
     model = MLP(input_dim, output_dim, neurons_per_layer, num_layers)
-    lr=1e-4
+    lr=LEARNING_RATE
     optimizer = optim.Adam(model.parameters(), lr=lr)
     criterion = nn.CrossEntropyLoss()
     device = torch.device('cpu')

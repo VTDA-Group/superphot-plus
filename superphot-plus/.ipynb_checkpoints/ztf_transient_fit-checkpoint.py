@@ -9,9 +9,11 @@ import shutil, os
 import glob, time
 from joblib import Parallel, delayed
 import multiprocessing
-from add_extinction import *
 from scipy.optimize import curve_fit
+
+from constants import *
 from file_paths import *
+from utils import *
 
 import contextlib
 import joblib
@@ -33,15 +35,7 @@ def tqdm_joblib(tqdm_object):
         joblib.parallel.BatchCompletionCallBack = old_batch_callback
         tqdm_object.close()
         
-        
-def convert_mags_to_flux(m, merr, zp):
-    if np.mean(merr) > 1.:
-        print("VERY LARGE UNCERTAINTIES")
-    fluxes = 10. ** (-1. * ( m - zp ) / 2.5)
-    flux_unc = np.log(10.)/2.5 * fluxes * merr
-    return fluxes, flux_unc
-    
-    
+
 def import_data(fn, t0_lim=None):
     """
     Import the datafile.
@@ -145,23 +139,23 @@ def run_mcmc(fn, t0_lim=None):
         of the "cube" is a value sampled between 0 and 1
         representing each parameter.
         """
-        cube[0] = max_flux * 10**(trunc_gauss(cube[0], -0.2, 1.2, 0., 0.5)) # log-uniform for A from 1.0x to 16x of max flux
-        cube[1] = trunc_gauss(cube[1], 0., 0.02, 0.0052, 1.5 * 0.000336) # beta UPDATED, looks more Lorentzian so widened by 1.5x
-        cube[2] = 10**trunc_gauss(cube[2], -2., 2.5, 1.1391, 1.5 * .1719) # very broad Gaussian temporary solution for gamma
+        cube[0] = max_flux * 10**(trunc_gauss(cube[0], *PRIOR_A)) # log-uniform for A from 1.0x to 16x of max flux
+        cube[1] = trunc_gauss(cube[1], *PRIOR_BETA) # beta UPDATED, looks more Lorentzian so widened by 1.5x
+        cube[2] = 10**trunc_gauss(cube[2], *PRIOR_GAMMA) # very broad Gaussian temporary solution for gamma
         max_flux_loc =  tdata[np.argmax(fdata[bdata == "r"] - np.abs(ferrdata[bdata == "r"]))]
         cube[3] = trunc_gauss(cube[3], np.amin(tdata) - 50., np.amax(tdata) + 50., max_flux_loc, 20.) # t0
-        cube[4] = 10**(trunc_gauss(cube[4], -1.0, 3., 0.5990, 1.5 * 0.2073)) # taurise, UPDATED
-        cube[5] = 10**(trunc_gauss(cube[5], 0.5, 4., 1.4296, 1.5 * 0.1003))# tau fall UPDATED
-        cube[6] = 10**(trunc_gauss(cube[6], -5., -0.5, -1.5364, 0.2691)) # lognormal for extrasigma, UPDATED
+        cube[4] = 10**(trunc_gauss(cube[4], *PRIOR_TAU_RISE)) # taurise, UPDATED
+        cube[5] = 10**(trunc_gauss(cube[5], *PRIOR_TAU_FALL))# tau fall UPDATED
+        cube[6] = 10**(trunc_gauss(cube[6], *PRIOR_EXTRA_SIGMA)) # lognormal for extrasigma, UPDATED
         
         # green band
-        cube[7] = trunc_gauss(cube[7], 0., 5., 1.0607, 1.5 * 0.1544) # A UPDATED
-        cube[8] = trunc_gauss(cube[8], 1., 1.07, 1.0424, 0.0026) # beta UPDATED
-        cube[9] = trunc_gauss(cube[9], 0.8, 1.2, 1.0075, 0.0139) # gamma, GAUSSIAN not Lorentzian
-        cube[10] = trunc_gauss(cube[10], 1. - 0.0006, 1.0006, 0.9999 + 8.9289e-5, 1.5 * 4.5055e-05) # t0 UPDATED
-        cube[11] = trunc_gauss(cube[11], 0.5, 2., 0.9663, 0.0128) # taurise UPDATED, Gaussian
-        cube[12] = trunc_gauss(cube[12], 0.1, 3., 0.5488, 0.0553) # taufall UPDATED
-        cube[13] = trunc_gauss(cube[13], 0.2, 2., 0.8606, 0.0388) # extra sigma UPDATED, Gaussian
+        cube[7] = trunc_gauss(cube[7], *PRIOR_A_g) # A UPDATED
+        cube[8] = trunc_gauss(cube[8], *PRIOR_BETA_g) # beta UPDATED
+        cube[9] = trunc_gauss(cube[9], *PRIOR_GAMMA_g) # gamma, GAUSSIAN not Lorentzian
+        cube[10] = trunc_gauss(cube[10], *PRIOR_T0_g) # t0 UPDATED
+        cube[11] = trunc_gauss(cube[11], *PRIOR_TAU_RISE_g) # taurise UPDATED, Gaussian
+        cube[12] = trunc_gauss(cube[12], *PRIOR_TAU_FALL_g) # taufall UPDATED
+        cube[13] = trunc_gauss(cube[13], *PRIOR_EXTRA_SIGMA_g) # extra sigma UPDATED, Gaussian
 
         return cube
 
@@ -180,8 +174,8 @@ def run_mcmc(fn, t0_lim=None):
 
     st = time.time()
     
-    sampler = NestedSampler(create_logL, create_prior, n_params, sample='rwalk', bound='single', nlive=50)
-    sampler.run_nested(maxiter=5000, dlogz=0.5, print_progress=False)
+    sampler = NestedSampler(create_logL, create_prior, n_params, sample='rwalk', bound='single', nlive=NLIVE)
+    sampler.run_nested(maxiter=MAX_ITER, dlogz=DLOGZ, print_progress=False)
     res = sampler.results
 
     samples, weights = res.samples, np.exp(res.logwt - res.logz[-1])
@@ -215,9 +209,6 @@ def run_curve_fit(fn):
     
     prefix = fn.split("/")[-1][:-4]
 
-    #if os.path.isfile("/gpfs/group/vav5084/default/kdesoto/ztf/dynesty_fits2/"+prefix+"_eqwt.npz"):
-    #    return None
-    
     print(prefix)
     n_params = 14
 

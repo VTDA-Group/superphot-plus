@@ -51,7 +51,6 @@ def add_stamp_column(fn, output_fn):
                     
             except:
                 csv_writer.writerow([*row, "None"])
-    
         
         
 
@@ -93,6 +92,7 @@ def get_spreadsheet_diff(s1, s2, new_fn):
             
     print(name_diff)
        
+        
 def filter_tns_all_transients(tns_csv, reduced_fn):
     """
     Filter TNS CSV by type and ZTF name.
@@ -365,12 +365,6 @@ def import_lc(fn):
             return [None,] * 6
     return t, f, ferr, b, ra, dec
 
-def convert_mags_to_flux(m, merr, zp):
-    if np.mean(merr) > 1.:
-        print("VERY LARGE UNCERTAINTIES")
-    fluxes = 10. ** (-1. * ( m - zp ) / 2.5)
-    flux_unc = np.log(10.)/2.5 * fluxes * merr
-    return fluxes, flux_unc
 
 def clip_lightcurve_end(times, fluxes, fluxerrs, bands):
     """
@@ -632,75 +626,6 @@ def generate_single_flux_file(ztf_name, save_folder):
     detections.to_csv(os.path.join(save_folder, ztf_name+".csv"), index=False)
 
 
-def plot_lightcurve_clipping(ztf_name):
-    """
-    Plots the lightcurve, WITH clipped points, and lines
-    demonstrating how those points are clipped. 
-    """
-    data_fn = DATA_FOLDER + ztf_name + ".csv"
-    t, f, ferr, b, ra, dec = import_lc(data_fn)
-    t_clip, f_clip, ferr_clip, b_clip = clip_lightcurve_end(t, f, ferr, b)
-
-    idx_clip = ~np.isin(t, t_clip)
-    t_clip = t[idx_clip]
-    f_clip = f[idx_clip]
-    ferr_clip = ferr[idx_clip]
-    b_clip = b[idx_clip]
-    
-    print(b_clip)
-    
-    plt.errorbar(t[b == "r"], f[b == "r"], yerr=ferr[b == "r"], fmt="o", c="r")
-    plt.errorbar(t[b == "g"], f[b == "g"], yerr=ferr[b == "g"], fmt="o", c="g")
-    
-    #overlay clipped points 
-    plt.errorbar(t_clip[b_clip == "r"], f_clip[b_clip == "r"], yerr=ferr_clip[b_clip == "r"], fmt="o", c="orange")
-    plt.errorbar(t_clip[b_clip == "g"], f_clip[b_clip == "g"], yerr=ferr_clip[b_clip == "g"], fmt="o", c="blue")
-    
-    #plot lines from last to max flux point
-    t_r = t[b == "r"]
-    f_r = f[b == "r"]
-    t_g = t[b == "g"]
-    f_g = f[b == "g"]
-    
-    t_range_r = np.linspace(t_r[np.argmax(f_r)], np.max(t_r), num=10)
-    m_r = ( f_r[np.argmax(t_r)] - np.max(f_r) ) / ( np.max(t_r) - t_r[np.argmax(f_r)] )
-    y_r = f_r[np.argmax(t_r)] + m_r * (t_range_r - np.max(t_r))
-    
-    t_range_g = np.linspace(t_g[np.argmax(f_g)], np.max(t_g), num=10)
-    m_g = ( f_g[np.argmax(t_g)] - np.max(f_g) ) / ( np.max(t_g) - t_g[np.argmax(f_g)] )
-    y_g = f_g[np.argmax(t_g)] + m_g * (t_range_g - np.max(t_g))
-    
-    plt.plot(t_range_r, y_r, c="r", label="Max r-band slope", linewidth=1)
-    plt.plot(t_range_g, y_g, c="g", label="Max g-band slope", linewidth=1)
-    
-        
-    #print("Plotted slope1")
-    # plot slope of clipped portion
-    t_clip_r = t_clip[b_clip == "r"]
-    f_clip_r = f_clip[b_clip == "r"]
-    t_clip_g = t_clip[b_clip == "g"]
-    f_clip_g = f_clip[b_clip == "g"]
-    
-    t_range_r = np.linspace(t_clip_r[np.argmax(f_clip_r)], np.max(t_clip_r), num=10)
-    m_r = ( f_clip_r[np.argmax(t_clip_r)] - np.max(f_clip_r) ) / ( np.max(t_clip_r) - t_clip_r[np.argmax(f_clip_r)] )
-    y_r = f_clip_r[np.argmax(t_clip_r)] + m_r * (t_range_r - np.max(t_clip_r))
-    
-    t_range_g = np.linspace(t_clip_g[np.argmax(f_clip_g)], np.max(t_clip_g), num=10)
-    m_g = ( f_clip_g[np.argmax(t_clip_g)] - np.max(f_clip_g) ) / ( np.max(t_clip_g) - t_clip_g[np.argmax(f_clip_g)] )
-    y_g = f_clip_g[np.argmax(t_clip_g)] + m_g * (t_range_g - np.max(t_clip_g))
-    
-    print("Plotted slope2")
-    plt.plot(t_range_r, y_r, c="orange", label="Clipped r-band slope", linewidth=1)
-    plt.plot(t_range_g, y_g, c="blue", label="Clipped g-band slope", linewidth=1)
-    
-    plt.title(ztf_name, fontsize=20)
-    plt.xlabel("MJD", fontsize=15)
-    plt.ylabel("Flux (arbitrary scaling)", fontsize=15)
-    plt.legend()
-    
-    plt.savefig("../figs/lc_clip_demo.pdf")
-    plt.close()
-    
 
 def main():
     pass

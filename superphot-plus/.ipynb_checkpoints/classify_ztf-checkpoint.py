@@ -6,133 +6,7 @@ from mlp import *
 import shutil
 from joblib import Parallel, delayed
 from ztf_transient_fit import run_mcmc, import_data
-
-
-def flux_model(cube, t_data, b_data):
-    """
-    Given "cube" of fit parameters, returns the flux measurements for
-    a given set of time and band data.
-    """
-    A, beta, gamma, t0, tau_rise, tau_fall, es = cube[:7]
-
-    phase = t_data - t0    
-    f_model = A / (1. + np.exp(-phase / tau_rise)) * (1. - beta * gamma) * np.exp((gamma - phase) / tau_fall)
-    f_model[phase < gamma] = A / (1. + np.exp(-phase[phase < gamma] / tau_rise)) * (1. - beta * phase[phase < gamma])
-
-    # for secondary band
-    start_idx = 7
-    A_b = A * cube[start_idx]
-    beta_b = beta * cube[start_idx + 1]
-    gamma_b = gamma * cube[start_idx + 2]
-    t0_b = t0 * cube[start_idx + 3]
-    tau_rise_b = tau_rise * cube[start_idx + 4]
-    tau_fall_b = tau_fall * cube[start_idx + 5]
-    
-    inc_band_ix = (np.array(b_data) == "g")
-    phase_b = (t_data - t0_b)[inc_band_ix]
-    phase_b2 = (t_data - t0_b)[inc_band_ix & (t_data - t0_b < gamma_b)]
-
-    f_model[inc_band_ix] = A_b / (1. + np.exp(-phase_b / tau_rise_b)) \
-        * (1. - beta_b * gamma_b) * np.exp((gamma_b - phase_b) / tau_fall_b)
-    f_model[inc_band_ix & (t_data - t0_b < gamma_b)] = A_b / (1. + np.exp(-phase_b2 / tau_rise_b)) \
-        * (1. - phase_b2 * beta_b)
-    return f_model
-
-
-def calculate_chi_squareds(names, fit_dir, data_dirs):
-    """
-    Gets the chi-squared of posterior fits from
-    the model parameters and original datafiles.
-    """
-    log_likelihoods = []
-    for e, name in enumerate(names):
-        data_fn = None
-        for d in data_dirs: 
-            data_fn = os.path.join(d, name + ".npz")
-            if os.path.exists(data_fn):
-                break
-
-        npy_array = np.load(data_fn)
-        mjd, flux, flux_err, bands = npy_array['arr_0']
-        
-        flux_err = flux_err.astype(float)
-        mjd = mjd.astype(float)[~np.isnan(flux_err)]
-        flux = flux.astype(float)[~np.isnan(flux_err)]
-        bands = bands[~np.isnan(flux_err)]
-        flux_err = flux_err[~np.isnan(flux_err)]
-        
-        fit_fn = os.path.join(fit_dir, name +"_eqwt.npz")
-        npy_array_fit = np.load(fit_fn)
-        post_arr = npy_array_fit['arr_0']
-        
-        post_med = np.median(post_arr, axis=0)
-        #print(post_med)
-
-        model_f = flux_model(post_med, mjd, bands)
-        extra_sigma_arr = np.ones(len(mjd)) * np.max(flux[bands == "r"]) * post_med[6]
-        extra_sigma_arr[bands == "g"] *= post_med[-1]
-        sigma_sq = extra_sigma_arr**2 + flux_err**2
-        
-        logL = np.sum(np.log(1. / np.sqrt(2. * np.pi * sigma_sq)) - 0.5 * (flux - model_f)**2 / sigma_sq) / len(mjd)
-        log_likelihoods.append(logL)
-            
-    return np.array(log_likelihoods)
-
-
-def calc_accuracy(pred_classes, test_labels):
-    """
-    Calculates the accuracy of the random forest after predicting
-    all classes.
-    
-    Parameters
-    ----------
-    pred_classes : numpy array (int)
-        classes predicted by MLP
-    test_labels : numpy array (int)
-        true spectroscopic classes
-    """
-    num_total = len(pred_classes)
-    num_correct = np.sum(np.where(pred_classes == test_labels, 1, 0))
-    return num_correct/num_total
-
-
-def f1_score(pred_classes, true_classes, class_average=False):
-    """
-    Calculates the F1 score for the classifier. If class_average=True, then
-    the macro-F1 is used. Else, uses the weighted-F1 score.
-    
-    Parameters
-    ----------
-    pred_classes : numpy array (int)
-        classes predicted by MLP
-    true_classes : numpy array (int)
-        true spectroscopic classes
-    class_average : bool
-        Determines whether F1 score is weighted equally for each class,
-        or by number of samples per class. Defaults to False.
-    """
-    samples_per_class = {}
-    for c in true_classes:
-        if c in samples_per_class:
-            samples_per_class[c] += 1
-        else:
-            samples_per_class[c] = 1
-
-    f1_sum = 0.
-    for c in samples_per_class:
-        tp = len(pred_classes[(pred_classes == c) & (true_classes == c)])
-        purity = tp / len(pred_classes[pred_classes == c])
-        completeness = tp / len(true_classes[true_classes == c])
-        f1 = 2. * purity * completeness / (purity + completeness)
-        if class_average:
-            f1_sum += f1
-        else:
-            f1_sum += samples_per_class[c] * f1
-    if class_average:
-        return f1_sum / len(samples_per_class.keys())
-
-    total_samples = np.sum(samples_per_class.values())
-    return f1_sum / total_samples
+from utils import *
 
 
 def adjust_log_dists(features):
@@ -178,7 +52,6 @@ def classify(goal_per_class, num_epochs, neurons_per_layer, num_layers, fits_plo
     labels_to_classes = {allowed_types[i]: i for i in range(len(allowed_types))}
     classes_to_labels = {i: allowed_types[i] for i in range(len(allowed_types))}
 
-    num_folds = 20
     fn_prefix = "cm_%d_%d_%d_%d" % (goal_per_class, num_epochs, neurons_per_layer, num_layers)
     fn_purity = os.path.join(CM_FOLDER, fn_prefix + "_p.pdf") 
     fn_completeness = os.path.join(CM_FOLDER, fn_prefix + "_c.pdf") 
@@ -189,15 +62,11 @@ def classify(goal_per_class, num_epochs, neurons_per_layer, num_layers, fits_plo
     
     tally_each_class(labels) # original tallies
 
-    kfold = generate_K_fold(np.zeros(len(labels)), labels, num_folds)
+    kfold = generate_K_fold(np.zeros(len(labels)), labels, NUM_FOLDS)
 
     true_classes_mlp = np.array([])
     predicted_classes_mlp = np.array([])
     prob_above_07_mlp = np.array([], dtype=bool)
-    #ct = 0
-    
-    #for MLP
-    input_dim = 13
         
     def run_single_fold(x):
         train_index, test_index = x
@@ -320,16 +189,8 @@ def return_new_classifications(test_csv, data_dirs, fit_dir, include_labels=Fals
     Return new classifications based on model, save probs to save_Csv.
     """
     model = MLP(13, 5, 128, 3) # set up empty multi-layer perceptron
-    model.load_state_dict(torch.load(glob.glob("models_saved/*ZTF23aagkgnz.pt")[0])) # load trained state dict to the MLP
-    means = np.array([5.18928404e-03, 1.27960653e+00, 7.16663998e-01, 1.59438422e+00,
-                      -1.45215889e+00, 9.54225774e-01, 1.04234314e+00, 1.00733255e+00,
-                      9.99977873e-01, 9.66049977e-01, 5.62890503e-01, 8.63290836e-01,
-                      -6.27014662e+00])
-    
-    stds = np.array([5.00371052e-04, 3.17145223e-01, 3.93625733e-01, 2.58445333e-01,
-                     3.72614525e-01, 2.15892037e-01, 2.44030784e-03, 1.27667116e-02,
-                     5.11363683e-05, 1.18290613e-02, 6.24454144e-02, 4.99345471e-02,
-                     8.98741848e-01])
+    model.load_state_dict(torch.load(TRAINED_MODEL_FN)) # load trained state dict to the MLP
+   
     
     classes_to_labels = {0: "SN Ia", 1: "SN II", 2: "SN IIn", 3: "SLSN-I", 4: "SN Ibc"} #converts the MLP classes to types
     labels_to_classes = {"SN Ia": 0, "SN II": 1, "SN IIn": 2, "SLSN-I":3, "SN Ibc": 4}
@@ -371,7 +232,7 @@ def return_new_classifications(test_csv, data_dirs, fit_dir, include_labels=Fals
 
             # normalize the log distributions
             test_features = adjust_log_dists(test_features)
-            test_features, means, stds = normalize_features(test_features, means, stds)
+            test_features, means, stds = normalize_features(test_features, MEANS_TRAINED_MODEL, STDDEVS_TRAINED_MODEL)
             test_data = TensorDataset(torch.Tensor(test_features))
             test_iterator = data.DataLoader(test_data,
                                         batch_size=32)
@@ -389,16 +250,7 @@ def save_phase_versus_class_probs(probs_csv, data_dir):
     phase vs F1 score, phase vs each class accuracy.
     """
     model = MLP(13, 5, 128, 3) # set up empty multi-layer perceptron
-    model.load_state_dict(torch.load(glob.glob("models_saved/*ZTF23aagkgnz.pt")[0])) # load trained state dict to the MLP
-    means = np.array([5.18928404e-03, 1.27960653e+00, 7.16663998e-01, 1.59438422e+00,
-                      -1.45215889e+00, 9.54225774e-01, 1.04234314e+00, 1.00733255e+00,
-                      9.99977873e-01, 9.66049977e-01, 5.62890503e-01, 8.63290836e-01,
-                      -6.27014662e+00])
-    
-    stds = np.array([5.00371052e-04, 3.17145223e-01, 3.93625733e-01, 2.58445333e-01,
-                     3.72614525e-01, 2.15892037e-01, 2.44030784e-03, 1.27667116e-02,
-                     5.11363683e-05, 1.18290613e-02, 6.24454144e-02, 4.99345471e-02,
-                     8.98741848e-01])
+    model.load_state_dict(torch.load(TRAINED_MODEL_FN) # load trained state dict to the MLP
     
     classes_to_labels = {0: "SN Ia", 1: "SN II", 2: "SN IIn", 3: "SLSN-I", 4: "SN Ibc"} #converts the MLP classes to types
     labels_to_classes = {"SN Ia": 0, "SN II": 1, "SN IIn": 2, "SLSN-I":3, "SN Ibc": 4}
@@ -445,7 +297,7 @@ def save_phase_versus_class_probs(probs_csv, data_dir):
 
                 # normalize the log distributions
                 test_features = adjust_log_dists(test_features)
-                test_features, means2, stds2 = normalize_features(test_features, means, stds)
+                test_features, means2, stds2 = normalize_features(test_features, MEANS_TRAINED_MODEL, STDDEVS_TRAINED_MODEL)
                 test_data = TensorDataset(torch.Tensor(test_features))
                 test_iterator = data.DataLoader(test_data,
                                             batch_size=32)

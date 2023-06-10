@@ -1,5 +1,4 @@
 import numpy as np
-import corner
 import torch
 import csv, os
 import sklearn
@@ -8,7 +7,10 @@ from imblearn.over_sampling import SMOTE, BorderlineSMOTE, SVMSMOTE
 from scipy.stats import binned_statistic
 import matplotlib.pyplot as plt
 import glob
-#from sklearn.cross_validation import train_test_split
+
+from utils import *
+from constants import *
+from file_paths import *
 
 
 def import_labels_only(input_csvs, allowed_types, fits_dir=None, redshift=False):
@@ -26,12 +28,13 @@ def import_labels_only(input_csvs, allowed_types, fits_dir=None, redshift=False)
     redshifts = []
     sn1bc_alts = ["SN Ic", "SN Ib", "SN Ic-BL", "SN Ib-Ca-rich", "SN Ib/c", \
                  "SNIb", "SNIc", "SNIc-BL", "21", "20", "27", "26", "25"]
-    snIIn_alts = ["SNIIn", "35"]
+    snIIn_alts = ["SNIIn", "35", "SLSN-II"]
     snIa_alts = ["SN Ia-91T-like", "SN Ia-CSM", "SN Ia-91bg-like", "SNIa", "SN Ia-91T", "SN Ia-91bg", "10", "11", "12"]
     snII_alts = ["SN IIP", "SN IIL", "SNII", "SNIIP", "32", "30", "31"]
     slsnI_alts = ["40", "SLSN",]
-    slsnII_alts = ["SLSN-II",]
     tde_alts = ["42",]
+    
+    # TODO: make more compact
     for input_csv in input_csvs:
         with open(input_csv, newline='') as csvfile:
             csvreader = csv.reader(csvfile)
@@ -55,8 +58,6 @@ def import_labels_only(input_csvs, allowed_types, fits_dir=None, redshift=False)
                     l = "SN II"
                 elif l in slsnI_alts:
                     l = "SLSN-I"
-                elif l in slsnI_alts:
-                    l = "SLSN-II"
                 elif l in tde_alts:
                     l = "TDE"
                 if l not in allowed_types:
@@ -188,30 +189,6 @@ def oversample_minority_classes(features, labels):
     features_smote, labels_smote = oversample.fit_resample(features, labels)
     return features_smote, labels_smote
 
-def oversample_using_posteriors_old(feature_means, feature_stddevs, labels, goal_per_class):
-    """
-    Oversample each class to num_per_class by drawing multiple feature sets from each fit's
-    posterior space.
-    """
-    oversampled_labels = []
-    oversampled_features = []
-    labels_unique = np.unique(labels)
-    for l in labels_unique:
-        idxs_in_class = np.asarray(labels == l).nonzero()[0]
-        num_in_class = len(idxs_in_class)
-        samples_per_fit = max(1, np.round(goal_per_class / num_in_class).astype(int))
-        print(l, samples_per_fit)
-        for i in idxs_in_class:
-            for j in range(samples_per_fit):
-                feature_set = np.random.normal(loc=np.array(feature_means[i]), scale=np.array(feature_stddevs[i]))
-                while np.any(feature_set <= 0):
-                    feature_set = np.random.normal(loc=np.array(feature_means[i]), scale=np.array(feature_stddevs[i]))
-                oversampled_features.append(feature_set)
-                oversampled_labels.append(l)
-    oversampled_features = np.array(oversampled_features)
-    oversampled_labels = np.array(oversampled_labels)
-    print(oversampled_labels)
-    return oversampled_features, oversampled_labels
 
 def get_posterior_samples(ztf_name, output_dir=None):
     """
@@ -235,6 +212,7 @@ def get_posterior_samples(ztf_name, output_dir=None):
     post_arr = npy_array['arr_0']
     return post_arr
 
+
 def oversample_using_posteriors(ztf_names, labels, chis, goal_per_class):
     """
     Draws from posteriors of a certain fit.
@@ -256,7 +234,8 @@ def oversample_using_posteriors(ztf_names, labels, chis, goal_per_class):
             oversampled_labels.extend([l] * samples_per_fit)
             oversampled_chis.extend([chis[i]] * samples_per_fit)
     return np.array(oversampled_features), np.array(oversampled_labels), np.array(oversampled_chis)
-        
+   
+    
 def normalize_features(features, mean=None, std=None):
     """
     Normalize the features for feeding into the neural network.
@@ -269,47 +248,8 @@ def normalize_features(features, mean=None, std=None):
     print(mean, std)
     return (features - mean) / std, mean, std
 
-def corner_plot_all(input_csvs, save_file):
-    """
-    Plot combined corner plot of all training set samples,
-    excluding the overall scaling A.
-    """
-    allowed_types = ["SN Ia", "SN II", "SN IIn", "SLSN-I", "SN Ibc"]
-    names, labels = import_labels_only(input_csvs, allowed_types)
-    print(labels)
-    chis = np.ones(len(names))
-    features, labels, chis = oversample_using_posteriors(names, labels, chis, 4000)
-    print(labels)
-    figure = corner.corner(
-        np.delete(features, [0,3], axis=1),
-        bins=20,
-        labels=[
-            r"$\beta$",
-            r"$\gamma$",
-            r"$\tau_r$",
-            r"$\tau_f$",
-            r"$\sigma_{ex}$",
-            r"$A_g$",
-            r"$\beta_g$",
-            r"$\gamma_g$",
-            r"$t_{0,g}$",
-            r"$\tau_{r,g}$",
-            r"$\tau_{r,g}$",
-            r"$\sigma_{ex,g}$"
-        ],
-        quantiles=[0.16, 0.5, 0.84],
-        show_titles=True,
-        title_kwargs={"fontsize": 20},
-        color="purple"
-    )
-    # Extract the axes
-    axes = np.array(figure.axes)
-    for ax in axes:
-        ax.set_ylabel(ax.get_ylabel(), fontsize=20)
-        ax.set_xlabel(ax.get_xlabel(), fontsize=20)
-    
-    figure.savefig(save_file)
-    
+
+# TODO: find and remove obsolete functions
 def summarize_misc_classification(misc_csv):
     """
     Summarize how miscellaneous types of transients are classified.
@@ -345,70 +285,6 @@ def generate_csv_subset(orig_sn_name, new_sn_name, sn_idx, p_cutoff):
         for sn in sn_names:
             csv_writer.writerow([sn, -1])
 
-def flux_model(cube, t_data, b_data):    
-    A, beta, gamma, t0, tau_rise, tau_fall, es = cube[:7]
-
-    phase = t_data - t0    
-    f_model = A / (1. + np.exp(-phase / tau_rise)) * (1. - beta * gamma) * np.exp((gamma - phase) / tau_fall)
-    f_model[phase < gamma] = A / (1. + np.exp(-phase[phase < gamma] / tau_rise)) * (1. - beta * phase[phase < gamma])
-
-    # for secondary band
-    start_idx = 7
-    A_b = A * cube[start_idx]
-    beta_b = beta * cube[start_idx + 1]
-    gamma_b = gamma * cube[start_idx + 2]
-    t0_b = t0 * cube[start_idx + 3]
-    tau_rise_b = tau_rise * cube[start_idx + 4]
-    tau_fall_b = tau_fall * cube[start_idx + 5]
-    
-    inc_band_ix = (np.array(b_data) == "g")
-    phase_b = (t_data - t0_b)[inc_band_ix]
-    phase_b2 = (t_data - t0_b)[inc_band_ix & (t_data - t0_b < gamma_b)]
-
-    f_model[inc_band_ix] = A_b / (1. + np.exp(-phase_b / tau_rise_b)) \
-        * (1. - beta_b * gamma_b) * np.exp((gamma_b - phase_b) / tau_fall_b)
-    f_model[inc_band_ix & (t_data - t0_b < gamma_b)] = A_b / (1. + np.exp(-phase_b2 / tau_rise_b)) \
-        * (1. - phase_b2 * beta_b)
-    return f_model
-
-def calculate_chi_squareds(names, fit_dir, data_dirs):
-    """
-    Gets the chi-squared of posterior fits from
-    the model parameters and original datafiles.
-    """
-    log_likelihoods = []
-    for e, name in enumerate(names):
-        data_fn = None
-        for d in data_dirs: 
-            data_fn = os.path.join(d, name + ".npz")
-            if os.path.exists(data_fn):
-                break
-
-        npy_array = np.load(data_fn)
-        mjd, flux, flux_err, bands = npy_array['arr_0']
-        
-        flux_err = flux_err.astype(float)
-        mjd = mjd.astype(float)[~np.isnan(flux_err)]
-        flux = flux.astype(float)[~np.isnan(flux_err)]
-        bands = bands[~np.isnan(flux_err)]
-        flux_err = flux_err[~np.isnan(flux_err)]
-        
-        fit_fn = os.path.join(fit_dir, name +"_eqwt.npz")
-        npy_array_fit = np.load(fit_fn)
-        post_arr = npy_array_fit['arr_0']
-        
-        post_med = np.median(post_arr, axis=0)
-        #print(post_med)
-
-        model_f = flux_model(post_med, mjd, bands)
-        extra_sigma_arr = np.ones(len(mjd)) * np.max(flux[bands == "r"]) * post_med[6]
-        extra_sigma_arr[bands == "g"] *= post_med[-1]
-        sigma_sq = extra_sigma_arr**2 + flux_err**2
-        
-        logL = np.sum(np.log(1. / np.sqrt(2. * np.pi * sigma_sq)) - 0.5 * (flux - model_f)**2 / sigma_sq) / len(mjd)
-        log_likelihoods.append(logL)
-            
-    return np.array(log_likelihoods)
 
 def generate_csv_subset2(orig_sn_names, new_sn_name, sn_type):
     """
@@ -417,9 +293,6 @@ def generate_csv_subset2(orig_sn_names, new_sn_name, sn_type):
     """
     with open(new_sn_name, "w+") as new:
         new.write("")
-            
-    FITS_DIR = "/gpfs/group/vav5084/default/kdesoto/ztf/dynesty_fits_11_2022/"
-    DATA_DIRS = ["/gpfs/group/vav5084/default/kdesoto/ztf/data_reformatted_11_2022/", "/gpfs/group/vav5084/default/kdesoto/ztf/data_reformatted_classified_ztf_bts"]
     
     alts = {"SN II": ["SN II", "SNII", "SN IIP", "SN IIL", "SNII", "SNIIP", "32", "30", "31"]}
     sn_names = []
