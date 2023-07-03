@@ -138,3 +138,6 @@ dask-worker-space/
 
 # tmp directory
 tmp/
+
+# macOS
+.DS_Store
