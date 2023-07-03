@@ -48,13 +48,17 @@ def import_data(fn, t0_lim=None):
     f = arr[1][ferr != "nan"].astype(float)
     b = arr[3][ferr != "nan"]
     ferr = ferr[ferr != "nan"].astype(float)
-
+    
     if t0_lim is not None:
         f = f[t <= t0_lim]
         b = b[t <= t0_lim]
         ferr = ferr[t <= t0_lim]
         t = t[t <= t0_lim]
-        
+
+    max_flux_loc =  t[np.argmax(f[b == "r"] - np.abs(ferr[b == "r"]))]
+    
+    t -= max_flux_loc # make relative
+    
     return t, f, ferr, b
 
 
@@ -78,7 +82,7 @@ def params_valid(A, beta, gamma, t0, tau_rise, tau_fall):
     
     return True
 
-def run_mcmc(fn, t0_lim=None):
+def run_mcmc(fn, t0_lim=None, plot=False):
     """
     Run dynesty importance nested sampling on datafile. Returns
     set of equally weighted posteriors (sets of fit parameters).
@@ -282,23 +286,23 @@ def run_curve_fit(fn):
     return popt_g, popt_r
 
 
-def dynesty_single_file(test_fn, output_dir):
-    try:
-        os.makedirs(output_dir, exist_ok=True)
-        prefix = test_fn.split("/")[-1][:-4]
-        if os.path.exists(output_dir + str(prefix) + '_eqwt.npz'):
-            return None
-
-        base_band_i = 1 # second of g, r band base fit
-        eq_samples = run_mcmc(test_fn)
-        if eq_samples is None:
-            return None
-        print(np.mean(eq_samples, axis=0))
-        prefix = test_fn.split("/")[-1][:-4]
-
-        np.savez_compressed(output_dir + str(prefix) + '_eqwt.npz', eq_samples)
-    except:
-        print("skipped")
+def dynesty_single_file(test_fn, output_dir, skip_if_exists=True):
+    #try:
+    os.makedirs(output_dir, exist_ok=True)
+    prefix = test_fn.split("/")[-1][:-4]
+    if skip_if_exists and os.path.exists(output_dir + str(prefix) + '_eqwt.npz'):
         return None
+
+    base_band_i = 1 # second of g, r band base fit
+    eq_samples = run_mcmc(test_fn, plot=False)
+    if eq_samples is None:
+        return None
+    print(np.mean(eq_samples, axis=0))
+    prefix = test_fn.split("/")[-1][:-4]
+
+    np.savez_compressed(output_dir + str(prefix) + '_eqwt_dynesty.npz', eq_samples)
+    #except:
+    #print("skipped")
+    #return None
 
     

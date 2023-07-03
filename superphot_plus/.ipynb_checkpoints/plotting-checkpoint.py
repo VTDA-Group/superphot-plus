@@ -619,8 +619,40 @@ def plot_lightcurve_clipping(ztf_name):
     
     plt.savefig(os.path.join(save_dir, "lc_clip_demo.pdf"))
     plt.close()
+
     
+def plot_lc_fit(ztf_name, data_dir, fit_dir, out_dir, sampling_method="dynesty"):
+    """
+    Plot existing LC fit.
+    """
+    data_fn = os.path.join(data_dir, ztf_name+".npz")
+    fit_fn = os.path.join(fit_dir, ztf_name + "_eqwt_" + sampling_method + ".npz")
     
+    tdata, fdata, ferrdata, bdata = import_data(data_fn)
+
+    max_flux_loc =  tdata[np.argmax(fdata[bdata == "r"] - np.abs(ferrdata[bdata == "r"]))]
+    
+    tdata -= max_flux_loc # make relative
+    
+    eq_wt_samples = np.load(fit_fn)['arr_0']
+    
+    plt.errorbar(tdata[bdata=="g"], fdata[bdata=="g"], yerr=ferrdata[bdata=="g"], c="g", label="g", fmt="o")
+    plt.errorbar(tdata[bdata=="r"], fdata[bdata=="r"], yerr=ferrdata[bdata=="r"], c="r", label="r", fmt="o")
+
+    trange_fine = np.linspace(np.amin(tdata), np.amax(tdata), num=500)
+
+    for sample in eq_wt_samples[:30]:
+        plt.plot(trange_fine, flux_model(sample, trange_fine, ["g"] * len(trange_fine)), c="g", lw=1, alpha=0.1)
+        plt.plot(trange_fine, flux_model(sample, trange_fine, ["r"] * len(trange_fine)), c="r", lw=1, alpha=0.1)
+
+    plt.xlabel("MJD")
+    plt.ylabel("Flux")
+    plt.title(ztf_name+": "+sampling_method)
+    
+    plt.savefig(os.path.join(out_dir, ztf_name+"_" + sampling_method + ".png"))
+    
+    plt.close()
+
     
 def main():
     pass

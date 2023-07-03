@@ -4,6 +4,7 @@ import numpy as np
 PRIOR_A = [-0.2, 1.2, 0., 0.5]
 PRIOR_BETA = [0., 0.02, 0.0052, 1.5 * 0.000336]
 PRIOR_GAMMA = [-2., 2.5, 1.1391, 1.5 * .1719]
+PRIOR_T0 = [-100., 200., 0., 50.]
 PRIOR_TAU_RISE = [-1.0, 3., 0.5990, 1.5 * 0.2073]
 PRIOR_TAU_FALL = [0.5, 4., 1.4296, 1.5 * 0.1003]
 PRIOR_EXTRA_SIGMA = [-5., -0.5, -1.5364, 0.2691]
@@ -20,6 +21,9 @@ PRIOR_EXTRA_SIGMA_g = [0.2, 2., 0.8606, 0.0388]
 MAX_ITER = 5000
 DLOGZ = 0.5
 NLIVE = 50
+
+# Numpyro parameters
+PAD_SIZE = 30
 
 # Classifier parameters
 INPUT_DROPOUT_FRAC = 0.2

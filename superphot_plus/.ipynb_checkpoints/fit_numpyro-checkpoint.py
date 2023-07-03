@@ -137,7 +137,7 @@ def run_mcmc(fn, sampler="NUTS", t0_lim=None, plot=False):
         A = max_flux * 10**numpyro.sample("logA", trunc_norm(*PRIOR_A))
         beta = numpyro.sample("beta", trunc_norm(*PRIOR_BETA))
         gamma = 10**numpyro.sample("log_gamma", trunc_norm(*PRIOR_GAMMA))
-        t0 = numpyro.sample("t0", trunc_norm(-100., 200., 0., 50.))
+        t0 = numpyro.sample("t0", trunc_norm(*PRIOR_T0))
         tau_rise = 10**numpyro.sample("log_tau_rise", trunc_norm(*PRIOR_TAU_RISE))
         tau_fall = 10**numpyro.sample("log_tau_fall", trunc_norm(*PRIOR_TAU_FALL))
         extra_sigma = 10**numpyro.sample("log_extra_sigma", trunc_norm(*PRIOR_EXTRA_SIGMA))
@@ -167,14 +167,14 @@ def run_mcmc(fn, sampler="NUTS", t0_lim=None, plot=False):
         
         phase = t - t0
         flux_const = A / (1. + jnp.exp(-phase / tau_rise))
-        sigmoid = 1 / (1 + jnp.exp(2.*(gamma - phase)))
+        sigmoid = 1 / (1 + jnp.exp(10.*(gamma - phase)))
         
         flux = flux_const * ( (1-sigmoid) * (1 - beta*phase) + sigmoid * (1 - beta*gamma) * jnp.exp(-(phase-gamma)/tau_fall) )
 
         # g band
         phase_b = (t - t0_b)[inc_band_ix]
         flux_const_b = A / (1. + jnp.exp(-phase_b / tau_rise_b))
-        sigmoid_b = 1 / (1 + jnp.exp(2.*(gamma_b-phase_b)))
+        sigmoid_b = 1 / (1 + jnp.exp(10.*(gamma_b - phase_b)))
         
         flux = flux.at[inc_band_ix].set(flux_const_b * ( (1-sigmoid_b) * (1 - beta_b*phase_b) + sigmoid_b * (1 - beta_b*gamma_b) * jnp.exp(-(phase_b-gamma_b)/tau_fall_b) ))
         
@@ -246,10 +246,10 @@ def run_mcmc(fn, sampler="NUTS", t0_lim=None, plot=False):
 
        
     if sampler == "NUTS":
-        kernel = NUTS(jax_model, init_strategy=init_to_mean)
+        kernel = NUTS(jax_model, init_strategy=init_to_uniform)
 
         num_samples = 300 
-        mcmc = MCMC(kernel, num_warmup=300, num_samples=num_samples, num_chains=1, chain_method='parallel', jit_model_args=True)
+        mcmc = MCMC(kernel, num_warmup=1000, num_samples=num_samples, num_chains=1, chain_method='parallel', jit_model_args=True)
 
         #with numpyro.validation_enabled():
         res = mcmc.run(rng_key, obsflux = fdata, t=tdata, uncertainties=ferrdata, max_flux=max_flux, inc_band_ix=inc_band_ix)
@@ -263,7 +263,7 @@ def run_mcmc(fn, sampler="NUTS", t0_lim=None, plot=False):
         posterior_samples = ns.get_samples(random.PRNGKey(3), num_samples=num_samples)
 
     elif sampler == "svi":
-        optimizer = numpyro.optim.Adam(step_size=0.01)
+        optimizer = numpyro.optim.Adam(step_size=0.001)
         svi = SVI(jax_model, jax_guide, optimizer, loss=Trace_ELBO())
         num_iter = 10000
         with numpyro.validation_enabled():
@@ -327,7 +327,20 @@ def run_mcmc(fn, sampler="NUTS", t0_lim=None, plot=False):
             plt.savefig(os.path.join(FIT_PLOTS_FOLDER, "%s_%.02f.pdf" % (prefix,t0)))
         plt.close()
 
-    return posterior_samples
+
+    param_list = ["logA", "beta", "log_gamma", "t0", "log_tau_rise", "log_tau_fall", "log_extra_sigma", \
+                  "A_g", "beta_g", "gamma_g", "t0_g", "tau_rise_g", "tau_fall_g", "extra_sigma_g"]
+
+    post_reformatted_for_save = []
+    for p in param_list:
+        if p == "logA":
+            post_reformatted_for_save.append(max_flux * 10**posterior_samples[p])
+        elif p[:3] == "log":
+            post_reformatted_for_save.append(10**posterior_samples[p])
+        else:
+            post_reformatted_for_save.append(posterior_samples[p])
+        
+    return np.array(post_reformatted_for_save).T
 
 def run_mcmc_batch(fns, t0_lim=None, plot=False):
     """
@@ -400,14 +413,14 @@ def run_mcmc_batch(fns, t0_lim=None, plot=False):
         
         phase = t - t0[:,np.newaxis]
         flux_const = A[:,np.newaxis] / (1. + jnp.exp(-phase / tau_rise[:,np.newaxis]))
-        sigmoid = 1 / (1 + jnp.exp(2.*(gamma[:,np.newaxis] - phase)))
+        sigmoid = 1 / (1 + jnp.exp(10.*(gamma[:,np.newaxis] - phase)))
         
         flux = flux_const * ( (1-sigmoid) * (1 - beta[:,np.newaxis]*phase) + sigmoid * (1 - beta[:,np.newaxis]*gamma[:,np.newaxis]) * jnp.exp(-(phase-gamma[:,np.newaxis])/tau_fall[:,np.newaxis]) )
 
         # g band
         phase_b = (t - t0_b[:,np.newaxis])[:,inc_band_ix]
         flux_const_b = A[:,np.newaxis] / (1. + jnp.exp(-phase_b / tau_rise_b[:,np.newaxis]))
-        sigmoid_b = 1 / (1 + jnp.exp(2.*(gamma_b[:,np.newaxis]-phase_b)))
+        sigmoid_b = 1 / (1 + jnp.exp(10.*(gamma_b[:,np.newaxis]-phase_b)))
         
         flux = flux.at[:,inc_band_ix].set(flux_const_b * ( (1-sigmoid_b) * (1 - beta_b[:,np.newaxis]*phase_b) + sigmoid_b * (1 - beta_b[:,np.newaxis]*gamma_b[:,np.newaxis]) * jnp.exp(-(phase_b-gamma_b[:,np.newaxis])/tau_fall_b[:,np.newaxis]) ))
         
@@ -416,7 +429,7 @@ def run_mcmc_batch(fns, t0_lim=None, plot=False):
         
         obs = numpyro.sample("obs",dist.Normal(flux, sigma_tot),obs=obsflux)
             
-    kernel = NUTS(jax_model, init_strategy=init_to_mean)
+    kernel = NUTS(jax_model, init_strategy=init_to_sample)
     num_samples = 100
     mcmc = MCMC(kernel, num_warmup=100, num_samples=num_samples, num_chains=1, chain_method='parallel') #jit_model_args=True)
     
@@ -534,10 +547,15 @@ def main_loop_directory(test_fns, output_dir=FITS_DIR):
 def numpyro_single_file(test_fn, output_dir=FITS_DIR, sampler="svi"):
     os.makedirs(output_dir, exist_ok=True)
 
-    eq_samples = run_mcmc(test_fn, sampler=sampler, plot=True)
+    eq_samples = run_mcmc(test_fn, sampler=sampler, plot=False)
 
     if eq_samples is None:
         return None
+
+    print(np.mean(eq_samples, axis=0))
+    prefix = test_fn.split("/")[-1][:-4]
+
+    np.savez_compressed(output_dir + str(prefix) + '_eqwt_%s.npz' % sampler, eq_samples)
     
     return None
 
