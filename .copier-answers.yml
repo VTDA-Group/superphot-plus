@@ -1,0 +1,15 @@
+# Changes here will be overwritten by Copier
+_commit: v1.4.0
+_src_path: gh:lincc-frameworks/python-project-template
+author_email: name@you.com
+author_name: LF
+create_example_module: true
+custom_install: true
+include_docs: false
+mypy_type_checking: none
+package_name: superphot_plus
+preferred_linter: pylint
+project_license: none
+project_name: superphot-plus
+use_gitlfs: none
+use_isort: true
