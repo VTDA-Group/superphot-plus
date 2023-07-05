@@ -14,7 +14,7 @@ classifiers = [
 ]
 dynamic = ["version"]
 dependencies = [
-    numpy
+    "numpy"
 ]
 
 # On a mac, install optional dependencies with `pip install '.[dev]'` (include the single quotes)
