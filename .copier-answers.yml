@@ -1,8 +1,8 @@
 # Changes here will be overwritten by Copier
 _commit: v1.4.0
 _src_path: gh:lincc-frameworks/python-project-template
-author_email: name@you.com
-author_name: LF
+author_email: kmd6851@psu.edu
+author_name: Kaylee de Soto
 create_example_module: true
 custom_install: true
 include_docs: false

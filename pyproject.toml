@@ -3,7 +3,7 @@ name = "superphot-plus"
 license = {file = "LICENSE"}
 readme = "README.md"
 authors = [
-    { name = "LF", email = "name@you.com" }
+    { name = "Kaylee de Soto", email = "kmd6851@psu.edu" }
 ]
 classifiers = [
     "Development Status :: 4 - Beta",
