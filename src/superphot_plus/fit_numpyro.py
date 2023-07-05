@@ -1,33 +1,37 @@
-import numpy as np
-from joblib import Parallel, delayed
+import astropy.constants as c
+import astropy.units as u
 import jax.numpy as jnp
 import matplotlib
 #matplotlib.use('AGG') 
 import matplotlib.pyplot as plt
-from scipy.integrate import cumtrapz
-import astropy.constants as c
-import astropy.units as u
-from scipy import interpolate
+import numpy as np
 import numpyro
-from numpyro.diagnostics import hpdi
 import numpyro.distributions as dist
-from numpyro.distributions import constraints
-from numpyro import handlers
-from numpyro.infer import MCMC, NUTS
-from numpyro.infer.initialization import *
 from jax import random, vmap
 from jax.config import config
+from joblib import Parallel, delayed
+from numpyro import handlers
+from numpyro.diagnostics import hpdi
+from numpyro.distributions import constraints
+from numpyro.infer import MCMC, NUTS
+from numpyro.infer.initialization import *
+from scipy import interpolate
+from scipy.integrate import cumtrapz
+
 config.update("jax_enable_x64", True)
-import arviz as az
-from astropy.cosmology import WMAP9 as cosmo
-from numpyro.infer import Predictive, SVI, Trace_ELBO
-import extinction
 import os
-#from numpyro.contrib.nested_sampling import NestedSampler
+
+import arviz as az
+import extinction
+from astropy.cosmology import WMAP9 as cosmo
+from numpyro.infer import SVI, Predictive, Trace_ELBO
 
 from constants import *
 from file_paths import *
 from utils import *
+
+#from numpyro.contrib.nested_sampling import NestedSampler
+
 
 numpyro.enable_x64()
 

@@ -1,17 +1,17 @@
-import numpy as np
-import matplotlib.pyplot as plt
 import csv
-from alerce.core import Alerce
-import corner
 
+import corner
+import matplotlib.pyplot as plt
+import numpy as np
+import torch
+from alerce.core import Alerce
 from sklearn.metrics import confusion_matrix
 from sklearn.utils.multiclass import unique_labels
-import torch
 
-from utils import *
 from constants import *
 from file_paths import *
 from format_data_ztf import *
+from utils import *
 from ztf_transient_fit import *
 
 alerce = Alerce()

@@ -1,7 +1,7 @@
-from dustmaps.sfd import SFDQuery
-from astropy.coordinates import SkyCoord
 import extinction
 import numpy as np
+from astropy.coordinates import SkyCoord
+from dustmaps.sfd import SFDQuery
 
 sfd = SFDQuery()
 

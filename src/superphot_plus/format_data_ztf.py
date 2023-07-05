@@ -1,16 +1,18 @@
-import numpy as np
-import torch
-import csv, os
-import sklearn
-from sklearn.model_selection import train_test_split, KFold, StratifiedKFold
-from imblearn.over_sampling import SMOTE, BorderlineSMOTE, SVMSMOTE
-from scipy.stats import binned_statistic
-import matplotlib.pyplot as plt
+import csv
 import glob
+import os
 
-from utils import *
+import matplotlib.pyplot as plt
+import numpy as np
+import sklearn
+import torch
+from imblearn.over_sampling import SMOTE, SVMSMOTE, BorderlineSMOTE
+from scipy.stats import binned_statistic
+from sklearn.model_selection import KFold, StratifiedKFold, train_test_split
+
 from constants import *
 from file_paths import *
+from utils import *
 
 
 def import_labels_only(input_csvs, allowed_types, fits_dir=None, redshift=False):

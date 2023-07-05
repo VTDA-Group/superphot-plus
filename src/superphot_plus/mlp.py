@@ -1,26 +1,23 @@
+import copy
+import glob
+import os
+import random
+import time
+
+import matplotlib.pyplot as plt
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 import torch.utils.data as data
-from torch.utils.data import TensorDataset, DataLoader
-
 import torchvision.transforms as transforms
+from sklearn import decomposition, manifold, metrics
+from torch.utils.data import DataLoader, TensorDataset
 
-from sklearn import metrics
-from sklearn import decomposition
-from sklearn import manifold
-import matplotlib.pyplot as plt
-import numpy as np
-
-import copy
-import random
-import time
-import glob, os
-
+from constants import *
 from file_paths import *
 from utils import *
-from constants import *
 
 
 def save_test_probabilities(name, true_label, pred_probabilities):

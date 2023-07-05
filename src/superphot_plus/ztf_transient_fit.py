@@ -1,23 +1,26 @@
+import contextlib
+import csv
+import glob
+import json
+import multiprocessing
+import os
+import shutil
+import time
+
+import joblib
+import matplotlib.pyplot as plt
 import numpy as np
 from dynesty import NestedSampler
 from dynesty import utils as dyfunc
-import matplotlib.pyplot as plt
-from scipy.stats import truncnorm
-import csv
-import json
-import shutil, os
-import glob, time
 from joblib import Parallel, delayed
-import multiprocessing
 from scipy.optimize import curve_fit
+from scipy.stats import truncnorm
+from tqdm import tqdm
 
 from constants import *
 from file_paths import *
 from utils import *
 
-import contextlib
-import joblib
-from tqdm import tqdm
 
 @contextlib.contextmanager
 def tqdm_joblib(tqdm_object):

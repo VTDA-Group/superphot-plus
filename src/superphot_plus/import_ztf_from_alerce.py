@@ -1,12 +1,15 @@
-import csv, os, glob
-import numpy as np
-from dustmaps.sfd import SFDQuery
-from astropy.coordinates import SkyCoord
-import extinction
+import csv
+import glob
+import os
 import zipfile
+
+import extinction
+import matplotlib.pyplot as plt
+import numpy as np
 from alerce.core import Alerce
 from antares_client.search import get_by_ztf_object_id
-import matplotlib.pyplot as plt
+from astropy.coordinates import SkyCoord
+from dustmaps.sfd import SFDQuery
 
 from utils import *
 

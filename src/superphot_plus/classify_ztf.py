@@ -1,12 +1,14 @@
-import numpy as np
-from format_data_ztf import *
-from plotting import *
-from file_paths import *
-from mlp import *
 import shutil
+
+import numpy as np
 from joblib import Parallel, delayed
-from ztf_transient_fit import run_mcmc, import_data
+
+from file_paths import *
+from format_data_ztf import *
+from mlp import *
+from plotting import *
 from utils import *
+from ztf_transient_fit import import_data, run_mcmc
 
 
 def adjust_log_dists(features):
