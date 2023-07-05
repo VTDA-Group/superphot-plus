@@ -250,7 +250,7 @@ def save_phase_versus_class_probs(probs_csv, data_dir):
     phase vs F1 score, phase vs each class accuracy.
     """
     model = MLP(13, 5, 128, 3) # set up empty multi-layer perceptron
-    model.load_state_dict(torch.load(TRAINED_MODEL_FN) # load trained state dict to the MLP
+    model.load_state_dict(torch.load(TRAINED_MODEL_FN)) # load trained state dict to the MLP
     
     classes_to_labels = {0: "SN Ia", 1: "SN II", 2: "SN IIn", 3: "SLSN-I", 4: "SN Ibc"} #converts the MLP classes to types
     labels_to_classes = {"SN Ia": 0, "SN II": 1, "SN IIn": 2, "SLSN-I":3, "SN Ibc": 4}

@@ -317,7 +317,7 @@ def run_mlp(train_data, valid_data, test_sample_features, test_sample_classes, t
         val_loss_arr.append(valid_loss)
         val_acc_arr.append(valid_acc)
 
-    model.load_state_dict(torch.load(os.path.join(MODEL_DIR, 'superphot-model-%s.pt' % test_sample_names[0]))
+    model.load_state_dict(torch.load(os.path.join(MODEL_DIR, 'superphot-model-%s.pt' % test_sample_names[0])))
     
     labels, pred_labels, max_probs, names = [], [], [], []
     
