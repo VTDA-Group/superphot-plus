@@ -7,7 +7,6 @@ import numpy as np
 from alerce.core import Alerce
 from sklearn.metrics import confusion_matrix
 from sklearn.utils.multiclass import unique_labels
-import torch
 
 from .constants import SMALL_SIZE, MEDIUM_SIZE, BIGGER_SIZE
 from .file_paths import CM_FOLDER
