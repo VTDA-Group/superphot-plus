@@ -55,7 +55,7 @@ def import_data(fn, t0_lim=None):
         ferr = ferr[t <= t0_lim]
         t = t[t <= t0_lim]
 
-    max_flux_loc =  t[np.argmax(f[b == "r"] - np.abs(ferr[b == "r"]))]
+    max_flux_loc =  t[b == "r"][np.argmax(f[b == "r"] - np.abs(ferr[b == "r"]))]
     
     t -= max_flux_loc # make relative
     
@@ -146,7 +146,7 @@ def run_mcmc(fn, t0_lim=None, plot=False):
         cube[0] = max_flux * 10**(trunc_gauss(cube[0], *PRIOR_A)) # log-uniform for A from 1.0x to 16x of max flux
         cube[1] = trunc_gauss(cube[1], *PRIOR_BETA) # beta UPDATED, looks more Lorentzian so widened by 1.5x
         cube[2] = 10**trunc_gauss(cube[2], *PRIOR_GAMMA) # very broad Gaussian temporary solution for gamma
-        max_flux_loc =  tdata[np.argmax(fdata[bdata == "r"] - np.abs(ferrdata[bdata == "r"]))]
+        max_flux_loc =  tdata[bdata == "r"][np.argmax(fdata[bdata == "r"] - np.abs(ferrdata[bdata == "r"]))]
         cube[3] = trunc_gauss(cube[3], np.amin(tdata) - 50., np.amax(tdata) + 50., max_flux_loc, 20.) # t0
         cube[4] = 10**(trunc_gauss(cube[4], *PRIOR_TAU_RISE)) # taurise, UPDATED
         cube[5] = 10**(trunc_gauss(cube[5], *PRIOR_TAU_FALL))# tau fall UPDATED
@@ -224,7 +224,7 @@ def run_curve_fit(fn):
         return None
     
     max_flux = np.max(fdata[bdata == "r"] - np.abs(ferrdata[bdata == "r"]))
-    max_flux_loc =  tdata[np.argmax(fdata[bdata == "r"] - np.abs(ferrdata[bdata == "r"]))]
+    max_flux_loc =  tdata[bdata == "r"][np.argmax(fdata[bdata == "r"] - np.abs(ferrdata[bdata == "r"]))]
     
     #p0 = np.array([max_flux, 0.0052, 10.**1.1391, max_flux_loc, 10**0.5990, 10**1.4296])
     bounds = ([max_flux * 10**(-0.2), 0., -2., np.amin(tdata) - 50., -1.0, 0.5], \

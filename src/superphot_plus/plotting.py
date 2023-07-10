@@ -630,7 +630,7 @@ def plot_lc_fit(ztf_name, data_dir, fit_dir, out_dir, sampling_method="dynesty")
     
     tdata, fdata, ferrdata, bdata = import_data(data_fn)
 
-    max_flux_loc =  tdata[np.argmax(fdata[bdata == "r"] - np.abs(ferrdata[bdata == "r"]))]
+    max_flux_loc =  tdata[bdata == "r"][np.argmax(fdata[bdata == "r"] - np.abs(ferrdata[bdata == "r"]))]
     
     tdata -= max_flux_loc # make relative
     

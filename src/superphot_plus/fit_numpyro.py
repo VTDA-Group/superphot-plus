@@ -66,7 +66,7 @@ def import_data(fn, t0_lim=None):
     ferr = ferr[sort_idx]
     b = b[sort_idx]
 
-    max_flux_loc =  t[np.argmax(f[b == 1] - np.abs(ferr[b == 1]))]
+    max_flux_loc =  t[b == 1][np.argmax(f[b == 1] - np.abs(ferr[b == 1]))]
     
     t -= max_flux_loc # make relative
     
