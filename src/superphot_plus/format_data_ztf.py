@@ -2,17 +2,11 @@ import csv
 import glob
 import os
 
-import matplotlib.pyplot as plt
 import numpy as np
-import sklearn
-import torch
-from imblearn.over_sampling import SMOTE, SVMSMOTE, BorderlineSMOTE
-from scipy.stats import binned_statistic
-from sklearn.model_selection import KFold, StratifiedKFold, train_test_split
+from sklearn.model_selection import StratifiedKFold, train_test_split
 
-from constants import *
-from file_paths import *
-from utils import *
+from .file_paths import FITS_DIR, DATA_DIRS
+from .utils import calculate_chi_squareds
 
 
 def import_labels_only(input_csvs, allowed_types, fits_dir=None, redshift=False):
@@ -28,13 +22,41 @@ def import_labels_only(input_csvs, allowed_types, fits_dir=None, redshift=False)
     repeat_ct = 0
     names = []
     redshifts = []
-    sn1bc_alts = ["SN Ic", "SN Ib", "SN Ic-BL", "SN Ib-Ca-rich", "SN Ib/c", \
-                 "SNIb", "SNIc", "SNIc-BL", "21", "20", "27", "26", "25"]
+    sn1bc_alts = [
+        "SN Ic",
+        "SN Ib",
+        "SN Ic-BL",
+        "SN Ib-Ca-rich",
+        "SN Ib/c",
+        "SNIb",
+        "SNIc",
+        "SNIc-BL",
+        "21",
+        "20",
+        "27",
+        "26",
+        "25",
+    ]
     snIIn_alts = ["SNIIn", "35", "SLSN-II"]
-    snIa_alts = ["SN Ia-91T-like", "SN Ia-CSM", "SN Ia-91bg-like", "SNIa", "SN Ia-91T", "SN Ia-91bg", "10", "11", "12"]
+    snIa_alts = [
+        "SN Ia-91T-like",
+        "SN Ia-CSM",
+        "SN Ia-91bg-like",
+        "SNIa",
+        "SN Ia-91T",
+        "SN Ia-91bg",
+        "10",
+        "11",
+        "12",
+    ]
     snII_alts = ["SN IIP", "SN IIL", "SNII", "SNIIP", "32", "30", "31"]
-    slsnI_alts = ["40", "SLSN",]
-    tde_alts = ["42",]
+    slsnI_alts = [
+        "40",
+        "SLSN",
+    ]
+    tde_alts = [
+        "42",
+    ]
 
     # TODO: make more compact
     for input_csv in input_csvs:
@@ -113,7 +135,12 @@ def import_features_and_labels(input_csv, allowed_types):
             feature_stddevs.append(row[16:])
             labels.append(l)
 
-    return np.array(names), np.array(feature_x).astype(float), np.array(feature_stddevs).astype(float), np.array(labels)
+    return (
+        np.array(names),
+        np.array(feature_x).astype(float),
+        np.array(feature_stddevs).astype(float),
+        np.array(labels),
+    )
 
 
 def return_names_from_med_arrays(input_csv, med_arr):
@@ -251,7 +278,7 @@ def normalize_features(features, mean=None, std=None):
         mean = features.mean(axis=-2)
     if std is None:
         std = features.std(axis=-2)
-    
+
     print(mean, std)
     return (features - mean) / std, mean, std
 
@@ -320,8 +347,19 @@ def generate_csv_subset2(orig_sn_names, new_sn_name, sn_type):
 
     train_chis = calculate_chi_squareds(sn_names, FITS_DIR, DATA_DIRS)
     print(len(train_chis), len(sn_names))
-    for e, sn_name in enumerate(sn_names):
-        train_features, train_classes, train_chis_os = oversample_using_posteriors([sn_name,],[2,], [train_chis[e],], 100)
+    for _, sn_name in enumerate(sn_names):
+        train_features, train_classes, train_chis_os = oversample_using_posteriors(
+            [
+                sn_name,
+            ],
+            [
+                2,
+            ],
+            [
+                train_chis[e],
+            ],
+            100,
+        )
         med_features = np.median(train_features, axis=0)
         med_features = np.append(med_features, np.median(train_chis_os))
 
@@ -351,7 +389,7 @@ def add_snr_to_prob_csv(probs_csv, new_csv):
                         #print(npy_array)
                     except:
                         pass
-                    
+
                 arr = npy_array['arr_0']
 
                 ferr = arr[2]
