@@ -1,3 +1,5 @@
+import os
+
 import extinction
 import numpy as np
 from astropy.coordinates import SkyCoord
@@ -13,14 +15,15 @@ def get_band_extinctions(ra, dec):
     #First look up the amount of mw dust at this location
     coords = SkyCoord(ra,dec, frame='icrs', unit="deg")
     Av_sfd = 2.742 * sfd(coords) # from https://dustmaps.readthedocs.io/en/latest/examples.html
-    
+
     # for gr, the was are:
     band_wvs = 1./ (0.0001 * np.asarray([4741.64, 6173.23])) # in inverse microns
-    
+
     #Now figure out how much the magnitude is affected by this dust
     ext_list = extinction.fm07(band_wvs, Av_sfd, unit='invum') # in magnitudes
-    
+
     return ext_list
+
 
 def get_sn_ra_dec(ztf_name, filtered_csv):
     """
@@ -33,8 +36,8 @@ def get_sn_ra_dec(ztf_name, filtered_csv):
                 ra = float(row.split(",")[2])
                 dec = float(row.split(",")[3])
                 return ra, dec
-            
-            
+
+
 def calc_accuracy(pred_classes, test_labels):
     """
     Calculates the accuracy of the random forest after predicting
@@ -102,11 +105,20 @@ def flux_model(cube, t_data, b_data):
     Given "cube" of fit parameters, returns the flux measurements for
     a given set of time and band data.
     """
-    A, beta, gamma, t0, tau_rise, tau_fall, es = cube[:7]
+    A, beta, gamma, t0, tau_rise, tau_fall, es = cube[:7] # pylint: disable=unused-variable
 
-    phase = t_data - t0    
-    f_model = A / (1. + np.exp(-phase / tau_rise)) * (1. - beta * gamma) * np.exp((gamma - phase) / tau_fall)
-    f_model[phase < gamma] = A / (1. + np.exp(-phase[phase < gamma] / tau_rise)) * (1. - beta * phase[phase < gamma])
+    phase = t_data - t0
+    f_model = (
+        A
+        / (1.0 + np.exp(-phase / tau_rise))
+        * (1.0 - beta * gamma)
+        * np.exp((gamma - phase) / tau_fall)
+    )
+    f_model[phase < gamma] = (
+        A
+        / (1.0 + np.exp(-phase[phase < gamma] / tau_rise))
+        * (1.0 - beta * phase[phase < gamma])
+    )
 
     # for secondary band
     start_idx = 7
@@ -116,15 +128,20 @@ def flux_model(cube, t_data, b_data):
     t0_b = t0 * cube[start_idx + 3]
     tau_rise_b = tau_rise * cube[start_idx + 4]
     tau_fall_b = tau_fall * cube[start_idx + 5]
-    
-    inc_band_ix = (np.array(b_data) == "g")
+
+    inc_band_ix = (np.array(b_data) == "g") # pylint: disable=superfluous-parens
     phase_b = (t_data - t0_b)[inc_band_ix]
     phase_b2 = (t_data - t0_b)[inc_band_ix & (t_data - t0_b < gamma_b)]
 
-    f_model[inc_band_ix] = A_b / (1. + np.exp(-phase_b / tau_rise_b)) \
-        * (1. - beta_b * gamma_b) * np.exp((gamma_b - phase_b) / tau_fall_b)
-    f_model[inc_band_ix & (t_data - t0_b < gamma_b)] = A_b / (1. + np.exp(-phase_b2 / tau_rise_b)) \
-        * (1. - phase_b2 * beta_b)
+    f_model[inc_band_ix] = (
+        A_b
+        / (1.0 + np.exp(-phase_b / tau_rise_b))
+        * (1.0 - beta_b * gamma_b)
+        * np.exp((gamma_b - phase_b) / tau_fall_b)
+    )
+    f_model[inc_band_ix & (t_data - t0_b < gamma_b)] = (
+        A_b / (1.0 + np.exp(-phase_b2 / tau_rise_b)) * (1.0 - phase_b2 * beta_b)
+    )
     return f_model
 
 
@@ -134,26 +151,26 @@ def calculate_chi_squareds(names, fit_dir, data_dirs):
     the model parameters and original datafiles.
     """
     log_likelihoods = []
-    for e, name in enumerate(names):
+    for _, name in enumerate(names):
         data_fn = None
-        for d in data_dirs: 
+        for d in data_dirs:
             data_fn = os.path.join(d, name + ".npz")
             if os.path.exists(data_fn):
                 break
 
         npy_array = np.load(data_fn)
         mjd, flux, flux_err, bands = npy_array['arr_0']
-        
+
         flux_err = flux_err.astype(float)
         mjd = mjd.astype(float)[~np.isnan(flux_err)]
         flux = flux.astype(float)[~np.isnan(flux_err)]
         bands = bands[~np.isnan(flux_err)]
         flux_err = flux_err[~np.isnan(flux_err)]
-        
+
         fit_fn = os.path.join(fit_dir, name +"_eqwt.npz")
         npy_array_fit = np.load(fit_fn)
         post_arr = npy_array_fit['arr_0']
-        
+
         post_med = np.median(post_arr, axis=0)
         #print(post_med)
 
@@ -161,8 +178,11 @@ def calculate_chi_squareds(names, fit_dir, data_dirs):
         extra_sigma_arr = np.ones(len(mjd)) * np.max(flux[bands == "r"]) * post_med[6]
         extra_sigma_arr[bands == "g"] *= post_med[-1]
         sigma_sq = extra_sigma_arr**2 + flux_err**2
-        
-        logL = np.sum(np.log(1. / np.sqrt(2. * np.pi * sigma_sq)) - 0.5 * (flux - model_f)**2 / sigma_sq) / len(mjd)
+
+        logL = np.sum(
+            np.log(1.0 / np.sqrt(2.0 * np.pi * sigma_sq))
+            - 0.5 * (flux - model_f) ** 2 / sigma_sq
+        ) / len(mjd)
         log_likelihoods.append(logL)
-            
+
     return np.array(log_likelihoods)

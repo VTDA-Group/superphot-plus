@@ -4,14 +4,13 @@ import os
 import zipfile
 
 import extinction
-import matplotlib.pyplot as plt
 import numpy as np
 from alerce.core import Alerce
 from antares_client.search import get_by_ztf_object_id
 from astropy.coordinates import SkyCoord
 from dustmaps.sfd import SFDQuery
 
-from utils import *
+from .utils import convert_mags_to_flux
 
 alerce = Alerce()
 MIN_PER_FILTER = 5
@@ -28,12 +27,12 @@ def add_stamp_column(fn, output_fn):
         next(csv_reader)
         for row in csv_reader:
             csv_rows.append(row)
-    
+
     print("done reading in rows")
     with open(output_fn, "w+") as new_csv:
         csv_writer = csv.writer(new_csv, delimiter=",")
         csv_writer.writerow(["NAME", "PROB", "CLASS", "STAMP"])
-        
+
     with open(output_fn, "a+") as new_csv:
         csv_writer = csv.writer(new_csv, delimiter=",")
         for row in csv_rows:
@@ -49,11 +48,10 @@ def add_stamp_column(fn, output_fn):
 
                 stamp = ((best_label == "SN") and (prob >= 0.5))
                 csv_writer.writerow([*row, stamp])
-                    
+
             except:
                 csv_writer.writerow([*row, "None"])
-        
-        
+
 
 def get_spreadsheet_diff(s1, s2, new_fn):
     """
@@ -71,7 +69,7 @@ def get_spreadsheet_diff(s1, s2, new_fn):
             else:
                 #rows_reduced.append(row)
                 names.add(name)
-    
+
     name_diff = set()
     with open(s2, "r") as s2_csv:
         csvreader = csv.reader(s2_csv)
@@ -80,20 +78,20 @@ def get_spreadsheet_diff(s1, s2, new_fn):
             if (name2 not in names) and (name2 != "Name"):
                 rows_reduced.append(row)
                 name_diff.add(name2)
-    
+
     with open(new_fn, "w") as nf:
         csvwriter = csv.writer(nf)
         #csvwriter.writerow(["NAME", "RA", "DEC", "CLASS", "Z"])
         csvwriter.writerow(["NAME", "PROB", "CLASS"])
-        
+
     with open(new_fn, "a+") as nf:
         csvwriter = csv.writer(nf)
         for row_reduced in rows_reduced:
             csvwriter.writerow(row_reduced)
-            
+
     print(name_diff)
-       
-        
+
+
 def filter_tns_all_transients(tns_csv, reduced_fn):
     """
     Filter TNS CSV by type and ZTF name.
@@ -105,14 +103,14 @@ def filter_tns_all_transients(tns_csv, reduced_fn):
     row 7 = obj type
     row 18 = name
     """
-    
+
     ras = []
     decs = []
     zs = []
     ztf_names = []
     obj_types = []
     ct = 0
-    
+
     with open(tns_csv, "r") as tc:
         csvreader = csv.reader(tc)
         next(csvreader)
@@ -126,16 +124,16 @@ def filter_tns_all_transients(tns_csv, reduced_fn):
             dec = row[4]
             names = row[18].split(",")
             """
-            
+
             obj_type = row[11]
             redshift = row[12]
             ra = row[2]
             dec = row[3]
             names = row[0].split(",")
-            
+
             if obj_type == "":
                 continue
-            
+
             ztf_name = None
             for name in names:
                 name = name.strip("'").strip()
@@ -144,40 +142,37 @@ def filter_tns_all_transients(tns_csv, reduced_fn):
                 if name[:3] == "ZTF":
                     ztf_name = name
                     break
-                    
+
             if ztf_name is None:
                 continue
-            
+
             if ra == "":
                 continue
             if dec == "":
                 continue
             if redshift == "":
                 redshift = "-1"
-                
+
             z = float(redshift)
             #ra = float(ra)
             #dec = float(dec)
-            
+
             ras.append(ra)
             decs.append(dec)
             zs.append(z)
             ztf_names.append(ztf_name)
             obj_types.append(obj_type)
-    
+
     with open(reduced_fn, "w") as rf:
         csvwriter = csv.writer(rf)
         csvwriter.writerow(["NAME", "RA", "DEC", "CLASS", "Z"])
-        
+
     with open(reduced_fn, "a+") as rf:
         csvwriter = csv.writer(rf)
         for i in range(len(ras)):
             csvwriter.writerow([ztf_names[i], ras[i], decs[i], obj_types[i], zs[i]])
-      
-            
-            
-    
-    
+
+
 def extract_all_zip_files(zip_folder):
     all_zip_files = glob.glob(zip_folder+"*.zip")
     for zf in all_zip_files:
@@ -187,7 +182,7 @@ def extract_all_zip_files(zip_folder):
             #os.remove(EXTRACT_DIR+"non_detections.csv")
             os.rename(EXTRACT_DIR+"non_detections.csv", EXTRACT_DIR+name+"_nd.csv")
             os.rename(EXTRACT_DIR+"detections.csv", EXTRACT_DIR+name+"_d.csv")
-            
+
 
 def get_all_unclassified_samples(save_csv):
     global alerce
@@ -202,19 +197,19 @@ def get_all_unclassified_samples(save_csv):
         csv_writer = csv.writer(sc, delimiter=",")
         csv_writer.writerow(["Name","Probability","Label"])
     """
-    
+
     with open(save_csv, "r") as sc:
         csv_reader = csv.reader(sc, delimiter=",")
         next(csv_reader)
         for row in csv_reader:
             repeat_names.add(row[0])
-            
+
     while True:
         print(i)
 
         while True:
             try:
-                
+
                 objs = alerce.query_objects(classifier="stamp_classifier",
                                             classifier_version="stamp_classifier_1.0.4",
                                             class_name="SN",
@@ -233,13 +228,13 @@ def get_all_unclassified_samples(save_csv):
                 break
             except:
                 pass
-        
+
         if len(objs) == 0: # finished
             return None
-        
+
         with open(save_csv, "a+") as sc:
             csv_writer = csv.writer(sc, delimiter=",")
-            
+
             for row_idx in range(len(objs)):
                 #if row_idx % 100 == 0:
                 try:
@@ -252,7 +247,7 @@ def get_all_unclassified_samples(save_csv):
                         print("REPEAT")
                         continue
                     p = alerce.query_probabilities(oid=name, format="pandas")
-                    
+
                     p_class = p[p["classifier_name"] == "stamp_classifier"]
                     prob = p_class[p_class["ranking"] == 1]["probability"].iat[0]
                     best_label = p_class[p_class["ranking"] == 1]["class_name"].iat[0]
@@ -270,13 +265,13 @@ def get_all_unclassified_samples(save_csv):
                     """
                     csv_writer.writerow([name, prob, best_label])
                     repeat_names.add(name)
-                    
+
                 except:
                     print("skipped")
                     continue
         i += 1
 
-            
+
 def get_band_extinctions(ra, dec):
     """
     Get green and red band extinctions in magnitudes for
@@ -286,14 +281,15 @@ def get_band_extinctions(ra, dec):
     #First look up the amount of mw dust at this location
     coords = SkyCoord(ra,dec, frame='icrs', unit='deg')
     Av_sfd = 2.742 * sfd(coords) # from https://dustmaps.readthedocs.io/en/latest/examples.html
-    
+
     # for gr, the was are:
     band_wvs = 1./ (0.0001 * np.asarray([4741.64, 6173.23])) # in inverse microns
-    
+
     #Now figure out how much the magnitude is affected by this dust
     ext_list = extinction.fm07(band_wvs, Av_sfd, unit='invum') # in magnitudes
-    
+
     return ext_list
+
 
 def import_lc(fn):
     """
@@ -307,18 +303,18 @@ def import_lc(fn):
     with open(fn, 'r') as csv_f:
         csvreader = csv.reader(csv_f, delimiter=',')
         row_intro = next(csvreader)
-        
+
         ra_idx = row_intro.index("ra")
         dec_idx = row_intro.index("dec")
         b_idx = row_intro.index("fid")
         f_idx = row_intro.index("magpsf")
         ferr_idx = row_intro.index("sigmapsf")
-        
+
         flux = []
         flux_err = []
         mjd = []
         bands = []
-        
+
         for row in csvreader:
 
             if ra is None:
@@ -352,11 +348,11 @@ def import_lc(fn):
     m = m[merr != np.nan]
     b = b[merr != np.nan]
     merr = merr[merr != np.nan]
-    
+
     f, ferr = convert_mags_to_flux(m, merr, 26.3)
     t, f, ferr, b = clip_lightcurve_end(t, f, ferr, b)
     snr = np.abs(f / ferr)
-    
+
     for band in ["g", "r"]:
         #print(len(snr[(snr > 3.) & (b == band)]))
         if len(snr[(snr > 3.) & (b == band)]) < 5: # not enough good datapoints
@@ -372,18 +368,18 @@ def clip_lightcurve_end(times, fluxes, fluxerrs, bands):
     Clip end of lightcurve with approx. 0 slope.
     Checks from back to max of lightcurve.
     """
-    def line_fit(x, a, b):
+    def line_fit(x, a, b): # pylint: disable=unused-variable
         return a*x + b
-    
+
     t_clip, flux_clip, ferr_clip, b_clip = [], [], [], []
     for b in ["g", "r"]:
-        idx_b = (bands == b)
+        idx_b = bands == b
         t_b, f_b, ferr_b = times[idx_b], fluxes[idx_b], fluxerrs[idx_b]
         if len(f_b) == 0:
             continue
         end_i = len(t_b) - np.argmax(f_b)
         num_to_cut = 0
-        
+
         m_cutoff = 0.2 * np.abs((f_b[-1] - np.amax(f_b)) / (t_b[-1] - t_b[np.argmax(f_b)]))
 
         for i in range(2, end_i):
@@ -392,7 +388,7 @@ def clip_lightcurve_end(times, fluxes, fluxerrs, bands):
 
             if np.abs(m) < m_cutoff:
                 num_to_cut = i
-                
+
         if num_to_cut > 0:
             print("LC SNIPPED")
             t_clip.extend(t_b[:-num_to_cut])
@@ -404,16 +400,16 @@ def clip_lightcurve_end(times, fluxes, fluxerrs, bands):
             flux_clip.extend(f_b)
             ferr_clip.extend(ferr_b)
             b_clip.extend([b] * len(f_b))
-            
+
     return np.array(t_clip), np.array(flux_clip), np.array(ferr_clip), np.array(b_clip)
 
 
 def save_new_datafiles():
-    
+
     with open(OUTPUT_CSV, "w+") as csv_file:
         writer = csv.writer(csv_file, delimiter=',')
         writer.writerow(["Name", "Label", "Redshift"])
-            
+
     label_dict = {}
     with open(CSV_FILE, 'r') as csv_f:
         csvreader = csv.reader(csv_f, delimiter=",", skipinitialspace=True)
@@ -439,7 +435,7 @@ def save_new_datafiles():
                 redshift = -1
             print(name)
             data_fn = DATA_FOLDER + name + ".csv"
-            t, f, ferr, b, ra, dec = import_lc(data_fn)
+            t, f, ferr, b, ra, dec = import_lc(data_fn) # pylint: disable=unused-variable
             print(t)
             if t is not None:
                 save_datafile(name, t, f, ferr, b, OUTPUT_FOLDER)
@@ -451,8 +447,8 @@ def save_new_datafiles():
 
     for l in label_dict:
         print(l, label_dict[l])
-                    
-                    
+
+
 def save_datafile(name, t, f, ferr, b, save_dir):
     """
     Save reformatted version of datafile to
@@ -461,7 +457,8 @@ def save_datafile(name, t, f, ferr, b, save_dir):
     arr = np.array([t, f, ferr, b])
     print(arr[:,0])
     np.savez_compressed(save_dir + str(name) + '.npz', arr)
-    
+
+
 def add_to_new_csv(name, label, redshift):
     """
     Add row to CSV of included files for
@@ -472,13 +469,13 @@ def add_to_new_csv(name, label, redshift):
         writer = csv.writer(csv_file, delimiter=',')
         writer.writerow([name, label, redshift])
 
-        
+
 def make_master_csv(CSV_DIR, master_csv_name):
     """
     Check through entire TNS SN-classified database.
     Tally count of each category.
     """
-    
+
     cat_dict = {}
     csv_arr = []
     for csv_file in glob.glob(CSV_DIR+"/*.csv"):
@@ -497,18 +494,19 @@ def make_master_csv(CSV_DIR, master_csv_name):
                     cat_dict[sn_type] = 1
                 else:
                     cat_dict[sn_type] += 1
-                    
+
                 ra = row[2]
                 dec = row[3]
                 z = row[5]
-                
+
                 csv_arr.append([ztf_name, ra, dec, sn_type, z])
-                
+
     print(cat_dict)
     csv_arr = np.array(csv_arr)
     with open(master_csv_name, "w+") as mc:
         csvwriter = csv.writer(mc, delimiter=",", skipinitialspace=True)
         csvwriter.writerows(csv_arr)
+
 
 def generate_flux_files(master_csv, save_folder):
     """
@@ -530,7 +528,8 @@ def generate_flux_files(master_csv, save_folder):
                 detections.to_csv(os.path.join(save_folder, ztf_name+".csv"), index=False)
             except:
                 continue
-                
+
+
 def generate_files_from_antares():
     """
     Uses ANTARES API to generate flux files for all ZTF
@@ -539,7 +538,7 @@ def generate_files_from_antares():
     with open(OUTPUT_CSV, "w+") as csv_file:
         writer = csv.writer(csv_file, delimiter=',')
         writer.writerow(["Name", "Label", "Redshift"])
-            
+
     label_dict = {}
     #os.makedirs(save_folder, exist_ok=True)
     with open(CSV_FILE, "r") as mc:
@@ -553,10 +552,21 @@ def generate_files_from_antares():
                 print(ztf_name)
                 # Getting detections for an object
                 locus = get_by_ztf_object_id(ztf_name)
-                ts = locus.timeseries[['ant_mjd','ztf_magpsf','ztf_sigmapsf', 'ztf_fid', 'ant_ra', 'ant_dec', 'ztf_magzpsci']]
+                ts = locus.timeseries[
+                    [
+                        "ant_mjd",
+                        "ztf_magpsf",
+                        "ztf_sigmapsf",
+                        "ztf_fid",
+                        "ant_ra",
+                        "ant_dec",
+                        "ztf_magzpsci",
+                    ]
+                ]
+
             except:
                 continue
-            
+
             label = row[3]
             print(label)
             try:
@@ -575,26 +585,26 @@ def generate_files_from_antares():
                 continue
             m[b == "r"] -= r_ext
             m[b == "g"] -= g_ext
-            
+
             valid_idx = ~np.isnan(merr) & ~np.isnan(zp)
             t = t[valid_idx]
             m = m[valid_idx]
             b = b[valid_idx]
             zp = zp[valid_idx]
             merr = merr[valid_idx]
-            
+
             f, ferr = convert_mags_to_flux(m, merr, zp)
             #print(f, ferr)
             t, f, ferr, b = clip_lightcurve_end(t, f, ferr, b)
             #print(f, ferr)
             snr = np.abs(f / ferr)
-    
+
             if len(snr[(snr > 3.) & (b == "g")]) < 5: # not enough good datapoints
                 print("snr too low")
                 continue
             if (np.max(f[b == "g"]) - np.min(f[b == "g"])) < 3. * np.mean(ferr[b == "g"]):
                 continue
-                
+
             if len(snr[(snr > 3.) & (b == "r")]) < 5: # not enough good datapoints
                 print("snr too low")
                 continue
@@ -607,11 +617,11 @@ def generate_files_from_antares():
                 label_dict[label] += 1
             else:
                 label_dict[label] = 1
-                
+
     for l in label_dict:
         print(l, label_dict[l])
-            
-                
+
+
 def generate_single_flux_file(ztf_name, save_folder):
     """
     Uses ALeRCE's API to generate flux files for all ZTF
@@ -624,13 +634,3 @@ def generate_single_flux_file(ztf_name, save_folder):
     detections = alerce.query_detections(ztf_name, format="pandas")
     print(os.path.join(save_folder, ztf_name+".csv"))
     detections.to_csv(os.path.join(save_folder, ztf_name+".csv"), index=False)
-
-
-
-def main():
-    pass
-
-if __name__ == "__main__":
-    main()
-            
-                

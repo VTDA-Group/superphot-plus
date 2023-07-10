@@ -1,5 +1,3 @@
-import glob
-
 FITS_DIR = "/storage/group/vav5084/default/superphot+/dynesty_fits_unclassified_5_9_2023/"
 DATA_DIRS = ["/storage/group/vav5084/default/superphot+/data_reformatted_05_09_2023",]
 input_csvs = ["../data/training_set_combined_05_09_2023.csv"]
