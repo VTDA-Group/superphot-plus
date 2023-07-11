@@ -11,6 +11,7 @@ from sklearn.utils.multiclass import unique_labels
 from .constants import SMALL_SIZE, MEDIUM_SIZE, BIGGER_SIZE
 from .file_paths import CM_FOLDER
 from .format_data_ztf import oversample_using_posteriors, import_labels_only
+from .import_ztf_from_alerce import import_lc, clip_lightcurve_end
 from .utils import calc_accuracy, f1_score, flux_model
 from .ztf_transient_fit import import_data
 

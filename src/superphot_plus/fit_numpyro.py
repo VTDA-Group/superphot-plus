@@ -15,11 +15,6 @@ from numpyro.infer.initialization import init_to_uniform
 
 from .constants import *
 from .file_paths import FIT_PLOTS_FOLDER, FITS_DIR
-#from utils import *
-
-#matplotlib.use('AGG')
-#from numpyro.infer.initialization import *
-#from scipy import interpolate
 
 config.update("jax_enable_x64", True)
 numpyro.enable_x64()
@@ -112,14 +107,14 @@ def run_mcmc(fn, sampler="NUTS", t0_lim=None, plot=False):
     set of equally weighted posteriors (sets of fit parameters).
     """
     rng_key = random.PRNGKey(4)
-    rng_key, rng_key_ = random.split(rng_key)
+    rng_key, rng_key_ = random.split(rng_key) # pylint: disable=unused-variable
 
-    ref_band_idx = 1 # red band
+    ref_band_idx = 1 # red band # pylint: disable=unused-variable
 
     #prefix = fn.split("/")[-1][:-4]
 
     #print(prefix)
-    n_params = 14
+    n_params = 14 # pylint: disable=unused-variable
 
     prefix = fn.split("/")[-1][:-4]
     tdata, fdata, ferrdata, bdata = import_data(fn, t0_lim)
@@ -157,7 +152,7 @@ def run_mcmc(fn, sampler="NUTS", t0_lim=None, plot=False):
         tau_fall_g = numpyro.param("tau_fall_g", 1.)
         extra_sigma_g = numpyro.param("extra_sigma_g", 1.)
         """
-        A_b = A * A_g
+        A_b = A * A_g # pylint: disable=unused-variable
         beta_b = beta * beta_g
         gamma_b = gamma * gamma_g
         t0_b = t0 * t0_g
@@ -195,11 +190,11 @@ def run_mcmc(fn, sampler="NUTS", t0_lim=None, plot=False):
             )
         )
 
-        obs = numpyro.sample("obs",dist.Normal(flux, sigma_tot),obs=obsflux)
+        obs = numpyro.sample("obs",dist.Normal(flux, sigma_tot),obs=obsflux) # pylint: disable=unused-variable
 
 
     def jax_guide(
-        t=None, obsflux=None, uncertainties=None, max_flux=None, inc_band_ix=None
+        t=None, obsflux=None, uncertainties=None, max_flux=None, inc_band_ix=None # pylint: disable=unused-variable
     ):
         logA_mu = numpyro.param(
             "logA_mu",
@@ -355,7 +350,7 @@ def run_mcmc(fn, sampler="NUTS", t0_lim=None, plot=False):
         )
 
         #with numpyro.validation_enabled():
-        res = mcmc.run(
+        res = mcmc.run( # pylint: disable=unused-variable
             rng_key,
             obsflux=fdata,
             t=tdata,
@@ -523,14 +518,14 @@ def run_mcmc_batch(fns, t0_lim=None, plot=False):
     set of equally weighted posteriors (sets of fit parameters).
     """
     rng_key = random.PRNGKey(4)
-    rng_key, rng_key_ = random.split(rng_key)
+    rng_key, rng_key_ = random.split(rng_key) # pylint: disable=unused-variable
 
-    ref_band_idx = 1 # red band
+    ref_band_idx = 1 # red band # pylint: disable=unused-variable
 
     #prefix = fn.split("/")[-1][:-4]
 
     #print(prefix)
-    n_params = 14
+    n_params = 14 # pylint: disable=unused-variable
 
     tdata_stacked = []
     fdata_stacked = []
@@ -563,7 +558,7 @@ def run_mcmc_batch(fns, t0_lim=None, plot=False):
     def jax_model(
         t=None, obsflux=None, uncertainties=None, max_flux=None, inc_band_ix=None
     ):
-        with numpyro.plate('components', N) as sn_index:
+        with numpyro.plate('components', N) as sn_index: # pylint: disable=unused-variable
             A = max_flux * 10**numpyro.sample("logA", trunc_norm(*PRIOR_A))
             beta = numpyro.sample("beta", trunc_norm(*PRIOR_BETA))
             gamma = 10**numpyro.sample("log_gamma", trunc_norm(*PRIOR_GAMMA))
@@ -580,7 +575,7 @@ def run_mcmc_batch(fns, t0_lim=None, plot=False):
             tau_fall_g = numpyro.sample("tau_fall_g", trunc_norm(*PRIOR_TAU_FALL_g))
             extra_sigma_g = numpyro.sample("extra_sigma_g", trunc_norm(*PRIOR_EXTRA_SIGMA_g))
 
-        A_b = A * A_g
+        A_b = A * A_g # pylint: disable=unused-variable
         beta_b = beta * beta_g
         gamma_b = gamma * gamma_g
         t0_b = t0 * t0_g
@@ -627,7 +622,7 @@ def run_mcmc_batch(fns, t0_lim=None, plot=False):
             )
         )
 
-        obs = numpyro.sample("obs", dist.Normal(flux, sigma_tot), obs=obsflux)
+        obs = numpyro.sample("obs", dist.Normal(flux, sigma_tot), obs=obsflux) # pylint: disable=unused-variable
 
     kernel = NUTS(jax_model, init_strategy=init_to_sample)
     num_samples = 100
@@ -640,7 +635,7 @@ def run_mcmc_batch(fns, t0_lim=None, plot=False):
     )  # jit_model_args=True)
 
     #with numpyro.validation_enabled():
-    res = mcmc.run(
+    res = mcmc.run( # pylint: disable=unused-variable
         rng_key,
         obsflux=fdata_stacked,
         t=tdata_stacked,
@@ -672,7 +667,7 @@ def run_mcmc_batch(fns, t0_lim=None, plot=False):
     for p in posterior_samples:
         post_reformatted[p] = np.array([posterior_samples[p],])
 
-    az.plot_trace(post_reformatted, compact=True);
+    az.plot_trace(post_reformatted, compact=True)
     plt.savefig('test_trace.png')
     plt.close()
 
@@ -752,17 +747,17 @@ def flux_from_posteriors(t, params, max_flux):
     gamma = 10**log_gamma
     tau_rise = 10**log_tau_rise
     tau_fall = 10**log_tau_fall
-    extra_sigma = 10**log_extra_sigma
+    extra_sigma = 10**log_extra_sigma # pylint: disable=unused-variable
 
     A_g, beta_g, gamma_g = params['A_g'], params['beta_g'], params['gamma_g']
-    t0_g, tau_rise_g, tau_fall_g, extra_sigma_g = (
+    t0_g, tau_rise_g, tau_fall_g, extra_sigma_g = ( # pylint: disable=unused-variable
         params["t0_g"],
         params["tau_rise_g"],
         params["tau_fall_g"],
         params["extra_sigma_g"],
     )
 
-    A_b = A * A_g
+    A_b = A * A_g # pylint: disable=unused-variable
     beta_b = beta * beta_g
     gamma_b = gamma * gamma_g
     t0_b = t0 * t0_g

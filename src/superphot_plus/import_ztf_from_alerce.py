@@ -430,7 +430,7 @@ def save_new_datafiles():
             try:
                 #redshift = float(row[12].strip())
                 #redshift = float(row[4].strip())
-                redshift = -1
+                redshift = -1 # pylint: disable=unused-variable
             except:
                 redshift = -1
             print(name)

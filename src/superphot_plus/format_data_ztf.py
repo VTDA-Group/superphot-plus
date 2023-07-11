@@ -145,7 +145,7 @@ def import_features_and_labels(input_csv, allowed_types):
 
 def return_names_from_med_arrays(input_csv, med_arr):
 
-    names = [""] * len(med_arr)
+    names = [""] * len(med_arr) # pylint: disable=unused-variable
 
     t_0_expected = med_arr[3]
     best_diff = np.inf
@@ -348,7 +348,7 @@ def generate_csv_subset2(orig_sn_names, new_sn_name, sn_type):
     train_chis = calculate_chi_squareds(sn_names, FITS_DIR, DATA_DIRS)
     print(len(train_chis), len(sn_names))
     for _, sn_name in enumerate(sn_names):
-        train_features, train_classes, train_chis_os = oversample_using_posteriors(
+        train_features, train_classes, train_chis_os = oversample_using_posteriors( # pylint: disable=unused-variable
             [
                 sn_name,
             ],
