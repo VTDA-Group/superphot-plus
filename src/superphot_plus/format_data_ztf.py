@@ -349,16 +349,7 @@ def generate_csv_subset2(orig_sn_names, new_sn_name, sn_type):
     print(len(train_chis), len(sn_names))
     for _, sn_name in enumerate(sn_names):
         train_features, train_classes, train_chis_os = oversample_using_posteriors( # pylint: disable=unused-variable
-            [
-                sn_name,
-            ],
-            [
-                2,
-            ],
-            [
-                train_chis[e],
-            ],
-            100,
+            [sn_name,], [2,], [train_chis[e],], 100
         )
         med_features = np.median(train_features, axis=0)
         med_features = np.append(med_features, np.median(train_chis_os))

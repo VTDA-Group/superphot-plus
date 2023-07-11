@@ -10,7 +10,7 @@ from dynesty import utils as dyfunc
 from scipy.optimize import curve_fit
 from scipy.stats import truncnorm
 
-from .constants import * # star import used due to large quantity of items imported
+from .constants import * # pylint: disable=wildcard-import
 from .file_paths import FIT_PLOTS_FOLDER
 
 

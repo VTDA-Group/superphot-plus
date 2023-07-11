@@ -7,7 +7,7 @@ from joblib import Parallel, delayed
 import torch
 
 from .constants import NUM_FOLDS, MEANS_TRAINED_MODEL, STDDEVS_TRAINED_MODEL
-from .file_paths import * # star import used due to large quantity of items imported
+from .file_paths import * # pylint: disable=wildcard-import
 from .format_data_ztf import (
     import_labels_only,
     tally_each_class,
@@ -303,8 +303,7 @@ def return_new_classifications(test_csv, data_dirs, fit_dir, include_labels=Fals
                 test_features, MEANS_TRAINED_MODEL, STDDEVS_TRAINED_MODEL
             )
             test_data = torch.utils.data.TensorDataset(torch.Tensor(test_features))
-            test_iterator = torch.utils.data.DataLoader(test_data,
-                                        batch_size=32)
+            test_iterator = torch.utils.data.DataLoader(test_data, batch_size=32)
             images, probs = get_predictions_new(model, test_iterator, 'cpu') # pylint: disable=unused-variable
             probs_avg = np.mean(probs.numpy(), axis=0)
             if include_labels:
@@ -369,8 +368,7 @@ def save_phase_versus_class_probs(probs_csv, data_dir):
                     test_features, MEANS_TRAINED_MODEL, STDDEVS_TRAINED_MODEL
                 )
                 test_data = torch.utils.data.TensorDataset(torch.Tensor(test_features))
-                test_iterator = torch.utils.data.DataLoader(test_data,
-                                            batch_size=32)
+                test_iterator = torch.utils.data.DataLoader(test_data, batch_size=32)
                 images, probs = get_predictions_new(model, test_iterator, 'cpu') # pylint: disable=unused-variable
                 probs_avg = np.mean(probs.numpy(), axis=0)
                 #idx_random = np.random.choice(np.arange(len(probs)))

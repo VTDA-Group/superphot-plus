@@ -13,7 +13,7 @@ from numpyro.distributions import constraints
 from numpyro.infer import MCMC, NUTS, SVI, Trace_ELBO
 from numpyro.infer.initialization import init_to_uniform
 
-from .constants import *
+from .constants import * # pylint: disable=wildcard-import
 from .file_paths import FIT_PLOTS_FOLDER, FITS_DIR
 
 config.update("jax_enable_x64", True)
