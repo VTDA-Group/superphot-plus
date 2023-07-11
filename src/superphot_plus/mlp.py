@@ -11,14 +11,7 @@ import torch.optim as optim
 import torch.utils.data as data
 from torch.utils.data import TensorDataset
 
-from .constants import (
-    INPUT_DROPOUT_FRAC,
-    HIDDEN_DROPOUT_FRAC,
-    EPOCHS,
-    SEED,
-    BATCH_SIZE,
-    LEARNING_RATE,
-)
+from .constants import * # star import used due to large quantity of items imported
 from .file_paths import PROBS_FILE, PROBS_FILE2, MODEL_DIR, METRICS_DIR
 
 

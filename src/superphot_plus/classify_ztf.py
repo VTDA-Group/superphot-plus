@@ -7,15 +7,7 @@ from joblib import Parallel, delayed
 import torch
 
 from .constants import NUM_FOLDS, MEANS_TRAINED_MODEL, STDDEVS_TRAINED_MODEL
-from .file_paths import (
-    CM_FOLDER,
-    input_csvs,
-    FITS_DIR,
-    DATA_DIRS,
-    FIT_PLOTS_FOLDER,
-    WRONGLY_CLASSIFIED_FOLDER,
-    CLASSIFY_LOG_FILE,
-)
+from .file_paths import * # star import used due to large quantity of items imported
 from .format_data_ztf import (
     import_labels_only,
     tally_each_class,
