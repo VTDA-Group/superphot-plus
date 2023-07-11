@@ -141,3 +141,6 @@ tmp/
 
 # macOS
 .DS_Store
+
+# Notebook outputs
+src/examples/outputs/*

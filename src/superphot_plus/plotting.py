@@ -1,18 +1,19 @@
-import numpy as np
-import matplotlib.pyplot as plt
 import csv
-from alerce.core import Alerce
-import corner
+import os
 
+import corner
+import matplotlib.pyplot as plt
+import numpy as np
+from alerce.core import Alerce
 from sklearn.metrics import confusion_matrix
 from sklearn.utils.multiclass import unique_labels
-import torch
 
-from utils import *
-from constants import *
-from file_paths import *
-from format_data_ztf import *
-from ztf_transient_fit import *
+from .constants import SMALL_SIZE, MEDIUM_SIZE, BIGGER_SIZE
+from .file_paths import CM_FOLDER
+from .format_data_ztf import oversample_using_posteriors, import_labels_only
+from .import_ztf_from_alerce import import_lc, clip_lightcurve_end
+from .utils import calc_accuracy, f1_score, flux_model
+from .ztf_transient_fit import import_data
 
 alerce = Alerce()
 
@@ -53,7 +54,7 @@ def plot_high_confidence_confusion_matrix(probs_csv,
                           filename+"_p.pdf",
                           purity=True)
 
-    
+
 def plot_snIa_confusion_matrix(probs_csv,
                               filename, p07=False):
     """
@@ -73,12 +74,12 @@ def plot_snIa_confusion_matrix(probs_csv,
             else:
                 true_classes.append(1)
             snIa_prob = float(row[2])
-            sncc_prob = float(row[3]) + float(row[4]) + float(row[5]) + float(row[6])
+            sncc_prob = float(row[3]) + float(row[4]) + float(row[5]) + float(row[6]) # pylint: disable=unused-variable
             if snIa_prob > 0.5:
                 pred_classes.append(0)
             else:
                 pred_classes.append(1)
-    
+
     true_labels = [classes_to_labels[x] for x in true_classes]
     pred_labels = [classes_to_labels[x] for x in pred_classes]
     plot_confusion_matrix(true_labels,
@@ -89,8 +90,8 @@ def plot_snIa_confusion_matrix(probs_csv,
                           pred_labels,
                           filename+"_p.pdf",
                           purity=True)
-    
-    
+
+
 def get_pred_class(ztf_name, reflect_style=False):
     """
     Get alerce probabilities corresponding to the
@@ -101,7 +102,12 @@ def get_pred_class(ztf_name, reflect_style=False):
     o_transient = o[o["classifier_name"] == "lc_classifier_transient"]
     label = o_transient[o_transient["ranking"] == 1]["class_name"].iat[0]
     if reflect_style:
-        label_reflect_style = {"SNII": "SN II", "SNIa": "SN Ia", "SLSN": "SLSN-I", "SNIbc": "SN Ibc"}
+        label_reflect_style = {
+            "SNII": "SN II",
+            "SNIa": "SN Ia",
+            "SLSN": "SLSN-I",
+            "SNIbc": "SN Ibc",
+        }
         return label_reflect_style[label]
     return label
 
@@ -131,7 +137,18 @@ def plot_alerce_confusion_matrix(probs_csv,
                 true_classes.append(1)
             else:
                 true_classes.append(int(row[1][-2]))
-            pred_index = np.argmax(np.array([float(row[2]), float(row[3]) + float(row[4]), 0., float(row[5]), float(row[6])]))
+
+            pred_index = np.argmax(
+                np.array(
+                    [
+                        float(row[2]),
+                        float(row[3]) + float(row[4]),
+                        0.0,
+                        float(row[5]),
+                        float(row[6]),
+                    ]
+                )
+            )
             pred_classes.append(pred_index)
             #pred_classes.append(pred_class)
             print(e)
@@ -148,8 +165,8 @@ def plot_alerce_confusion_matrix(probs_csv,
                           filename+"_p.pdf",
                           purity=True,
                           cmap=plt.cm.Reds)
-    
-    
+
+
 def plot_agreement_matrix(probs_csv, filename):
     """
     Plot agreement matrix between ALeRCE and Superphot+ classifications.
@@ -167,16 +184,26 @@ def plot_agreement_matrix(probs_csv, filename):
             except:
                 print(name, " skipped")
                 continue
-            pred_index = np.argmax(np.array([float(row[-5]), float(row[-4]) + float(row[-3]), 0., float(row[-2]), float(row[-1])]))
+            pred_index = np.argmax(
+                np.array(
+                    [
+                        float(row[-5]),
+                        float(row[-4]) + float(row[-3]),
+                        0.0,
+                        float(row[-2]),
+                        float(row[-1]),
+                    ]
+                )
+            )
             alerce_preds.append(alerce_pred)
             pred_classes.append(pred_index)
     pred_labels = [classes_to_labels[x] for x in pred_classes]
-    
+
     plot_agreement_matrix_from_arrs(pred_labels,
                           alerce_preds,
                           filename)
 
-    
+
 def plot_expected_agreement_matrix(probs_csv, filename, cmap=plt.cm.Purples):
     """
     Plots the expected agreement matrix based on independent ALERCE and Superphot+ CM's.
@@ -184,7 +211,7 @@ def plot_expected_agreement_matrix(probs_csv, filename, cmap=plt.cm.Purples):
     classes_to_labels = {0: "SN Ia", 1: "SN II", 2: "SN IIn", 3: "SLSN-I", 4: "SN Ibc"}
     pred_classes = []
     alerce_preds = []
-    
+
     true_classes = []
     with open(probs_csv, "r") as csvfile:
         csvreader = csv.reader(csvfile)
@@ -200,32 +227,43 @@ def plot_expected_agreement_matrix(probs_csv, filename, cmap=plt.cm.Purples):
                 true_classes.append(1)
             else:
                 true_classes.append(int(row[1][-2]))
-            pred_index = np.argmax(np.array([float(row[2]), float(row[3]) + float(row[4]), 0., float(row[5]), float(row[6])]))
+
+            pred_index = np.argmax(
+                np.array(
+                    [
+                        float(row[2]),
+                        float(row[3]) + float(row[4]),
+                        0.0,
+                        float(row[5]),
+                        float(row[6]),
+                    ]
+                )
+            )
             alerce_preds.append(alerce_pred)
             pred_classes.append(pred_index)
     pred_labels = [classes_to_labels[x] for x in pred_classes]
     true_labels = [classes_to_labels[x] for x in true_classes]
-    
+
     cm_purity = confusion_matrix(true_labels, pred_labels, normalize='pred')
-    
+
     cm_complete = confusion_matrix(true_labels, alerce_preds, normalize='true')
-    
+
     cm = cm_purity.T @ cm_complete
     classes = unique_labels(alerce_preds, pred_labels)
-    
+
     alerce_preds = np.array(alerce_preds)
-    
+
     exp_acc = 0
     # calculate agreement score
     for i, c in enumerate(classes):
         num_in_class = len(alerce_preds[alerce_preds == c])
         exp_acc += num_in_class * cm[i,i]
-    
+
     exp_acc /= len(alerce_preds)
-    
+
     title = r"Expected Agreement Matrix, Spec. ($A' = %.2f$)" % exp_acc
     fig, ax = plt.subplots()
-    im = ax.imshow(cm, interpolation='nearest', vmin=0., vmax=1.,cmap=cmap)
+    im = ax.imshow(cm, interpolation='nearest', vmin=0., vmax=1.,cmap=cmap) # pylint: disable=unused-variable
     #ax.figure.colorbar(im, ax=ax)
     # We want to show all ticks...
     ax.set(xticks=np.arange(cm.shape[1]),
@@ -253,8 +291,8 @@ def plot_expected_agreement_matrix(probs_csv, filename, cmap=plt.cm.Purples):
     plt.ylim(len(classes)-0.5, -0.5)
     plt.savefig(os.path.join(CM_FOLDER, filename))
     plt.close()
-    
-    
+
+
 def plot_agreement_matrix_from_arrs(our_labels, alerce_labels, filename, cmap=plt.cm.Purples):
     """
     Helper function to plot agreement matrices.
@@ -264,12 +302,12 @@ def plot_agreement_matrix_from_arrs(our_labels, alerce_labels, filename, cmap=pl
 
     alerce_labels = np.array(alerce_labels)
     our_labels = np.array(our_labels)
-    
+
     exp_acc = calc_accuracy(alerce_labels, our_labels)
     title = r"True Agreement Matrix, Spec. ($A' = %.2f$)" % exp_acc
     fig, ax = plt.subplots()
-    im = ax.imshow(cm, interpolation='nearest', vmin=0., vmax=1.,cmap=cmap)
-    
+    im = ax.imshow(cm, interpolation='nearest', vmin=0., vmax=1.,cmap=cmap) # pylint: disable=unused-variable
+
     ax.set(xticks=np.arange(cm.shape[1]),
            yticks=np.arange(cm.shape[0]),
            # ... and label them with the respective list entries
@@ -283,7 +321,7 @@ def plot_agreement_matrix_from_arrs(our_labels, alerce_labels, filename, cmap=pl
              rotation_mode="anchor")
 
     # Loop over data dimensions and create text annotations.
-    fmt = '.2f'
+    fmt = '.2f' # pylint: disable=unused-variable
     thresh = cm.max() / 2.
     for i in range(cm.shape[0]):
         for j in range(cm.shape[1]):
@@ -300,12 +338,12 @@ def plot_agreement_matrix_from_arrs(our_labels, alerce_labels, filename, cmap=pl
     plt.savefig(os.path.join(CM_FOLDER, filename))
     plt.close()
 
-    
+
 def save_class_fractions(spec_probs_csv, phot_probs_csv, save_fn):
     """
     Return class fractions from spectroscopic, photometric, and corrected photometric.
     """
-    classes_to_labels = {0: "SN Ia", 1: "SN II", 2: "SN IIn", 3: "SLSN-I", 4: "SN Ibc"}
+    classes_to_labels = {0: "SN Ia", 1: "SN II", 2: "SN IIn", 3: "SLSN-I", 4: "SN Ibc"} # pylint: disable=unused-variable
     label_to_class = {"SN Ia": 0, "SN II": 1, "SN IIn": 2, "SLSN-I": 3, "SN Ibc": 4}
     true_classes = []
     pred_classes = []
@@ -313,7 +351,7 @@ def save_class_fractions(spec_probs_csv, phot_probs_csv, save_fn):
     alerce_preds = []
     alerce_preds_spec = []
     true_classes_alerce = []
-    
+
     ct = 0
     with open(spec_probs_csv, "r") as csvfile:
         csvreader = csv.reader(csvfile)
@@ -332,7 +370,7 @@ def save_class_fractions(spec_probs_csv, phot_probs_csv, save_fn):
             else:
                 true_classes_alerce.append(l)
             pred_classes_spec.append(np.argmax(np.array(row[2:])))
-            
+
     with open(phot_probs_csv, "r") as csvfile:
         csvreader = csv.reader(csvfile)
         for e, row in enumerate(csvreader):
@@ -348,18 +386,24 @@ def save_class_fractions(spec_probs_csv, phot_probs_csv, save_fn):
                 continue
             alerce_preds.append(alerce_pred)
             pred_classes.append(np.argmax(np.array(row[2:])))
-            
+
     true_classes = np.array(true_classes)
     pred_classes = np.array(pred_classes)
     alerce_preds = np.array(alerce_preds)
-    
+
     cm_p = confusion_matrix(true_classes,pred_classes_spec, normalize='pred')
     cm_p_alerce = confusion_matrix(true_classes_alerce,alerce_preds_spec, normalize='pred')
 
-    true_fracs = np.array([len(true_classes[true_classes == i]) / len(true_classes) for i in range(5)])
-    pred_fracs = np.array([len(pred_classes[pred_classes == i]) / len(pred_classes) for i in range(5)])
-    alerce_fracs = np.array([len(alerce_preds[alerce_preds == i]) / len(alerce_preds) for i in range(5)])
-    
+    true_fracs = np.array(
+        [len(true_classes[true_classes == i]) / len(true_classes) for i in range(5)]
+    )
+    pred_fracs = np.array(
+        [len(pred_classes[pred_classes == i]) / len(pred_classes) for i in range(5)]
+    )
+    alerce_fracs = np.array(
+        [len(alerce_preds[alerce_preds == i]) / len(alerce_preds) for i in range(5)]
+    )
+
     pred_fracs_corr = []
     alerce_fracs_corr = []
     for i in range(5):
@@ -370,10 +414,10 @@ def save_class_fractions(spec_probs_csv, phot_probs_csv, save_fn):
             alerce_fracs_corr.append(np.sum(np.delete(alerce_fracs, 2) * cm_p_alerce[i-1]))
         else:
             alerce_fracs_corr.append(np.sum(np.delete(alerce_fracs, 2) * cm_p_alerce[i]))
-        
+
     pred_fracs_corr = np.array(pred_fracs_corr)
     alerce_fracs_corr = np.array(alerce_fracs_corr)
-    
+
     with open(save_fn, "a+") as sf:
         csvwriter = csv.writer(sf)
         csvwriter.writerow(true_fracs)
@@ -381,40 +425,58 @@ def save_class_fractions(spec_probs_csv, phot_probs_csv, save_fn):
         csvwriter.writerow(pred_fracs_corr)
         csvwriter.writerow(alerce_fracs)
         csvwriter.writerow(alerce_fracs_corr)
-        
-        
+
+
 def plot_class_fractions(saved_cf_file, fig_dir):
     """
     Plot class fractions saved from 'save_class_fractions'.
     """
-    
+
     classes_to_labels = {0: "SN Ia", 1: "SN II", 2: "SN IIn", 3: "SLSN-I", 4: "SN Ibc"}
-    label_to_class = {"SN Ia": 0, "SN II": 1, "SN IIn": 2, "SLSN-I": 3, "SN Ibc": 4}
-    labels = ["Spec (ZTF)", "Spec (YSE)", "Spec (PS1-MDS)", "Phot", "Phot (corr.)", "ALeRCE", "ALeRCE (corr.)"]
+    label_to_class = {"SN Ia": 0, "SN II": 1, "SN IIn": 2, "SLSN-I": 3, "SN Ibc": 4} # pylint: disable=unused-variable
+    labels = [
+        "Spec (ZTF)",
+        "Spec (YSE)",
+        "Spec (PS1-MDS)",
+        "Phot",
+        "Phot (corr.)",
+        "ALeRCE",
+        "ALeRCE (corr.)",
+    ]
     width = 0.6
-    
+
     fracs = []
     with open(saved_cf_file, "r") as sf:
         csvreader = csv.reader(sf)
         for row in csvreader:
             fracs.append([float(x) for x in row])
-            
+
     true_fracs = fracs[0]
     pred_fracs = fracs[1]
     pred_fracs_corr = fracs[2]
     alerce_fracs = fracs[3]
     alerce_fracs_corr = fracs[4]
-    
+
     # Plot YSE class fractions too
     yse_counts = np.array([314, 107, 15, 2, 32])
     yse_fracs = yse_counts / np.sum(yse_counts)
-    
+
     #Plot PS-MDS
     psmds_counts = np.array([404, 94, 24, 17, 19])
     psmds_fracs = psmds_counts / np.sum(psmds_counts)
-    
-    combined_fracs = np.array([true_fracs, yse_fracs, psmds_fracs, pred_fracs, pred_fracs_corr, alerce_fracs, alerce_fracs_corr]).T
-    fig, ax = plt.subplots(figsize=(11, 16))
+
+    combined_fracs = np.array(
+        [
+            true_fracs,
+            yse_fracs,
+            psmds_fracs,
+            pred_fracs,
+            pred_fracs_corr,
+            alerce_fracs,
+            alerce_fracs_corr,
+        ]
+    ).T
+    fig, ax = plt.subplots(figsize=(11, 16)) # pylint: disable=unused-variable
     bar = ax.bar(labels, combined_fracs[0], width, label=classes_to_labels[0])
     for i in range(len(combined_fracs[0])):
         bari = bar.patches[i]
@@ -423,9 +485,15 @@ def plot_class_fractions(saved_cf_file, fig_dir):
                 (bari.get_x() + bari.get_width() / 2,
                  bari.get_y() + bari.get_height() / 2),
             ha='center', va='center', color="white")
-        
+
     for i in range(1,5):
-        bar = ax.bar(labels, combined_fracs[i], width, bottom=np.sum(combined_fracs[0:i], axis=0), label=classes_to_labels[i])
+        bar = ax.bar(
+            labels,
+            combined_fracs[i],
+            width,
+            bottom=np.sum(combined_fracs[0:i], axis=0),
+            label=classes_to_labels[i],
+        )
         for j in range(len(combined_fracs[0])):
             barj = bar.patches[j]
             # Create annotation
@@ -434,7 +502,6 @@ def plot_class_fractions(saved_cf_file, fig_dir):
                 (barj.get_x() + barj.get_width() / 2,
                  barj.get_y() + barj.get_height() / 2),
                 ha='center', va='center', color="white")
-    
 
     # Shrink current axis's height by 10% on the bottom
     box = ax.get_position()
@@ -447,7 +514,7 @@ def plot_class_fractions(saved_cf_file, fig_dir):
 
     ax.tick_params(axis='both', which='major', labelsize=12)
     ax.tick_params(axis='both', which='minor', labelsize=10)
-    
+
     #plt.legend(loc=3)
     plt.ylabel("Fraction", fontsize=20)
     plt.savefig(os.path.join(fig_dir, filename))
@@ -461,13 +528,13 @@ def plot_confusion_matrix(y_true, y_pred,
     """
     This function prints and plots the confusion matrix.
     """
-    
+
     y_true = np.array(y_true)
     y_pred = np.array(y_pred)
-    
+
     acc = calc_accuracy(y_pred, y_true)
     f1 = f1_score(y_pred, y_true, class_average=True)
-    
+
     #plt.rcParams["figure.figsize"] = (16, 16)
     if purity:
         title = r"Purity ($N = %d, A = %.2f, F_1 = %.2f$)" % (len(y_pred), acc, f1)
@@ -475,12 +542,11 @@ def plot_confusion_matrix(y_true, y_pred,
     else:
         title = r"Completeness ($N = %d, A = %.2f, F_1 = %.2f$)" % (len(y_pred), acc, f1)
         cm = confusion_matrix(y_true, y_pred, normalize='true')
-    
-    
+
     classes = unique_labels(y_true, y_pred)
 
     fig, ax = plt.subplots()
-    im = ax.imshow(cm, interpolation='nearest', vmin=0., vmax=1.,cmap=cmap)
+    im = ax.imshow(cm, interpolation='nearest', vmin=0., vmax=1.,cmap=cmap) # pylint: disable=unused-variable
 
     ax.set(xticks=np.arange(cm.shape[1]),
            yticks=np.arange(cm.shape[0]),
@@ -495,9 +561,9 @@ def plot_confusion_matrix(y_true, y_pred,
              rotation_mode="anchor")
 
     # Loop over data dimensions and create text annotations.
-    fmt = '.2f'
+    fmt = '.2f' # pylint: disable=unused-variable
     thresh = cm.max() / 2.
-    
+
     for i in range(cm.shape[0]):
         for j in range(cm.shape[1]):
             class_i = classes[i]
@@ -511,8 +577,8 @@ def plot_confusion_matrix(y_true, y_pred,
     plt.ylim(len(classes)-0.5, -0.5)
     plt.savefig(os.path.join(CM_FOLDER, filename))
     plt.close()
-    
-    
+
+
 def corner_plot_all(input_csvs, save_file):
     """
     Plot combined corner plot of all training set samples,
@@ -520,10 +586,10 @@ def corner_plot_all(input_csvs, save_file):
     """
     allowed_types = ["SN Ia", "SN II", "SN IIn", "SLSN-I", "SN Ibc"]
     names, labels = import_labels_only(input_csvs, allowed_types)
-    
+
     chis = np.ones(len(names))
     features, labels, chis = oversample_using_posteriors(names, labels, chis, 4000)
-    
+
     figure = corner.corner(
         np.delete(features, [0,3], axis=1),
         bins=20,
@@ -551,9 +617,9 @@ def corner_plot_all(input_csvs, save_file):
     for ax in axes:
         ax.set_ylabel(ax.get_ylabel(), fontsize=20)
         ax.set_xlabel(ax.get_xlabel(), fontsize=20)
-    
+
     figure.savefig(save_file)
-    
+
 
 def plot_lightcurve_clipping(ztf_name):
     """
@@ -561,7 +627,7 @@ def plot_lightcurve_clipping(ztf_name):
     demonstrating how those points are clipped. 
     """
     data_fn = DATA_FOLDER + ztf_name + ".csv"
-    t, f, ferr, b, ra, dec = import_lc(data_fn)
+    t, f, ferr, b, ra, dec = import_lc(data_fn) # pylint: disable=unused-variable
     t_clip, f_clip, ferr_clip, b_clip = clip_lightcurve_end(t, f, ferr, b)
 
     idx_clip = ~np.isin(t, t_clip)
@@ -569,95 +635,128 @@ def plot_lightcurve_clipping(ztf_name):
     f_clip = f[idx_clip]
     ferr_clip = ferr[idx_clip]
     b_clip = b[idx_clip]
-    
+
     plt.errorbar(t[b == "r"], f[b == "r"], yerr=ferr[b == "r"], fmt="o", c="r")
     plt.errorbar(t[b == "g"], f[b == "g"], yerr=ferr[b == "g"], fmt="o", c="g")
-    
-    #overlay clipped points 
-    plt.errorbar(t_clip[b_clip == "r"], f_clip[b_clip == "r"], yerr=ferr_clip[b_clip == "r"], fmt="o", c="orange")
-    plt.errorbar(t_clip[b_clip == "g"], f_clip[b_clip == "g"], yerr=ferr_clip[b_clip == "g"], fmt="o", c="blue")
-    
+
+    #overlay clipped points
+    plt.errorbar(
+        t_clip[b_clip == "r"],
+        f_clip[b_clip == "r"],
+        yerr=ferr_clip[b_clip == "r"],
+        fmt="o",
+        c="orange",
+    )
+    plt.errorbar(
+        t_clip[b_clip == "g"],
+        f_clip[b_clip == "g"],
+        yerr=ferr_clip[b_clip == "g"],
+        fmt="o",
+        c="blue",
+    )
+
     #plot lines from last to max flux point
     t_r = t[b == "r"]
     f_r = f[b == "r"]
     t_g = t[b == "g"]
     f_g = f[b == "g"]
-    
+
     t_range_r = np.linspace(t_r[np.argmax(f_r)], np.max(t_r), num=10)
     m_r = ( f_r[np.argmax(t_r)] - np.max(f_r) ) / ( np.max(t_r) - t_r[np.argmax(f_r)] )
     y_r = f_r[np.argmax(t_r)] + m_r * (t_range_r - np.max(t_r))
-    
+
     t_range_g = np.linspace(t_g[np.argmax(f_g)], np.max(t_g), num=10)
     m_g = ( f_g[np.argmax(t_g)] - np.max(f_g) ) / ( np.max(t_g) - t_g[np.argmax(f_g)] )
     y_g = f_g[np.argmax(t_g)] + m_g * (t_range_g - np.max(t_g))
-    
+
     plt.plot(t_range_r, y_r, c="r", label="Max r-band slope", linewidth=1)
     plt.plot(t_range_g, y_g, c="g", label="Max g-band slope", linewidth=1)
-    
+
 
     # plot slope of clipped portion
     t_clip_r = t_clip[b_clip == "r"]
     f_clip_r = f_clip[b_clip == "r"]
     t_clip_g = t_clip[b_clip == "g"]
     f_clip_g = f_clip[b_clip == "g"]
-    
+
     t_range_r = np.linspace(t_clip_r[np.argmax(f_clip_r)], np.max(t_clip_r), num=10)
-    m_r = ( f_clip_r[np.argmax(t_clip_r)] - np.max(f_clip_r) ) / ( np.max(t_clip_r) - t_clip_r[np.argmax(f_clip_r)] )
+    m_r = (f_clip_r[np.argmax(t_clip_r)] - np.max(f_clip_r)) / (
+        np.max(t_clip_r) - t_clip_r[np.argmax(f_clip_r)]
+    )
     y_r = f_clip_r[np.argmax(t_clip_r)] + m_r * (t_range_r - np.max(t_clip_r))
-    
+
     t_range_g = np.linspace(t_clip_g[np.argmax(f_clip_g)], np.max(t_clip_g), num=10)
-    m_g = ( f_clip_g[np.argmax(t_clip_g)] - np.max(f_clip_g) ) / ( np.max(t_clip_g) - t_clip_g[np.argmax(f_clip_g)] )
+    m_g = (f_clip_g[np.argmax(t_clip_g)] - np.max(f_clip_g)) / (
+        np.max(t_clip_g) - t_clip_g[np.argmax(f_clip_g)]
+    )
     y_g = f_clip_g[np.argmax(t_clip_g)] + m_g * (t_range_g - np.max(t_clip_g))
-    
+
     plt.plot(t_range_r, y_r, c="orange", label="Clipped r-band slope", linewidth=1)
     plt.plot(t_range_g, y_g, c="blue", label="Clipped g-band slope", linewidth=1)
-    
+
     plt.title(ztf_name, fontsize=20)
     plt.xlabel("MJD", fontsize=15)
     plt.ylabel("Flux (arbitrary scaling)", fontsize=15)
     plt.legend()
-    
+
     plt.savefig(os.path.join(save_dir, "lc_clip_demo.pdf"))
     plt.close()
 
-    
+
 def plot_lc_fit(ztf_name, data_dir, fit_dir, out_dir, sampling_method="dynesty"):
     """
     Plot existing LC fit.
     """
     data_fn = os.path.join(data_dir, ztf_name+".npz")
     fit_fn = os.path.join(fit_dir, ztf_name + "_eqwt_" + sampling_method + ".npz")
-    
+
     tdata, fdata, ferrdata, bdata = import_data(data_fn)
 
     max_flux_loc =  tdata[np.argmax(fdata[bdata == "r"] - np.abs(ferrdata[bdata == "r"]))]
-    
+
     tdata -= max_flux_loc # make relative
-    
+
     eq_wt_samples = np.load(fit_fn)['arr_0']
-    
-    plt.errorbar(tdata[bdata=="g"], fdata[bdata=="g"], yerr=ferrdata[bdata=="g"], c="g", label="g", fmt="o")
-    plt.errorbar(tdata[bdata=="r"], fdata[bdata=="r"], yerr=ferrdata[bdata=="r"], c="r", label="r", fmt="o")
+
+    plt.errorbar(
+        tdata[bdata == "g"],
+        fdata[bdata == "g"],
+        yerr=ferrdata[bdata == "g"],
+        c="g",
+        label="g",
+        fmt="o",
+    )
+    plt.errorbar(
+        tdata[bdata == "r"],
+        fdata[bdata == "r"],
+        yerr=ferrdata[bdata == "r"],
+        c="r",
+        label="r",
+        fmt="o",
+    )
 
     trange_fine = np.linspace(np.amin(tdata), np.amax(tdata), num=500)
 
     for sample in eq_wt_samples[:30]:
-        plt.plot(trange_fine, flux_model(sample, trange_fine, ["g"] * len(trange_fine)), c="g", lw=1, alpha=0.1)
-        plt.plot(trange_fine, flux_model(sample, trange_fine, ["r"] * len(trange_fine)), c="r", lw=1, alpha=0.1)
+        plt.plot(
+            trange_fine,
+            flux_model(sample, trange_fine, ["g"] * len(trange_fine)),
+            c="g",
+            lw=1,
+            alpha=0.1,
+        )
+        plt.plot(
+            trange_fine,
+            flux_model(sample, trange_fine, ["r"] * len(trange_fine)),
+            c="r",
+            lw=1,
+            alpha=0.1,
+        )
 
     plt.xlabel("MJD")
     plt.ylabel("Flux")
     plt.title(ztf_name+": "+sampling_method)
-    
-    plt.savefig(os.path.join(out_dir, ztf_name+"_" + sampling_method + ".png"))
-    
-    plt.close()
 
-    
-def main():
-    pass
-    
-    
-if __name__ == "__main__":
-    main()
-    
+    plt.savefig(os.path.join(out_dir, ztf_name+"_" + sampling_method + ".png"))
+
+    plt.close()
