@@ -1,26 +1,18 @@
+import os
+import random
+import time
+
+import matplotlib.pyplot as plt
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 import torch.utils.data as data
-from torch.utils.data import TensorDataset, DataLoader
+from torch.utils.data import TensorDataset
 
-import torchvision.transforms as transforms
-
-from sklearn import metrics
-from sklearn import decomposition
-from sklearn import manifold
-import matplotlib.pyplot as plt
-import numpy as np
-
-import copy
-import random
-import time
-import glob, os
-
-from file_paths import *
-from utils import *
-from constants import *
+from .constants import * # star import used due to large quantity of items imported
+from .file_paths import PROBS_FILE, PROBS_FILE2, MODEL_DIR, METRICS_DIR
 
 
 def save_test_probabilities(name, true_label, pred_probabilities):
@@ -33,6 +25,7 @@ def save_test_probabilities(name, true_label, pred_probabilities):
             pf.write(",%.04f" % p)
         pf.write("\n")
 
+
 def save_unclassified_test_probabilities(name, pred_probabilities):
     """
     Saves probabilities to separate file for ROC curve generation.
@@ -42,7 +35,8 @@ def save_unclassified_test_probabilities(name, pred_probabilities):
         for p in pred_probabilities:
             pf.write(",%.04f" % p)
         pf.write("\n")
-        
+
+
 def get_predictions(model, iterator, device):
     """
     Given a trained model, returns the test images, test labels,
@@ -59,7 +53,7 @@ def get_predictions(model, iterator, device):
     with torch.no_grad():
 
         for (x, y, z) in iterator:
-            
+
             x = x.to(device)
 
             y_pred, _ = model(x)
@@ -78,6 +72,7 @@ def get_predictions(model, iterator, device):
 
     return images, labels, sample_idxs, probs
 
+
 def get_predictions_new(model, iterator, device):
     """
     Given a trained model, returns the test images, test labels,
@@ -92,7 +87,7 @@ def get_predictions_new(model, iterator, device):
     with torch.no_grad():
 
         for x in iterator:
-            
+
             x = x[0].to(device)
 
             y_pred, _ = model(x)
@@ -106,7 +101,6 @@ def get_predictions_new(model, iterator, device):
     probs = torch.cat(probs, dim=0)
 
     return images, probs
-
 
 
 def calculate_accuracy(y_pred, y):
@@ -126,21 +120,21 @@ class MLP(nn.Module):
     """
     def __init__(self, input_dim, output_dim, neurons_per_layer, num_hidden_layers):
         super().__init__()
-        
+
         n_neurons = neurons_per_layer
         self.input_fc = nn.Linear(input_dim, n_neurons)
-        
+
         assert num_hidden_layers >= 1
-        
+
         self.hidden_layers = nn.ModuleList()
         self.dropouts = nn.ModuleList()
         self.dropouts.append(nn.Dropout(INPUT_DROPOUT_FRAC))
-        
-        for i in range(num_hidden_layers - 1):
+
+        for i in range(num_hidden_layers - 1): # pylint: disable=unused-variable
             self.hidden_layers.append(nn.Linear(n_neurons, n_neurons))
         for i in range(num_hidden_layers):
             self.dropouts.append(nn.Dropout(HIDDEN_DROPOUT_FRAC))
-                                      
+
         self.output_fc = nn.Linear(n_neurons, output_dim)
 
     def forward(self, x):
@@ -151,7 +145,7 @@ class MLP(nn.Module):
 
         h_1 = self.dropouts[0](x)
         h_1 = F.relu(self.input_fc(h_1))
-        
+
         h_hidden = h_1
         for i in range(len(self.hidden_layers)):
             h_hidden = self.dropouts[i+1](h_hidden)
@@ -161,7 +155,7 @@ class MLP(nn.Module):
         y_pred = self.output_fc(h_hidden)
 
         return y_pred, h_hidden
-    
+
 
 def create_dataset(features, labels, idxs=None):
     """
@@ -169,12 +163,12 @@ def create_dataset(features, labels, idxs=None):
     """
     tensor_x = torch.Tensor(features) # transform to torch tensor
     tensor_y = torch.Tensor(labels).type(torch.LongTensor)
-    
+
     if idxs is None:
         return TensorDataset(tensor_x,tensor_y) # create your datset
-    
+
     tensor_z = torch.Tensor(idxs)
-    
+
     return TensorDataset(tensor_x,tensor_y,tensor_z) # create your datset
 
 
@@ -194,9 +188,9 @@ def train(model, iterator, optimizer, criterion, device):
         y = y.to(device)
 
         optimizer.zero_grad()
-        
+
         y_pred, _ = model(x)
-        
+
         loss = criterion(y_pred, y)
         acc = calculate_accuracy(y_pred, y)
 
@@ -249,11 +243,23 @@ def epoch_time(start_time, end_time):
     return elapsed_mins, elapsed_secs
 
 
-def run_mlp(train_data, valid_data, test_sample_features, test_sample_classes, test_sample_names, test_group_idxs, \
-            input_dim, output_dim, neurons_per_layer, num_layers, num_epochs=EPOCHS, plot_metrics=False):
+def run_mlp(
+    train_data,
+    valid_data,
+    test_sample_features,
+    test_sample_classes,
+    test_sample_names,
+    test_group_idxs,
+    input_dim,
+    output_dim,
+    neurons_per_layer,
+    num_layers,
+    num_epochs=EPOCHS,
+    plot_metrics=False,
+):
     """
-    Run the MLP initialization and training. Closely follows
-    the demo https://colab.research.google.com/github/bentrevett/pytorch-image-classification/blob/master/1_mlp.ipynb
+    Run the MLP initialization and training. Closely follows the demo
+    https://colab.research.google.com/github/bentrevett/pytorch-image-classification/blob/master/1_mlp.ipynb
     """
 
     random.seed(SEED)
@@ -271,8 +277,6 @@ def run_mlp(train_data, valid_data, test_sample_features, test_sample_classes, t
     valid_iterator = data.DataLoader(valid_data,
                                      batch_size=BATCH_SIZE)
 
-
-                                   
     #Create model
     model = MLP(input_dim, output_dim, neurons_per_layer, num_layers)
     lr=LEARNING_RATE
@@ -281,9 +285,9 @@ def run_mlp(train_data, valid_data, test_sample_features, test_sample_classes, t
     device = torch.device('cpu')
     model = model.to(device)
     criterion = criterion.to(device)
-    
+
     best_valid_loss = float('inf')
-    
+
     # for plotting
     train_acc_arr = []
     train_loss_arr = []
@@ -292,50 +296,63 @@ def run_mlp(train_data, valid_data, test_sample_features, test_sample_classes, t
     for epoch in np.arange(0, num_epochs):
 
         start_time = time.monotonic()
-        
+
         train_loss, train_acc = train(model, train_iterator, optimizer, criterion, device)
         valid_loss, valid_acc = evaluate(model, valid_iterator, criterion, device)
 
         #print(model.input_fc.weight)
-        
+
         if valid_loss < best_valid_loss:
             best_valid_loss = valid_loss
-            torch.save(model.state_dict(), os.path.join(MODEL_DIR, 'superphot-model-%s.pt' % test_sample_names[0]))
+            torch.save(
+                model.state_dict(),
+                os.path.join(MODEL_DIR, "superphot-model-%s.pt" % test_sample_names[0]),
+            )
 
         end_time = time.monotonic()
 
         epoch_mins, epoch_secs = epoch_time(start_time, end_time)
-        
+
         if epoch % 5 == 0:
             print(f'Epoch: {epoch+1:02} | Epoch Time: {epoch_mins}m {epoch_secs}s')
             print(f'\tTrain Loss: {train_loss:.3f} | Train Acc: {train_acc*100:.2f}%')
             print(f'\t Val. Loss: {valid_loss:.3f} |  Val. Acc: {valid_acc*100:.2f}%')
-        
+
         #plotting
         train_loss_arr.append(train_loss)
         train_acc_arr.append(train_acc)
         val_loss_arr.append(valid_loss)
         val_acc_arr.append(valid_acc)
 
-    model.load_state_dict(torch.load(os.path.join(MODEL_DIR, 'superphot-model-%s.pt' % test_sample_names[0])))
-    
+    model.load_state_dict(
+        torch.load(
+            os.path.join(MODEL_DIR, "superphot-model-%s.pt" % test_sample_names[0])
+        )
+    )
+
     labels, pred_labels, max_probs, names = [], [], [], []
-    
+
     for group_idx_set in test_group_idxs:
-        
-        test_data = create_dataset(test_sample_features[group_idx_set], test_sample_classes[group_idx_set], group_idx_set)
+
+        test_data = create_dataset(
+            test_sample_features[group_idx_set],
+            test_sample_classes[group_idx_set],
+            group_idx_set,
+        )
         test_iterator = data.DataLoader(test_data,
                                         batch_size=BATCH_SIZE)
 
-        images, labels_indiv, indx_indiv, probs = get_predictions(model, test_iterator, device)
+        images, labels_indiv, indx_indiv, probs = get_predictions(model, test_iterator, device) # pylint: disable=unused-variable
         probs_avg = np.mean(probs.numpy(), axis=0)
-        save_test_probabilities(test_sample_names[indx_indiv.numpy().astype(int)[0]], labels_indiv[0], probs_avg)
+        save_test_probabilities(
+            test_sample_names[indx_indiv.numpy().astype(int)[0]], labels_indiv[0], probs_avg
+        )
         pred_labels.append(np.argmax(probs_avg))
         max_probs.append(np.amax(probs_avg))
         labels.append(labels_indiv[0])
 
         names.append(test_sample_names[indx_indiv.numpy().astype(int)[0]])
-    
+
     if plot_metrics:
         #plotting of accuracy and loss for one epoch
         plt.plot(np.arange(0, EPOCHS), train_acc_arr, label="Training")
@@ -354,16 +371,11 @@ def run_mlp(train_data, valid_data, test_sample_features, test_sample_classes, t
         plt.legend()
         plt.savefig(os.path.join(METRICS_DIR, "loss_%s.png" % test_sample_names[0]))
         plt.close()
-    
-    return np.array(labels).astype(int), np.array(names), np.array(pred_labels).astype(int), np.array(max_probs).astype(float), best_valid_loss
-    
-                
-                                   
-    
-    
-    
-    
-    
 
-
-
+    return (
+        np.array(labels).astype(int),
+        np.array(names),
+        np.array(pred_labels).astype(int),
+        np.array(max_probs).astype(float),
+        best_valid_loss,
+    )

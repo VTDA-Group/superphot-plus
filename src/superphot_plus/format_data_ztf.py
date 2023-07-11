@@ -1,16 +1,12 @@
-import numpy as np
-import torch
-import csv, os
-import sklearn
-from sklearn.model_selection import train_test_split, KFold, StratifiedKFold
-from imblearn.over_sampling import SMOTE, BorderlineSMOTE, SVMSMOTE
-from scipy.stats import binned_statistic
-import matplotlib.pyplot as plt
+import csv
 import glob
+import os
 
-from utils import *
-from constants import *
-from file_paths import *
+import numpy as np
+from sklearn.model_selection import StratifiedKFold, train_test_split
+
+from .file_paths import FITS_DIR, DATA_DIRS
+from .utils import calculate_chi_squareds
 
 
 def import_labels_only(input_csvs, allowed_types, fits_dir=None, redshift=False):
@@ -26,14 +22,42 @@ def import_labels_only(input_csvs, allowed_types, fits_dir=None, redshift=False)
     repeat_ct = 0
     names = []
     redshifts = []
-    sn1bc_alts = ["SN Ic", "SN Ib", "SN Ic-BL", "SN Ib-Ca-rich", "SN Ib/c", \
-                 "SNIb", "SNIc", "SNIc-BL", "21", "20", "27", "26", "25"]
+    sn1bc_alts = [
+        "SN Ic",
+        "SN Ib",
+        "SN Ic-BL",
+        "SN Ib-Ca-rich",
+        "SN Ib/c",
+        "SNIb",
+        "SNIc",
+        "SNIc-BL",
+        "21",
+        "20",
+        "27",
+        "26",
+        "25",
+    ]
     snIIn_alts = ["SNIIn", "35", "SLSN-II"]
-    snIa_alts = ["SN Ia-91T-like", "SN Ia-CSM", "SN Ia-91bg-like", "SNIa", "SN Ia-91T", "SN Ia-91bg", "10", "11", "12"]
+    snIa_alts = [
+        "SN Ia-91T-like",
+        "SN Ia-CSM",
+        "SN Ia-91bg-like",
+        "SNIa",
+        "SN Ia-91T",
+        "SN Ia-91bg",
+        "10",
+        "11",
+        "12",
+    ]
     snII_alts = ["SN IIP", "SN IIL", "SNII", "SNIIP", "32", "30", "31"]
-    slsnI_alts = ["40", "SLSN",]
-    tde_alts = ["42",]
-    
+    slsnI_alts = [
+        "40",
+        "SLSN",
+    ]
+    tde_alts = [
+        "42",
+    ]
+
     # TODO: make more compact
     for input_csv in input_csvs:
         with open(input_csv, newline='') as csvfile:
@@ -77,7 +101,7 @@ def import_labels_only(input_csvs, allowed_types, fits_dir=None, redshift=False)
     if redshift:
         return np.array(names), np.array(labels), np.array(redshifts)
     return np.array(names), np.array(labels)
-    
+
 
 def import_features_and_labels(input_csv, allowed_types):
     """
@@ -111,12 +135,18 @@ def import_features_and_labels(input_csv, allowed_types):
             feature_stddevs.append(row[16:])
             labels.append(l)
 
-    return np.array(names), np.array(feature_x).astype(float), np.array(feature_stddevs).astype(float), np.array(labels)
+    return (
+        np.array(names),
+        np.array(feature_x).astype(float),
+        np.array(feature_stddevs).astype(float),
+        np.array(labels),
+    )
+
 
 def return_names_from_med_arrays(input_csv, med_arr):
-    
-    names = [""] * len(med_arr)
-    
+
+    names = [""] * len(med_arr) # pylint: disable=unused-variable
+
     t_0_expected = med_arr[3]
     best_diff = np.inf
     best_features = None
@@ -139,7 +169,7 @@ def return_names_from_med_arrays(input_csv, med_arr):
             pass
     print(ct)
     print(best_match,best_features)
-            
+
 
 def divide_into_training_test_set(features, labels, test_fraction):
     """
@@ -147,6 +177,7 @@ def divide_into_training_test_set(features, labels, test_fraction):
     training data.
     """
     return train_test_split(features, labels, test_size=test_fraction, random_state=42)
+
 
 def generate_K_fold(features, classes, num_folds):
     """
@@ -157,6 +188,7 @@ def generate_K_fold(features, classes, num_folds):
     else:
         kf = StratifiedKFold(n_splits=num_folds, shuffle=True)
     return kf.split(features, classes)
+
 
 def tally_each_class(labels):
     """
@@ -172,6 +204,7 @@ def tally_each_class(labels):
         print(tally_label,": ", str(tally_dict[tally_label]))
     print()
 
+
 def generate_two_class_labels(labels):
     """
     For the binary classification problem.
@@ -179,6 +212,7 @@ def generate_two_class_labels(labels):
     labels_copy = np.copy(labels)
     labels_copy[labels_copy != "SN Ia"] = "other"
     return labels_copy
+
 
 def oversample_minority_classes(features, labels):
     """
@@ -234,8 +268,8 @@ def oversample_using_posteriors(ztf_names, labels, chis, goal_per_class):
             oversampled_labels.extend([l] * samples_per_fit)
             oversampled_chis.extend([chis[i]] * samples_per_fit)
     return np.array(oversampled_features), np.array(oversampled_labels), np.array(oversampled_chis)
-   
-    
+
+
 def normalize_features(features, mean=None, std=None):
     """
     Normalize the features for feeding into the neural network.
@@ -244,7 +278,7 @@ def normalize_features(features, mean=None, std=None):
         mean = features.mean(axis=-2)
     if std is None:
         std = features.std(axis=-2)
-    
+
     print(mean, std)
     return (features - mean) / std, mean, std
 
@@ -265,9 +299,10 @@ def summarize_misc_classification(misc_csv):
             if obj_type not in misc_dict:
                 misc_dict[obj_type] = [0,0,0,0,0]
             misc_dict[obj_type][best_type] += 1
-                
+
     print(misc_dict)
-    
+
+
 def generate_csv_subset(orig_sn_name, new_sn_name, sn_idx, p_cutoff):
     """
     Generate smaller subset with only SNe of one type,
@@ -279,7 +314,7 @@ def generate_csv_subset(orig_sn_name, new_sn_name, sn_idx, p_cutoff):
         for row in csv_reader:
             if float(row[sn_idx]) > p_cutoff:
                 sn_names.append(row[0])
-    
+
     with open(new_sn_name, "a+") as new:
         csv_writer = csv.writer(new, delimiter=",")
         for sn in sn_names:
@@ -293,7 +328,7 @@ def generate_csv_subset2(orig_sn_names, new_sn_name, sn_type):
     """
     with open(new_sn_name, "w+") as new:
         new.write("")
-    
+
     alts = {"SN II": ["SN II", "SNII", "SN IIP", "SN IIL", "SNII", "SNIIP", "32", "30", "31"]}
     sn_names = []
     zs = []
@@ -308,20 +343,22 @@ def generate_csv_subset2(orig_sn_names, new_sn_name, sn_type):
                         continue
                     sn_names.append(row[0])
                     zs.append(float(row[2]))
-                    
 
-    
+
     train_chis = calculate_chi_squareds(sn_names, FITS_DIR, DATA_DIRS)
     print(len(train_chis), len(sn_names))
-    for e, sn_name in enumerate(sn_names):
-        train_features, train_classes, train_chis_os = oversample_using_posteriors([sn_name,],[2,], [train_chis[e],], 100)
+    for _, sn_name in enumerate(sn_names):
+        train_features, train_classes, train_chis_os = oversample_using_posteriors( # pylint: disable=unused-variable
+            [sn_name,], [2,], [train_chis[e],], 100
+        )
         med_features = np.median(train_features, axis=0)
         med_features = np.append(med_features, np.median(train_chis_os))
-        
+
         with open(new_sn_name, "a") as new:
             csv_writer = csv.writer(new, delimiter=",")
             #csv_writer.writerow(["Name","Redshift"])
             csv_writer.writerow([sn_name, zs[e], *med_features])
+
 
 def add_snr_to_prob_csv(probs_csv, new_csv):
     """
@@ -343,7 +380,7 @@ def add_snr_to_prob_csv(probs_csv, new_csv):
                         #print(npy_array)
                     except:
                         pass
-                    
+
                 arr = npy_array['arr_0']
 
                 ferr = arr[2]
@@ -364,9 +401,3 @@ def add_snr_to_prob_csv(probs_csv, new_csv):
                 row.append(n_snr_10)
                 all_rows.append(row)
             csvwriter.writerows(all_rows)
-            
-def main():
-    pass
-
-if __name__ == "__main__":
-    main()
