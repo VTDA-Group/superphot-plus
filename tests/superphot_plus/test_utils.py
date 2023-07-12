@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from superphot_plus.utils import calc_accuracy
+from superphot_plus.utils import calc_accuracy, get_band_extinctions
 
 
 def test_calc_accuracy() -> None:
@@ -26,3 +26,11 @@ def test_calc_accuracy() -> None:
     # Check a array size mismatch.
     with pytest.raises(ValueError):
         _ = calc_accuracy(np.array([1, 2, 3]), truth)
+
+
+def test_get_band_extinctions() -> None:
+    """This is currently a change detection test where we are just confirming
+    the function runs correctly returns the same value as it used to.
+    """
+    ext_list = get_band_extinctions(0.0, 10.0)
+    assert np.all(ext_list == pytest.approx([0.3133, 0.2202], 0.01))
