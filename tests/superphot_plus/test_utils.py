@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from superphot_plus import utils
+from superphot_plus.utils import calc_accuracy
 
 
 def test_calc_accuracy() -> None:
