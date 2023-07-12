@@ -14,7 +14,10 @@ classifiers = [
 ]
 dynamic = ["version"]
 dependencies = [
-    "numpy"
+    "astropy",
+    "dustmaps",
+    "extinction",
+    "numpy",
 ]
 
 # On a mac, install optional dependencies with `pip install '.[dev]'` (include the single quotes)

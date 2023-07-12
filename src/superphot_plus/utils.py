@@ -49,8 +49,21 @@ def calc_accuracy(pred_classes, test_labels):
         classes predicted by MLP
     test_labels : numpy array (int)
         true spectroscopic classes
+
+    Returns
+    accuracy: float
+        The percentage of the predictions that are correct.
+
+    Raises
+    ------
+    ValueError: If the arrays are empty or mismatched sizes.
     """
     num_total = len(pred_classes)
+    if num_total == 0:
+        raise ValueError("Empty array provided to calc_accuracy.")
+    if num_total != len(test_labels):
+        raise ValueError(f"Array size mismatch for calc_accuracy {num_total} vs {len(test_labels)}.")
+
     num_correct = np.sum(np.where(pred_classes == test_labels, 1, 0))
     return num_correct/num_total
 
