@@ -6,7 +6,7 @@ from astropy.coordinates import SkyCoord
 from dustmaps.config import config
 from dustmaps.sfd import SFDQuery
 
-from superphot_plus.sfd import get_dust_filepath
+from superphot_plus.sfd import dust_filepath
 
 
 def get_band_extinctions(ra, dec):
@@ -14,7 +14,7 @@ def get_band_extinctions(ra, dec):
     Get green and red band extinctions in magnitudes for
     a single supernova LC based on RA and DEC.
     """
-    config["data_dir"] = get_dust_filepath()
+    config["data_dir"] = dust_filepath
     sfd = SFDQuery()
 
     # First look up the amount of mw dust at this location
