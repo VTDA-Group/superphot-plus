@@ -153,7 +153,7 @@ def flux_model(cube, t_data, b_data):
     tau_rise_b = tau_rise * cube[start_idx + 4]
     tau_fall_b = tau_fall * cube[start_idx + 5]
 
-    inc_band_ix = np.array(b_data) == "g"  # pylint: disable=superfluous-parens
+    inc_band_ix = np.array(b_data) == "g"
     phase_b = (t_data - t0_b)[inc_band_ix]
     phase_b2 = (t_data - t0_b)[inc_band_ix & (t_data - t0_b < gamma_b)]
 
