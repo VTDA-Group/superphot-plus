@@ -16,14 +16,7 @@ from .file_paths import FIT_PLOTS_FOLDER
 
 @contextlib.contextmanager
 def tqdm_joblib(tqdm_object):
-    """Context manager to patch joblib to report into tqdm progress bar given as argument.
-
-    Parameters
-    ----------
-    tqdm_object
-        Tqdm progress bar.
-    """
-    class TqdmBatchCompletionCallback(joblib.parallel.BatchCompletionCallBack):
+    class TqdmBatchCompletionCallback(joblib.parallel.BatchCompletionCallBack): # pylint: disable=missing-class-docstring
         def __call__(self, *args, **kwargs):
             tqdm_object.update(n=self.batch_size)
             return super().__call__(*args, **kwargs)
@@ -37,13 +30,13 @@ def tqdm_joblib(tqdm_object):
         tqdm_object.close()
 
 
-def import_data(fn, t0_lim=None): # TODOLIV what is t0?
-    """Import the datafile.
+def import_data(filename, t0_lim=None):
+    """Import the data file.
 
     Parameters
     ----------
-    fn : str
-        Datafile name.
+    filename : str
+        Name of the data file.
     t0_lim : float, optional
         Upper limit for t0. Defaults to None.
 
@@ -52,7 +45,7 @@ def import_data(fn, t0_lim=None): # TODOLIV what is t0?
     tuple
         Tuple containing the imported data (t, f, ferr, b).
     """
-    npy_array = np.load(fn)
+    npy_array = np.load(filename)
     arr = npy_array['arr_0']
 
     ferr = arr[2]
@@ -74,13 +67,13 @@ def import_data(fn, t0_lim=None): # TODOLIV what is t0?
     return t, f, ferr, b
 
 
-def trunc_gauss(quantile, clip_a, clip_b, mean, std): # TODOLIV I'm pretty shaky on quantile and return
+def trunc_gauss(quantile, clip_a, clip_b, mean, std):
     """Truncated Gaussian distribution.
 
     Parameters
     ----------
-    quantile : array-like?
-        Target quantile? The truncnorm.ppf specifies its q param 
+    quantile : float
+        The quantile at which to evaluate the ppf. Should be a value between 0 and 1.
     clip_a : float
         Lower clip value.
     clip_b : float
@@ -92,19 +85,19 @@ def trunc_gauss(quantile, clip_a, clip_b, mean, std): # TODOLIV I'm pretty shaky
 
     Returns
     -------
-    type ?
-        Percent point function (of/at/~~ the given quantile?)
+    scipy.stats.truncnorm.ppf
+        Percent point function of the truncated Gaussian.
     """
     a, b = (clip_a - mean) / std, (clip_b - mean) / std
     return truncnorm.ppf(quantile, a, b, loc=mean, scale=std)
 
 
-def params_valid(A, beta, gamma, t0, tau_rise, tau_fall): # TODOLIV - this tells us nothing about A (and doesn't test it); also, should we explain the parameters in more depth?
+def params_valid(A, beta, gamma, t0, tau_rise, tau_fall):
     """Check if parameters are valid given certain model constraints.
 
     Parameters
     ----------
-    A : ?
+    A : ? # ASKKAYLEE (what types, and maybe if we want to say more here?)
         Parameter A.
     beta : float
         Parameter beta.
@@ -153,7 +146,7 @@ def run_mcmc(filename, t0_lim=None, plot=False):
     """
     ref_band_idx = 1 # red band # pylint: disable=unused-variable
 
-    prefix = fn.split("/")[-1][:-4]
+    prefix = filename.split("/")[-1][:-4]
 
     print(prefix)
     n_params = 14
@@ -167,14 +160,14 @@ def run_mcmc(filename, t0_lim=None, plot=False):
 
     max_flux = np.max(fdata[bdata == "r"] - np.abs(ferrdata[bdata == "r"]))
 
-    def flux_model(cube, t_data, b_data): # TODOLIV types
+    def flux_model(cube, t_data, b_data): # ASKKAYLEE types
         """Flux model for the MCMC fit.
 
         Parameters
         ----------
-        cube : ndarray
+        cube : ndarray ?
             Array of parameters.
-        t_data : array-like, list, or something you can run len() on ?
+        t_data : array-like ?
             Time data.
         b_data : array-like ?
             Band data.
@@ -228,7 +221,6 @@ def run_mcmc(filename, t0_lim=None, plot=False):
             A_b / (1.0 + np.exp(-phase_b2 / tau_rise_b)) * (1.0 - phase_b2 * beta_b)
         )
         return f_model
-
 
     def create_prior(cube):
         """Creates prior for pymultinest, where each side of the "cube" is a value 
@@ -364,18 +356,19 @@ def run_mcmc(filename, t0_lim=None, plot=False):
     return eq_wt_samples
 
 
-def run_curve_fit(filename): # TODOLIV - looks like return is never called for valid inputs, should we make a note of that somewhere?
-    """Run curve fit on datafile.
+def run_curve_fit(filename):
+    """Run curve fit on data file.
 
     Parameters
     ----------
     filename : str
-        Datafile name.
+        Name of the data file.
 
     Returns
     -------
-    ~~ or None
-        ~~, or None if the data is invalid.
+    tuple or None
+        Tuple containing the fitted parameters for the "g" and "r" bands, 
+        or None if the required data is missing.
     """
     ref_band_idx = 1 # red band # pylint: disable=unused-variable
 
@@ -417,14 +410,14 @@ def run_curve_fit(filename): # TODOLIV - looks like return is never called for v
     )
 
 
-    def flux_model_smooth(t_data, A, beta, gamma, t0, tau_rise, tau_fall): # TODOLIV types
+    def flux_model_smooth(t_data, A, beta, gamma, t0, tau_rise, tau_fall):
         """Tests the smooth model implemented in ALERCE's classifier.
 
         Parameters
         ----------
-        t_data : ndarray ? have this question above. maybe just call it array-like?
+        t_data : array-like
             Time data.
-        A : float ?
+        A : float
             Parameter A.
         beta : float
             Parameter beta.
@@ -439,7 +432,7 @@ def run_curve_fit(filename): # TODOLIV - looks like return is never called for v
 
         Returns
         -------
-        ndarray ?
+        ndarray
             Flux model.
         """
         gamma = 10.**gamma
@@ -465,7 +458,7 @@ def run_curve_fit(filename): # TODOLIV - looks like return is never called for v
 
         return f_model
 
-    popt_r, pcov = curve_fit( # pylint: disable=unused-variable #TODOLIV does the call here and just below want to actually be to run_curve_fit?
+    popt_r, pcov = curve_fit( # pylint: disable=unused-variable
         flux_model_smooth,
         tdata[bdata == "r"],
         fdata[bdata == "r"],

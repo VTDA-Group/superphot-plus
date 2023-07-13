@@ -1,6 +1,4 @@
-# This script provides functions for importing and manipulating ZTF data from 
-# the Alerce API.
-
+"""This script provides functions for importing and manipulating ZTF data from the Alerce API."""
 
 import csv
 import glob
@@ -475,7 +473,7 @@ def clip_lightcurve_end(times, fluxes, fluxerrs, bands):
     return np.array(t_clip), np.array(flux_clip), np.array(ferr_clip), np.array(b_clip)
 
 
-def save_new_datafiles(): #TODOLIV: this assumes certain parameters which don't exist (yet). Should these be added?
+def save_new_datafiles():
     """Save new data files based on the provided CSV file."""
     with open(OUTPUT_CSV, "w+") as csv_file:
         writer = csv.writer(csv_file, delimiter=',')
@@ -537,17 +535,13 @@ def save_datafile(name, times, fluxes, fluxerrs, bands, save_dir):
         Band information of the light curve.
     save_dir : str
         Path to the output folder.
-
-    Returns
-    -------
-    None
     """
     arr = np.array([times, fluxes, fluxerrs, bands])
     print(arr[:,0])
     np.savez_compressed(save_dir + str(name) + '.npz', arr)
 
 
-def add_to_new_csv(name, label, redshift): # TODOLIV this also assumes OUTPUT_CSV (maybe a copy/paste artifact from a file that used to have globals? or it used to be in file_paths?)
+def add_to_new_csv(name, label, redshift):
     """Add row to CSV of included files for training.
     
     Parameters
@@ -634,7 +628,7 @@ def generate_flux_files(master_csv, save_folder):
                 continue
 
 
-def generate_files_from_antares(): # TODOLIV OUTPUT_CSV again
+def generate_files_from_antares():
     """Generates flux files for all ZTF samples in the master CSV file, using ANTARES' API.
      
     Includes correct zeropoints.

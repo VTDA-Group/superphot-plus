@@ -1,8 +1,6 @@
 # This script provides functions for importing, preprocessing, and manipulating 
 # data related to ZTF (Zwicky Transient Facility) lightcurves.
 
-# TODOLIV - at some point I start assuming that "features" as a parameter has type list. Is this correct?
-
 import csv
 import glob
 import os
@@ -121,7 +119,7 @@ def import_labels_only(input_csvs, allowed_types, fits_dir=None, redshift=False)
     return np.array(names), np.array(labels)
 
 
-def import_features_and_labels(input_csv, allowed_types): # TODOLIV feature_x not defined
+def import_features_and_labels(input_csv, allowed_types):
     """Import all features and labels, convert to label and features numpy arrays.
 
     Parameters
@@ -171,7 +169,7 @@ def import_features_and_labels(input_csv, allowed_types): # TODOLIV feature_x no
     )
 
 
-def return_names_from_med_arrays(input_csv, med_arr): # TODOLIV - despite name, nothing is returned. candidate for renaming?
+def return_names_from_med_arrays(input_csv, med_arr): # ASKKAYLEE - despite name, nothing is returned. candidate for renaming?
     """Prints names from median arrays.
 
     Parameters
@@ -204,37 +202,38 @@ def return_names_from_med_arrays(input_csv, med_arr): # TODOLIV - despite name, 
         except:
             pass
     print(ct)
-    print(best_match,best_features)
+    print(best_match, best_features)
 
 
-def divide_into_training_test_set(features, labels, test_fraction): # TODOLIV add parameter types here
+def divide_into_training_test_set(features, labels, test_fraction):
     """Divide dataset into set fraction of test samples and remaining as training data.
 
     Parameters
     ----------
-    features
+    features : list
         Input features.
-    labels
+    labels : list
         Input labels.
-    test_fraction
+    test_fraction : list
         Fraction of test samples.
 
     Returns
     -------
     tuple
-        Tuple containing numpy arrays for training features, test features, training labels, and test labels.
+        Tuple of numpy arrays for training features, test features, training labels, 
+        and test labels.
     """
     return train_test_split(features, labels, test_size=test_fraction, random_state=42)
 
 
-def generate_K_fold(features, classes, num_folds): # TODOLIV parameter types
+def generate_K_fold(features, classes, num_folds):
     """Generates set of K test sets and corresponding training sets.
 
     Parameters
     ----------
-    features: matrix-like? list?
+    features: list
         Input features.
-    classes: array-like? list?
+    classes: list
         Input classes.
     num_folds : int
         Number of folds.
@@ -270,38 +269,38 @@ def tally_each_class(labels):
     print()
 
 
-def generate_two_class_labels(labels): #TODOLIV unsure about types and can't find this used elsewhere to check
+def generate_two_class_labels(labels):
     """Generates array with two class labels for binary classification problem.
 
     Parameters
     ----------
-    labels : list ? #TODOLIV
+    labels : list
         Input labels.
 
     Returns
     -------
-    list?
-        Numpy array? containing only two different class labels.
+    list
+        Array of labels containing only two different class labels.
     """
     labels_copy = np.copy(labels)
     labels_copy[labels_copy != "SN Ia"] = "other"
     return labels_copy
 
 
-def oversample_minority_classes(features, labels): #TODOLIV parameter types
+def oversample_minority_classes(features, labels):
     """Oversample rarer classes using SMOTE so classifiers are not biased toward SN-1a or SN-II.
 
     Parameters
     ----------
-    features : list? array?
+    features : list
         Input features.
-    labels : list? array?
+    labels : list
         Input labels.
 
     Returns
     -------
     tuple
-        Tuple containing oversampled features and labels as numpy arrays ?
+        Tuple containing arrays of features and labels.
     """
     oversample = SMOTE()
     features_smote, labels_smote = oversample.fit_resample(features, labels)
@@ -394,7 +393,8 @@ def normalize_features(features, mean=None, std=None):
     Returns
     -------
     tuple
-        Tuple containing normalized features, mean values, and standard deviation values as numpy arrays.
+        Tuple containing normalized features, mean values, and standard deviation 
+        values as numpy arrays.
     """
     if mean is None:
         mean = features.mean(axis=-2)

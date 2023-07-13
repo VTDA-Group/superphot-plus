@@ -115,10 +115,8 @@ def import_data(filename, t0_lim=None):
     return t_padded, f_padded, ferr_padded, b_padded
 
 
-def trunc_norm(low, high, loc, scale): #TODOLIV guessing on the return type, but I think this is it?
-    """ Helper function for dist.TruncatedNormal().
-
-    Provides keyword parameters to numpyro's TruncatedNormal.
+def trunc_norm(low, high, loc, scale):
+    """Provides keyword parameters to numpyro's TruncatedNormal.
 
     Parameters
     ----------
@@ -133,7 +131,7 @@ def trunc_norm(low, high, loc, scale): #TODOLIV guessing on the return type, but
 
     Returns
     -------
-    numpyro.distributions.TruncatedDistribution ?
+    numpyro.distributions.TruncatedDistribution
         A truncated normal distribution.
 
     """

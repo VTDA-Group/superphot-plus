@@ -115,7 +115,7 @@ def get_pred_class(ztf_name, reflect_style=False):
     ztf_name : str
         ZTF name of the object.
     reflect_style : bool, optional
-        If True, use reflected class labels. Default is False. TODOLIV
+        If True, change format of output labels. Default is False.
 
     Returns
     -------
@@ -491,7 +491,7 @@ def save_class_fractions(spec_probs_csv, phot_probs_csv, save_fn):
         csvwriter.writerow(alerce_fracs_corr)
 
 
-def plot_class_fractions(saved_cf_file, fig_dir): # TODOLIV filename should be added as parameter?
+def plot_class_fractions(saved_cf_file, fig_dir):
     """Plot class fractions saved from 'save_class_fractions'.
     
     Parameters
