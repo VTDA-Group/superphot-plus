@@ -2,7 +2,6 @@
 This package contains the dust maps for superphot_plus.
 """
 import os
-from pathlib import Path
 
 import superphot_plus
 
