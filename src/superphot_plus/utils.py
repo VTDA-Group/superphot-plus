@@ -112,8 +112,7 @@ def f1_score(pred_classes, true_classes, class_average=False):
     if class_average:
         return f1_sum / len(samples_per_class.keys())
 
-    total_samples = np.sum(samples_per_class.values())
-    return f1_sum / total_samples
+    return f1_sum / len(true_classes)
 
 
 def convert_mags_to_flux(m, merr, zp):
