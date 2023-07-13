@@ -16,7 +16,13 @@ from .file_paths import FIT_PLOTS_FOLDER
 
 @contextlib.contextmanager
 def tqdm_joblib(tqdm_object):
-    """Context manager to patch joblib to report into tqdm progress bar given as argument"""
+    """Context manager to patch joblib to report into tqdm progress bar given as argument.
+
+    Parameters
+    ----------
+    tqdm_object
+        Tqdm progress bar.
+    """
     class TqdmBatchCompletionCallback(joblib.parallel.BatchCompletionCallBack):
         def __call__(self, *args, **kwargs):
             tqdm_object.update(n=self.batch_size)
@@ -31,9 +37,20 @@ def tqdm_joblib(tqdm_object):
         tqdm_object.close()
 
 
-def import_data(fn, t0_lim=None):
-    """
-    Import the datafile.
+def import_data(fn, t0_lim=None): # TODOLIV what is t0?
+    """Import the datafile.
+
+    Parameters
+    ----------
+    fn : str
+        Datafile name.
+    t0_lim : float, optional
+        Upper limit for t0. Defaults to None.
+
+    Returns
+    -------
+    tuple
+        Tuple containing the imported data (t, f, ferr, b).
     """
     npy_array = np.load(fn)
     arr = npy_array['arr_0']
@@ -57,14 +74,53 @@ def import_data(fn, t0_lim=None):
     return t, f, ferr, b
 
 
-def trunc_gauss(quantile, clip_a, clip_b, mean, std):
+def trunc_gauss(quantile, clip_a, clip_b, mean, std): # TODOLIV I'm pretty shaky on quantile and return
+    """Truncated Gaussian distribution.
+
+    Parameters
+    ----------
+    quantile : array-like?
+        Target quantile? The truncnorm.ppf specifies its q param 
+    clip_a : float
+        Lower clip value.
+    clip_b : float
+        Upper clip value.
+    mean : float
+        Mean of the distribution.
+    std : float
+        Standard deviation of the distribution.
+
+    Returns
+    -------
+    type ?
+        Percent point function (of/at/~~ the given quantile?)
+    """
     a, b = (clip_a - mean) / std, (clip_b - mean) / std
     return truncnorm.ppf(quantile, a, b, loc=mean, scale=std)
 
 
-def params_valid(A, beta, gamma, t0, tau_rise, tau_fall):
-    """
-    Checks if params are valid given certain model constraints.
+def params_valid(A, beta, gamma, t0, tau_rise, tau_fall): # TODOLIV - this tells us nothing about A (and doesn't test it); also, should we explain the parameters in more depth?
+    """Check if parameters are valid given certain model constraints.
+
+    Parameters
+    ----------
+    A : ?
+        Parameter A.
+    beta : float
+        Parameter beta.
+    gamma : float
+        Parameter gamma.
+    t0 : float
+        Parameter t0.
+    tau_rise : float
+        Parameter tau_rise.
+    tau_fall : float
+        Parameter tau_fall.
+
+    Returns
+    -------
+    bool
+        True if parameters are valid, False otherwise.
     """
     if tau_fall > 1. / beta:
         return False
@@ -77,10 +133,23 @@ def params_valid(A, beta, gamma, t0, tau_rise, tau_fall):
 
     return True
 
-def run_mcmc(fn, t0_lim=None, plot=False):
-    """
-    Run dynesty importance nested sampling on datafile. Returns
-    set of equally weighted posteriors (sets of fit parameters).
+def run_mcmc(filename, t0_lim=None, plot=False):
+    """Runs dynesty importance nested sampling on datafile; returns set of equally weighted 
+    posteriors (sets of fit parameters).
+
+    Parameters
+    ----------
+    filename : str
+        Data file name.
+    t0_lim : float, optional
+        Upper limit for t0. Defaults to None.
+    plot : bool, optional
+        Flag to enable/disable plotting. Defaults to False.
+
+    Returns
+    -------
+    ndarray or None
+        Numpy array containing the equally weighted posteriors, or None if the data is invalid.
     """
     ref_band_idx = 1 # red band # pylint: disable=unused-variable
 
@@ -89,7 +158,7 @@ def run_mcmc(fn, t0_lim=None, plot=False):
     print(prefix)
     n_params = 14
 
-    tdata, fdata, ferrdata, bdata = import_data(fn, t0_lim)
+    tdata, fdata, ferrdata, bdata = import_data(filename, t0_lim)
 
     if (tdata[bdata == "r"] is None) or (len(tdata[bdata == "r"]) == 0):
         return None
@@ -98,8 +167,23 @@ def run_mcmc(fn, t0_lim=None, plot=False):
 
     max_flux = np.max(fdata[bdata == "r"] - np.abs(ferrdata[bdata == "r"]))
 
-    def flux_model(cube, t_data, b_data):
+    def flux_model(cube, t_data, b_data): # TODOLIV types
+        """Flux model for the MCMC fit.
 
+        Parameters
+        ----------
+        cube : ndarray
+            Array of parameters.
+        t_data : array-like, list, or something you can run len() on ?
+            Time data.
+        b_data : array-like ?
+            Band data.
+
+        Returns
+        -------
+        ndarray
+            Flux model.
+        """
         A, beta, gamma, t0, tau_rise, tau_fall, es = cube[:7] # pylint: disable=unused-variable
 
         if not params_valid(A, beta, gamma, t0, tau_rise, tau_fall):
@@ -147,10 +231,18 @@ def run_mcmc(fn, t0_lim=None, plot=False):
 
 
     def create_prior(cube):
-        """
-        Creates prior for pymultinest, where each side
-        of the "cube" is a value sampled between 0 and 1
-        representing each parameter.
+        """Creates prior for pymultinest, where each side of the "cube" is a value 
+        sampled between 0 and 1 representing each parameter.
+
+        Parameters
+        ----------
+        cube : ndarray
+            Array of parameters.
+
+        Returns
+        -------
+        ndarray
+            Updated array of parameters.
         """
         cube[0] = max_flux * 10 ** (
             trunc_gauss(cube[0], *PRIOR_A)
@@ -187,9 +279,19 @@ def run_mcmc(fn, t0_lim=None, plot=False):
         return cube
 
     def create_logL(cube):
-        """
-        Define the log-likelihood function. Is proportional to
-        chi-squared of data's fit to generated flux model.
+        """Define the log-likelihood function. 
+        
+        Is proportional to chi-squared of data's fit to generated flux model.
+
+        Parameters
+        ----------
+        cube : ndarray
+            Array of parameters.
+
+        Returns
+        -------
+        float
+            Log-likelihood value.
         """
         f_model = flux_model(cube, tdata, bdata)
         extra_sigma_arr = np.ones(len(tdata)) * cube[6] * max_flux
@@ -262,15 +364,27 @@ def run_mcmc(fn, t0_lim=None, plot=False):
     return eq_wt_samples
 
 
-def run_curve_fit(fn):
+def run_curve_fit(filename): # TODOLIV - looks like return is never called for valid inputs, should we make a note of that somewhere?
+    """Run curve fit on datafile.
+
+    Parameters
+    ----------
+    filename : str
+        Datafile name.
+
+    Returns
+    -------
+    ~~ or None
+        ~~, or None if the data is invalid.
+    """
     ref_band_idx = 1 # red band # pylint: disable=unused-variable
 
-    prefix = fn.split("/")[-1][:-4]
+    prefix = filename.split("/")[-1][:-4]
 
     print(prefix)
     n_params = 14 # pylint: disable=unused-variable
 
-    tdata, fdata, ferrdata, bdata = import_data(fn)
+    tdata, fdata, ferrdata, bdata = import_data(filename)
 
     if (tdata[bdata == "r"] is None) or (len(tdata[bdata == "r"]) == 0):
         return None
@@ -303,10 +417,30 @@ def run_curve_fit(fn):
     )
 
 
-    def flux_model_smooth(t_data, A, beta, gamma, t0, tau_rise, tau_fall):
-        """
-        Tests the smooth model implemented in ALERCE's
-        classifier
+    def flux_model_smooth(t_data, A, beta, gamma, t0, tau_rise, tau_fall): # TODOLIV types
+        """Tests the smooth model implemented in ALERCE's classifier.
+
+        Parameters
+        ----------
+        t_data : ndarray ? have this question above. maybe just call it array-like?
+            Time data.
+        A : float ?
+            Parameter A.
+        beta : float
+            Parameter beta.
+        gamma : float
+            Parameter gamma.
+        t0 : float
+            Parameter t0.
+        tau_rise : float
+            Parameter tau_rise.
+        tau_fall : float
+            Parameter tau_fall.
+
+        Returns
+        -------
+        ndarray ?
+            Flux model.
         """
         gamma = 10.**gamma
         tau_rise = 10.**tau_rise
@@ -331,7 +465,7 @@ def run_curve_fit(fn):
 
         return f_model
 
-    popt_r, pcov = curve_fit( # pylint: disable=unused-variable
+    popt_r, pcov = curve_fit( # pylint: disable=unused-variable #TODOLIV does the call here and just below want to actually be to run_curve_fit?
         flux_model_smooth,
         tdata[bdata == "r"],
         fdata[bdata == "r"],
@@ -395,6 +529,25 @@ def run_curve_fit(fn):
 
 
 def dynesty_single_file(test_fn, output_dir, skip_if_exists=True):
+    """Perform model fitting using dynesty on a single data file.
+
+    This function runs the dynesty importance nested sampling algorithm on a single data file.
+    It saves the resulting equally weighted posterior samples to a compressed NumPy archive file.
+
+    Parameters
+    ----------
+    test_fn : str
+        The path of the data file to be analyzed.
+    output_dir : str
+        The directory where the output file will be saved.
+    skip_if_exists : bool, optional
+        Flag indicating whether to skip fitting if the output file already exists. Defaults to true.
+
+    Returns
+    -------
+    None
+        Returns None if the fitting is skipped or encounters an error.
+    """
     #try:
     os.makedirs(output_dir, exist_ok=True)
     prefix = test_fn.split("/")[-1][:-4]

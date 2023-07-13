@@ -1,3 +1,7 @@
+"""This module provides functions to classify supernovae using a multi-layer perceptron (MLP).
+
+The classification is based on the fit parameters and light curves of the supernovae."""
+
 import csv
 import os
 import shutil

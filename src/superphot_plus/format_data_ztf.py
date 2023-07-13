@@ -1,3 +1,8 @@
+# This script provides functions for importing, preprocessing, and manipulating 
+# data related to ZTF (Zwicky Transient Facility) lightcurves.
+
+# TODOLIV - at some point I start assuming that "features" as a parameter has type list. Is this correct?
+
 import csv
 import glob
 import os
@@ -10,11 +15,24 @@ from .utils import calculate_chi_squareds
 
 
 def import_labels_only(input_csvs, allowed_types, fits_dir=None, redshift=False):
-    """
-    Import all features and labels, convert to label and features
-    numpy arrays.
-    """
+    """Import all features and labels, convert to label and features numpy arrays.
 
+    Parameters
+    ----------
+    input_csvs : list
+        List of input CSV file paths.
+    allowed_types : list
+        List of allowed types for labels.
+    fits_dir : str, optional
+        Directory path for FITS files. Defaults to None.
+    redshift : bool, optional
+        Whether to include redshift. Defaults to False.
+
+    Returns
+    -------
+    tuple
+        Tuple containing numpy arrays for names, labels, and redshifts (if redshift==True).
+    """
     if fits_dir is None:
         fits_dir = FITS_DIR
     labels = []
@@ -103,10 +121,20 @@ def import_labels_only(input_csvs, allowed_types, fits_dir=None, redshift=False)
     return np.array(names), np.array(labels)
 
 
-def import_features_and_labels(input_csv, allowed_types):
-    """
-    Import all features and labels, convert to label and features
-    numpy arrays.
+def import_features_and_labels(input_csv, allowed_types): # TODOLIV feature_x not defined
+    """Import all features and labels, convert to label and features numpy arrays.
+
+    Parameters
+    ----------
+    input_csv : str
+        Input CSV file path.
+    allowed_types : list
+        List of allowed types for labels.
+
+    Returns
+    -------
+    tuple
+        Tuple of numpy arrays for names, feature means, feature standard deviations, and labels.
     """
     feature_means = []
     feature_stddevs = []
@@ -143,8 +171,16 @@ def import_features_and_labels(input_csv, allowed_types):
     )
 
 
-def return_names_from_med_arrays(input_csv, med_arr):
+def return_names_from_med_arrays(input_csv, med_arr): # TODOLIV - despite name, nothing is returned. candidate for renaming?
+    """Prints names from median arrays.
 
+    Parameters
+    ----------
+    input_csv : str
+        Input CSV file path.
+    med_arr : list
+        Median array.
+    """
     names = [""] * len(med_arr) # pylint: disable=unused-variable
 
     t_0_expected = med_arr[3]
@@ -171,17 +207,42 @@ def return_names_from_med_arrays(input_csv, med_arr):
     print(best_match,best_features)
 
 
-def divide_into_training_test_set(features, labels, test_fraction):
-    """
-    Divides dataset into set fraction of test samples and remaining as
-    training data.
+def divide_into_training_test_set(features, labels, test_fraction): # TODOLIV add parameter types here
+    """Divide dataset into set fraction of test samples and remaining as training data.
+
+    Parameters
+    ----------
+    features
+        Input features.
+    labels
+        Input labels.
+    test_fraction
+        Fraction of test samples.
+
+    Returns
+    -------
+    tuple
+        Tuple containing numpy arrays for training features, test features, training labels, and test labels.
     """
     return train_test_split(features, labels, test_size=test_fraction, random_state=42)
 
 
-def generate_K_fold(features, classes, num_folds):
-    """
-    Generates set of K test sets and corresponding training sets
+def generate_K_fold(features, classes, num_folds): # TODOLIV parameter types
+    """Generates set of K test sets and corresponding training sets.
+
+    Parameters
+    ----------
+    features: matrix-like? list?
+        Input features.
+    classes: array-like? list?
+        Input classes.
+    num_folds : int
+        Number of folds.
+
+    Returns
+    -------
+    generator
+        Generator yielding the indices for training and test sets.
     """
     if num_folds == -1:
         kf = StratifiedKFold(n_splits=len(features), shuffle=True) # cross-one out validation
@@ -191,8 +252,12 @@ def generate_K_fold(features, classes, num_folds):
 
 
 def tally_each_class(labels):
-    """
-    Print number of samples with each class label.
+    """Prints the number of samples with each class label.
+
+    Parameters
+    ----------
+    labels: list
+        Input labels.
     """
     tally_dict = {}
     for label in labels:
@@ -205,19 +270,38 @@ def tally_each_class(labels):
     print()
 
 
-def generate_two_class_labels(labels):
-    """
-    For the binary classification problem.
+def generate_two_class_labels(labels): #TODOLIV unsure about types and can't find this used elsewhere to check
+    """Generates array with two class labels for binary classification problem.
+
+    Parameters
+    ----------
+    labels : list ? #TODOLIV
+        Input labels.
+
+    Returns
+    -------
+    list?
+        Numpy array? containing only two different class labels.
     """
     labels_copy = np.copy(labels)
     labels_copy[labels_copy != "SN Ia"] = "other"
     return labels_copy
 
 
-def oversample_minority_classes(features, labels):
-    """
-    Uses SMOTE to oversample data from rarer classes so
-    classifiers are not biased toward SN-1a or SN-II
+def oversample_minority_classes(features, labels): #TODOLIV parameter types
+    """Oversample rarer classes using SMOTE so classifiers are not biased toward SN-1a or SN-II.
+
+    Parameters
+    ----------
+    features : list? array?
+        Input features.
+    labels : list? array?
+        Input labels.
+
+    Returns
+    -------
+    tuple
+        Tuple containing oversampled features and labels as numpy arrays ?
     """
     oversample = SMOTE()
     features_smote, labels_smote = oversample.fit_resample(features, labels)
@@ -225,9 +309,19 @@ def oversample_minority_classes(features, labels):
 
 
 def get_posterior_samples(ztf_name, output_dir=None):
-    """
-    Get all EQUAL WEIGHT posterior samples from
-    a ZTF lightcurve fit.
+    """Get all EQUAL WEIGHT posterior samples from a ZTF lightcurve fit.
+
+    Parameters
+    ----------
+    ztf_name : str
+        ZTF name.
+    output_dir : str, optional
+        Output directory path. Defaults to None.
+
+    Returns
+    -------
+    ndarray
+        Numpy array containing the posterior samples.
     """
     if output_dir is None:
         output_dir = FITS_DIR
@@ -248,8 +342,23 @@ def get_posterior_samples(ztf_name, output_dir=None):
 
 
 def oversample_using_posteriors(ztf_names, labels, chis, goal_per_class):
-    """
-    Draws from posteriors of a certain fit.
+    """Oversamples, drawing from posteriors of a certain fit.
+
+    Parameters
+    ----------
+    ztf_names : list
+        List of ZTF names.
+    labels : list
+        List of labels.
+    chis : list
+        List of chi-squared values.
+    goal_per_class : int
+        Number of samples per class.
+
+    Returns
+    -------
+    tuple
+        Tuple containing oversampled features, labels, and chi-squared values as numpy arrays.
     """
     oversampled_labels = []
     oversampled_chis = []
@@ -271,8 +380,21 @@ def oversample_using_posteriors(ztf_names, labels, chis, goal_per_class):
 
 
 def normalize_features(features, mean=None, std=None):
-    """
-    Normalize the features for feeding into the neural network.
+    """Normalizes the features for feeding into the neural network.
+
+    Parameters
+    ----------
+    features : list
+        Input features.
+    mean : ndarray, optional
+        Mean values for normalization. Defaults to None.
+    std : ndarray, optional
+        Standard deviation values for normalization. Defaults to None.
+
+    Returns
+    -------
+    tuple
+        Tuple containing normalized features, mean values, and standard deviation values as numpy arrays.
     """
     if mean is None:
         mean = features.mean(axis=-2)
@@ -285,8 +407,12 @@ def normalize_features(features, mean=None, std=None):
 
 # TODO: find and remove obsolete functions
 def summarize_misc_classification(misc_csv):
-    """
-    Summarize how miscellaneous types of transients are classified.
+    """Summarize how miscellaneous types of transients are classified.
+
+    Parameters
+    ----------
+    misc_csv : str
+        CSV file path.
     """
     misc_dict = {}
     with open(misc_csv, "r") as mc:
@@ -304,9 +430,18 @@ def summarize_misc_classification(misc_csv):
 
 
 def generate_csv_subset(orig_sn_name, new_sn_name, sn_idx, p_cutoff):
-    """
-    Generate smaller subset with only SNe of one type,
-    with confidence above certain threshhold.
+    """Generate smaller subset with only SNe of one type, with confidence above a certain threshold.
+
+    Parameters
+    ----------
+    orig_sn_name : str
+        Original CSV file name.
+    new_sn_name : str
+        New CSV file name.
+    sn_idx : int
+        Index of the SN.
+    p_cutoff : float
+        Confidence threshold.
     """
     sn_names = []
     with open(orig_sn_name, "r") as orig:
@@ -322,9 +457,16 @@ def generate_csv_subset(orig_sn_name, new_sn_name, sn_idx, p_cutoff):
 
 
 def generate_csv_subset2(orig_sn_names, new_sn_name, sn_type):
-    """
-    Generate smaller subset with only SNe of one type,
-    from spectroscopic set.
+    """Generates smaller subset (from spectroscopic set) with only SNe of one type.
+
+    Parameters
+    ----------
+    orig_sn_names : list
+        List of original CSV file names.
+    new_sn_name : str
+        New CSV file name.
+    sn_type : str
+        SN type of our subset.
     """
     with open(new_sn_name, "w+") as new:
         new.write("")
@@ -361,9 +503,17 @@ def generate_csv_subset2(orig_sn_names, new_sn_name, sn_type):
 
 
 def add_snr_to_prob_csv(probs_csv, new_csv):
-    """
-    Adds 10% SNR and num of SNR > 5 points columns
-    to probability CSV. Useful for plots.
+    """Add SNR columns to probability CSV.
+
+    Adds 10% SNR and num of SNR > 5 points columns to probability CSV.
+    Useful for plots.
+
+    Parameters
+    ----------
+    probs_csv : str
+        Probability CSV file path.
+    new_csv : str
+        New CSV file path.
     """
     all_rows = []
     with open(probs_csv, "r") as csvfile:
