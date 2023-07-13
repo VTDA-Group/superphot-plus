@@ -8,7 +8,10 @@ import numpy as np
 from alerce.core import Alerce
 from antares_client.search import get_by_ztf_object_id
 from astropy.coordinates import SkyCoord
+from dustmaps.config import config
 from dustmaps.sfd import SFDQuery
+
+from superphot_plus.sfd import dust_filepath
 
 from .utils import convert_mags_to_flux
 
@@ -277,6 +280,7 @@ def get_band_extinctions(ra, dec):
     Get green and red band extinctions in magnitudes for
     a single supernova LC based on RA and DEC.
     """
+    config["data_dir"] = dust_filepath
     sfd = SFDQuery()
     #First look up the amount of mw dust at this location
     coords = SkyCoord(ra,dec, frame='icrs', unit='deg')
