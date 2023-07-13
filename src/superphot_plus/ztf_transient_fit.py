@@ -10,7 +10,7 @@ from dynesty import utils as dyfunc
 from scipy.optimize import curve_fit
 from scipy.stats import truncnorm
 
-from .constants import * # pylint: disable=wildcard-import
+from .constants import *  # pylint: disable=wildcard-import
 from .file_paths import FIT_PLOTS_FOLDER
 
 
@@ -395,21 +395,18 @@ def run_curve_fit(fn):
 
 
 def dynesty_single_file(test_fn, output_dir, skip_if_exists=True):
-    #try:
     os.makedirs(output_dir, exist_ok=True)
     prefix = test_fn.split("/")[-1][:-4]
-    if skip_if_exists and os.path.exists(output_dir + str(prefix) + '_eqwt.npz'):
+    if skip_if_exists and os.path.exists(
+        os.path.join(output_dir, f"{prefix}_eqwt.npz")
+    ):
         return None
 
-    base_band_i = 1 # second of g, r band base fit # pylint: disable=unused-variable
     eq_samples = run_mcmc(test_fn, plot=False)
     if eq_samples is None:
         return None
     print(np.mean(eq_samples, axis=0))
-    prefix = test_fn.split("/")[-1][:-4]
 
-    np.savez_compressed(output_dir + str(prefix) + '_eqwt_dynesty.npz', eq_samples)
-    #except:
-    #print("skipped")
-    #return None
-    
+    np.savez_compressed(
+        os.path.join(output_dir, f"{prefix}_eqwt_dynesty.npz"), eq_samples
+    )
