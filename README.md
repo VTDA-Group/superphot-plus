@@ -2,11 +2,18 @@
 
 [![Template](https://img.shields.io/badge/Template-LINCC%20Frameworks%20Python%20Project%20Template-brightgreen)](https://lincc-ppt.readthedocs.io/en/latest/)
 
-This project was automatically generated using the LINCC-Frameworks 
-[python-project-template](https://github.com/lincc-frameworks/python-project-template).
+TODO - more meaningful text about what's going on here.
 
-A repository badge was added to show that this project uses the python-project-template, however it's up to
-you whether or not you'd like to display it!
+## Getting started
 
-For more information about the project template see the 
-[documentation](https://lincc-ppt.readthedocs.io/en/latest/).
+To install this package for development use:
+
+```
+$ git clone http://github.com/lincc-frameworks/superphot-plus
+$ cd superphot-plus
+$ pip install -e .
+$ pip install -e ".[dev]"
+```
+
+You can then run `$ pytest` to verify that all dependencies are correct,
+and your environment should be ready for superphot-plussing!
