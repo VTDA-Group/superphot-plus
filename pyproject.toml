@@ -14,10 +14,20 @@ classifiers = [
 ]
 dynamic = ["version"]
 dependencies = [
+    "alerce",
+    "antares_client",
+    "arviz",
     "astropy",
+    "corner",
+    "etils",
     "dustmaps",
+    "dynesty",
+    "jaxns",
+    "joblib",
     "extinction",
     "numpy",
+    "numpyro",
+    "tensorflow_probability",
 ]
 
 # On a mac, install optional dependencies with `pip install '.[dev]'` (include the single quotes)
@@ -27,15 +37,6 @@ dev = [
     "pytest-cov", # Used to report total code coverage
     "pre-commit", # Used to run checks before finalizing a git commit
     "pylint", # Used for static linting of files
-    "alerce",
-    "antares_client",
-    "arviz",
-    "corner",
-    "etils",
-    "dynesty",
-    "jaxns",
-    "numpyro",
-    "tensorflow_probability",
 ]
 
 [build-system]
