@@ -77,10 +77,16 @@ def params_valid(A, beta, gamma, t0, tau_rise, tau_fall):
 
     return True
 
-def run_mcmc(fn, t0_lim=None, plot=False):
+def run_mcmc(fn, t0_lim=None, plot=False, rstate=None):
     """
     Run dynesty importance nested sampling on datafile. Returns
     set of equally weighted posteriors (sets of fit parameters).
+
+    Parameters:
+    fn: file name to run MCMC on
+    t0_lim: ?
+    plot: if yes, draw plots for the fits
+    rstate: random state that is seeded. if none, use machine entropy.
     """
     ref_band_idx = 1 # red band # pylint: disable=unused-variable
 
@@ -205,7 +211,8 @@ def run_mcmc(fn, t0_lim=None, plot=False):
     st = time.time() # pylint: disable=unused-variable
 
     sampler = NestedSampler(
-        create_logL, create_prior, n_params, sample="rwalk", bound="single", nlive=NLIVE
+        create_logL, create_prior, n_params, sample="rwalk", bound="single", nlive=NLIVE,
+        rstate=rstate
     )
     sampler.run_nested(maxiter=MAX_ITER, dlogz=DLOGZ, print_progress=False)
     res = sampler.results
@@ -394,7 +401,7 @@ def run_curve_fit(fn):
     return popt_g, popt_r
 
 
-def dynesty_single_file(test_fn, output_dir, skip_if_exists=True):
+def dynesty_single_file(test_fn, output_dir, skip_if_exists=True,rstate=None):
     os.makedirs(output_dir, exist_ok=True)
     prefix = test_fn.split("/")[-1][:-4]
     if skip_if_exists and os.path.exists(
@@ -402,7 +409,7 @@ def dynesty_single_file(test_fn, output_dir, skip_if_exists=True):
     ):
         return None
 
-    eq_samples = run_mcmc(test_fn, plot=False)
+    eq_samples = run_mcmc(test_fn, plot=False, rstate=rstate)
     if eq_samples is None:
         return None
     print(np.mean(eq_samples, axis=0))
