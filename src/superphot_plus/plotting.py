@@ -609,7 +609,7 @@ def plot_confusion_matrix(y_true, y_pred, filename, purity=False, cmap=plt.cm.Pu
     
     Parameters
     ----------
-    y_true : array-like
+    y_true : array-like #TODOLIV look into array types
         True labels.
     y_pred : array-like
         Predicted labels.

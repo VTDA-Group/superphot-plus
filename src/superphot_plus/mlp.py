@@ -28,7 +28,7 @@ def save_test_probabilities(output_filename, true_label, pred_probabilities):
         The file name to save to.
     true_label : str or int
         The true label.
-    pred_probabilities : array-like (float)
+    pred_probabilities : array-like of float # TODOLIV look into array type
         The prediction probabilities.
     """
     with open(PROBS_FILE, "a+") as pf:
@@ -45,7 +45,7 @@ def save_unclassified_test_probabilities(output_filename, pred_probabilities):
     ----------
     output_filename : str
         The file name to save to.
-    pred_probabilities : array-like
+    pred_probabilities : array-like # TODOLIV array type
         The prediction probabilities.
     """
     with open(PROBS_FILE2, "a+") as pf:
@@ -149,7 +149,7 @@ def get_predictions_new(model, iterator, device):
 def calculate_accuracy(y_pred, y):
     """Calculate the prediction accuracy.
 
-    Parameters # TODOLIV review types
+    Parameters
     ----------
     y_pred : torch.Tensor
         The predicted tensor.
@@ -238,11 +238,11 @@ def create_dataset(features, labels, idxs=None):
 
     Parameters
     ----------
-    features : ndarray
+    features : np.ndarray
         The features array.
-    labels : ndarray
+    labels : np.ndarray
         The labels array.
-    idxs : ndarray, optional
+    idxs : np.ndarray, optional
         The indices array. Defaults to None.
 
     Returns
@@ -399,13 +399,13 @@ def run_mlp(
         The training data.
     valid_data : TensorDataset
         The validation data.
-    test_sample_features : numpy.ndarray
+    test_sample_features : np.ndarray
         The test sample features.
-    test_sample_classes : numpy.ndarray
+    test_sample_classes : np.ndarray
         The test sample classes.
-    test_sample_names : numpy.ndarray
+    test_sample_names : np.ndarray
         The test sample names.
-    test_group_idxs : list
+    test_group_idxs : list of int
         The list of test group indices.
     input_dim : int
         The input dimension.

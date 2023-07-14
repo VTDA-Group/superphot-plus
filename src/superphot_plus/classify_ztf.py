@@ -42,7 +42,7 @@ def adjust_log_dists(features):
     
     Parameters
     ----------
-    features : ndarray
+    features : np.ndarray
         Array of fit features of all samples.
     """
     features[:, 4:7] = np.log10(features[:, 4:7])
@@ -94,7 +94,7 @@ def classify(goal_per_class, num_epochs, neurons_per_layer, num_layers, fits_plo
     predicted_classes_mlp = np.array([])
     prob_above_07_mlp = np.array([], dtype=bool)
 
-    def run_single_fold(x):
+    def run_single_fold(x): # TODOLIV missed a docstring
         train_index, test_index = x
         train_labels = labels[train_index]
         test_labels = labels[test_index]
@@ -257,7 +257,7 @@ def classify(goal_per_class, num_epochs, neurons_per_layer, num_layers, fits_plo
     )
 
 
-def return_new_classifications(test_csv, data_dirs, fit_dir, include_labels=False):
+def return_new_classifications(test_csv, data_dirs, fit_dir, include_labels=False): # TODOLIV missed a docstring
     """
     Return new classifications based on model, save probs to save_Csv.
     """
@@ -317,7 +317,7 @@ def return_new_classifications(test_csv, data_dirs, fit_dir, include_labels=Fals
                 save_unclassified_test_probabilities(test_names[0], probs_avg)
 
 
-def save_phase_versus_class_probs(probs_csv, data_dir):
+def save_phase_versus_class_probs(probs_csv, data_dir): # TODOLIV missed a docstring
     """
     Apply classifier to dataset over different phases, plot overall 
     trends of phase vs confidence, phase vs F1 score, phase vs each 

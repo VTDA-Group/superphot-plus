@@ -138,7 +138,7 @@ def run_mcmc(filename, t0_lim=None, plot=False):
 
     Returns
     -------
-    ndarray or None
+    np.ndarray or None
         Numpy array containing the equally weighted posteriors, or None
         if the data is invalid.
     """
@@ -163,16 +163,16 @@ def run_mcmc(filename, t0_lim=None, plot=False):
 
         Parameters
         ----------
-        cube : numpy.ndarray
-            Array of parameters.
-        t_data : numpy.ndarray
-            Time data.
-        b_data : numpy.ndarray
+        cube : np.ndarray
+            Array of parameters (all of type float).
+        t_data : np.ndarray of float
+            Time data (as floats).
+        b_data : np.ndarray
             Band data.
 
         Returns
         -------
-        ndarray
+        np.ndarray
             Flux model.
         """
         A, beta, gamma, t0, tau_rise, tau_fall, es = cube[:7] # pylint: disable=unused-variable
@@ -226,12 +226,12 @@ def run_mcmc(filename, t0_lim=None, plot=False):
 
         Parameters
         ----------
-        cube : ndarray
+        cube : np.ndarray
             Array of parameters.
 
         Returns
         -------
-        ndarray
+        np.ndarray
             Updated array of parameters.
         """
         cube[0] = max_flux * 10 ** (
@@ -276,7 +276,7 @@ def run_mcmc(filename, t0_lim=None, plot=False):
 
         Parameters
         ----------
-        cube : ndarray
+        cube : np.ndarray
             Array of parameters.
 
         Returns
@@ -414,7 +414,7 @@ def run_curve_fit(filename):
 
         Parameters
         ----------
-        t_data : array-like
+        t_data : array-like # TODOLIV check array type
             Time data.
         A : float
             Parameter A.
@@ -431,7 +431,7 @@ def run_curve_fit(filename):
 
         Returns
         -------
-        ndarray
+        np.ndarray
             Flux model.
         """
         gamma = 10.**gamma

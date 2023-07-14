@@ -39,7 +39,7 @@ def import_data(filename, t0_lim=None):
 
     Returns
     -------
-    tuple of arrays or None
+    tuple of arrays or None # TODOLIV should this be np.ndarrays?
         A tuple containing the padded time, flux, flux error, and band 
         arrays, respectively. If the input data does not contain any 
         valid points, None is returned.
@@ -133,12 +133,11 @@ def trunc_norm(low, high, loc, scale):
     -------
     numpyro.distributions.TruncatedDistribution
         A truncated normal distribution.
-
     """
     return dist.TruncatedNormal(loc=loc, scale=scale, low=low, high=high)
 
 
-def run_mcmc(filename, sampler="NUTS", t0_lim=None, plot=False): # TODOLIV does this return things?
+def run_mcmc(filename, sampler="NUTS", t0_lim=None, plot=False):
     """Runs dynesty importance nested sampling on data file to get set
     of equally weighted posteriors (sets of fit parameters).
 
@@ -158,10 +157,10 @@ def run_mcmc(filename, sampler="NUTS", t0_lim=None, plot=False): # TODOLIV does 
 
     Returns
     -------
-    Array or None
+    np.ndarray or None
         A set of equally weighted posteriors (sets of fit parameters) as 
-        an array. If the data file does not contain any valid points, 
-        None is returned.
+        a numpy array. If the data file does not contain any valid 
+        points, None is returned.
 
     """
     rng_key = random.PRNGKey(4)
@@ -190,7 +189,7 @@ def run_mcmc(filename, sampler="NUTS", t0_lim=None, plot=False): # TODOLIV does 
 
         Parameters
         ----------
-        t : array-like, optional
+        t : array-like, optional # TODOLIV array types here
             Time values. Defaults to None.
         obsflux : array-like, optional
             Observed flux values. Defaults to None.
@@ -273,7 +272,7 @@ def run_mcmc(filename, sampler="NUTS", t0_lim=None, plot=False): # TODOLIV does 
 
         Parameters
         ----------
-        t : array-like, optional
+        t : array-like, optional # TODOLIV array types here
             Time values. Defaults to None.
         obsflux : array-like, optional
             Observed flux values. Defaults to None.
@@ -600,7 +599,7 @@ def run_mcmc(filename, sampler="NUTS", t0_lim=None, plot=False): # TODOLIV does 
 
 
 def run_mcmc_batch(filenames, t0_lim=None, plot=False):
-    """Runs numpyro's NUTS sampler on data file to get a set of equally # CHECKWITHKAYLEE
+    """Runs numpyro's NUTS sampler on data file to get a set of equally
     weighted posteriors (sets of fit parameters).
 
     Parameters
@@ -658,7 +657,7 @@ def run_mcmc_batch(filenames, t0_lim=None, plot=False):
 
         Parameters
         ----------
-        t : array-like, optional
+        t : array-like, optional # TODOLIV array types
             Time values. Defaults to None.
         obsflux : array-like, optional
             Observed flux values. Defaults to None.
@@ -852,7 +851,7 @@ def flux_from_posteriors(t, params, max_flux):
     ----------
     t : float
         Time parameter.
-    params : dict-like ?
+    params : dict-like ? # TODOLIV check these types
         A collection of parameters used in the calculation. (TODOLIV - are these the posteriors?)
     max_flux : float ?
         The upper limit of flux values.
@@ -915,7 +914,7 @@ def main_loop_directory(test_filenames, output_dir=FITS_DIR):
 
     Parameters
     ----------
-    test_filenames : list
+    test_filenames : list of str
         Names of files to use as input.
     output_dir : str
         Directory to save outputs to. Defaults to FITS_DIR.

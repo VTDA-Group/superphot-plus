@@ -23,7 +23,7 @@ def get_band_extinctions(ra, dec):
 
     Returns
     -------
-    ext_list : array
+    ext_list : array #TODOLIV - specify array type
         A list of extinction magnitudes for the given coordinates, in
         the g- and r-bands.
     """
@@ -58,8 +58,9 @@ def get_sn_ra_dec(ztf_name, filtered_csv):
 
     Returns
     -------
-    ra, dec : tuple of float
-        The right ascension and declination of the supernova.
+    ra, dec : tuple
+        The right ascension (float) and declination (float) of the 
+        supernova.
     """
     with open(filtered_csv, "r") as cf:
         for row in cf:
@@ -75,9 +76,9 @@ def calc_accuracy(pred_classes, test_labels):
 
     Parameters
     ----------
-    pred_classes : numpy array (int)
+    pred_classes : np.ndarray of int
         Classes predicted by MLP.
-    test_labels : numpy array (int)
+    test_labels : np.ndarray of int
         True spectroscopic classes.
 
     Returns
@@ -110,9 +111,9 @@ def f1_score(pred_classes, true_classes, class_average=False):
 
     Parameters
     ----------
-    pred_classes : numpy array (int)
+    pred_classes : np.ndarray of int
         Classes predicted by MLP.
-    true_classes : numpy array (int)
+    true_classes : np.ndarray of int
         True spectroscopic classes.
     class_average : bool, optional
         Determines whether F1 score is weighted equally for each class,
@@ -152,7 +153,7 @@ def convert_mags_to_flux(m, merr, zp):
 
     Parameters
     ----------
-    m : array-like
+    m : array-like # TODOLIV - investigate array types here
         The magnitudes.
     merr : array-like
         The error in magnitudes.
@@ -175,7 +176,7 @@ def flux_model(cube, t_data, b_data):
 
     Parameters
     ----------
-    cube : array-like
+    cube : array-like # TODOLIV - array types
         The cube of fit parameters.
     t_data : array-like
         The time data.
@@ -244,7 +245,7 @@ def calculate_neg_chi_squareds(names, fit_dir, data_dirs):
 
     Returns
     -------
-    log_likelihoods : numpy array
+    log_likelihoods : np.ndarray (#TODOLIV - of float?)
         The log likelihoods for each object.
     """
     log_likelihoods = []

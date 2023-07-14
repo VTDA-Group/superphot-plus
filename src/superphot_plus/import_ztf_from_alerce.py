@@ -324,7 +324,7 @@ def get_band_extinctions(ra, dec):
 
     Returns
     -------
-    list
+    list (of float?) # TODOLIV
         List containing the g- and r-band extinctions.
     """
     sfd = SFDQuery()
@@ -352,7 +352,7 @@ def import_lc(filename):
 
     Returns
     -------
-    Tuple
+    tuple
         Tuple containing the imported light curve data.
     """
     ra = None
@@ -396,7 +396,6 @@ def import_lc(filename):
             mjd.append(float(row[1]))
             flux_err.append(float(row[ferr_idx]))
 
-
     sort_idx = np.argsort(np.array(mjd))
     t = np.array(mjd)[sort_idx].astype(float)
     m = np.array(flux)[sort_idx].astype(float)
@@ -428,18 +427,18 @@ def clip_lightcurve_end(times, fluxes, fluxerrs, bands):
 
     Parameters
     ----------
-    times : ndarray
+    times : np.ndarray
         Time values of the light curve.
-    fluxes : ndarray
+    fluxes : np.ndarray
         Flux values of the light curve.
-    fluxerrs : ndarray
+    fluxerrs : np.ndarray
         Flux error values of the light curve.
-    bands : ndarray
+    bands : np.ndarray
         Band information of the light curve.
 
     Returns
     -------
-    Tuple
+    tuple
         Tuple containing the clipped light curve data.
     """
     def line_fit(x, a, b): # pylint: disable=unused-variable
@@ -478,7 +477,7 @@ def clip_lightcurve_end(times, fluxes, fluxerrs, bands):
     return np.array(t_clip), np.array(flux_clip), np.array(ferr_clip), np.array(b_clip)
 
 
-def save_new_datafiles():
+def save_new_datafiles(): # TODOLIV missed one
     """Save new data files based on the provided CSV file."""
     with open(OUTPUT_CSV, "w+") as csv_file:
         writer = csv.writer(csv_file, delimiter=',')
@@ -530,13 +529,13 @@ def save_datafile(name, times, fluxes, fluxerrs, bands, save_dir):
     ----------
     name : str
         Name of the data file.
-    times : ndarray
+    times : np.ndarray
         Time values of the light curve.
-    fluxes : ndarray
+    fluxes : np.ndarray
         Flux values of the light curve.
-    fluxerrs : ndarray
+    fluxerrs : np.ndarray
         Flux error values of the light curve.
-    bands : ndarray
+    bands : np.ndarray
         Band information of the light curve.
     save_dir : str
         Path to the output folder.

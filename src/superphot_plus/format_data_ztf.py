@@ -16,12 +16,9 @@ def import_labels_only(input_csvs, allowed_types, fits_dir=None, redshift=False)
     """Filters CSVs for rows where label is in allowed_types and returns
     names, labels, and optionally redshift numpy arrays.
 
-    Maps groups of similar labels to a single representative label name
-    (eg, "SN Ic", "SNIc-BL", and "21" all become "SN Ibc").
-
     Parameters
     ----------
-    input_csvs : list
+    input_csvs : list of str
         List of input CSV file paths.
     allowed_types : list
         List of allowed types for labels.
@@ -32,9 +29,13 @@ def import_labels_only(input_csvs, allowed_types, fits_dir=None, redshift=False)
 
     Returns
     -------
-    tuple
-        Tuple containing numpy arrays for names, labels, and redshifts
-        (if redshift==True).
+    tuple of np.ndarray
+        Tuple of names, labels, and redshifts (if redshift==True).
+
+    Notes
+    -----
+    Maps groups of similar labels to a single representative label name
+    (eg, "SN Ic", "SNIc-BL", and "21" all become "SN Ibc").
     """
     if fits_dir is None:
         fits_dir = FITS_DIR
@@ -128,9 +129,6 @@ def import_features_and_labels(input_csv, allowed_types):
     """Filters CSVs for rows where label is in allowed_types and returns 
     names, labels, and features.
 
-    Maps groups of similar labels to a single representative label name
-    (eg, "SN Ic" and "SNIc-BL" both become "SN Ibc").
-
     Parameters
     ----------
     input_csv : str
@@ -140,9 +138,14 @@ def import_features_and_labels(input_csv, allowed_types):
 
     Returns
     -------
-    tuple
-        Tuple of numpy arrays for names, feature means, feature standard
-        deviations, and labels.
+    tuple of np.ndarray
+        Tuple of names, feature means, feature standard deviations, and 
+        labels.
+
+    Notes
+    -----
+    Maps groups of similar labels to a single representative label name
+    (eg, "SN Ic" and "SNIc-BL" both become "SN Ibc").
     """
     feature_means = []
     feature_stddevs = []
@@ -194,9 +197,9 @@ def divide_into_training_test_set(features, labels, test_fraction):
 
     Returns
     -------
-    tuple
-        Tuple of numpy arrays for training features, test features,
-        training labels, and test labels.
+    tuple of np.ndarray
+        Tuple of training features, test features, training labels, and 
+        test labels.
     """
     return train_test_split(features, labels, test_size=test_fraction, random_state=42)
 
@@ -296,7 +299,7 @@ def get_posterior_samples(ztf_name, output_dir=None):
 
     Returns
     -------
-    ndarray
+    np.ndarray
         Numpy array containing the posterior samples.
     """
     if output_dir is None:
@@ -333,9 +336,9 @@ def oversample_using_posteriors(ztf_names, labels, chis, goal_per_class):
 
     Returns
     -------
-    tuple
+    tuple of np.ndarray
         Tuple containing oversampled features, labels, and chi-squared
-        values as numpy arrays.
+        values.
     """
     oversampled_labels = []
     oversampled_chis = []
@@ -370,9 +373,9 @@ def normalize_features(features, mean=None, std=None):
 
     Returns
     -------
-    tuple
+    tuple of np.ndarray
         Tuple containing normalized features, mean values, and standard 
-        deviation values as numpy arrays.
+        deviation values.
     """
     if mean is None:
         mean = features.mean(axis=-2)
@@ -441,7 +444,7 @@ def generate_csv_subset2(orig_sn_names, new_sn_name, sn_type):
 
     Parameters
     ----------
-    orig_sn_names : list
+    orig_sn_names : list of str
         List of original CSV file names.
     new_sn_name : str
         New CSV file name.
