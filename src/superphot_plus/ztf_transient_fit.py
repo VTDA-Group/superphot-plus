@@ -93,19 +93,15 @@ def trunc_gauss(quantile, clip_a, clip_b, mean, std):
     return truncnorm.ppf(quantile, a, b, loc=mean, scale=std)
 
 
-def params_valid(A, beta, gamma, t0, tau_rise, tau_fall):
+def params_valid(beta, gamma, tau_rise, tau_fall):
     """Check if parameters are valid given certain model constraints.
 
     Parameters
     ----------
-    A
-        Parameter A.
     beta : float
         Parameter beta.
     gamma : float
         Parameter gamma.
-    t0 : float
-        Parameter t0.
     tau_rise : float
         Parameter tau_rise.
     tau_fall : float
@@ -163,7 +159,7 @@ def run_mcmc(filename, t0_lim=None, plot=False):
     max_flux = np.max(fdata[bdata == "r"] - np.abs(ferrdata[bdata == "r"]))
 
     def flux_model(cube, t_data, b_data):
-        """Flux model for the MCMC fit.
+        """Flux model for the dynesty fit.
 
         Parameters
         ----------
@@ -181,7 +177,7 @@ def run_mcmc(filename, t0_lim=None, plot=False):
         """
         A, beta, gamma, t0, tau_rise, tau_fall, es = cube[:7] # pylint: disable=unused-variable
 
-        if not params_valid(A, beta, gamma, t0, tau_rise, tau_fall):
+        if not params_valid(beta, gamma, tau_rise, tau_fall):
             return 1e10 * np.ones(len(t_data))
 
         phase = t_data - t0
@@ -206,7 +202,7 @@ def run_mcmc(filename, t0_lim=None, plot=False):
         tau_rise_b = tau_rise * cube[start_idx + 4]
         tau_fall_b = tau_fall * cube[start_idx + 5]
 
-        if not params_valid(A_b, beta_b, gamma_b, t0_b, tau_rise_b, tau_fall_b):
+        if not params_valid(beta_b, gamma_b, tau_rise_b, tau_fall_b):
             return 1e10 * np.ones(len(t_data))
 
         inc_band_ix = np.array(b_data) == "g"
@@ -444,7 +440,7 @@ def run_curve_fit(filename):
 
         sigma_arg = (t_data - gamma - t0) / 3.
         sigma = 1. / (1. + np.exp(-sigma_arg))
-        if not params_valid(A, beta, gamma, t0, tau_rise, tau_fall):
+        if not params_valid(beta, gamma, tau_rise, tau_fall):
             return 1e10 * np.ones(len(t_data))
 
         phase = t_data - t0

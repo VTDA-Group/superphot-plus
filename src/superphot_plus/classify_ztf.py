@@ -32,7 +32,7 @@ from .mlp import (
     save_unclassified_test_probabilities,
 )
 from .plotting import plot_confusion_matrix
-from .utils import calculate_chi_squareds, f1_score, calc_accuracy
+from .utils import calculate_neg_chi_squareds, f1_score, calc_accuracy
 from .ztf_transient_fit import import_data, run_mcmc
 
 
@@ -112,11 +112,11 @@ def classify(goal_per_class, num_epochs, neurons_per_layer, num_layers, fits_plo
         val_classes = np.array([labels_to_classes[l] for l in val_labels]).astype(int)
         test_classes = np.array([labels_to_classes[l] for l in test_labels]).astype(int)
 
-        train_chis = calculate_chi_squareds(train_names, FITS_DIR, DATA_DIRS)
+        train_chis = calculate_neg_chi_squareds(train_names, FITS_DIR, DATA_DIRS)
         train_features, train_classes, train_chis = oversample_using_posteriors(
             train_names, train_classes, train_chis, goal_per_class
         )
-        val_chis = calculate_chi_squareds(val_names, FITS_DIR, DATA_DIRS)
+        val_chis = calculate_neg_chi_squareds(val_names, FITS_DIR, DATA_DIRS)
         val_features, val_classes, val_chis = oversample_using_posteriors(
             val_names, val_classes, val_chis, round(0.1 * goal_per_class)
         )
@@ -129,7 +129,7 @@ def classify(goal_per_class, num_epochs, neurons_per_layer, num_layers, fits_plo
         test_group_idxs = []
         test_names_os = []
         test_chis_os = []
-        test_chis = calculate_chi_squareds(test_names, FITS_DIR, DATA_DIRS)
+        test_chis = calculate_neg_chi_squareds(test_names, FITS_DIR, DATA_DIRS)
 
         for i in range(len(test_names)):
             test_name = test_names[i]
@@ -294,7 +294,7 @@ def return_new_classifications(test_csv, data_dirs, fit_dir, include_labels=Fals
                 continue
             test_features = test_posts
             test_names = np.array([test_name] * len(test_posts))
-            test_chi = calculate_chi_squareds([test_name,], fit_dir, data_dirs)[0]
+            test_chi = calculate_neg_chi_squareds([test_name,], fit_dir, data_dirs)[0]
             #if np.abs(test_chi) > 10: # probably not a SN
             #    print(test_name, "CHISQ TOO HIGH")
             #    label = "SKIP"
@@ -360,7 +360,7 @@ def save_phase_versus_class_probs(probs_csv, data_dir):
 
                 try:
                     refit_posts = run_mcmc(os.path.join(data_dir, test_name+".npz"), t)
-                    test_chi = calculate_chi_squareds([test_name,], FITS_DIR, [data_dir,])[0]
+                    test_chi = calculate_neg_chi_squareds([test_name,], FITS_DIR, [data_dir,])[0]
                     test_chis = np.array([[test_chi] * len(refit_posts)])
                 except:
                     print("skipping fitting")

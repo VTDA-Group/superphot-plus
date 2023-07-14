@@ -9,12 +9,12 @@ import numpy as np
 from sklearn.model_selection import StratifiedKFold, train_test_split
 
 from .file_paths import FITS_DIR, DATA_DIRS
-from .utils import calculate_chi_squareds
+from .utils import calculate_neg_chi_squareds
 
 
 def import_labels_only(input_csvs, allowed_types, fits_dir=None, redshift=False):
     """Filters CSVs for rows where label is in allowed_types and returns
-    a tuple of names, labels, and optionally redshift numpy arrays.
+    names, labels, and optionally redshift numpy arrays.
 
     Maps groups of similar labels to a single representative label name
     (eg, "SN Ic", "SNIc-BL", and "21" all become "SN Ibc").
@@ -126,7 +126,7 @@ def import_labels_only(input_csvs, allowed_types, fits_dir=None, redshift=False)
 
 def import_features_and_labels(input_csv, allowed_types):
     """Filters CSVs for rows where label is in allowed_types and returns 
-    a tuple of names, features, feature std devs, and labels.
+    names, labels, and features.
 
     Maps groups of similar labels to a single representative label name
     (eg, "SN Ic" and "SNIc-BL" both become "SN Ibc").
@@ -179,42 +179,6 @@ def import_features_and_labels(input_csv, allowed_types):
     )
 
 
-def return_names_from_med_arrays(input_csv, med_arr):
-    """Prints names from median arrays.
-
-    Parameters
-    ----------
-    input_csv : str
-        Input CSV file path.
-    med_arr : list
-        Median array.
-    """
-    names = [""] * len(med_arr) # pylint: disable=unused-variable
-
-    t_0_expected = med_arr[3]
-    best_diff = np.inf
-    best_features = None
-    best_match = None
-    ct = 0
-    for fn in glob.glob(FITS_DIR+"/*.npz"):
-        try:
-            name = fn.split("/")[-1].split("_")[0]
-            #print(name)
-            features = get_posterior_samples(name, output_dir=None)
-            med_features = np.median(features, axis=0)
-            t_0 = med_features[3]
-            diff = np.abs(t_0_expected - t_0)
-            if diff < best_diff:
-                best_diff = diff
-                best_match = name
-                best_features = med_features
-            ct += 1
-        except:
-            pass
-    print(ct)
-    print(best_match, best_features)
-
-
 def divide_into_training_test_set(features, labels, test_fraction):
     """Divide dataset into set fraction of test samples and remaining as
     training data.
@@ -247,7 +211,7 @@ def generate_K_fold(features, classes, num_folds):
     classes: list
         Input classes.
     num_folds : int
-        Number of folds.
+        Number of folds. If -1, sets num_folds=len(features).
 
     Returns
     -------
@@ -503,7 +467,7 @@ def generate_csv_subset2(orig_sn_names, new_sn_name, sn_type):
                     zs.append(float(row[2]))
 
 
-    train_chis = calculate_chi_squareds(sn_names, FITS_DIR, DATA_DIRS)
+    train_chis = calculate_neg_chi_squareds(sn_names, FITS_DIR, DATA_DIRS)
     print(len(train_chis), len(sn_names))
     for _, sn_name in enumerate(sn_names):
         train_features, train_classes, train_chis_os = oversample_using_posteriors( # pylint: disable=unused-variable

@@ -139,7 +139,7 @@ def trunc_norm(low, high, loc, scale):
 
 
 def run_mcmc(filename, sampler="NUTS", t0_lim=None, plot=False): # TODOLIV does this return things?
-    """Runs dynesty importance nested sampling on data file to get set 
+    """Runs dynesty importance nested sampling on data file to get set
     of equally weighted posteriors (sets of fit parameters).
 
     Parameters
@@ -600,8 +600,8 @@ def run_mcmc(filename, sampler="NUTS", t0_lim=None, plot=False): # TODOLIV does 
 
 
 def run_mcmc_batch(filenames, t0_lim=None, plot=False):
-    """Runs dynesty importance nested sampling on datafile to get a set 
-    of equally weighted posteriors (sets of fit parameters).
+    """Runs numpyro's NUTS sampler on data file to get a set of equally # CHECKWITHKAYLEE
+    weighted posteriors (sets of fit parameters).
 
     Parameters
     ----------
@@ -846,7 +846,7 @@ def run_mcmc_batch(filenames, t0_lim=None, plot=False):
 
 
 def flux_from_posteriors(t, params, max_flux):
-    """Generates green and red band fluxes (TODOLIV - does this make sense?) from given posteriors.
+    """Generates g- and r- band fluxes from given posteriors.
 
     Parameters
     ----------

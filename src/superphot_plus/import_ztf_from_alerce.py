@@ -311,7 +311,7 @@ def get_all_unclassified_samples(save_csv):
 
 
 def get_band_extinctions(ra, dec):
-    """Gets green and red band extinctions in magnitudes for a single
+    """Gets g- and r-band extinctions in magnitudes for a single
     supernova lightcurve based on right ascension and declination
     coordinates.
     
@@ -325,7 +325,7 @@ def get_band_extinctions(ra, dec):
     Returns
     -------
     list
-        List containing the green and red band extinctions.
+        List containing the g- and r-band extinctions.
     """
     sfd = SFDQuery()
     #First look up the amount of mw dust at this location

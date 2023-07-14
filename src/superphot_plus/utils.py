@@ -10,7 +10,7 @@ from superphot_plus.sfd import dust_filepath
 
 
 def get_band_extinctions(ra, dec):
-    """Get green and red band extinctions in magnitudes for a single
+    """Get g- and r-band extinctions in magnitudes for a single
     supernova lightcurve based on right ascension (RA) and declination
     (DEC).
 
@@ -25,7 +25,7 @@ def get_band_extinctions(ra, dec):
     -------
     ext_list : array
         A list of extinction magnitudes for the given coordinates, in
-        the green and red bands.
+        the g- and r-bands.
     """
     config["data_dir"] = dust_filepath
     sfd = SFDQuery()
@@ -229,9 +229,9 @@ def flux_model(cube, t_data, b_data):
     return f_model
 
 
-def calculate_chi_squareds(names, fit_dir, data_dirs):
-    """Gets the chi-squared of posterior fits from the model parameters
-    and original data files.
+def calculate_neg_chi_squareds(names, fit_dir, data_dirs):
+    """Gets the negative chi-squared of posterior fits from the model 
+    parameters and original data files.
 
     Parameters
     ----------
