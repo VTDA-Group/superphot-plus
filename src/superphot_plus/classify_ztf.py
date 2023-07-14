@@ -1,6 +1,8 @@
-"""This module provides functions to classify supernovae using a multi-layer perceptron (MLP).
+"""This module provides functions to classify supernovae using a
+multi-layer perceptron (MLP).
 
-The classification is based on the fit parameters and light curves of the supernovae."""
+The classification is based on the fit parameters and light curves of
+the supernovae."""
 
 import csv
 import os
@@ -35,8 +37,7 @@ from .ztf_transient_fit import import_data, run_mcmc
 
 
 def adjust_log_dists(features):
-    """
-    Takes log of fit parameters with log-Gaussian priors before
+    """Takes log of fit parameters with log-Gaussian priors before
     feeding into classifier. Also removes apparent amplitude and t0.
     
     Parameters
@@ -56,7 +57,8 @@ def classify(goal_per_class, num_epochs, neurons_per_layer, num_layers, fits_plo
     Parameters
     ----------
     goal_per_class : int
-        Oversampling such that there are this many fits per supernova type.
+        Oversampling such that there are this many fits per supernova 
+        type.
     num_epochs : int
         Number of training epochs.
     neurons_per_layer : int
@@ -64,9 +66,9 @@ def classify(goal_per_class, num_epochs, neurons_per_layer, num_layers, fits_plo
     num_layers : int
         Number of hidden layers in MLP.
     fits_plotted : bool
-        If true, assumes all sample fit plots are saved in FIT_PLOTS_FOLDER. Copies
-        plots of wrongly classified samples to separate folder for manual followup.
-        Defaults to False.
+        If true, assumes all sample fit plots are saved in 
+        FIT_PLOTS_FOLDER. Copies plots of wrongly classified samples to 
+        separate folder for manual followup. Defaults to False.
     """
 
     #for file in os.scandir('models'):
@@ -318,8 +320,9 @@ def return_new_classifications(test_csv, data_dirs, fit_dir, include_labels=Fals
 
 def save_phase_versus_class_probs(probs_csv, data_dir):
     """
-    Apply classifier to dataset over different phases, plot overall trends of phase vs confidence,
-    phase vs F1 score, phase vs each class accuracy.
+    Apply classifier to dataset over different phases, plot overall 
+    trends of phase vs confidence, phase vs F1 score, phase vs each 
+    class accuracy.
     """
     model = MLP(13, 5, 128, 3) # set up empty multi-layer perceptron
     model.load_state_dict(torch.load(TRAINED_MODEL_FN)) # load trained state dict to the MLP

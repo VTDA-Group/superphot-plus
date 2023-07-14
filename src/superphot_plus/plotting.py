@@ -1,4 +1,5 @@
-"""This module provides various functions for analyzing and visualizing light curve data."""
+"""This module provides various functions for analyzing and visualizing
+light curve data."""
 
 import csv
 import os
@@ -38,7 +39,8 @@ def plot_high_confidence_confusion_matrix(probs_csv, filename, cutoff=0.7):
     filename : str
         Base filename for saving the confusion matrix plots.
     cutoff : float, optional
-        Probability cutoff value for high-confidence predictions. Default is 0.7.
+        Probability cutoff value for high-confidence predictions.
+        Default is 0.7.
     """
     classes_to_labels = {0: "SN Ia", 1: "SN II", 2: "SN IIn", 3: "SLSN-I", 4: "SN Ibc"}
     true_classes = []
@@ -65,7 +67,8 @@ def plot_high_confidence_confusion_matrix(probs_csv, filename, cutoff=0.7):
 
 
 def plot_snIa_confusion_matrix(probs_csv, filename, p07=False):
-    """Merge all non-Ia into one core collapse class and plot resulting binary confusion matrix.
+    """Merge all non-Ia into one core collapse class and plot resulting
+    binary confusion matrix.
 
     Parameters
     ----------
@@ -74,7 +77,8 @@ def plot_snIa_confusion_matrix(probs_csv, filename, p07=False):
     filename : str
         Base filename for saving the confusion matrix plots.
     p07 : bool, optional
-        If True, only include predictions with a probability >= 0.7. Default is False.
+        If True, only include predictions with a probability >= 0.7.
+        Default is False.
     """
     classes_to_labels = {0: "SN Ia", 1: "SN CC"}
     true_classes = []
@@ -108,7 +112,8 @@ def plot_snIa_confusion_matrix(probs_csv, filename, p07=False):
 
 
 def get_pred_class(ztf_name, reflect_style=False):
-    """Get alerce probabilities corresponding to the four (no SN IIn) classes in our ZTF classifier.
+    """Get alerce probabilities corresponding to the four (no SN IIn)
+    classes in our ZTF classifier.
     
     Parameters
     ----------
@@ -140,7 +145,8 @@ def get_pred_class(ztf_name, reflect_style=False):
 def plot_alerce_confusion_matrix(probs_csv, filename, p07=False):
     """Plots ALeRCE's classifications as confusion matrix. 
     
-    Only four classes as SNe IIn is not a label in their transient classifier.
+    Only four classes as SNe IIn is not a label in their transient
+    classifier.
     
     Parameters
     ----------
@@ -149,7 +155,8 @@ def plot_alerce_confusion_matrix(probs_csv, filename, p07=False):
     filename : str
         Base filename for saving the confusion matrix plots.
     p07 : bool, optional
-        If True, only include predictions with a probability >= 0.7. Default is False.
+        If True, only include predictions with a probability >= 0.7.
+        Default is False.
     """
     classes_to_labels = {0: "SN Ia", 1: "SN II", 2: "SN IIn", 3: "SLSN-I", 4: "SN Ibc"}
     true_classes = []
@@ -201,7 +208,8 @@ def plot_alerce_confusion_matrix(probs_csv, filename, p07=False):
 
 
 def plot_agreement_matrix(probs_csv, filename):
-    """Plot agreement matrix between ALeRCE and Superphot+ classifications.
+    """Plot agreement matrix between ALeRCE and Superphot+
+    classifications.
 
     Parameters
     ----------
@@ -242,7 +250,8 @@ def plot_agreement_matrix(probs_csv, filename):
 
 
 def plot_expected_agreement_matrix(probs_csv, filename, cmap=plt.cm.Purples):
-    """Plot expected agreement matrix based on independent ALeRCE and Superphot+ confusion matrices.
+    """Plot expected agreement matrix based on independent ALeRCE and
+    Superphot+ confusion matrices.
 
     Parameters
     ----------
@@ -340,7 +349,8 @@ def plot_expected_agreement_matrix(probs_csv, filename, cmap=plt.cm.Purples):
 def plot_agreement_matrix_from_arrs(our_labels, alerce_labels, filename, cmap=plt.cm.Purples):
     """Helper function to plot agreement matrices.
 
-    Plot agreement matrix based on input arrays of ALeRCE and Superphot+ classifications.
+    Plot agreement matrix based on input arrays of ALeRCE and Superphot+
+    classifications.
 
     Parameters
     ----------
@@ -396,14 +406,17 @@ def plot_agreement_matrix_from_arrs(our_labels, alerce_labels, filename, cmap=pl
 
 
 def save_class_fractions(spec_probs_csv, phot_probs_csv, save_fn):
-    """Save class fractions from spectroscopic, photometric, and corrected photometric.
+    """Save class fractions from spectroscopic, photometric, and
+    corrected photometric.
 
     Parameters
     ----------
     spec_probs_csv : str
-        Path to the CSV file containing spectroscopic probability predictions.
+        Path to the CSV file containing spectroscopic probability
+        predictions.
     phot_probs_csv : str
-        Path to the CSV file containing photometric probability predictions.
+        Path to the CSV file containing photometric probability
+        predictions.
     save_fn : str
         Filename for saving the class fractions.
     """
@@ -591,7 +604,8 @@ def plot_class_fractions(saved_cf_file, fig_dir):
 
 
 def plot_confusion_matrix(y_true, y_pred, filename, purity=False, cmap=plt.cm.Purples):
-    """Plot the confusion matrix between given true and predicted labels.
+    """Plot the confusion matrix between given true and predicted
+    labels.
     
     Parameters
     ----------
@@ -657,7 +671,8 @@ def plot_confusion_matrix(y_true, y_pred, filename, purity=False, cmap=plt.cm.Pu
 
 
 def corner_plot_all(input_csvs, save_file):
-    """Plot combined corner plot of all training set samples, excluding the overall scaling A.
+    """Plot combined corner plot of all training set samples, excluding
+    the overall scaling A.
 
     Parameters
     ----------
@@ -704,7 +719,8 @@ def corner_plot_all(input_csvs, save_file):
 
 
 def plot_lightcurve_clipping(ztf_name):
-    """Plot the lightcurve WITH clipped points and lines demonstrating how those points are clipped.
+    """Plot the lightcurve WITH clipped points and lines demonstrating
+    how those points are clipped.
 
     Parameters
     ----------

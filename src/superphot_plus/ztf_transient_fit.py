@@ -73,7 +73,8 @@ def trunc_gauss(quantile, clip_a, clip_b, mean, std):
     Parameters
     ----------
     quantile : float
-        The quantile at which to evaluate the ppf. Should be a value between 0 and 1.
+        The quantile at which to evaluate the ppf. Should be a value
+        between 0 and 1.
     clip_a : float
         Lower clip value.
     clip_b : float
@@ -97,7 +98,7 @@ def params_valid(A, beta, gamma, t0, tau_rise, tau_fall):
 
     Parameters
     ----------
-    A : ? # ASKKAYLEE (what types, and maybe if we want to say more here?)
+    A
         Parameter A.
     beta : float
         Parameter beta.
@@ -127,8 +128,8 @@ def params_valid(A, beta, gamma, t0, tau_rise, tau_fall):
     return True
 
 def run_mcmc(filename, t0_lim=None, plot=False):
-    """Runs dynesty importance nested sampling on datafile; returns set of equally weighted 
-    posteriors (sets of fit parameters).
+    """Runs dynesty importance nested sampling on datafile; returns set
+    of equally weighted posteriors (sets of fit parameters).
 
     Parameters
     ----------
@@ -142,7 +143,8 @@ def run_mcmc(filename, t0_lim=None, plot=False):
     Returns
     -------
     ndarray or None
-        Numpy array containing the equally weighted posteriors, or None if the data is invalid.
+        Numpy array containing the equally weighted posteriors, or None
+        if the data is invalid.
     """
     ref_band_idx = 1 # red band # pylint: disable=unused-variable
 
@@ -160,16 +162,16 @@ def run_mcmc(filename, t0_lim=None, plot=False):
 
     max_flux = np.max(fdata[bdata == "r"] - np.abs(ferrdata[bdata == "r"]))
 
-    def flux_model(cube, t_data, b_data): # ASKKAYLEE types
+    def flux_model(cube, t_data, b_data):
         """Flux model for the MCMC fit.
 
         Parameters
         ----------
-        cube : ndarray ?
+        cube : numpy.ndarray
             Array of parameters.
-        t_data : array-like ?
+        t_data : numpy.ndarray
             Time data.
-        b_data : array-like ?
+        b_data : numpy.ndarray
             Band data.
 
         Returns
@@ -223,8 +225,8 @@ def run_mcmc(filename, t0_lim=None, plot=False):
         return f_model
 
     def create_prior(cube):
-        """Creates prior for pymultinest, where each side of the "cube" is a value 
-        sampled between 0 and 1 representing each parameter.
+        """Creates prior for pymultinest, where each side of the "cube"
+        is a value sampled between 0 and 1 representing each parameter.
 
         Parameters
         ----------
@@ -273,7 +275,8 @@ def run_mcmc(filename, t0_lim=None, plot=False):
     def create_logL(cube):
         """Define the log-likelihood function. 
         
-        Is proportional to chi-squared of data's fit to generated flux model.
+        Is proportional to chi-squared of data's fit to generated flux
+        model.
 
         Parameters
         ----------
@@ -367,8 +370,8 @@ def run_curve_fit(filename):
     Returns
     -------
     tuple or None
-        Tuple containing the fitted parameters for the "g" and "r" bands, 
-        or None if the required data is missing.
+        Tuple containing the fitted parameters for the "g" and "r"
+        bands, or None if the required data is missing.
     """
     ref_band_idx = 1 # red band # pylint: disable=unused-variable
 
@@ -524,8 +527,9 @@ def run_curve_fit(filename):
 def dynesty_single_file(test_fn, output_dir, skip_if_exists=True):
     """Perform model fitting using dynesty on a single data file.
 
-    This function runs the dynesty importance nested sampling algorithm on a single data file.
-    It saves the resulting equally weighted posterior samples to a compressed NumPy archive file.
+    This function runs the dynesty importance nested sampling algorithm
+    on a single data file. It saves the resulting equally weighted
+    posterior samples to a compressed NumPy archive file.
 
     Parameters
     ----------
@@ -534,7 +538,8 @@ def dynesty_single_file(test_fn, output_dir, skip_if_exists=True):
     output_dir : str
         The directory where the output file will be saved.
     skip_if_exists : bool, optional
-        Flag indicating whether to skip fitting if the output file already exists. Defaults to true.
+        Flag indicating whether to skip fitting if the output file
+        already exists. Defaults to true.
 
     Returns
     -------

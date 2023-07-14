@@ -1,6 +1,6 @@
-"""This module provides functionality for running a dynesty importance nested 
-sampling algorithm on given data files and returning a set of equally weighted 
-posteriors (sets of fit parameters).
+"""This module provides functionality for running a dynesty importance 
+nested sampling algorithm on given data files and returning a set of 
+equally weighted posteriors (sets of fit parameters).
 """
 
 import os
@@ -40,9 +40,9 @@ def import_data(filename, t0_lim=None):
     Returns
     -------
     tuple of arrays or None
-        A tuple containing the padded time, flux, flux error, and band arrays,
-        respectively. If the input data does not contain any valid points,
-        None is returned.
+        A tuple containing the padded time, flux, flux error, and band 
+        arrays, respectively. If the input data does not contain any 
+        valid points, None is returned.
 
     """
     npy_array = np.load(filename)
@@ -138,9 +138,9 @@ def trunc_norm(low, high, loc, scale):
     return dist.TruncatedNormal(loc=loc, scale=scale, low=low, high=high)
 
 
-def run_mcmc(filename, sampler="NUTS", t0_lim=None, plot=False): # LIVTODO does this return things?
-    """Runs dynesty importance nested sampling on data file to get set of equally 
-    weighted posteriors (sets of fit parameters).
+def run_mcmc(filename, sampler="NUTS", t0_lim=None, plot=False): # TODOLIV does this return things?
+    """Runs dynesty importance nested sampling on data file to get set 
+    of equally weighted posteriors (sets of fit parameters).
 
     Parameters
     ----------
@@ -149,16 +149,19 @@ def run_mcmc(filename, sampler="NUTS", t0_lim=None, plot=False): # LIVTODO does 
     sampler : str, optional
         The MCMC sampler to use. Defaults to "NUTS".
     t0_lim : float or None, optional
-        Upper time limit for the data. If provided, only data points with time 
-        values less than or equal to t0_lim will be included. Defaults to None.
+        Upper time limit for the data. If provided, only data points 
+        with time values less than or equal to t0_lim will be included. 
+        Defaults to None.
     plot : bool, optional
-        If True, associated plots will be generated and saved. Defaults to False.
+        If True, associated plots will be generated and saved. Defaults 
+        to False.
 
     Returns
     -------
     Array or None
-        A set of equally weighted posteriors (sets of fit parameters) as an array. 
-        If the data file does not contain any valid points, None is returned.
+        A set of equally weighted posteriors (sets of fit parameters) as 
+        an array. If the data file does not contain any valid points, 
+        None is returned.
 
     """
     rng_key = random.PRNGKey(4)
@@ -265,7 +268,7 @@ def run_mcmc(filename, sampler="NUTS", t0_lim=None, plot=False): # LIVTODO does 
 
     def jax_guide(
         t=None, obsflux=None, uncertainties=None, max_flux=None, inc_band_ix=None # pylint: disable=unused-variable
-    ): # LIVTODO - how does this work? nothing seems to be returned or written to. is this just to check that things can run ok?
+    ): # TODOLIV - how does this work? nothing seems to be returned or written to. is this just to check that things can run ok?
         """JAX guide function for MCMC.
 
         Parameters
@@ -509,7 +512,7 @@ def run_mcmc(filename, sampler="NUTS", t0_lim=None, plot=False): # LIVTODO does 
     plt.close()
 
     if plot:
-        ignore_idx = (ferrdata == 1e10) # pylint: disable=superfluous-parens
+        ignore_idx = ferrdata == 1e10
         tdata = tdata[~ignore_idx]
         fdata = fdata[~ignore_idx]
         ferrdata = ferrdata[~ignore_idx]
@@ -597,8 +600,8 @@ def run_mcmc(filename, sampler="NUTS", t0_lim=None, plot=False): # LIVTODO does 
 
 
 def run_mcmc_batch(filenames, t0_lim=None, plot=False):
-    """Runs dynesty importance nested sampling on datafile to get a set of 
-    equally weighted posteriors (sets of fit parameters).
+    """Runs dynesty importance nested sampling on datafile to get a set 
+    of equally weighted posteriors (sets of fit parameters).
 
     Parameters
     ----------
@@ -607,7 +610,8 @@ def run_mcmc_batch(filenames, t0_lim=None, plot=False):
     t0_lim : float or None, optional
         Upper time limit for the data. Defaults to None.
     plot : bool, optional
-        Flag for generating and saving assosciated plots. Defaults to False.
+        Flag for generating and saving assosciated plots. Defaults to 
+        False.
     """
     rng_key = random.PRNGKey(4)
     rng_key, rng_key_ = random.split(rng_key) # pylint: disable=unused-variable
@@ -842,14 +846,14 @@ def run_mcmc_batch(filenames, t0_lim=None, plot=False):
 
 
 def flux_from_posteriors(t, params, max_flux):
-    """Generates green and red band fluxes (LIVTODO - does this make sense?) from given posteriors.
+    """Generates green and red band fluxes (TODOLIV - does this make sense?) from given posteriors.
 
     Parameters
     ----------
     t : float
         Time parameter.
     params : dict-like ?
-        A collection of parameters used in the calculation. (LIVTODO - are these the posteriors?)
+        A collection of parameters used in the calculation. (TODOLIV - are these the posteriors?)
     max_flux : float ?
         The upper limit of flux values.
     """

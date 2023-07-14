@@ -1,4 +1,5 @@
-"""This script provides functions for importing and manipulating ZTF data from the Alerce API."""
+"""This script provides functions for importing and manipulating ZTF 
+data from the Alerce API."""
 
 import csv
 import glob
@@ -18,8 +19,9 @@ alerce = Alerce()
 MIN_PER_FILTER = 5
 
 def add_stamp_column(input_filename, output_filename):
-    """Checks whether stamp classifier categorizes each lightcurve in spreadsheet as a 
-    supernova-like transient, and adds as additional column.
+    """Checks whether stamp classifier categorizes each lightcurve in
+    spreadsheet as a supernova-like transient, and adds as additional
+    column.
 
     Parameters
     ----------
@@ -61,7 +63,7 @@ def add_stamp_column(input_filename, output_filename):
 
 
 def get_spreadsheet_diff(s1, s2, new_fn):
-    """Determines which elements are in s2 but not in s1, and vice versa.
+    """Determines which elements are in s2 but not s1, and vice versa.
 
     Saves overlap as separate CSV.
 
@@ -309,8 +311,9 @@ def get_all_unclassified_samples(save_csv):
 
 
 def get_band_extinctions(ra, dec):
-    """Gets green and red band extinctions in magnitudes for a single supernova 
-    lightcurve based on right ascension and declination coordinates.
+    """Gets green and red band extinctions in magnitudes for a single
+    supernova lightcurve based on right ascension and declination
+    coordinates.
     
     Parameters
     ----------
@@ -339,7 +342,8 @@ def get_band_extinctions(ra, dec):
 
 
 def import_lc(filename):
-    """Imports a single file, but only the points from a single telescope, in only g and r bands.
+    """Imports a single file, but only the points from a single
+    telescope, in only g and r bands.
 
     Parameters
     ----------
@@ -419,7 +423,8 @@ def import_lc(filename):
 
 
 def clip_lightcurve_end(times, fluxes, fluxerrs, bands):
-    """Clips end of lightcurve with approximately 0 slope. Checks from back to max of lightcurve.
+    """Clips end of lightcurve with approximately 0 slope. Checks from
+    back to max of lightcurve.
 
     Parameters
     ----------
@@ -560,7 +565,8 @@ def add_to_new_csv(name, label, redshift):
 
 
 def make_master_csv(CSV_DIR, master_csv_name):
-    """Checks through entire TNS SN-classified database and tallies count of each category.
+    """Checks through entire TNS SN-classified database and tallies
+    count of each category.
 
     Parameters
     ----------
@@ -602,7 +608,8 @@ def make_master_csv(CSV_DIR, master_csv_name):
 
 
 def generate_flux_files(master_csv, save_folder):
-    """Generates flux files for all ZTF samples in the master CSV file, using ALeRCE's API.
+    """Generates flux files for all ZTF samples in the master CSV file,
+    using ALeRCE's API.
 
     Parameters
     ----------
@@ -629,7 +636,8 @@ def generate_flux_files(master_csv, save_folder):
 
 
 def generate_files_from_antares():
-    """Generates flux files for all ZTF samples in the master CSV file, using ANTARES' API.
+    """Generates flux files for all ZTF samples in the master CSV file,
+    using ANTARES' API.
      
     Includes correct zeropoints.
     """
@@ -721,7 +729,8 @@ def generate_files_from_antares():
 
 
 def generate_single_flux_file(ztf_name, save_folder):
-    """Generates a flux file for a single ZTF sample in the master CSV file, using ALeRCE's API.
+    """Generates a flux file for a single ZTF sample in the master CSV
+    file, using ALeRCE's API.
     
     Parameters
     ----------

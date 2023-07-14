@@ -1,4 +1,5 @@
-"""This module implements the Multi-Layer Perceptron (MLP) model for classification."""
+"""This module implements the Multi-Layer Perceptron (MLP) model for
+classification."""
 
 import os
 import random
@@ -13,7 +14,8 @@ import torch.optim as optim
 import torch.utils.data as data
 from torch.utils.data import TensorDataset
 
-from .constants import * # star import used due to large quantity of items imported
+from .constants import * # star import used due to large quantity of
+items imported
 from .file_paths import PROBS_FILE, PROBS_FILE2, MODEL_DIR, METRICS_DIR
 
 
@@ -69,8 +71,8 @@ def get_predictions(model, iterator, device):
     Returns
     -------
     tuple
-        A tuple containing the test images, test labels, sample indices, and prediction 
-        probabilities.
+        A tuple containing the test images, test labels, sample indices,
+        and prediction probabilities.
     """
     model.eval()
 
@@ -103,8 +105,8 @@ def get_predictions(model, iterator, device):
 
 
 def get_predictions_new(model, iterator, device):
-    """Given a trained model, returns the test images, test labels, and prediction probabilities 
-    across all the test labels.
+    """Given a trained model, returns the test images, test labels, and
+    prediction probabilities across all the test labels.
 
     Parameters
     ----------
@@ -166,7 +168,8 @@ def calculate_accuracy(y_pred, y):
 
 
 class MLP(nn.Module):
-    """The Multi-Layer Perceptron. Sets the number of layers and nodes per layer.
+    """The Multi-Layer Perceptron. Sets the number of layers and nodes
+    per layer.
 
     Parameters
     ----------
@@ -209,7 +212,8 @@ class MLP(nn.Module):
         Returns
         -------
         tuple
-            A tuple containing the predicted output tensor and the hidden tensor.
+            A tuple containing the predicted output tensor and the
+            hidden tensor.
         """
         batch_size = x.shape[0]
 
@@ -419,7 +423,8 @@ def run_mlp(
     Returns
     -------
     tuple
-        A tuple containing the labels, names, predicted labels, maximum probabilities, and best validation loss.
+        A tuple containing the labels, names, predicted labels, maximum
+        probabilities, and best validation loss.
     """
     random.seed(SEED)
     np.random.seed(SEED)

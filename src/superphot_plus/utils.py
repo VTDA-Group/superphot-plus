@@ -10,8 +10,9 @@ from superphot_plus.sfd import dust_filepath
 
 
 def get_band_extinctions(ra, dec):
-    """Get green and red band extinctions in magnitudes for a single supernova lightcurve based on 
-    right ascension (RA) and declination (DEC).
+    """Get green and red band extinctions in magnitudes for a single
+    supernova lightcurve based on right ascension (RA) and declination
+    (DEC).
 
     Parameters
     ----------
@@ -23,7 +24,8 @@ def get_band_extinctions(ra, dec):
     Returns
     -------
     ext_list : array
-        A list of extinction magnitudes for the given coordinates, in the green and red bands.
+        A list of extinction magnitudes for the given coordinates, in
+        the green and red bands.
     """
     config["data_dir"] = dust_filepath
     sfd = SFDQuery()
@@ -44,8 +46,8 @@ def get_band_extinctions(ra, dec):
 
 
 def get_sn_ra_dec(ztf_name, filtered_csv):
-    """Get the right ascension (RA) and declination (DEC) of a supernova from filtered summary 
-    information.
+    """Get the right ascension (RA) and declination (DEC) of a supernova
+    from filtered summary information.
 
     Parameters
     ----------
@@ -68,7 +70,8 @@ def get_sn_ra_dec(ztf_name, filtered_csv):
 
 
 def calc_accuracy(pred_classes, test_labels):
-    """Calculates the accuracy of the random forest after predicting all classes.
+    """Calculates the accuracy of the random forest after predicting all
+    classes.
 
     Parameters
     ----------
@@ -85,7 +88,8 @@ def calc_accuracy(pred_classes, test_labels):
     Raises
     ------
     ValueError
-        If the pred_classes or test_labels arrays are empty or if they are of mismatched sizes.
+        If the pred_classes or test_labels arrays are empty or if they
+        are of mismatched sizes.
     """
     num_total = len(pred_classes)
     if num_total == 0:
@@ -100,8 +104,9 @@ def calc_accuracy(pred_classes, test_labels):
 
 
 def f1_score(pred_classes, true_classes, class_average=False):
-    """Calculates the F1 score for the classifier. If class_average=True, then the macro-F1 is used. 
-    Else, uses the weighted-F1 score.
+    """Calculates the F1 score for the classifier. If
+    class_average=True, then the macro-F1 is used. Else, uses the 
+    weighted-F1 score.
 
     Parameters
     ----------
@@ -110,8 +115,8 @@ def f1_score(pred_classes, true_classes, class_average=False):
     true_classes : numpy array (int)
         True spectroscopic classes.
     class_average : bool, optional
-        Determines whether F1 score is weighted equally for each class, or by number of samples per 
-        class. Defaults to False.
+        Determines whether F1 score is weighted equally for each class,
+        or by number of samples per class. Defaults to False.
     
     Returns
     -------
@@ -165,8 +170,8 @@ def convert_mags_to_flux(m, merr, zp):
 
 
 def flux_model(cube, t_data, b_data):
-    """Given "cube" of fit parameters, returns the flux measurements for a given set of time and
-    band data.
+    """Given "cube" of fit parameters, returns the flux measurements for
+    a given set of time and band data.
 
     Parameters
     ----------
@@ -225,7 +230,8 @@ def flux_model(cube, t_data, b_data):
 
 
 def calculate_chi_squareds(names, fit_dir, data_dirs):
-    """Gets the chi-squared of posterior fits from the model parameters and original data files.
+    """Gets the chi-squared of posterior fits from the model parameters
+    and original data files.
 
     Parameters
     ----------

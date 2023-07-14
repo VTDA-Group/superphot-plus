@@ -1,4 +1,6 @@
-"""A collection of paths corresponding to input and output files and directories."""
+"""A collection of paths corresponding to input and output files and 
+directories.
+"""
 
 FITS_DIR = "/storage/group/vav5084/default/superphot+/dynesty_fits_unclassified_5_9_2023/"
 DATA_DIRS = ["/storage/group/vav5084/default/superphot+/data_reformatted_05_09_2023",]

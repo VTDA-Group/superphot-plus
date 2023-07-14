@@ -1,5 +1,5 @@
-"""This script provides functions for importing, preprocessing, and manipulating 
-data related to ZTF lightcurves."""
+"""This script provides functions for importing, preprocessing, and
+manipulating data related to ZTF lightcurves."""
 
 import csv
 import glob
@@ -13,7 +13,8 @@ from .utils import calculate_chi_squareds
 
 
 def import_labels_only(input_csvs, allowed_types, fits_dir=None, redshift=False):
-    """Import all features and labels, convert to label and features numpy arrays.
+    """Import all features and labels, convert to label and features
+    numpy arrays.
 
     Parameters
     ----------
@@ -29,7 +30,8 @@ def import_labels_only(input_csvs, allowed_types, fits_dir=None, redshift=False)
     Returns
     -------
     tuple
-        Tuple containing numpy arrays for names, labels, and redshifts (if redshift==True).
+        Tuple containing numpy arrays for names, labels, and redshifts
+        (if redshift==True).
     """
     if fits_dir is None:
         fits_dir = FITS_DIR
@@ -120,7 +122,8 @@ def import_labels_only(input_csvs, allowed_types, fits_dir=None, redshift=False)
 
 
 def import_features_and_labels(input_csv, allowed_types):
-    """Import all features and labels, convert to label and features numpy arrays.
+    """Import all features and labels, convert to label and features
+    numpy arrays.
 
     Parameters
     ----------
@@ -132,7 +135,8 @@ def import_features_and_labels(input_csv, allowed_types):
     Returns
     -------
     tuple
-        Tuple of numpy arrays for names, feature means, feature standard deviations, and labels.
+        Tuple of numpy arrays for names, feature means, feature standard
+        deviations, and labels.
     """
     feature_means = []
     feature_stddevs = []
@@ -169,7 +173,7 @@ def import_features_and_labels(input_csv, allowed_types):
     )
 
 
-def return_names_from_med_arrays(input_csv, med_arr): # ASKKAYLEE - despite name, nothing is returned. candidate for renaming?
+def return_names_from_med_arrays(input_csv, med_arr):
     """Prints names from median arrays.
 
     Parameters
@@ -206,7 +210,8 @@ def return_names_from_med_arrays(input_csv, med_arr): # ASKKAYLEE - despite name
 
 
 def divide_into_training_test_set(features, labels, test_fraction):
-    """Divide dataset into set fraction of test samples and remaining as training data.
+    """Divide dataset into set fraction of test samples and remaining as
+    training data.
 
     Parameters
     ----------
@@ -220,8 +225,8 @@ def divide_into_training_test_set(features, labels, test_fraction):
     Returns
     -------
     tuple
-        Tuple of numpy arrays for training features, test features, training labels, 
-        and test labels.
+        Tuple of numpy arrays for training features, test features,
+        training labels, and test labels.
     """
     return train_test_split(features, labels, test_size=test_fraction, random_state=42)
 
@@ -270,7 +275,8 @@ def tally_each_class(labels):
 
 
 def generate_two_class_labels(labels):
-    """Generates array with two class labels for binary classification problem.
+    """Generates array with two class labels for binary classification
+    problem.
 
     Parameters
     ----------
@@ -288,7 +294,8 @@ def generate_two_class_labels(labels):
 
 
 def oversample_minority_classes(features, labels):
-    """Oversample rarer classes using SMOTE so classifiers are not biased toward SN-1a or SN-II.
+    """Oversample rarer classes using SMOTE so classifiers are not
+    biased toward SN-1a or SN-II.
 
     Parameters
     ----------
@@ -357,7 +364,8 @@ def oversample_using_posteriors(ztf_names, labels, chis, goal_per_class):
     Returns
     -------
     tuple
-        Tuple containing oversampled features, labels, and chi-squared values as numpy arrays.
+        Tuple containing oversampled features, labels, and chi-squared
+        values as numpy arrays.
     """
     oversampled_labels = []
     oversampled_chis = []
@@ -393,8 +401,8 @@ def normalize_features(features, mean=None, std=None):
     Returns
     -------
     tuple
-        Tuple containing normalized features, mean values, and standard deviation 
-        values as numpy arrays.
+        Tuple containing normalized features, mean values, and standard 
+        deviation values as numpy arrays.
     """
     if mean is None:
         mean = features.mean(axis=-2)
@@ -430,7 +438,8 @@ def summarize_misc_classification(misc_csv):
 
 
 def generate_csv_subset(orig_sn_name, new_sn_name, sn_idx, p_cutoff):
-    """Generate smaller subset with only SNe of one type, with confidence above a certain threshold.
+    """Generate smaller subset with only SNe of one type, with 
+    confidence above a certain threshold.
 
     Parameters
     ----------
@@ -457,7 +466,8 @@ def generate_csv_subset(orig_sn_name, new_sn_name, sn_idx, p_cutoff):
 
 
 def generate_csv_subset2(orig_sn_names, new_sn_name, sn_type):
-    """Generates smaller subset (from spectroscopic set) with only SNe of one type.
+    """Generates smaller subset (from spectroscopic set) with only SNe
+    of one type.
 
     Parameters
     ----------
