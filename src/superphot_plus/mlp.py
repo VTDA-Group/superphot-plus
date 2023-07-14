@@ -1,5 +1,3 @@
-# OLIVIA STILL HAS TODOs HERE
-
 """This module implements the Multi-Layer Perceptron (MLP) model for classification."""
 
 import os
@@ -262,9 +260,9 @@ def create_dataset(features, labels, idxs=None):
 def train(model, iterator, optimizer, criterion, device):
     """Does one epoch of training for a given torch model.
 
-    Parameters # TODOLIV check types
+    Parameters
     ----------
-    model : torch.nn.Module
+    model : mlp.MLP
         The torch model.
     iterator : torch.utils.data.DataLoader
         The data iterator.
@@ -310,9 +308,9 @@ def train(model, iterator, optimizer, criterion, device):
 def evaluate(model, iterator, criterion, device):
     """Evaluates the model for the validation set.
 
-    Parameters # TODOLIV check types
+    Parameters
     ----------
-    model : torch.nn.Module
+    model : mlp.MLP
         The torch model.
     iterator : torch.utils.data.DataLoader
         The data iterator.
@@ -391,11 +389,11 @@ def run_mlp(
     Closely follows the demo
     https://colab.research.google.com/github/bentrevett/pytorch-image-classification/blob/master/1_mlp.ipynb
 
-    Parameters # TODOLIV check a lot of these ndarrays aren't just array-likes
+    Parameters
     ----------
-    train_data : numpy.ndarray
+    train_data : TensorDataset
         The training data.
-    valid_data : numpy.ndarray
+    valid_data : TensorDataset
         The validation data.
     test_sample_features : numpy.ndarray
         The test sample features.
