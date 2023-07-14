@@ -1,5 +1,5 @@
-# This script provides functions for importing, preprocessing, and manipulating 
-# data related to ZTF (Zwicky Transient Facility) lightcurves.
+"""This script provides functions for importing, preprocessing, and manipulating 
+data related to ZTF lightcurves."""
 
 import csv
 import glob
