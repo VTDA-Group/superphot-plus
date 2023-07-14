@@ -26,9 +26,9 @@ def save_test_probabilities(output_filename, true_label, pred_probabilities):
     ----------
     output_filename : str
         The file name to save to.
-    true_label : str-like #TODOLIV
+    true_label : str or int
         The true label.
-    pred_probabilities : array-like
+    pred_probabilities : array-like (float)
         The prediction probabilities.
     """
     with open(PROBS_FILE, "a+") as pf:
@@ -59,13 +59,13 @@ def get_predictions(model, iterator, device):
     """Given a trained model, returns the test images, test labels, and 
     prediction probabilities across all the test labels.
 
-    Parameters # TODOLIV - go over type guesses here
+    Parameters
     ----------
-    model : ? maybe torch.nn.Module ?
+    model : mlp.MLP
         The trained model.
-    iterator : ? torch.utils.data.DataLoader ?
+    iterator : torch.utils.data.DataLoader
         The data iterator.
-    device : ? torch.device ?
+    device : torch.device or str
         The device to use.
 
     Returns
@@ -108,13 +108,13 @@ def get_predictions_new(model, iterator, device):
     """Given a trained model, returns the test images, test labels, and prediction probabilities 
     across all the test labels.
 
-    Parameters # TODOLIV review these types as well
+    Parameters
     ----------
-    model : torch.nn.Module ?
+    model : mlp.MLP
         The trained model.
-    iterator : torch.utils.data.DataLoader ?
+    iterator : torch.utils.data.DataLoader
         The data iterator.
-    device : torch.device ?
+    device : torch.device or str
         The device to use.
 
     Returns
@@ -431,12 +431,9 @@ def run_mlp(
 
     input_dim = train_data.shape[1]
 
-    train_iterator = data.DataLoader(train_data,
-                                     shuffle=True,
-                                     batch_size=BATCH_SIZE)
+    train_iterator = data.DataLoader(train_data, shuffle=True, batch_size=BATCH_SIZE)
 
-    valid_iterator = data.DataLoader(valid_data,
-                                     batch_size=BATCH_SIZE)
+    valid_iterator = data.DataLoader(valid_data, batch_size=BATCH_SIZE)
 
     #Create model
     model = MLP(input_dim, output_dim, neurons_per_layer, num_layers)
@@ -500,8 +497,7 @@ def run_mlp(
             test_sample_classes[group_idx_set],
             group_idx_set,
         )
-        test_iterator = data.DataLoader(test_data,
-                                        batch_size=BATCH_SIZE)
+        test_iterator = data.DataLoader(test_data, batch_size=BATCH_SIZE)
 
         images, labels_indiv, indx_indiv, probs = get_predictions(model, test_iterator, device) # pylint: disable=unused-variable
         probs_avg = np.mean(probs.numpy(), axis=0)
