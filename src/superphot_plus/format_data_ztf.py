@@ -13,8 +13,11 @@ from .utils import calculate_chi_squareds
 
 
 def import_labels_only(input_csvs, allowed_types, fits_dir=None, redshift=False):
-    """Import all features and labels, convert to label and features
-    numpy arrays.
+    """Filters CSVs for rows where label is in allowed_types and returns
+    a tuple of names, labels, and optionally redshift numpy arrays.
+
+    Maps groups of similar labels to a single representative label name
+    (eg, "SN Ic", "SNIc-BL", and "21" all become "SN Ibc").
 
     Parameters
     ----------
@@ -122,8 +125,11 @@ def import_labels_only(input_csvs, allowed_types, fits_dir=None, redshift=False)
 
 
 def import_features_and_labels(input_csv, allowed_types):
-    """Import all features and labels, convert to label and features
-    numpy arrays.
+    """Filters CSVs for rows where label is in allowed_types and returns 
+    a tuple of names, features, feature std devs, and labels.
+
+    Maps groups of similar labels to a single representative label name
+    (eg, "SN Ic" and "SNIc-BL" both become "SN Ibc").
 
     Parameters
     ----------

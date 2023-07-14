@@ -42,7 +42,7 @@ def adjust_log_dists(features):
     
     Parameters
     ----------
-    features : numpy array
+    features : ndarray
         Array of fit features of all samples.
     """
     features[:, 4:7] = np.log10(features[:, 4:7])
@@ -51,8 +51,7 @@ def adjust_log_dists(features):
 
 
 def classify(goal_per_class, num_epochs, neurons_per_layer, num_layers, fits_plotted=False):
-    """
-    Train MLP to classify between supernovae of 'allowed_types'.
+    """Train MLP to classify between supernovae of 'allowed_types'.
     
     Parameters
     ----------
