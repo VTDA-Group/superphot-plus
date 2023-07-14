@@ -1,7 +1,4 @@
-# This module implements the Multi-Layer Perceptron (MLP) model for image classification.
-# It includes functions for saving probabilities, getting predictions, calculating accuracy,
-# creating a dataset, training and evaluating the model, and running the MLP initialization
-# and training.
+"""This module implements the Multi-Layer Perceptron (MLP) model for classification."""
 
 import os
 import random
