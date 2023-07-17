@@ -19,12 +19,12 @@ with open("benchmarks/results.json", "r+") as results_json:
 
     for result in results:
         total_time = {
-            "name": "Runtime",
+            "name": f"{result['ITEM']} - Runtime",
             "unit": "Seconds",
             "value": result["TOTAL_TIME"]
         }
         mem_usage = {
-            "name": "Memory Used",
+            "name": f"{result['ITEM']} - Memory Used",
             "unit": "Megabytes",
             "value": result["MEM_USAGE"]
         }
