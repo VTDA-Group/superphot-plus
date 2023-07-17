@@ -144,3 +144,6 @@ tmp/
 
 # Notebook outputs
 src/examples/outputs/*
+
+# PyCharm
+.idea/
