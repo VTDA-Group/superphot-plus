@@ -8,8 +8,8 @@ name: Benchmark runtime and memory usage
 on: [push]
 
 permissions:
-   contents: write
-   deployments: write
+  contents: write
+  deployments: write
 
 jobs:
   build:
@@ -41,8 +41,6 @@ jobs:
           '.once benchmarks/results.json' \
           'SELECT ITEM_PATH, ITEM, TOTAL_TIME, MEM_USAGE FROM TEST_METRICS'
         python benchmarks/preprocess_bench.py
-        ls 
-        ls benchmarks/
     - name: Store benchmark results
       uses: benchmark-action/github-action-benchmark@v1
       with:
