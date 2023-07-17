@@ -221,7 +221,7 @@ def run_mcmc(fn, t0_lim=None, plot=False, rstate=None):
 
     samples, weights = res.samples, np.exp(res.logwt - res.logz[-1])
 
-    eq_wt_samples = dyfunc.resample_equal(samples, weights)
+    eq_wt_samples = dyfunc.resample_equal(samples, weights, rstate=rstate)
 
     if plot:
         plt.errorbar(
