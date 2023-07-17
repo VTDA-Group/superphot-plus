@@ -34,3 +34,4 @@ with open("benchmarks/results.json", "r+") as results_json:
     results_json.truncate()
     results_json.seek(0)
     json.dump(benchmarks, results_json)
+    print(benchmarks)

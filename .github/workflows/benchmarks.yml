@@ -49,7 +49,7 @@ jobs:
       with:
         name: SUPERHOT-PLUS Benchmarking Monitor
         # Using a custom benchmark strategy, where the smaller the value the better
-        tool: 'smallerIsBetter' 
+        tool: 'customSmallerIsBetter' 
         output-file-path: benchmarks/results.json
         gh-pages-branch: gh-pages
         github-token: ${{ secrets.GITHUB_TOKEN }}
