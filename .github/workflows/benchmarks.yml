@@ -49,9 +49,7 @@ jobs:
         tool: 'customSmallerIsBetter' 
         output-file-path: benchmarks/results.json
         gh-pages-branch: gh-pages
-        github-token: ${{ secrets.PAGES_TOKEN }}
-        auto-push: true
-        # Show alert with commit comment on detecting possible performance regression
-        alert-threshold: '200%'
-        comment-on-alert: true
-        fail-on-alert: true
+        auto-push: false
+    # Push gh-pages branch by yourself
+    - name: Push benchmark result
+      run: git push 'https://lincc-frameworks:${{ secrets.GITHUB_TOKEN }}@github.com/lincc-frameworks/superphot-plus.git' gh-pages:gh-pages
