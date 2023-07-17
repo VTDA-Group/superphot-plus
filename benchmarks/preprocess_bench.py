@@ -18,14 +18,15 @@ with open("benchmarks/results.json", "r+") as results_json:
     results = json.load(results_json)
 
     for result in results:
+        name = f"{result['ITEM_PATH']}::{result['ITEM']}"
         total_time = {
-            "name": f"{result['ITEM']} - Runtime",
-            "unit": "Seconds",
+            "name": f"{name} - Runtime",
+            "unit": "s",
             "value": result["TOTAL_TIME"]
         }
         mem_usage = {
-            "name": f"{result['ITEM']} - Memory Used",
-            "unit": "Megabytes",
+            "name": f"{name} - Memory Used",
+            "unit": "MB",
             "value": result["MEM_USAGE"]
         }
         benchmarks.extend([total_time, mem_usage])
