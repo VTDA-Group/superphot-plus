@@ -414,7 +414,7 @@ def run_curve_fit(filename):
 
         Parameters
         ----------
-        t_data : array-like # TODOLIV check array type
+        t_data : array-like
             Time data.
         A : float
             Parameter A.

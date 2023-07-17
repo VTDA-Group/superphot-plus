@@ -311,21 +311,22 @@ def get_all_unclassified_samples(save_csv):
 
 
 def get_band_extinctions(ra, dec):
-    """Gets g- and r-band extinctions in magnitudes for a single
-    supernova lightcurve based on right ascension and declination
-    coordinates.
-    
+    """Get g- and r-band extinctions in magnitudes for a single
+    supernova lightcurve based on right ascension (RA) and declination
+    (DEC).
+
     Parameters
     ----------
     ra : float
-        Right ascension coordinate.
+        The right ascension of the object of interest, in degrees.
     dec : float
-        Declination coordinate.
+        The declination of the object of interest, in degrees.
 
     Returns
     -------
-    list (of float?) # TODOLIV
-        List containing the g- and r-band extinctions.
+    ext_list : np.ndarray
+        A list of extinction magnitudes for the given coordinates, in
+        the g- and r-bands.
     """
     sfd = SFDQuery()
     #First look up the amount of mw dust at this location
@@ -477,7 +478,7 @@ def clip_lightcurve_end(times, fluxes, fluxerrs, bands):
     return np.array(t_clip), np.array(flux_clip), np.array(ferr_clip), np.array(b_clip)
 
 
-def save_new_datafiles(): # TODOLIV missed one
+def save_new_datafiles():
     """Save new data files based on the provided CSV file."""
     with open(OUTPUT_CSV, "w+") as csv_file:
         writer = csv.writer(csv_file, delimiter=',')

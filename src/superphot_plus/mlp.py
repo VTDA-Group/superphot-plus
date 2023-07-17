@@ -14,8 +14,7 @@ import torch.optim as optim
 import torch.utils.data as data
 from torch.utils.data import TensorDataset
 
-from .constants import * # star import used due to large quantity of
-items imported
+from .constants import * # star import used due to large quantity of items imported
 from .file_paths import PROBS_FILE, PROBS_FILE2, MODEL_DIR, METRICS_DIR
 
 
@@ -28,7 +27,7 @@ def save_test_probabilities(output_filename, true_label, pred_probabilities):
         The file name to save to.
     true_label : str or int
         The true label.
-    pred_probabilities : array-like of float # TODOLIV look into array type
+    pred_probabilities : array-like
         The prediction probabilities.
     """
     with open(PROBS_FILE, "a+") as pf:
@@ -45,7 +44,7 @@ def save_unclassified_test_probabilities(output_filename, pred_probabilities):
     ----------
     output_filename : str
         The file name to save to.
-    pred_probabilities : array-like # TODOLIV array type
+    pred_probabilities : array-like
         The prediction probabilities.
     """
     with open(PROBS_FILE2, "a+") as pf:

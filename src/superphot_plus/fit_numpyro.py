@@ -39,7 +39,7 @@ def import_data(filename, t0_lim=None):
 
     Returns
     -------
-    tuple of arrays or None # TODOLIV should this be np.ndarrays?
+    tuple of np.ndarray or None
         A tuple containing the padded time, flux, flux error, and band 
         arrays, respectively. If the input data does not contain any 
         valid points, None is returned.
@@ -189,7 +189,7 @@ def run_mcmc(filename, sampler="NUTS", t0_lim=None, plot=False):
 
         Parameters
         ----------
-        t : array-like, optional # TODOLIV array types here
+        t : array-like, optional
             Time values. Defaults to None.
         obsflux : array-like, optional
             Observed flux values. Defaults to None.
@@ -267,12 +267,12 @@ def run_mcmc(filename, sampler="NUTS", t0_lim=None, plot=False):
 
     def jax_guide(
         t=None, obsflux=None, uncertainties=None, max_flux=None, inc_band_ix=None # pylint: disable=unused-variable
-    ): # TODOLIV - how does this work? nothing seems to be returned or written to. is this just to check that things can run ok?
+    ):
         """JAX guide function for MCMC.
 
         Parameters
         ----------
-        t : array-like, optional # TODOLIV array types here
+        t : array-like, optional
             Time values. Defaults to None.
         obsflux : array-like, optional
             Observed flux values. Defaults to None.
@@ -657,7 +657,7 @@ def run_mcmc_batch(filenames, t0_lim=None, plot=False):
 
         Parameters
         ----------
-        t : array-like, optional # TODOLIV array types
+        t : array-like, optional
             Time values. Defaults to None.
         obsflux : array-like, optional
             Observed flux values. Defaults to None.
@@ -851,9 +851,9 @@ def flux_from_posteriors(t, params, max_flux):
     ----------
     t : float
         Time parameter.
-    params : dict-like ? # TODOLIV check these types
-        A collection of parameters used in the calculation. (TODOLIV - are these the posteriors?)
-    max_flux : float ?
+    params : dict-like ?
+        A collection of parameters used in the calculation.
+    max_flux : float
         The upper limit of flux values.
     """
     logA, beta, log_gamma = params['logA'], params['beta'], params['log_gamma']

@@ -23,7 +23,7 @@ def get_band_extinctions(ra, dec):
 
     Returns
     -------
-    ext_list : array #TODOLIV - specify array type
+    ext_list : np.ndarray
         A list of extinction magnitudes for the given coordinates, in
         the g- and r-bands.
     """
@@ -153,7 +153,7 @@ def convert_mags_to_flux(m, merr, zp):
 
     Parameters
     ----------
-    m : array-like # TODOLIV - investigate array types here
+    m : array-like
         The magnitudes.
     merr : array-like
         The error in magnitudes.
@@ -176,7 +176,7 @@ def flux_model(cube, t_data, b_data):
 
     Parameters
     ----------
-    cube : array-like # TODOLIV - array types
+    cube : array-like
         The cube of fit parameters.
     t_data : array-like
         The time data.
@@ -245,7 +245,7 @@ def calculate_neg_chi_squareds(names, fit_dir, data_dirs):
 
     Returns
     -------
-    log_likelihoods : np.ndarray (#TODOLIV - of float?)
+    log_likelihoods : np.ndarray
         The log likelihoods for each object.
     """
     log_likelihoods = []

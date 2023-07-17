@@ -94,7 +94,7 @@ def classify(goal_per_class, num_epochs, neurons_per_layer, num_layers, fits_plo
     predicted_classes_mlp = np.array([])
     prob_above_07_mlp = np.array([], dtype=bool)
 
-    def run_single_fold(x): # TODOLIV missed a docstring
+    def run_single_fold(x):
         train_index, test_index = x
         train_labels = labels[train_index]
         test_labels = labels[test_index]
@@ -257,9 +257,21 @@ def classify(goal_per_class, num_epochs, neurons_per_layer, num_layers, fits_plo
     )
 
 
-def return_new_classifications(test_csv, data_dirs, fit_dir, include_labels=False): # TODOLIV missed a docstring
-    """
-    Return new classifications based on model, save probs to save_Csv.
+def return_new_classifications(test_csv, data_dirs, fit_dir, include_labels=False):
+    """Return new classifications based on model and save probabilities
+    to a CSV file.
+
+    Parameters
+    ----------
+    test_csv : str
+        Path to the CSV file containing the test data.
+    data_dirs : list of str
+        List of paths to directories containing data.
+    fit_dir : str
+        Path to the directory containing the fit data.
+    include_labels : bool, optional
+        If True, labels from the test data are included in the
+        probability saving process. Defaults to False.
     """
     model = MLP(13, 5, 128, 3) # set up empty multi-layer perceptron
     model.load_state_dict(torch.load(TRAINED_MODEL_FN)) # load trained state dict to the MLP
@@ -317,11 +329,17 @@ def return_new_classifications(test_csv, data_dirs, fit_dir, include_labels=Fals
                 save_unclassified_test_probabilities(test_names[0], probs_avg)
 
 
-def save_phase_versus_class_probs(probs_csv, data_dir): # TODOLIV missed a docstring
-    """
-    Apply classifier to dataset over different phases, plot overall 
+def save_phase_versus_class_probs(probs_csv, data_dir):
+    """Apply classifier to dataset over different phases. Plot overall 
     trends of phase vs confidence, phase vs F1 score, phase vs each 
     class accuracy.
+
+    Parameters
+    ----------
+    probs_csv : str
+        Path to the CSV file containing the test probabilities.
+    data_dir : str
+        Path to the directory containing the data.
     """
     model = MLP(13, 5, 128, 3) # set up empty multi-layer perceptron
     model.load_state_dict(torch.load(TRAINED_MODEL_FN)) # load trained state dict to the MLP
