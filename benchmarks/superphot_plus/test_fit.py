@@ -1,11 +1,10 @@
 """Benchmarks the available fitting methods."""
 
 import os
+import pytest
 
 from superphot_plus.ztf_transient_fit import dynesty_single_file
-
 from superphot_plus.fit_numpyro import numpyro_single_file
-
 from superphot_plus.import_ztf_from_alerce import (
     generate_single_flux_file,
     save_datafile,
@@ -19,7 +18,8 @@ lc_fn = os.path.join(OUTPUT_DIR, test_sn + ".csv")
 fn_to_fit = os.path.join(OUTPUT_DIR, test_sn + ".npz")
 
 
-def setup_suite():
+@pytest.fixture(scope="session", autouse=True)
+def setup():
     """Generates sample data file for benchmarking purposes."""
     os.makedirs(OUTPUT_DIR, exist_ok=True)
     generate_single_flux_file(test_sn, OUTPUT_DIR)
