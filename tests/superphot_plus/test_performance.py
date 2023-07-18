@@ -6,7 +6,7 @@ def fib(n):
     return fib(n - 2) + fib(n - 1)
 
 def test_fib_10():
-    fib(10)
+    fib(30)
 
 def test_fib_20():
-    fib(20)
+    fib(40)
