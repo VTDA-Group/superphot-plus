@@ -10,7 +10,7 @@ from dynesty import utils as dyfunc
 from scipy.optimize import curve_fit
 from scipy.stats import truncnorm
 
-from .constants import * # pylint: disable=wildcard-import
+from .constants import *  # pylint: disable=wildcard-import
 from .file_paths import FIT_PLOTS_FOLDER
 
 
@@ -60,8 +60,8 @@ def import_data(filename, t0_lim=None):
         ferr = ferr[t <= t0_lim]
         t = t[t <= t0_lim]
 
-    max_flux_loc =  t[np.argmax(f[b == "r"] - np.abs(ferr[b == "r"]))]
-
+    max_flux_loc =  t[b == "r"][np.argmax(f[b == "r"] - np.abs(ferr[b == "r"]))]
+ 
     t -= max_flux_loc # make relative
 
     return t, f, ferr, b
@@ -122,6 +122,7 @@ def params_valid(beta, gamma, tau_rise, tau_fall):
         return False
 
     return True
+
 
 def run_mcmc(filename, t0_lim=None, plot=False):
     """Runs dynesty importance nested sampling on datafile; returns set
@@ -234,6 +235,7 @@ def run_mcmc(filename, t0_lim=None, plot=False):
         np.ndarray
             Updated array of parameters.
         """
+
         cube[0] = max_flux * 10 ** (
             trunc_gauss(cube[0], *PRIOR_A)
         )  # log-uniform for A from 1.0x to 16x of max flux
@@ -254,6 +256,7 @@ def run_mcmc(filename, t0_lim=None, plot=False):
         cube[6] = 10 ** (
             trunc_gauss(cube[6], *PRIOR_EXTRA_SIGMA)
         )  # lognormal for extrasigma, UPDATED
+
 
         # green band
         cube[7] = trunc_gauss(cube[7], *PRIOR_A_g)  # A UPDATED
@@ -298,14 +301,15 @@ def run_mcmc(filename, t0_lim=None, plot=False):
     st = time.time() # pylint: disable=unused-variable
 
     sampler = NestedSampler(
-        create_logL, create_prior, n_params, sample="rwalk", bound="single", nlive=NLIVE
+        create_logL, create_prior, n_params, sample="rwalk", bound="single", nlive=NLIVE,
+        rstate=rstate
     )
     sampler.run_nested(maxiter=MAX_ITER, dlogz=DLOGZ, print_progress=False)
     res = sampler.results
 
     samples, weights = res.samples, np.exp(res.logwt - res.logz[-1])
 
-    eq_wt_samples = dyfunc.resample_equal(samples, weights)
+    eq_wt_samples = dyfunc.resample_equal(samples, weights, rstate=rstate)
 
     if plot:
         plt.errorbar(
@@ -384,8 +388,9 @@ def run_curve_fit(filename):
         return None
 
     max_flux = np.max(fdata[bdata == "r"] - np.abs(ferrdata[bdata == "r"]))
-    max_flux_loc =  tdata[np.argmax(fdata[bdata == "r"] - np.abs(ferrdata[bdata == "r"]))]
 
+    max_flux_loc =  tdata[bdata == "r"][np.argmax(fdata[bdata == "r"] - np.abs(ferrdata[bdata == "r"]))]
+    
     #p0 = np.array([max_flux, 0.0052, 10.**1.1391, max_flux_loc, 10**0.5990, 10**1.4296])
     bounds = (
         [max_flux * 10 ** (-0.2), 0.0, -2.0, np.amin(tdata) - 50.0, -1.0, 0.5],
@@ -543,20 +548,20 @@ def dynesty_single_file(test_fn, output_dir, skip_if_exists=True):
         Returns None if the fitting is skipped or encounters an error.
     """
     #try:
+
     os.makedirs(output_dir, exist_ok=True)
     prefix = test_fn.split("/")[-1][:-4]
-    if skip_if_exists and os.path.exists(output_dir + str(prefix) + '_eqwt.npz'):
+    if skip_if_exists and os.path.exists(
+        os.path.join(output_dir, f"{prefix}_eqwt.npz")
+    ):
         return None
 
-    base_band_i = 1 # second of g, r band base fit # pylint: disable=unused-variable
-    eq_samples = run_mcmc(test_fn, plot=False)
+    eq_samples = run_mcmc(test_fn, plot=False, rstate=rstate)
     if eq_samples is None:
         return None
     print(np.mean(eq_samples, axis=0))
-    prefix = test_fn.split("/")[-1][:-4]
 
-    np.savez_compressed(output_dir + str(prefix) + '_eqwt_dynesty.npz', eq_samples)
-    #except:
-    #print("skipped")
-    #return None
+    np.savez_compressed(
+        os.path.join(output_dir, f"{prefix}_eqwt_dynesty.npz"), eq_samples
+    )
     

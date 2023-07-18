@@ -1,7 +1,11 @@
 import numpy as np
 import pytest
 
-from superphot_plus.utils import calc_accuracy, get_band_extinctions
+from superphot_plus.utils import (
+    calc_accuracy,
+    f1_score,
+    get_band_extinctions,
+)
 
 
 def test_calc_accuracy() -> None:
@@ -26,6 +30,32 @@ def test_calc_accuracy() -> None:
     # Check a array size mismatch.
     with pytest.raises(ValueError):
         _ = calc_accuracy(np.array([1, 2, 3]), truth)
+
+
+def test_f1_score() -> None:
+    # One true positive of each class and one mislabel.
+    s = f1_score(np.array([1, 1, 0]), np.array([0, 1, 0]), True)
+    assert pytest.approx(s) == 2.0 / 3.0
+    s = f1_score(np.array([1, 1, 0]), np.array([0, 1, 0]), False)
+    assert pytest.approx(s) == 2.0 / 3.0
+
+    # F1s for each class will be: [4/5, 8/9, 1, 1, 1]
+    s = f1_score(
+        np.array([0, 0, 0, 1, 1, 1, 2, 2, 3, 3, 4, 4]),
+        np.array([0, 0, 1, 1, 1, 1, 2, 2, 3, 3, 4, 4]),
+        True,
+    )
+    assert pytest.approx(s) == (4.0 / 5.0 + 6.0 / 7.0 + 1.0 + 1.0 + 1.0) / 5.0
+
+    s = f1_score(
+        np.array([0, 0, 0, 1, 1, 1, 2, 2, 3, 3, 4, 4]),
+        np.array([0, 0, 1, 1, 1, 1, 2, 2, 3, 3, 4, 4]),
+        False,
+    )
+    assert (
+        pytest.approx(s)
+        == (2.0 * (4.0 / 5.0) + 4.0 * (6.0 / 7.0) + 2.0 + 2.0 + 2.0) / 12.0
+    )
 
 
 def test_get_band_extinctions() -> None:

@@ -18,7 +18,7 @@ from numpyro.distributions import constraints
 from numpyro.infer import MCMC, NUTS, SVI, Trace_ELBO
 from numpyro.infer.initialization import init_to_uniform
 
-from .constants import * # pylint: disable=wildcard-import
+from .constants import *  # pylint: disable=wildcard-import
 from .file_paths import FIT_PLOTS_FOLDER, FITS_DIR
 
 config.update("jax_enable_x64", True)
@@ -74,7 +74,7 @@ def import_data(filename, t0_lim=None):
     ferr = ferr[sort_idx]
     b = b[sort_idx]
 
-    max_flux_loc =  t[np.argmax(f[b == 1] - np.abs(ferr[b == 1]))]
+    max_flux_loc =  t[b == 1][np.argmax(f[b == 1] - np.abs(ferr[b == 1]))]
 
     t -= max_flux_loc # make relative
 
@@ -498,19 +498,19 @@ def run_mcmc(filename, sampler="NUTS", t0_lim=None, plot=False):
     
     print(discrete_samples.keys())
     """
-    plt.hist(posterior_samples['log_tau_fall'].flatten(),bins=10)
-    plt.savefig('test_hist.png')
-    plt.close()
-
-    post_reformatted = {}
-    for p in posterior_samples:
-        post_reformatted[p] = np.array([posterior_samples[p],])
-
-    az.plot_trace(post_reformatted, compact=True)
-    plt.savefig('test_trace.png')
-    plt.close()
-
     if plot:
+        plt.hist(posterior_samples['log_tau_fall'].flatten(),bins=10)
+        plt.savefig('test_hist.png')
+        plt.close()
+
+        post_reformatted = {}
+        for p in posterior_samples:
+            post_reformatted[p] = np.array([posterior_samples[p],])
+
+        az.plot_trace(post_reformatted, compact=True)
+        plt.savefig('test_trace.png')
+        plt.close()
+
         ignore_idx = ferrdata == 1e10
         tdata = tdata[~ignore_idx]
         fdata = fdata[~ignore_idx]
@@ -961,6 +961,6 @@ def numpyro_single_file(test_filename, output_dir=FITS_DIR, sampler="svi"):
     print(np.mean(eq_samples, axis=0))
     prefix = test_filename.split("/")[-1][:-4]
 
-    np.savez_compressed(output_dir + str(prefix) + '_eqwt_%s.npz' % sampler, eq_samples)
-
+    np.savez_compressed(os.path.join(output_dir , f"{prefix}_eqwt_{sampler}.npz" ), eq_samples)
+    
     return None
