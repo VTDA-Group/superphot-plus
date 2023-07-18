@@ -16,7 +16,9 @@ from .file_paths import FIT_PLOTS_FOLDER
 
 @contextlib.contextmanager
 def tqdm_joblib(tqdm_object):
-    class TqdmBatchCompletionCallback(joblib.parallel.BatchCompletionCallBack): # pylint: disable=missing-class-docstring
+    class TqdmBatchCompletionCallback(
+        joblib.parallel.BatchCompletionCallBack
+    ):  # pylint: disable=missing-class-docstring
         def __call__(self, *args, **kwargs):
             tqdm_object.update(n=self.batch_size)
             return super().__call__(*args, **kwargs)
@@ -46,7 +48,7 @@ def import_data(filename, t0_lim=None):
         Tuple containing the imported data (t, f, ferr, b).
     """
     npy_array = np.load(filename)
-    arr = npy_array['arr_0']
+    arr = npy_array["arr_0"]
 
     ferr = arr[2]
     t = arr[0][ferr != "nan"].astype(float)
@@ -60,9 +62,9 @@ def import_data(filename, t0_lim=None):
         ferr = ferr[t <= t0_lim]
         t = t[t <= t0_lim]
 
-    max_flux_loc =  t[b == "r"][np.argmax(f[b == "r"] - np.abs(ferr[b == "r"]))]
- 
-    t -= max_flux_loc # make relative
+    max_flux_loc = t[b == "r"][np.argmax(f[b == "r"] - np.abs(ferr[b == "r"]))]
+
+    t -= max_flux_loc  # make relative
 
     return t, f, ferr, b
 
@@ -112,13 +114,13 @@ def params_valid(beta, gamma, tau_rise, tau_fall):
     bool
         True if parameters are valid, False otherwise.
     """
-    if tau_fall > 1. / beta:
+    if tau_fall > 1.0 / beta:
         return False
 
-    if gamma > (1. - beta * tau_fall) / beta:
+    if gamma > (1.0 - beta * tau_fall) / beta:
         return False
 
-    if tau_rise * (1. + np.exp(gamma / tau_rise)) < tau_fall:
+    if tau_rise * (1.0 + np.exp(gamma / tau_rise)) < tau_fall:
         return False
 
     return True
@@ -145,7 +147,7 @@ def run_mcmc(filename, t0_lim=None, plot=False, rstate=None):
         Numpy array containing the equally weighted posteriors, or None
         if the data is invalid.
     """
-    ref_band_idx = 1 # red band # pylint: disable=unused-variable
+    ref_band_idx = 1  # red band # pylint: disable=unused-variable
 
     prefix = filename.split("/")[-1][:-4]
 
@@ -178,22 +180,17 @@ def run_mcmc(filename, t0_lim=None, plot=False, rstate=None):
         np.ndarray
             Flux model.
         """
-        A, beta, gamma, t0, tau_rise, tau_fall, es = cube[:7] # pylint: disable=unused-variable
+        A, beta, gamma, t0, tau_rise, tau_fall, es = cube[:7]  # pylint: disable=unused-variable
 
         if not params_valid(beta, gamma, tau_rise, tau_fall):
             return 1e10 * np.ones(len(t_data))
 
         phase = t_data - t0
         f_model = (
-            A
-            / (1.0 + np.exp(-phase / tau_rise))
-            * (1.0 - beta * gamma)
-            * np.exp((gamma - phase) / tau_fall)
+            A / (1.0 + np.exp(-phase / tau_rise)) * (1.0 - beta * gamma) * np.exp((gamma - phase) / tau_fall)
         )
         f_model[phase < gamma] = (
-            A
-            / (1.0 + np.exp(-phase[phase < gamma] / tau_rise))
-            * (1.0 - beta * phase[phase < gamma])
+            A / (1.0 + np.exp(-phase[phase < gamma] / tau_rise)) * (1.0 - beta * phase[phase < gamma])
         )
 
         # for secondary band
@@ -241,24 +238,13 @@ def run_mcmc(filename, t0_lim=None, plot=False, rstate=None):
         cube[0] = max_flux * 10 ** (
             trunc_gauss(cube[0], *PRIOR_A)
         )  # log-uniform for A from 1.0x to 16x of max flux
-        cube[1] = trunc_gauss(
-            cube[1], *PRIOR_BETA
-        )  # beta UPDATED, looks more Lorentzian so widened by 1.5x
-        cube[2] = 10 ** trunc_gauss(
-            cube[2], *PRIOR_GAMMA
-        )  # very broad Gaussian temporary solution for gamma
-        max_flux_loc = tdata[
-            np.argmax(fdata[bdata == "r"] - np.abs(ferrdata[bdata == "r"]))
-        ]
-        cube[3] = trunc_gauss(
-            cube[3], np.amin(tdata) - 50.0, np.amax(tdata) + 50.0, max_flux_loc, 20.0
-        )  # t0
+        cube[1] = trunc_gauss(cube[1], *PRIOR_BETA)  # beta UPDATED, looks more Lorentzian so widened by 1.5x
+        cube[2] = 10 ** trunc_gauss(cube[2], *PRIOR_GAMMA)  # very broad Gaussian temporary solution for gamma
+        max_flux_loc = tdata[np.argmax(fdata[bdata == "r"] - np.abs(ferrdata[bdata == "r"]))]
+        cube[3] = trunc_gauss(cube[3], np.amin(tdata) - 50.0, np.amax(tdata) + 50.0, max_flux_loc, 20.0)  # t0
         cube[4] = 10 ** (trunc_gauss(cube[4], *PRIOR_TAU_RISE))  # taurise, UPDATED
         cube[5] = 10 ** (trunc_gauss(cube[5], *PRIOR_TAU_FALL))  # tau fall UPDATED
-        cube[6] = 10 ** (
-            trunc_gauss(cube[6], *PRIOR_EXTRA_SIGMA)
-        )  # lognormal for extrasigma, UPDATED
-
+        cube[6] = 10 ** (trunc_gauss(cube[6], *PRIOR_EXTRA_SIGMA))  # lognormal for extrasigma, UPDATED
 
         # green band
         cube[7] = trunc_gauss(cube[7], *PRIOR_A_g)  # A UPDATED
@@ -267,15 +253,13 @@ def run_mcmc(filename, t0_lim=None, plot=False, rstate=None):
         cube[10] = trunc_gauss(cube[10], *PRIOR_T0_g)  # t0 UPDATED
         cube[11] = trunc_gauss(cube[11], *PRIOR_TAU_RISE_g)  # taurise UPDATED, Gaussian
         cube[12] = trunc_gauss(cube[12], *PRIOR_TAU_FALL_g)  # taufall UPDATED
-        cube[13] = trunc_gauss(
-            cube[13], *PRIOR_EXTRA_SIGMA_g
-        )  # extra sigma UPDATED, Gaussian
+        cube[13] = trunc_gauss(cube[13], *PRIOR_EXTRA_SIGMA_g)  # extra sigma UPDATED, Gaussian
 
         return cube
 
     def create_logL(cube):
-        """Define the log-likelihood function. 
-        
+        """Define the log-likelihood function.
+
         Is proportional to chi-squared of data's fit to generated flux
         model.
 
@@ -294,17 +278,13 @@ def run_mcmc(filename, t0_lim=None, plot=False, rstate=None):
         extra_sigma_arr[bdata == "g"] *= cube[13]
 
         sigma_sq = ferrdata**2 + extra_sigma_arr**2
-        logL = np.sum(
-            np.log(1.0 / np.sqrt(2.0 * np.pi * sigma_sq))
-            - 0.5 * (f_model - fdata) ** 2 / sigma_sq
-        )
+        logL = np.sum(np.log(1.0 / np.sqrt(2.0 * np.pi * sigma_sq)) - 0.5 * (f_model - fdata) ** 2 / sigma_sq)
         return logL
 
-    st = time.time() # pylint: disable=unused-variable
+    st = time.time()  # pylint: disable=unused-variable
 
     sampler = NestedSampler(
-        create_logL, create_prior, n_params, sample="rwalk", bound="single", nlive=NLIVE,
-        rstate=rstate
+        create_logL, create_prior, n_params, sample="rwalk", bound="single", nlive=NLIVE, rstate=rstate
     )
     sampler.run_nested(maxiter=MAX_ITER, dlogz=DLOGZ, print_progress=False)
     res = sampler.results
@@ -353,9 +333,9 @@ def run_mcmc(filename, t0_lim=None, plot=False, rstate=None):
         plt.ylabel("Flux")
         plt.title(prefix)
         if t0_lim is None:
-            plt.savefig(os.path.join(FIT_PLOTS_FOLDER, prefix+".png"))
+            plt.savefig(os.path.join(FIT_PLOTS_FOLDER, prefix + ".png"))
         else:
-            plt.savefig(os.path.join(FIT_PLOTS_FOLDER, prefix+"_%.02f.png" % t0))
+            plt.savefig(os.path.join(FIT_PLOTS_FOLDER, prefix + "_%.02f.png" % t0))
         plt.close()
 
     return eq_wt_samples
@@ -375,12 +355,12 @@ def run_curve_fit(filename):
         Tuple containing the fitted parameters for the "g" and "r"
         bands, or None if the required data is missing.
     """
-    ref_band_idx = 1 # red band # pylint: disable=unused-variable
+    ref_band_idx = 1  # red band # pylint: disable=unused-variable
 
     prefix = filename.split("/")[-1][:-4]
 
     print(prefix)
-    n_params = 14 # pylint: disable=unused-variable
+    n_params = 14  # pylint: disable=unused-variable
 
     tdata, fdata, ferrdata, bdata = import_data(filename)
 
@@ -391,9 +371,9 @@ def run_curve_fit(filename):
 
     max_flux = np.max(fdata[bdata == "r"] - np.abs(ferrdata[bdata == "r"]))
 
-    max_flux_loc =  tdata[bdata == "r"][np.argmax(fdata[bdata == "r"] - np.abs(ferrdata[bdata == "r"]))]
-    
-    #p0 = np.array([max_flux, 0.0052, 10.**1.1391, max_flux_loc, 10**0.5990, 10**1.4296])
+    max_flux_loc = tdata[bdata == "r"][np.argmax(fdata[bdata == "r"] - np.abs(ferrdata[bdata == "r"]))]
+
+    # p0 = np.array([max_flux, 0.0052, 10.**1.1391, max_flux_loc, 10**0.5990, 10**1.4296])
     bounds = (
         [max_flux * 10 ** (-0.2), 0.0, -2.0, np.amin(tdata) - 50.0, -1.0, 0.5],
         [max_flux * 10 ** (1.2), 0.02, 2.5, np.amax(tdata) + 50.0, 3.0, 4.0],
@@ -414,7 +394,6 @@ def run_curve_fit(filename):
             np.log10(0.5488),
         ]
     )
-
 
     def flux_model_smooth(t_data, A, beta, gamma, t0, tau_rise, tau_fall):
         """Tests the smooth model implemented in ALERCE's classifier.
@@ -441,12 +420,12 @@ def run_curve_fit(filename):
         np.ndarray
             Flux model.
         """
-        gamma = 10.**gamma
-        tau_rise = 10.**tau_rise
-        tau_fall = 10.**tau_fall
+        gamma = 10.0**gamma
+        tau_rise = 10.0**tau_rise
+        tau_fall = 10.0**tau_fall
 
-        sigma_arg = (t_data - gamma - t0) / 3.
-        sigma = 1. / (1. + np.exp(-sigma_arg))
+        sigma_arg = (t_data - gamma - t0) / 3.0
+        sigma = 1.0 / (1.0 + np.exp(-sigma_arg))
         if not params_valid(beta, gamma, tau_rise, tau_fall):
             return 1e10 * np.ones(len(t_data))
 
@@ -458,13 +437,11 @@ def run_curve_fit(filename):
             * np.exp((gamma - phase) / tau_fall)
             * sigma
         )
-        f_model += (
-            A / (1.0 + np.exp(-phase / tau_rise)) * (1.0 - beta * phase) * (1.0 - sigma)
-        )
+        f_model += A / (1.0 + np.exp(-phase / tau_rise)) * (1.0 - beta * phase) * (1.0 - sigma)
 
         return f_model
 
-    popt_r, pcov = curve_fit( # pylint: disable=unused-variable
+    popt_r, pcov = curve_fit(  # pylint: disable=unused-variable
         flux_model_smooth,
         tdata[bdata == "r"],
         fdata[bdata == "r"],
@@ -522,7 +499,7 @@ def run_curve_fit(filename):
     plt.ylabel("Flux")
     plt.title(prefix)
 
-    plt.savefig("../figs/fits_curve_fit/"+prefix+".png")
+    plt.savefig("../figs/fits_curve_fit/" + prefix + ".png")
 
     return popt_g, popt_r
 
@@ -551,13 +528,11 @@ def dynesty_single_file(test_fn, output_dir, skip_if_exists=True, rstate=None):
     None
         Returns None if the fitting is skipped or encounters an error.
     """
-    #try:
+    # try:
 
     os.makedirs(output_dir, exist_ok=True)
     prefix = test_fn.split("/")[-1][:-4]
-    if skip_if_exists and os.path.exists(
-        os.path.join(output_dir, f"{prefix}_eqwt.npz")
-    ):
+    if skip_if_exists and os.path.exists(os.path.join(output_dir, f"{prefix}_eqwt.npz")):
         return None
 
     eq_samples = run_mcmc(test_fn, plot=False, rstate=rstate)
@@ -565,7 +540,4 @@ def dynesty_single_file(test_fn, output_dir, skip_if_exists=True, rstate=None):
         return None
     print(np.mean(eq_samples, axis=0))
 
-    np.savez_compressed(
-        os.path.join(output_dir, f"{prefix}_eqwt_dynesty.npz"), eq_samples
-    )
-    
+    np.savez_compressed(os.path.join(output_dir, f"{prefix}_eqwt_dynesty.npz"), eq_samples)

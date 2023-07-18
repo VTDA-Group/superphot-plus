@@ -32,9 +32,7 @@ def get_band_extinctions(ra, dec):
 
     # First look up the amount of mw dust at this location
     coords = SkyCoord(ra, dec, frame="icrs", unit="deg")
-    Av_sfd = 2.742 * sfd(
-        coords
-    )  # from https://dustmaps.readthedocs.io/en/latest/examples.html
+    Av_sfd = 2.742 * sfd(coords)  # from https://dustmaps.readthedocs.io/en/latest/examples.html
 
     # for gr, the was are:
     band_wvs = 1.0 / (0.0001 * np.asarray([4741.64, 6173.23]))  # in inverse microns
@@ -59,7 +57,7 @@ def get_sn_ra_dec(ztf_name, filtered_csv):
     Returns
     -------
     ra, dec : tuple
-        The right ascension (float) and declination (float) of the 
+        The right ascension (float) and declination (float) of the
         supernova.
     """
     with open(filtered_csv, "r") as cf:
@@ -96,9 +94,7 @@ def calc_accuracy(pred_classes, test_labels):
     if num_total == 0:
         raise ValueError("Empty array provided to calc_accuracy.")
     if num_total != len(test_labels):
-        raise ValueError(
-            f"Array size mismatch for calc_accuracy {num_total} vs {len(test_labels)}."
-        )
+        raise ValueError(f"Array size mismatch for calc_accuracy {num_total} vs {len(test_labels)}.")
 
     num_correct = np.sum(np.where(pred_classes == test_labels, 1, 0))
     return num_correct / num_total
@@ -106,7 +102,7 @@ def calc_accuracy(pred_classes, test_labels):
 
 def f1_score(pred_classes, true_classes, class_average=False):
     """Calculates the F1 score for the classifier. If
-    class_average=True, then the macro-F1 is used. Else, uses the 
+    class_average=True, then the macro-F1 is used. Else, uses the
     weighted-F1 score.
 
     Parameters
@@ -118,7 +114,7 @@ def f1_score(pred_classes, true_classes, class_average=False):
     class_average : bool, optional
         Determines whether F1 score is weighted equally for each class,
         or by number of samples per class. Defaults to False.
-    
+
     Returns
     -------
     float
@@ -187,21 +183,14 @@ def flux_model(cube, t_data, b_data):
     f_model : numpy array
         The flux model for the given set of time and band data.
     """
-    A, beta, gamma, t0, tau_rise, tau_fall, es = cube[
-        :7
-    ]  # pylint: disable=unused-variable
+    A, beta, gamma, t0, tau_rise, tau_fall, es = cube[:7]  # pylint: disable=unused-variable
 
     phase = t_data - t0
     f_model = (
-        A
-        / (1.0 + np.exp(-phase / tau_rise))
-        * (1.0 - beta * gamma)
-        * np.exp((gamma - phase) / tau_fall)
+        A / (1.0 + np.exp(-phase / tau_rise)) * (1.0 - beta * gamma) * np.exp((gamma - phase) / tau_fall)
     )
     f_model[phase < gamma] = (
-        A
-        / (1.0 + np.exp(-phase[phase < gamma] / tau_rise))
-        * (1.0 - beta * phase[phase < gamma])
+        A / (1.0 + np.exp(-phase[phase < gamma] / tau_rise)) * (1.0 - beta * phase[phase < gamma])
     )
 
     # for secondary band
@@ -230,7 +219,7 @@ def flux_model(cube, t_data, b_data):
 
 
 def calculate_neg_chi_squareds(names, fit_dir, data_dirs):
-    """Gets the negative chi-squared of posterior fits from the model 
+    """Gets the negative chi-squared of posterior fits from the model
     parameters and original data files.
 
     Parameters
@@ -277,8 +266,7 @@ def calculate_neg_chi_squareds(names, fit_dir, data_dirs):
         sigma_sq = extra_sigma_arr**2 + flux_err**2
 
         logL = np.sum(
-            np.log(1.0 / np.sqrt(2.0 * np.pi * sigma_sq))
-            - 0.5 * (flux - model_f) ** 2 / sigma_sq
+            np.log(1.0 / np.sqrt(2.0 * np.pi * sigma_sq)) - 0.5 * (flux - model_f) ** 2 / sigma_sq
         ) / len(mjd)
         log_likelihoods.append(logL)
 

@@ -9,37 +9,37 @@ import os
 import shutil
 
 import numpy as np
-from joblib import Parallel, delayed
 import torch
+from joblib import Parallel, delayed
 
-from .constants import NUM_FOLDS, MEANS_TRAINED_MODEL, STDDEVS_TRAINED_MODEL
-from .file_paths import * # pylint: disable=wildcard-import
+from .constants import MEANS_TRAINED_MODEL, NUM_FOLDS, STDDEVS_TRAINED_MODEL
+from .file_paths import *  # pylint: disable=wildcard-import
 from .format_data_ztf import (
+    generate_K_fold,
+    get_posterior_samples,
     import_labels_only,
+    normalize_features,
+    oversample_using_posteriors,
     tally_each_class,
     train_test_split,
-    oversample_using_posteriors,
-    get_posterior_samples,
-    normalize_features,
-    generate_K_fold,
 )
 from .mlp import (
-    run_mlp,
-    create_dataset,
     MLP,
-    save_test_probabilities,
+    create_dataset,
     get_predictions_new,
+    run_mlp,
+    save_test_probabilities,
     save_unclassified_test_probabilities,
 )
 from .plotting import plot_confusion_matrix
-from .utils import calculate_neg_chi_squareds, f1_score, calc_accuracy
+from .utils import calc_accuracy, calculate_neg_chi_squareds, f1_score
 from .ztf_transient_fit import import_data, run_mcmc
 
 
 def adjust_log_dists(features):
     """Takes log of fit parameters with log-Gaussian priors before
     feeding into classifier. Also removes apparent amplitude and t0.
-    
+
     Parameters
     ----------
     features : np.ndarray
@@ -47,16 +47,16 @@ def adjust_log_dists(features):
     """
     features[:, 4:7] = np.log10(features[:, 4:7])
     features[:, 2] = np.log10(features[:, 2])
-    return np.delete(features, [0,3], 1)
+    return np.delete(features, [0, 3], 1)
 
 
 def classify(goal_per_class, num_epochs, neurons_per_layer, num_layers, fits_plotted=False):
     """Train MLP to classify between supernovae of 'allowed_types'.
-    
+
     Parameters
     ----------
     goal_per_class : int
-        Oversampling such that there are this many fits per supernova 
+        Oversampling such that there are this many fits per supernova
         type.
     num_epochs : int
         Number of training epochs.
@@ -65,15 +65,15 @@ def classify(goal_per_class, num_epochs, neurons_per_layer, num_layers, fits_plo
     num_layers : int
         Number of hidden layers in MLP.
     fits_plotted : bool
-        If true, assumes all sample fit plots are saved in 
-        FIT_PLOTS_FOLDER. Copies plots of wrongly classified samples to 
+        If true, assumes all sample fit plots are saved in
+        FIT_PLOTS_FOLDER. Copies plots of wrongly classified samples to
         separate folder for manual followup. Defaults to False.
     """
 
-    #for file in os.scandir('models'):
+    # for file in os.scandir('models'):
     #    os.remove(file.path)
     allowed_types = ["SN Ia", "SN II", "SN IIn", "SLSN-I", "SN Ibc", "SLSN-II"]
-    output_dim = len(allowed_types) # number of classes
+    output_dim = len(allowed_types)  # number of classes
 
     labels_to_classes = {allowed_types[i]: i for i in range(len(allowed_types))}
     classes_to_labels = {i: allowed_types[i] for i in range(len(allowed_types))}
@@ -86,7 +86,7 @@ def classify(goal_per_class, num_epochs, neurons_per_layer, num_layers, fits_plo
 
     names, labels = import_labels_only(input_csvs, allowed_types)
 
-    tally_each_class(labels) # original tallies
+    tally_each_class(labels)  # original tallies
 
     kfold = generate_K_fold(np.zeros(len(labels)), labels, NUM_FOLDS)
 
@@ -121,8 +121,24 @@ def classify(goal_per_class, num_epochs, neurons_per_layer, num_layers, fits_plo
             val_names, val_classes, val_chis, round(0.1 * goal_per_class)
         )
 
-        train_features = np.append(train_features, np.array([train_chis,]).T, 1)
-        val_features = np.append(val_features, np.array([val_chis,]).T, 1)
+        train_features = np.append(
+            train_features,
+            np.array(
+                [
+                    train_chis,
+                ]
+            ).T,
+            1,
+        )
+        val_features = np.append(
+            val_features,
+            np.array(
+                [
+                    val_chis,
+                ]
+            ).T,
+            1,
+        )
 
         test_features = []
         test_classes_os = []
@@ -141,11 +157,15 @@ def classify(goal_per_class, num_epochs, neurons_per_layer, num_layers, fits_plo
             if len(test_group_idxs) == 0:
                 start_idx = 0
             else:
-                start_idx = test_group_idxs[-1][-1]+1
-            test_group_idxs.append(np.arange(start_idx, start_idx+len(test_posts)))
+                start_idx = test_group_idxs[-1][-1] + 1
+            test_group_idxs.append(np.arange(start_idx, start_idx + len(test_posts)))
 
         test_features = np.array(test_features)
-        test_chis = np.array([test_chis_os,])
+        test_chis = np.array(
+            [
+                test_chis_os,
+            ]
+        )
 
         test_features = np.append(test_features, test_chis.T, 1)
 
@@ -154,17 +174,17 @@ def classify(goal_per_class, num_epochs, neurons_per_layer, num_layers, fits_plo
         test_classes = np.array(test_classes_os)
         test_names = np.array(test_names_os)
 
-        #print(test_names[0])
+        # print(test_names[0])
         train_features = adjust_log_dists(train_features)
         val_features = adjust_log_dists(val_features)
         train_features, mean, std = normalize_features(train_features)
         val_features, mean, std = normalize_features(val_features, mean, std)
         test_features, mean, std = normalize_features(test_features, mean, std)
 
-        #Convert to Torch DataSet objects
+        # Convert to Torch DataSet objects
         train_data = create_dataset(train_features, train_classes)
         val_data = create_dataset(val_features, val_classes)
-        #test_data = create_dataset(test_features, test_classes)
+        # test_data = create_dataset(test_features, test_classes)
 
         # Train and evaluate multi-layer perceptron
         test_classes, test_names, pred_classes, pred_probs, valid_loss = run_mlp(
@@ -206,8 +226,8 @@ def classify(goal_per_class, num_epochs, neurons_per_layer, num_layers, fits_plo
             wc = ztf_test_names[wc_idx]
             wc_type = true_classes_mlp[wc_idx]
             wrong_type = predicted_classes_mlp[wc_idx]
-            fn = wc+".png"
-            fn_new = wc+"_"+wc_type+"_"+wrong_type+".png"
+            fn = wc + ".png"
+            fn_new = wc + "_" + wc_type + "_" + wrong_type + ".png"
             shutil.copy(
                 os.path.join(FIT_PLOTS_FOLDER, fn),
                 os.path.join(WRONGLY_CLASSIFIED_FOLDER, wc_type + "/" + fn_new),
@@ -215,12 +235,7 @@ def classify(goal_per_class, num_epochs, neurons_per_layer, num_layers, fits_plo
 
     with open(CLASSIFY_LOG_FILE, "a+") as the_file:
         the_file.write(str(goal_per_class) + " samples per class\n")
-        the_file.write(
-            str(neurons_per_layer)
-            + " neurons per each of "
-            + str(num_layers)
-            + " layers\n"
-        )
+        the_file.write(str(neurons_per_layer) + " neurons per each of " + str(num_layers) + " layers\n")
         the_file.write(str(num_epochs) + " epochs\n")
         the_file.write(
             "HOW MANY CERTAIN "
@@ -233,11 +248,8 @@ def classify(goal_per_class, num_epochs, neurons_per_layer, num_layers, fits_plo
             "MLP class-averaged F1-score: %.04f\n"
             % f1_score(predicted_classes_mlp, true_classes_mlp, class_average=True)
         )
-        the_file.write(
-            "Accuracy: %.04f\n" % calc_accuracy(predicted_classes_mlp, true_classes_mlp)
-        )
+        the_file.write("Accuracy: %.04f\n" % calc_accuracy(predicted_classes_mlp, true_classes_mlp))
         the_file.write("Validation Loss: %.04f\n\n" % valid_loss_avg)
-
 
     # Plot full and p > 0.7 confusion matrices
     plot_confusion_matrix(true_classes_mlp, predicted_classes_mlp, fn_purity, True)
@@ -273,18 +285,32 @@ def return_new_classifications(test_csv, data_dirs, fit_dir, include_labels=Fals
         If True, labels from the test data are included in the
         probability saving process. Defaults to False.
     """
-    model = MLP(13, 5, 128, 3) # set up empty multi-layer perceptron
-    model.load_state_dict(torch.load(TRAINED_MODEL_FN)) # load trained state dict to the MLP
+    model = MLP(13, 5, 128, 3)  # set up empty multi-layer perceptron
+    model.load_state_dict(torch.load(TRAINED_MODEL_FN))  # load trained state dict to the MLP
 
-    classes_to_labels = {0: "SN Ia", 1: "SN II", 2: "SN IIn", 3: "SLSN-I", 4: "SN Ibc"} #converts the MLP classes to types # pylint: disable=unused-variable
-    labels_to_classes = {"SN Ia": 0, "SN II": 1, "SN IIn": 2, "SLSN-I":3, "SN Ibc": 4} # pylint: disable=unused-variable
+    classes_to_labels = {
+        0: "SN Ia",
+        1: "SN II",
+        2: "SN IIn",
+        3: "SLSN-I",
+        4: "SN Ibc",
+    }  # converts the MLP classes to types # pylint: disable=unused-variable
+    labels_to_classes = {
+        "SN Ia": 0,
+        "SN II": 1,
+        "SN IIn": 2,
+        "SLSN-I": 3,
+        "SN Ibc": 4,
+    }  # pylint: disable=unused-variable
 
-    special_labels = {"SN Iax[02cx-like]",}
+    special_labels = {
+        "SN Iax[02cx-like]",
+    }
     test_features = []
-    test_classes_os = [] # pylint: disable=unused-variable
-    test_group_idxs = [] # pylint: disable=unused-variable
-    test_names_os = [] # pylint: disable=unused-variable
-    test_chis_os = [] # pylint: disable=unused-variable
+    test_classes_os = []  # pylint: disable=unused-variable
+    test_group_idxs = []  # pylint: disable=unused-variable
+    test_names_os = []  # pylint: disable=unused-variable
+    test_chis_os = []  # pylint: disable=unused-variable
     with open(test_csv, "r") as tc:
         csv_reader = csv.reader(tc, delimiter=",")
         next(csv_reader)
@@ -296,7 +322,7 @@ def return_new_classifications(test_csv, data_dirs, fit_dir, include_labels=Fals
                 continue
             if include_labels:
                 label = row[1]
-                if label not in special_labels: # to classify special types
+                if label not in special_labels:  # to classify special types
                     continue
             try:
                 print(test_name, fit_dir)
@@ -306,8 +332,14 @@ def return_new_classifications(test_csv, data_dirs, fit_dir, include_labels=Fals
                 continue
             test_features = test_posts
             test_names = np.array([test_name] * len(test_posts))
-            test_chi = calculate_neg_chi_squareds([test_name,], fit_dir, data_dirs)[0]
-            #if np.abs(test_chi) > 10: # probably not a SN
+            test_chi = calculate_neg_chi_squareds(
+                [
+                    test_name,
+                ],
+                fit_dir,
+                data_dirs,
+            )[0]
+            # if np.abs(test_chi) > 10: # probably not a SN
             #    print(test_name, "CHISQ TOO HIGH")
             #    label = "SKIP"
             test_chis = np.array([[test_chi] * len(test_posts)])
@@ -316,12 +348,14 @@ def return_new_classifications(test_csv, data_dirs, fit_dir, include_labels=Fals
 
             # normalize the log distributions
             test_features = adjust_log_dists(test_features)
-            test_features, means, stds = normalize_features( # pylint: disable=unused-variable
+            test_features, means, stds = normalize_features(  # pylint: disable=unused-variable
                 test_features, MEANS_TRAINED_MODEL, STDDEVS_TRAINED_MODEL
             )
             test_data = torch.utils.data.TensorDataset(torch.Tensor(test_features))
             test_iterator = torch.utils.data.DataLoader(test_data, batch_size=32)
-            images, probs = get_predictions_new(model, test_iterator, 'cpu') # pylint: disable=unused-variable
+            images, probs = get_predictions_new(
+                model, test_iterator, "cpu"
+            )  # pylint: disable=unused-variable
             probs_avg = np.mean(probs.numpy(), axis=0)
             if include_labels:
                 save_test_probabilities(test_names[0], label, probs_avg)
@@ -330,8 +364,8 @@ def return_new_classifications(test_csv, data_dirs, fit_dir, include_labels=Fals
 
 
 def save_phase_versus_class_probs(probs_csv, data_dir):
-    """Apply classifier to dataset over different phases. Plot overall 
-    trends of phase vs confidence, phase vs F1 score, phase vs each 
+    """Apply classifier to dataset over different phases. Plot overall
+    trends of phase vs confidence, phase vs F1 score, phase vs each
     class accuracy.
 
     Parameters
@@ -341,11 +375,23 @@ def save_phase_versus_class_probs(probs_csv, data_dir):
     data_dir : str
         Path to the directory containing the data.
     """
-    model = MLP(13, 5, 128, 3) # set up empty multi-layer perceptron
-    model.load_state_dict(torch.load(TRAINED_MODEL_FN)) # load trained state dict to the MLP
+    model = MLP(13, 5, 128, 3)  # set up empty multi-layer perceptron
+    model.load_state_dict(torch.load(TRAINED_MODEL_FN))  # load trained state dict to the MLP
 
-    classes_to_labels = {0: "SN Ia", 1: "SN II", 2: "SN IIn", 3: "SLSN-I", 4: "SN Ibc"} #converts the MLP classes to types # pylint: disable=unused-variable
-    labels_to_classes = {"SN Ia": 0, "SN II": 1, "SN IIn": 2, "SLSN-I":3, "SN Ibc": 4} # pylint: disable=unused-variable
+    classes_to_labels = {
+        0: "SN Ia",
+        1: "SN II",
+        2: "SN IIn",
+        3: "SLSN-I",
+        4: "SN Ibc",
+    }  # converts the MLP classes to types # pylint: disable=unused-variable
+    labels_to_classes = {
+        "SN Ia": 0,
+        "SN II": 1,
+        "SN IIn": 2,
+        "SLSN-I": 3,
+        "SN Ibc": 4,
+    }  # pylint: disable=unused-variable
 
     ct = 0
 
@@ -362,23 +408,32 @@ def save_phase_versus_class_probs(probs_csv, data_dir):
                 continue
 
             ct += 1
-            phases = [] # pylint: disable=unused-variable
+            phases = []  # pylint: disable=unused-variable
             try:
-                tarr, farr, _, _ = import_data(os.path.join(data_dir, test_name+".npz"))
+                tarr, farr, _, _ = import_data(os.path.join(data_dir, test_name + ".npz"))
             except:
                 print("skipping import")
                 continue
 
             mean_t0 = tarr[np.argmax(farr)]
+
             def single_loop(phase):
                 t = phase + float(mean_t0)
                 print(phase)
-                if phase > 50.:
+                if phase > 50.0:
                     return None
 
                 try:
-                    refit_posts = run_mcmc(os.path.join(data_dir, test_name+".npz"), t)
-                    test_chi = calculate_neg_chi_squareds([test_name,], FITS_DIR, [data_dir,])[0]
+                    refit_posts = run_mcmc(os.path.join(data_dir, test_name + ".npz"), t)
+                    test_chi = calculate_neg_chi_squareds(
+                        [
+                            test_name,
+                        ],
+                        FITS_DIR,
+                        [
+                            data_dir,
+                        ],
+                    )[0]
                     test_chis = np.array([[test_chi] * len(refit_posts)])
                 except:
                     print("skipping fitting")
@@ -388,14 +443,16 @@ def save_phase_versus_class_probs(probs_csv, data_dir):
 
                 # normalize the log distributions
                 test_features = adjust_log_dists(test_features)
-                test_features, means2, stds2 = normalize_features( # pylint: disable=unused-variable
+                test_features, means2, stds2 = normalize_features(  # pylint: disable=unused-variable
                     test_features, MEANS_TRAINED_MODEL, STDDEVS_TRAINED_MODEL
                 )
                 test_data = torch.utils.data.TensorDataset(torch.Tensor(test_features))
                 test_iterator = torch.utils.data.DataLoader(test_data, batch_size=32)
-                images, probs = get_predictions_new(model, test_iterator, 'cpu') # pylint: disable=unused-variable
+                images, probs = get_predictions_new(
+                    model, test_iterator, "cpu"
+                )  # pylint: disable=unused-variable
                 probs_avg = np.mean(probs.numpy(), axis=0)
-                #idx_random = np.random.choice(np.arange(len(probs)))
+                # idx_random = np.random.choice(np.arange(len(probs)))
                 save_test_probabilities(str(label), round(phase, 2), probs_avg)
 
             Parallel(n_jobs=-1)(delayed(single_loop)(float(x)) for x in t_cutoffs)

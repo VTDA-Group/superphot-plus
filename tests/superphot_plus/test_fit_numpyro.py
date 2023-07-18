@@ -16,6 +16,7 @@ def test_numpyro_nuts(tmp_path, single_ztf_lightcurve_compressed):
     ## NUTS defaults to 300 samples
     assert len(params) == 300
 
+
 def test_numpyro_svi(tmp_path, single_ztf_lightcurve_compressed):
     """Just test that we generated a new file with samples that can be read."""
     numpyro_single_file(single_ztf_lightcurve_compressed, tmp_path, sampler="svi")
