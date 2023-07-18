@@ -8,7 +8,7 @@ import os
 import numpy as np
 from sklearn.model_selection import StratifiedKFold, train_test_split
 
-from .file_paths import FITS_DIR, DATA_DIRS
+from .file_paths import DATA_DIRS, FITS_DIR
 from .utils import calculate_neg_chi_squareds
 
 
@@ -82,16 +82,16 @@ def import_labels_only(input_csvs, allowed_types, fits_dir=None, redshift=False)
 
     # TODO: make more compact
     for input_csv in input_csvs:
-        with open(input_csv, newline='') as csvfile:
+        with open(input_csv, newline="") as csvfile:
             csvreader = csv.reader(csvfile)
             for row in csvreader:
                 name = row[0]
-                if not os.path.isfile(fits_dir+name+"_eqwt.npz"):
+                if not os.path.isfile(fits_dir + name + "_eqwt.npz"):
                     continue
                 label_orig = row[1]
                 l = row[1]
                 z = float(row[2])
-                if redshift and z <= 0.:
+                if redshift and z <= 0.0:
                     print(name, l)
                     continue
                 if l in sn1bc_alts:
@@ -107,7 +107,7 @@ def import_labels_only(input_csvs, allowed_types, fits_dir=None, redshift=False)
                 elif l in tde_alts:
                     l = "TDE"
                 if l not in allowed_types:
-                    #print(l)
+                    # print(l)
                     continue
                 if name not in names:
                     names.append(name)
@@ -126,7 +126,7 @@ def import_labels_only(input_csvs, allowed_types, fits_dir=None, redshift=False)
 
 
 def import_features_and_labels(input_csv, allowed_types):
-    """Filters CSVs for rows where label is in allowed_types and returns 
+    """Filters CSVs for rows where label is in allowed_types and returns
     names, labels, and features.
 
     Parameters
@@ -139,7 +139,7 @@ def import_features_and_labels(input_csv, allowed_types):
     Returns
     -------
     tuple of np.ndarray
-        Tuple of names, feature means, feature standard deviations, and 
+        Tuple of names, feature means, feature standard deviations, and
         labels.
 
     Notes
@@ -155,7 +155,7 @@ def import_features_and_labels(input_csv, allowed_types):
     snIIn_alts = ["SLSN-II"]
     snIa_alts = ["SN Ia-91 T-like", "SN Ia-CSM", "SN Ia-91bg-like"]
     snII_alts = ["SN IIP", "SN IIL"]
-    with open(input_csv, newline='') as csvfile:
+    with open(input_csv, newline="") as csvfile:
         csvreader = csv.reader(csvfile)
         for row in csvreader:
             l = row[1]
@@ -198,7 +198,7 @@ def divide_into_training_test_set(features, labels, test_fraction):
     Returns
     -------
     tuple of np.ndarray
-        Tuple of training features, test features, training labels, and 
+        Tuple of training features, test features, training labels, and
         test labels.
     """
     return train_test_split(features, labels, test_size=test_fraction, random_state=42)
@@ -222,7 +222,7 @@ def generate_K_fold(features, classes, num_folds):
         Generator yielding the indices for training and test sets.
     """
     if num_folds == -1:
-        kf = StratifiedKFold(n_splits=len(features), shuffle=True) # cross-one out validation
+        kf = StratifiedKFold(n_splits=len(features), shuffle=True)  # cross-one out validation
     else:
         kf = StratifiedKFold(n_splits=num_folds, shuffle=True)
     return kf.split(features, classes)
@@ -243,7 +243,7 @@ def tally_each_class(labels):
         else:
             tally_dict[label] += 1
     for tally_label in tally_dict:
-        print(tally_label,": ", str(tally_dict[tally_label]))
+        print(tally_label, ": ", str(tally_dict[tally_label]))
     print()
 
 
@@ -305,8 +305,8 @@ def get_posterior_samples(ztf_name, output_dir=None):
     if output_dir is None:
         output_dir = FITS_DIR
     post_fn = os.path.join(output_dir, ztf_name + "_eqwt.npz")
-    #output_dir = "../outputs/"
-    #post_fn = output_dir + ztf_name +"/" + ztf_name + "post_equal_weights.dat"
+    # output_dir = "../outputs/"
+    # post_fn = output_dir + ztf_name +"/" + ztf_name + "post_equal_weights.dat"
     """
     with open(post_fn, "r") as post_ew:
         post_rows = post_ew.read().split("\n")
@@ -316,7 +316,7 @@ def get_posterior_samples(ztf_name, output_dir=None):
         post_arr = np.array(post_arr)[:,:-1] # exclude the loglikelihoods
     """
     npy_array = np.load(post_fn)
-    post_arr = npy_array['arr_0']
+    post_arr = npy_array["arr_0"]
     return post_arr
 
 
@@ -374,7 +374,7 @@ def normalize_features(features, mean=None, std=None):
     Returns
     -------
     tuple of np.ndarray
-        Tuple containing normalized features, mean values, and standard 
+        Tuple containing normalized features, mean values, and standard
         deviation values.
     """
     if mean is None:
@@ -404,14 +404,14 @@ def summarize_misc_classification(misc_csv):
             probs = np.array(row[2:]).astype(float)
             best_type = np.argmax(probs)
             if obj_type not in misc_dict:
-                misc_dict[obj_type] = [0,0,0,0,0]
+                misc_dict[obj_type] = [0, 0, 0, 0, 0]
             misc_dict[obj_type][best_type] += 1
 
     print(misc_dict)
 
 
 def generate_csv_subset(orig_sn_name, new_sn_name, sn_idx, p_cutoff):
-    """Generate smaller subset with only SNe of one type, with 
+    """Generate smaller subset with only SNe of one type, with
     confidence above a certain threshold.
 
     Parameters
@@ -469,19 +469,31 @@ def generate_csv_subset2(orig_sn_names, new_sn_name, sn_type):
                     sn_names.append(row[0])
                     zs.append(float(row[2]))
 
-
     train_chis = calculate_neg_chi_squareds(sn_names, FITS_DIR, DATA_DIRS)
     print(len(train_chis), len(sn_names))
     for _, sn_name in enumerate(sn_names):
-        train_features, train_classes, train_chis_os = oversample_using_posteriors( # pylint: disable=unused-variable
-            [sn_name,], [2,], [train_chis[e],], 100
+        (
+            train_features,
+            train_classes,
+            train_chis_os,
+        ) = oversample_using_posteriors(  # pylint: disable=unused-variable
+            [
+                sn_name,
+            ],
+            [
+                2,
+            ],
+            [
+                train_chis[e],
+            ],
+            100,
         )
         med_features = np.median(train_features, axis=0)
         med_features = np.append(med_features, np.median(train_chis_os))
 
         with open(new_sn_name, "a") as new:
             csv_writer = csv.writer(new, delimiter=",")
-            #csv_writer.writerow(["Name","Redshift"])
+            # csv_writer.writerow(["Name","Redshift"])
             csv_writer.writerow([sn_name, zs[e], *med_features])
 
 
@@ -500,21 +512,21 @@ def add_snr_to_prob_csv(probs_csv, new_csv):
     """
     all_rows = []
     with open(probs_csv, "r") as csvfile:
-        with open(new_csv, 'w+') as csvoutput:
+        with open(new_csv, "w+") as csvoutput:
             csvreader = csv.reader(csvfile)
             csvwriter = csv.writer(csvoutput)
             for row in csvreader:
                 name = row[0]
                 for data_dir in DATA_DIRS:
                     try:
-                        #data_fn = glob.glob(data_dir + "/*/" + name + ".npz")[0]
+                        # data_fn = glob.glob(data_dir + "/*/" + name + ".npz")[0]
                         data_fn = data_dir + "/" + name + ".npz"
                         npy_array = np.load(data_fn)
-                        #print(npy_array)
+                        # print(npy_array)
                     except:
                         pass
 
-                arr = npy_array['arr_0']
+                arr = npy_array["arr_0"]
 
                 ferr = arr[2]
                 f = arr[1][ferr != "nan"].astype(float)
@@ -522,9 +534,9 @@ def add_snr_to_prob_csv(probs_csv, new_csv):
                 ferr = ferr[ferr != "nan"].astype(float)
                 snr = np.abs(f / ferr)
 
-                n_snr_3 = len(snr[(snr > 3.)])
-                n_snr_5 = len(snr[(snr > 5.)])
-                n_snr_10 = len(snr[(snr > 10.)])
+                n_snr_3 = len(snr[(snr > 3.0)])
+                n_snr_5 = len(snr[(snr > 5.0)])
+                n_snr_10 = len(snr[(snr > 10.0)])
                 snr_ten_percent = np.quantile(snr, 0.9)
                 max_r_flux = np.max(f[b == "r"])
                 row.append(max_r_flux)
