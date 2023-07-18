@@ -1,7 +1,4 @@
-# This workflow will run daily at 06:45.
-# It will install Python dependencies and run tests with a variety of Python versions.
-# See documentation for help debugging smoke test issues:
-#    https://lincc-ppt.readthedocs.io/en/latest/practices/ci_testing.html#version-culprit
+# This workflow will monitor code performance on the main branch.
 
 name: Benchmark runtime and memory usage
 
