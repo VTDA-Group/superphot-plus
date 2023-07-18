@@ -124,7 +124,7 @@ def params_valid(beta, gamma, tau_rise, tau_fall):
     return True
 
 
-def run_mcmc(filename, t0_lim=None, plot=False):
+def run_mcmc(filename, t0_lim=None, plot=False, rstate=None):
     """Runs dynesty importance nested sampling on datafile; returns set
     of equally weighted posteriors (sets of fit parameters).
 
@@ -136,6 +136,8 @@ def run_mcmc(filename, t0_lim=None, plot=False):
         Upper limit for t0. Defaults to None.
     plot : bool, optional
         Flag to enable/disable plotting. Defaults to False.
+    rstate : int, optional
+        Random state that is seeded. if none, use machine entropy.
 
     Returns
     -------
@@ -525,7 +527,7 @@ def run_curve_fit(filename):
     return popt_g, popt_r
 
 
-def dynesty_single_file(test_fn, output_dir, skip_if_exists=True):
+def dynesty_single_file(test_fn, output_dir, skip_if_exists=True, rstate=None):
     """Perform model fitting using dynesty on a single data file.
 
     This function runs the dynesty importance nested sampling algorithm
@@ -541,6 +543,8 @@ def dynesty_single_file(test_fn, output_dir, skip_if_exists=True):
     skip_if_exists : bool, optional
         Flag indicating whether to skip fitting if the output file
         already exists. Defaults to true.
+    rstate : int, optional
+        Random state that is seeded. if none, use machine entropy.
 
     Returns
     -------
