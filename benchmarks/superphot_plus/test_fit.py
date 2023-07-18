@@ -32,12 +32,13 @@ def setup():
 
 def test_dynesty_single_file():
     """Uses the dynesty optimizer with nested sampling"""
+    sleep(60)
     dynesty_single_file(fn_to_fit, OUTPUT_DIR, skip_if_exists=False)
 
 
 def test_nuts_single_file():
     """Uses the NUTS sampler"""
-    sleep(30)
+    sleep(60)
     numpyro_single_file(fn_to_fit, OUTPUT_DIR, sampler="NUTS")
 
 
