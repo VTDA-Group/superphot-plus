@@ -35,12 +35,12 @@ def test_dynesty_single_file():
     dynesty_single_file(fn_to_fit, OUTPUT_DIR, skip_if_exists=False)
 
 
-def nuts_single_file():
+def test_nuts_single_file():
     """Uses the NUTS sampler"""
     sleep(30)
     numpyro_single_file(fn_to_fit, OUTPUT_DIR, sampler="NUTS")
 
 
-def svi_single_file():
+def test_svi_single_file():
     """Uses the svi sampler"""
     numpyro_single_file(fn_to_fit, OUTPUT_DIR, sampler="svi")
