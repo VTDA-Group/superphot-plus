@@ -1,11 +1,7 @@
 import numpy as np
 import pytest
 
-from superphot_plus.utils import (
-    calc_accuracy,
-    f1_score,
-    get_band_extinctions,
-)
+from superphot_plus.utils import calc_accuracy, f1_score, get_band_extinctions
 
 
 def test_calc_accuracy() -> None:
@@ -52,10 +48,7 @@ def test_f1_score() -> None:
         np.array([0, 0, 1, 1, 1, 1, 2, 2, 3, 3, 4, 4]),
         False,
     )
-    assert (
-        pytest.approx(s)
-        == (2.0 * (4.0 / 5.0) + 4.0 * (6.0 / 7.0) + 2.0 + 2.0 + 2.0) / 12.0
-    )
+    assert pytest.approx(s) == (2.0 * (4.0 / 5.0) + 4.0 * (6.0 / 7.0) + 2.0 + 2.0 + 2.0) / 12.0
 
 
 def test_get_band_extinctions() -> None:

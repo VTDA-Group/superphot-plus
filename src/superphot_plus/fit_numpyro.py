@@ -1,3 +1,8 @@
+"""This module provides functionality for running a dynesty importance 
+nested sampling algorithm on given data files and returning a set of 
+equally weighted posteriors (sets of fit parameters).
+"""
+
 import os
 
 import arviz as az
@@ -13,19 +18,35 @@ from numpyro.distributions import constraints
 from numpyro.infer import MCMC, NUTS, SVI, Trace_ELBO
 from numpyro.infer.initialization import init_to_uniform
 
-from .constants import * # pylint: disable=wildcard-import
+from .constants import *  # pylint: disable=wildcard-import
 from .file_paths import FIT_PLOTS_FOLDER, FITS_DIR
 
 config.update("jax_enable_x64", True)
 numpyro.enable_x64()
 
 
-def import_data(fn, t0_lim=None):
+def import_data(filename, t0_lim=None):
+    """Import the data file.
+
+    Parameters
+    ----------
+    filename : str
+        The name of the data file to import.
+    t0_lim : float or None, optional
+        The upper time limit for the data. If provided, only data points
+        with time values less than or equal to t0_lim will be included.
+        Defaults to None.
+
+    Returns
+    -------
+    tuple of np.ndarray or None
+        A tuple containing the padded time, flux, flux error, and band
+        arrays, respectively. If the input data does not contain any
+        valid points, None is returned.
+
     """
-    Import the datafile.
-    """
-    npy_array = np.load(fn)
-    arr = npy_array['arr_0']
+    npy_array = np.load(filename)
+    arr = npy_array["arr_0"]
 
     ferr = arr[2]
     t = arr[0][ferr != "nan"].astype(float)
@@ -44,7 +65,7 @@ def import_data(fn, t0_lim=None):
     if (t[b == "g"] is None) or (len(t[b == "g"]) == 0):
         return None
 
-    b = np.where(b == "r", 1, 0) # change to integers
+    b = np.where(b == "r", 1, 0)  # change to integers
 
     # sort
     sort_idx = np.argsort(t)
@@ -53,9 +74,9 @@ def import_data(fn, t0_lim=None):
     ferr = ferr[sort_idx]
     b = b[sort_idx]
 
-    max_flux_loc =  t[b == 1][np.argmax(f[b == 1] - np.abs(ferr[b == 1]))]
+    max_flux_loc = t[b == 1][np.argmax(f[b == 1] - np.abs(ferr[b == 1]))]
 
-    t -= max_flux_loc # make relative
+    t -= max_flux_loc  # make relative
 
     # separate r and g band points
     # necessary for static indexing for jax
@@ -68,7 +89,7 @@ def import_data(fn, t0_lim=None):
         np.array([]),
     )
 
-    for b_int in [0,1]:
+    for b_int in [0, 1]:
         len_b = len(b[b == b_int])
         t_s = t[b == b_int]
         f_s = f[b == b_int]
@@ -87,54 +108,102 @@ def import_data(fn, t0_lim=None):
             b_padded = np.append(b_padded, b_s)
 
             t_padded = np.append(t_padded, [5000] * (PAD_SIZE - len_b))
-            f_padded = np.append(f_padded, [0.] * (PAD_SIZE - len_b))
+            f_padded = np.append(f_padded, [0.0] * (PAD_SIZE - len_b))
             ferr_padded = np.append(ferr_padded, [1e10] * (PAD_SIZE - len_b))
-            b_padded = np.append(b_padded, [b_int] * (PAD_SIZE - len_b) )
+            b_padded = np.append(b_padded, [b_int] * (PAD_SIZE - len_b))
 
     return t_padded, f_padded, ferr_padded, b_padded
 
 
 def trunc_norm(low, high, loc, scale):
-    """
-    Helper function for dist.TruncatedNormal()
+    """Provides keyword parameters to numpyro's TruncatedNormal.
+
+    Parameters
+    ----------
+    low : float
+        The lower bound of the truncated normal distribution.
+    high : float
+        The upper bound of the truncated normal distribution.
+    loc : float
+        The mean of the truncated normal distribution.
+    scale : float
+        The standard deviation of the truncated normal distribution.
+
+    Returns
+    -------
+    numpyro.distributions.TruncatedDistribution
+        A truncated normal distribution.
     """
     return dist.TruncatedNormal(loc=loc, scale=scale, low=low, high=high)
 
 
-def run_mcmc(fn, sampler="NUTS", t0_lim=None, plot=False):
-    """
-    Run dynesty importance nested sampling on datafile. Returns
-    set of equally weighted posteriors (sets of fit parameters).
+def run_mcmc(filename, sampler="NUTS", t0_lim=None, plot=False):
+    """Runs dynesty importance nested sampling on data file to get set
+    of equally weighted posteriors (sets of fit parameters).
+
+    Parameters
+    ----------
+    filename : str
+        The file name of the data file to run MCMC on.
+    sampler : str, optional
+        The MCMC sampler to use. Defaults to "NUTS".
+    t0_lim : float or None, optional
+        Upper time limit for the data. If provided, only data points
+        with time values less than or equal to t0_lim will be included.
+        Defaults to None.
+    plot : bool, optional
+        If True, associated plots will be generated and saved. Defaults
+        to False.
+
+    Returns
+    -------
+    np.ndarray or None
+        A set of equally weighted posteriors (sets of fit parameters) as
+        a numpy array. If the data file does not contain any valid
+        points, None is returned.
+
     """
     rng_key = random.PRNGKey(4)
-    rng_key, rng_key_ = random.split(rng_key) # pylint: disable=unused-variable
+    rng_key, rng_key_ = random.split(rng_key)  # pylint: disable=unused-variable
 
-    ref_band_idx = 1 # red band # pylint: disable=unused-variable
+    ref_band_idx = 1  # red band # pylint: disable=unused-variable
 
-    #prefix = fn.split("/")[-1][:-4]
+    # prefix = filename.split("/")[-1][:-4]
 
-    #print(prefix)
-    n_params = 14 # pylint: disable=unused-variable
+    # print(prefix)
+    n_params = 14  # pylint: disable=unused-variable
 
-    prefix = fn.split("/")[-1][:-4]
-    tdata, fdata, ferrdata, bdata = import_data(fn, t0_lim)
+    prefix = filename.split("/")[-1][:-4]
+    tdata, fdata, ferrdata, bdata = import_data(filename, t0_lim)
     if tdata is None:
-        return
+        return None
 
-    max_flux = np.max( fdata[PAD_SIZE:] - np.abs(ferrdata[PAD_SIZE:]) )
-    inc_band_ix = np.arange( 0, PAD_SIZE )
+    max_flux = np.max(fdata[PAD_SIZE:] - np.abs(ferrdata[PAD_SIZE:]))
+    inc_band_ix = np.arange(0, PAD_SIZE)
 
+    def jax_model(t=None, obsflux=None, uncertainties=None, max_flux=None, inc_band_ix=None):
+        """JAX model for MCMC.
 
-    def jax_model(
-        t=None, obsflux=None, uncertainties=None, max_flux=None, inc_band_ix=None
-    ):
-        A = max_flux * 10**numpyro.sample("logA", trunc_norm(*PRIOR_A))
+        Parameters
+        ----------
+        t : array-like, optional
+            Time values. Defaults to None.
+        obsflux : array-like, optional
+            Observed flux values. Defaults to None.
+        uncertainties : array-like, optional
+            Flux uncertainties. Defaults to None.
+        max_flux : float, optional
+            Maximum flux value. Defaults to None.
+        inc_band_ix : array-like, optional
+            Index values for the band. Defaults to None.
+        """
+        A = max_flux * 10 ** numpyro.sample("logA", trunc_norm(*PRIOR_A))
         beta = numpyro.sample("beta", trunc_norm(*PRIOR_BETA))
-        gamma = 10**numpyro.sample("log_gamma", trunc_norm(*PRIOR_GAMMA))
+        gamma = 10 ** numpyro.sample("log_gamma", trunc_norm(*PRIOR_GAMMA))
         t0 = numpyro.sample("t0", trunc_norm(*PRIOR_T0))
-        tau_rise = 10**numpyro.sample("log_tau_rise", trunc_norm(*PRIOR_TAU_RISE))
-        tau_fall = 10**numpyro.sample("log_tau_fall", trunc_norm(*PRIOR_TAU_FALL))
-        extra_sigma = 10**numpyro.sample("log_extra_sigma", trunc_norm(*PRIOR_EXTRA_SIGMA))
+        tau_rise = 10 ** numpyro.sample("log_tau_rise", trunc_norm(*PRIOR_TAU_RISE))
+        tau_fall = 10 ** numpyro.sample("log_tau_fall", trunc_norm(*PRIOR_TAU_FALL))
+        extra_sigma = 10 ** numpyro.sample("log_extra_sigma", trunc_norm(*PRIOR_EXTRA_SIGMA))
 
         A_g = numpyro.sample("A_g", trunc_norm(*PRIOR_A_g))
         beta_g = numpyro.sample("beta_g", trunc_norm(*PRIOR_BETA_g))
@@ -152,7 +221,7 @@ def run_mcmc(fn, sampler="NUTS", t0_lim=None, plot=False):
         tau_fall_g = numpyro.param("tau_fall_g", 1.)
         extra_sigma_g = numpyro.param("extra_sigma_g", 1.)
         """
-        A_b = A * A_g # pylint: disable=unused-variable
+        A_b = A * A_g  # pylint: disable=unused-variable
         beta_b = beta * beta_g
         gamma_b = gamma * gamma_g
         t0_b = t0 * t0_g
@@ -160,8 +229,8 @@ def run_mcmc(fn, sampler="NUTS", t0_lim=None, plot=False):
         tau_fall_b = tau_fall * tau_fall_g
 
         phase = t - t0
-        flux_const = A / (1. + jnp.exp(-phase / tau_rise))
-        sigmoid = 1 / (1 + jnp.exp(10.*(gamma - phase)))
+        flux_const = A / (1.0 + jnp.exp(-phase / tau_rise))
+        sigmoid = 1 / (1 + jnp.exp(10.0 * (gamma - phase)))
 
         flux = flux_const * (
             (1 - sigmoid) * (1 - beta * phase)
@@ -170,32 +239,48 @@ def run_mcmc(fn, sampler="NUTS", t0_lim=None, plot=False):
 
         # g band
         phase_b = (t - t0_b)[inc_band_ix]
-        flux_const_b = A / (1. + jnp.exp(-phase_b / tau_rise_b))
-        sigmoid_b = 1 / (1 + jnp.exp(10.*(gamma_b - phase_b)))
+        flux_const_b = A / (1.0 + jnp.exp(-phase_b / tau_rise_b))
+        sigmoid_b = 1 / (1 + jnp.exp(10.0 * (gamma_b - phase_b)))
 
         flux = flux.at[inc_band_ix].set(
             flux_const_b
             * (
                 (1 - sigmoid_b) * (1 - beta_b * phase_b)
-                + sigmoid_b
-                * (1 - beta_b * gamma_b)
-                * jnp.exp(-(phase_b - gamma_b) / tau_fall_b)
+                + sigmoid_b * (1 - beta_b * gamma_b) * jnp.exp(-(phase_b - gamma_b) / tau_fall_b)
             )
         )
 
         sigma_tot = jnp.sqrt(uncertainties**2 + extra_sigma**2)
         sigma_tot = sigma_tot.at[inc_band_ix].set(
-            jnp.sqrt(
-                uncertainties[inc_band_ix] ** 2 + extra_sigma_g**2 * extra_sigma**2
-            )
+            jnp.sqrt(uncertainties[inc_band_ix] ** 2 + extra_sigma_g**2 * extra_sigma**2)
         )
 
-        obs = numpyro.sample("obs",dist.Normal(flux, sigma_tot),obs=obsflux) # pylint: disable=unused-variable
-
+        obs = numpyro.sample(
+            "obs", dist.Normal(flux, sigma_tot), obs=obsflux
+        )  # pylint: disable=unused-variable
 
     def jax_guide(
-        t=None, obsflux=None, uncertainties=None, max_flux=None, inc_band_ix=None # pylint: disable=unused-variable
+        t=None,
+        obsflux=None,
+        uncertainties=None,
+        max_flux=None,
+        inc_band_ix=None,  # pylint: disable=unused-variable
     ):
+        """JAX guide function for MCMC.
+
+        Parameters
+        ----------
+        t : array-like, optional
+            Time values. Defaults to None.
+        obsflux : array-like, optional
+            Observed flux values. Defaults to None.
+        uncertainties : array-like, optional
+            Flux uncertainties. Defaults to None.
+        max_flux : float, optional
+            Maximum flux value. Defaults to None.
+        inc_band_ix : array-like, optional
+            Index values for the band. Defaults to None.
+        """
         logA_mu = numpyro.param(
             "logA_mu",
             PRIOR_A[2],
@@ -217,9 +302,7 @@ def run_mcmc(fn, sampler="NUTS", t0_lim=None, plot=False):
             PRIOR_GAMMA[2],
             constraint=constraints.interval(PRIOR_GAMMA[0], PRIOR_GAMMA[1]),
         )
-        log_gamma_sigma = numpyro.param(
-            "log_gamma_sigma", 1e-3, constraint=constraints.positive
-        )
+        log_gamma_sigma = numpyro.param("log_gamma_sigma", 1e-3, constraint=constraints.positive)
         numpyro.sample("log_gamma", dist.Normal(log_gamma_mu, log_gamma_sigma))
 
         t0_mu = numpyro.param(
@@ -235,9 +318,7 @@ def run_mcmc(fn, sampler="NUTS", t0_lim=None, plot=False):
             PRIOR_TAU_RISE[2],
             constraint=constraints.interval(PRIOR_TAU_RISE[0], PRIOR_TAU_RISE[1]),
         )
-        log_tau_rise_sigma = numpyro.param(
-            "log_tau_rise_sigma", 1e-3, constraint=constraints.positive
-        )
+        log_tau_rise_sigma = numpyro.param("log_tau_rise_sigma", 1e-3, constraint=constraints.positive)
         numpyro.sample("log_tau_rise", dist.Normal(log_tau_rise_mu, log_tau_rise_sigma))
 
         log_tau_fall_mu = numpyro.param(
@@ -245,9 +326,7 @@ def run_mcmc(fn, sampler="NUTS", t0_lim=None, plot=False):
             PRIOR_TAU_FALL[2],
             constraint=constraints.interval(PRIOR_TAU_FALL[0], PRIOR_TAU_FALL[1]),
         )
-        log_tau_fall_sigma = numpyro.param(
-            "log_tau_fall_sigma", 1e-3, constraint=constraints.positive
-        )
+        log_tau_fall_sigma = numpyro.param("log_tau_fall_sigma", 1e-3, constraint=constraints.positive)
         numpyro.sample("log_tau_fall", dist.Normal(log_tau_fall_mu, log_tau_fall_sigma))
 
         log_extra_sigma_mu = numpyro.param(
@@ -255,12 +334,8 @@ def run_mcmc(fn, sampler="NUTS", t0_lim=None, plot=False):
             PRIOR_EXTRA_SIGMA[2],
             constraint=constraints.interval(PRIOR_EXTRA_SIGMA[0], PRIOR_EXTRA_SIGMA[1]),
         )
-        log_extra_sigma_sigma = numpyro.param(
-            "log_extra_sigma_sigma", 1e-3, constraint=constraints.positive
-        )
-        numpyro.sample(
-            "log_extra_sigma", dist.Normal(log_extra_sigma_mu, log_extra_sigma_sigma)
-        )
+        log_extra_sigma_sigma = numpyro.param("log_extra_sigma_sigma", 1e-3, constraint=constraints.positive)
+        numpyro.sample("log_extra_sigma", dist.Normal(log_extra_sigma_mu, log_extra_sigma_sigma))
 
         # aux bands
 
@@ -277,9 +352,7 @@ def run_mcmc(fn, sampler="NUTS", t0_lim=None, plot=False):
             PRIOR_BETA_g[2],
             constraint=constraints.interval(PRIOR_BETA_g[0], PRIOR_BETA_g[1]),
         )
-        beta_g_sigma = numpyro.param(
-            "beta_g_sigma", 1e-3, constraint=constraints.positive
-        )
+        beta_g_sigma = numpyro.param("beta_g_sigma", 1e-3, constraint=constraints.positive)
         numpyro.sample("beta_g", dist.Normal(beta_g_mu, beta_g_sigma))
 
         gamma_g_mu = numpyro.param(
@@ -287,9 +360,7 @@ def run_mcmc(fn, sampler="NUTS", t0_lim=None, plot=False):
             PRIOR_GAMMA_g[2],
             constraint=constraints.interval(PRIOR_GAMMA_g[0], PRIOR_GAMMA_g[1]),
         )
-        gamma_g_sigma = numpyro.param(
-            "gamma_g_sigma", 1e-3, constraint=constraints.positive
-        )
+        gamma_g_sigma = numpyro.param("gamma_g_sigma", 1e-3, constraint=constraints.positive)
         numpyro.sample("gamma_g", dist.Normal(gamma_g_mu, gamma_g_sigma))
 
         t0_g_mu = numpyro.param(
@@ -305,9 +376,7 @@ def run_mcmc(fn, sampler="NUTS", t0_lim=None, plot=False):
             PRIOR_TAU_RISE_g[2],
             constraint=constraints.interval(PRIOR_TAU_RISE_g[0], PRIOR_TAU_RISE_g[1]),
         )
-        tau_rise_g_sigma = numpyro.param(
-            "tau_rise_g_sigma", 1e-3, constraint=constraints.positive
-        )
+        tau_rise_g_sigma = numpyro.param("tau_rise_g_sigma", 1e-3, constraint=constraints.positive)
         numpyro.sample("tau_rise_g", dist.Normal(tau_rise_g_mu, tau_rise_g_sigma))
 
         tau_fall_g_mu = numpyro.param(
@@ -315,26 +384,16 @@ def run_mcmc(fn, sampler="NUTS", t0_lim=None, plot=False):
             PRIOR_TAU_FALL_g[2],
             constraint=constraints.interval(PRIOR_TAU_FALL_g[0], PRIOR_TAU_FALL_g[1]),
         )
-        tau_fall_g_sigma = numpyro.param(
-            "tau_fall_g_sigma", 1e-3, constraint=constraints.positive
-        )
+        tau_fall_g_sigma = numpyro.param("tau_fall_g_sigma", 1e-3, constraint=constraints.positive)
         numpyro.sample("tau_fall_g", dist.Normal(tau_fall_g_mu, tau_fall_g_sigma))
 
         extra_sigma_g_mu = numpyro.param(
             "extra_sigma_g_mu",
             PRIOR_EXTRA_SIGMA_g[2],
-            constraint=constraints.interval(
-                PRIOR_EXTRA_SIGMA_g[0], PRIOR_EXTRA_SIGMA_g[1]
-            ),
+            constraint=constraints.interval(PRIOR_EXTRA_SIGMA_g[0], PRIOR_EXTRA_SIGMA_g[1]),
         )
-        extra_sigma_g_sigma = numpyro.param(
-            "extra_sigma_g_sigma", 1e-3, constraint=constraints.positive
-        )
-        numpyro.sample(
-            "extra_sigma_g", dist.Normal(extra_sigma_g_mu, extra_sigma_g_sigma)
-        )
-
-
+        extra_sigma_g_sigma = numpyro.param("extra_sigma_g_sigma", 1e-3, constraint=constraints.positive)
+        numpyro.sample("extra_sigma_g", dist.Normal(extra_sigma_g_mu, extra_sigma_g_sigma))
 
     if sampler == "NUTS":
         kernel = NUTS(jax_model, init_strategy=init_to_uniform)
@@ -349,8 +408,8 @@ def run_mcmc(fn, sampler="NUTS", t0_lim=None, plot=False):
             jit_model_args=True,
         )
 
-        #with numpyro.validation_enabled():
-        res = mcmc.run( # pylint: disable=unused-variable
+        # with numpyro.validation_enabled():
+        res = mcmc.run(  # pylint: disable=unused-variable
             rng_key,
             obsflux=fdata,
             t=tdata,
@@ -359,7 +418,7 @@ def run_mcmc(fn, sampler="NUTS", t0_lim=None, plot=False):
             inc_band_ix=inc_band_ix,
         )
 
-        #mcmc.print_summary()
+        # mcmc.print_summary()
         posterior_samples = mcmc.get_samples()
 
     elif sampler == "nested":
@@ -400,7 +459,6 @@ def run_mcmc(fn, sampler="NUTS", t0_lim=None, plot=False):
     else:
         return None
 
-
     """
     predictive = Predictive(jax_model, posterior_samples, infer_discrete=False)
     
@@ -412,20 +470,24 @@ def run_mcmc(fn, sampler="NUTS", t0_lim=None, plot=False):
     
     print(discrete_samples.keys())
     """
-    plt.hist(posterior_samples['log_tau_fall'].flatten(),bins=10)
-    plt.savefig('test_hist.png')
-    plt.close()
-
-    post_reformatted = {}
-    for p in posterior_samples:
-        post_reformatted[p] = np.array([posterior_samples[p],])
-
-    az.plot_trace(post_reformatted, compact=True)
-    plt.savefig('test_trace.png')
-    plt.close()
-
     if plot:
-        ignore_idx = (ferrdata == 1e10) # pylint: disable=superfluous-parens
+        plt.hist(posterior_samples["log_tau_fall"].flatten(), bins=10)
+        plt.savefig("test_hist.png")
+        plt.close()
+
+        post_reformatted = {}
+        for p in posterior_samples:
+            post_reformatted[p] = np.array(
+                [
+                    posterior_samples[p],
+                ]
+            )
+
+        az.plot_trace(post_reformatted, compact=True)
+        plt.savefig("test_trace.png")
+        plt.close()
+
+        ignore_idx = ferrdata == 1e10
         tdata = tdata[~ignore_idx]
         fdata = fdata[~ignore_idx]
         ferrdata = ferrdata[~ignore_idx]
@@ -480,7 +542,7 @@ def run_mcmc(fn, sampler="NUTS", t0_lim=None, plot=False):
         if t0_lim is None:
             plt.savefig(os.path.join(FIT_PLOTS_FOLDER, "%s.pdf" % prefix))
         else:
-            plt.savefig(os.path.join(FIT_PLOTS_FOLDER, "%s_%.02f.pdf" % (prefix,t0)))
+            plt.savefig(os.path.join(FIT_PLOTS_FOLDER, "%s_%.02f.pdf" % (prefix, t0)))
         plt.close()
 
     param_list = [
@@ -503,29 +565,38 @@ def run_mcmc(fn, sampler="NUTS", t0_lim=None, plot=False):
     post_reformatted_for_save = []
     for p in param_list:
         if p == "logA":
-            post_reformatted_for_save.append(max_flux * 10**posterior_samples[p])
+            post_reformatted_for_save.append(max_flux * 10 ** posterior_samples[p])
         elif p[:3] == "log":
-            post_reformatted_for_save.append(10**posterior_samples[p])
+            post_reformatted_for_save.append(10 ** posterior_samples[p])
         else:
             post_reformatted_for_save.append(posterior_samples[p])
 
     return np.array(post_reformatted_for_save).T
 
 
-def run_mcmc_batch(fns, t0_lim=None, plot=False):
-    """
-    Run dynesty importance nested sampling on datafile. Returns
-    set of equally weighted posteriors (sets of fit parameters).
+def run_mcmc_batch(filenames, t0_lim=None, plot=False):
+    """Runs numpyro's NUTS sampler on data file to get a set of equally
+    weighted posteriors (sets of fit parameters).
+
+    Parameters
+    ----------
+    filenames : str
+        The names of the files to run MCMC on.
+    t0_lim : float or None, optional
+        Upper time limit for the data. Defaults to None.
+    plot : bool, optional
+        Flag for generating and saving assosciated plots. Defaults to
+        False.
     """
     rng_key = random.PRNGKey(4)
-    rng_key, rng_key_ = random.split(rng_key) # pylint: disable=unused-variable
+    rng_key, rng_key_ = random.split(rng_key)  # pylint: disable=unused-variable
 
-    ref_band_idx = 1 # red band # pylint: disable=unused-variable
+    ref_band_idx = 1  # red band # pylint: disable=unused-variable
 
-    #prefix = fn.split("/")[-1][:-4]
+    # prefix = filename.split("/")[-1][:-4]
 
-    #print(prefix)
-    n_params = 14 # pylint: disable=unused-variable
+    # print(prefix)
+    n_params = 14  # pylint: disable=unused-variable
 
     tdata_stacked = []
     fdata_stacked = []
@@ -533,9 +604,9 @@ def run_mcmc_batch(fns, t0_lim=None, plot=False):
     bdata_stacked = []
     prefixes = []
 
-    for fn in fns:
-        prefixes.append(fn.split("/")[-1][:-4])
-        tdata, fdata, ferrdata, bdata = import_data(fn, t0_lim)
+    for filename in filenames:
+        prefixes.append(filename.split("/")[-1][:-4])
+        tdata, fdata, ferrdata, bdata = import_data(filename, t0_lim)
         if tdata is None:
             continue
         tdata_stacked.append(tdata)
@@ -548,24 +619,37 @@ def run_mcmc_batch(fns, t0_lim=None, plot=False):
     ferrdata_stacked = np.array(ferrdata_stacked)
     bdata_stacked = np.array(bdata_stacked)
 
-    max_flux = np.max(fdata_stacked[:,PAD_SIZE:] - np.abs(ferrdata_stacked[:,PAD_SIZE:]), axis=1)
+    max_flux = np.max(fdata_stacked[:, PAD_SIZE:] - np.abs(ferrdata_stacked[:, PAD_SIZE:]), axis=1)
 
-    inc_band_ix = np.arange(0,PAD_SIZE)
+    inc_band_ix = np.arange(0, PAD_SIZE)
 
     N = len(tdata_stacked)
     print(N)
 
-    def jax_model(
-        t=None, obsflux=None, uncertainties=None, max_flux=None, inc_band_ix=None
-    ):
-        with numpyro.plate('components', N) as sn_index: # pylint: disable=unused-variable
-            A = max_flux * 10**numpyro.sample("logA", trunc_norm(*PRIOR_A))
+    def jax_model(t=None, obsflux=None, uncertainties=None, max_flux=None, inc_band_ix=None):
+        """JAX model for MCMC.
+
+        Parameters
+        ----------
+        t : array-like, optional
+            Time values. Defaults to None.
+        obsflux : array-like, optional
+            Observed flux values. Defaults to None.
+        uncertainties : array-like, optional
+            Flux uncertainties. Defaults to None.
+        max_flux : float, optional
+            Maximum flux value. Defaults to None.
+        inc_band_ix : array-like, optional
+            Index values for the band. Defaults to None.
+        """
+        with numpyro.plate("components", N) as sn_index:  # pylint: disable=unused-variable
+            A = max_flux * 10 ** numpyro.sample("logA", trunc_norm(*PRIOR_A))
             beta = numpyro.sample("beta", trunc_norm(*PRIOR_BETA))
-            gamma = 10**numpyro.sample("log_gamma", trunc_norm(*PRIOR_GAMMA))
-            t0 = numpyro.sample("t0", trunc_norm(-100., 200., 0., 20.))
-            tau_rise = 10**numpyro.sample("log_tau_rise", trunc_norm(*PRIOR_TAU_RISE))
-            tau_fall = 10**numpyro.sample("log_tau_fall", trunc_norm(*PRIOR_TAU_FALL))
-            extra_sigma = 10**numpyro.sample("log_extra_sigma", trunc_norm(*PRIOR_EXTRA_SIGMA))
+            gamma = 10 ** numpyro.sample("log_gamma", trunc_norm(*PRIOR_GAMMA))
+            t0 = numpyro.sample("t0", trunc_norm(-100.0, 200.0, 0.0, 20.0))
+            tau_rise = 10 ** numpyro.sample("log_tau_rise", trunc_norm(*PRIOR_TAU_RISE))
+            tau_fall = 10 ** numpyro.sample("log_tau_fall", trunc_norm(*PRIOR_TAU_FALL))
+            extra_sigma = 10 ** numpyro.sample("log_extra_sigma", trunc_norm(*PRIOR_EXTRA_SIGMA))
 
             A_g = numpyro.sample("A_g", trunc_norm(*PRIOR_A_g))
             beta_g = numpyro.sample("beta_g", trunc_norm(*PRIOR_BETA_g))
@@ -575,7 +659,7 @@ def run_mcmc_batch(fns, t0_lim=None, plot=False):
             tau_fall_g = numpyro.sample("tau_fall_g", trunc_norm(*PRIOR_TAU_FALL_g))
             extra_sigma_g = numpyro.sample("extra_sigma_g", trunc_norm(*PRIOR_EXTRA_SIGMA_g))
 
-        A_b = A * A_g # pylint: disable=unused-variable
+        A_b = A * A_g  # pylint: disable=unused-variable
         beta_b = beta * beta_g
         gamma_b = gamma * gamma_g
         t0_b = t0 * t0_g
@@ -583,9 +667,7 @@ def run_mcmc_batch(fns, t0_lim=None, plot=False):
         tau_fall_b = tau_fall * tau_fall_g
 
         phase = t - t0[:, np.newaxis]
-        flux_const = A[:, np.newaxis] / (
-            1.0 + jnp.exp(-phase / tau_rise[:, np.newaxis])
-        )
+        flux_const = A[:, np.newaxis] / (1.0 + jnp.exp(-phase / tau_rise[:, np.newaxis]))
         sigmoid = 1 / (1 + jnp.exp(10.0 * (gamma[:, np.newaxis] - phase)))
 
         flux = flux_const * (
@@ -597,9 +679,7 @@ def run_mcmc_batch(fns, t0_lim=None, plot=False):
 
         # g band
         phase_b = (t - t0_b[:, np.newaxis])[:, inc_band_ix]
-        flux_const_b = A[:, np.newaxis] / (
-            1.0 + jnp.exp(-phase_b / tau_rise_b[:, np.newaxis])
-        )
+        flux_const_b = A[:, np.newaxis] / (1.0 + jnp.exp(-phase_b / tau_rise_b[:, np.newaxis]))
         sigmoid_b = 1 / (1 + jnp.exp(10.0 * (gamma_b[:, np.newaxis] - phase_b)))
 
         flux = flux.at[:, inc_band_ix].set(
@@ -608,9 +688,7 @@ def run_mcmc_batch(fns, t0_lim=None, plot=False):
                 (1 - sigmoid_b) * (1 - beta_b[:, np.newaxis] * phase_b)
                 + sigmoid_b
                 * (1 - beta_b[:, np.newaxis] * gamma_b[:, np.newaxis])
-                * jnp.exp(
-                    -(phase_b - gamma_b[:, np.newaxis]) / tau_fall_b[:, np.newaxis]
-                )
+                * jnp.exp(-(phase_b - gamma_b[:, np.newaxis]) / tau_fall_b[:, np.newaxis])
             )
         )
 
@@ -622,7 +700,9 @@ def run_mcmc_batch(fns, t0_lim=None, plot=False):
             )
         )
 
-        obs = numpyro.sample("obs", dist.Normal(flux, sigma_tot), obs=obsflux) # pylint: disable=unused-variable
+        obs = numpyro.sample(
+            "obs", dist.Normal(flux, sigma_tot), obs=obsflux
+        )  # pylint: disable=unused-variable
 
     kernel = NUTS(jax_model, init_strategy=init_to_sample)
     num_samples = 100
@@ -634,8 +714,8 @@ def run_mcmc_batch(fns, t0_lim=None, plot=False):
         chain_method="parallel",
     )  # jit_model_args=True)
 
-    #with numpyro.validation_enabled():
-    res = mcmc.run( # pylint: disable=unused-variable
+    # with numpyro.validation_enabled():
+    res = mcmc.run(  # pylint: disable=unused-variable
         rng_key,
         obsflux=fdata_stacked,
         t=tdata_stacked,
@@ -644,7 +724,7 @@ def run_mcmc_batch(fns, t0_lim=None, plot=False):
         inc_band_ix=inc_band_ix,
     )
 
-    #mcmc.print_summary()
+    # mcmc.print_summary()
     posterior_samples = mcmc.get_samples()
     """
     predictive = Predictive(jax_model, posterior_samples, infer_discrete=False)
@@ -659,22 +739,26 @@ def run_mcmc_batch(fns, t0_lim=None, plot=False):
     
     print(discrete_samples.keys())
     """
-    plt.hist(posterior_samples['log_tau_fall'][:,0],bins=10)
-    plt.savefig('test_hist.png')
+    plt.hist(posterior_samples["log_tau_fall"][:, 0], bins=10)
+    plt.savefig("test_hist.png")
     plt.close()
 
     post_reformatted = {}
     for p in posterior_samples:
-        post_reformatted[p] = np.array([posterior_samples[p],])
+        post_reformatted[p] = np.array(
+            [
+                posterior_samples[p],
+            ]
+        )
 
     az.plot_trace(post_reformatted, compact=True)
-    plt.savefig('test_trace.png')
+    plt.savefig("test_trace.png")
     plt.close()
 
     if plot:
         for i in range(len(tdata_stacked)):
 
-            ignore_idx = (ferrdata_stacked[i] == 1e10) # pylint: ignore-superfluous parens
+            ignore_idx = ferrdata_stacked[i] == 1e10  # pylint: ignore-superfluous parens
             tdata = tdata_stacked[i][~ignore_idx]
             fdata = fdata_stacked[i][~ignore_idx]
             ferrdata = ferrdata_stacked[i][~ignore_idx]
@@ -728,14 +812,25 @@ def run_mcmc_batch(fns, t0_lim=None, plot=False):
             if t0_lim is None:
                 plt.savefig(os.path.join(FIT_PLOTS_FOLDER, "%s.pdf" % prefixes[i]))
             else:
-                plt.savefig(os.path.join(FIT_PLOTS_FOLDER, "%s_%.02f.pdf" % (prefixes[i],t0)))
+                plt.savefig(os.path.join(FIT_PLOTS_FOLDER, "%s_%.02f.pdf" % (prefixes[i], t0)))
             plt.close()
 
     return posterior_samples
 
 
 def flux_from_posteriors(t, params, max_flux):
-    logA, beta, log_gamma = params['logA'], params['beta'], params['log_gamma']
+    """Generates g- and r- band fluxes from given posteriors.
+
+    Parameters
+    ----------
+    t : float
+        Time parameter.
+    params : dict-like ?
+        A collection of parameters used in the calculation.
+    max_flux : float
+        The upper limit of flux values.
+    """
+    logA, beta, log_gamma = params["logA"], params["beta"], params["log_gamma"]
     t0, log_tau_rise, log_tau_fall, log_extra_sigma = (
         params["t0"],
         params["log_tau_rise"],
@@ -747,17 +842,17 @@ def flux_from_posteriors(t, params, max_flux):
     gamma = 10**log_gamma
     tau_rise = 10**log_tau_rise
     tau_fall = 10**log_tau_fall
-    extra_sigma = 10**log_extra_sigma # pylint: disable=unused-variable
+    extra_sigma = 10**log_extra_sigma  # pylint: disable=unused-variable
 
-    A_g, beta_g, gamma_g = params['A_g'], params['beta_g'], params['gamma_g']
-    t0_g, tau_rise_g, tau_fall_g, extra_sigma_g = ( # pylint: disable=unused-variable
+    A_g, beta_g, gamma_g = params["A_g"], params["beta_g"], params["gamma_g"]
+    t0_g, tau_rise_g, tau_fall_g, extra_sigma_g = (  # pylint: disable=unused-variable
         params["t0_g"],
         params["tau_rise_g"],
         params["tau_fall_g"],
         params["extra_sigma_g"],
     )
 
-    A_b = A * A_g # pylint: disable=unused-variable
+    A_b = A * A_g  # pylint: disable=unused-variable
     beta_b = beta * beta_g
     gamma_b = gamma * gamma_g
     t0_b = t0 * t0_g
@@ -765,8 +860,8 @@ def flux_from_posteriors(t, params, max_flux):
     tau_fall_b = tau_fall * tau_fall_g
 
     phase = t - t0
-    flux_const = A / (1. + jnp.exp(-phase / tau_rise))
-    sigmoid = 1 / (1 + jnp.exp(10.*(gamma - phase)))
+    flux_const = A / (1.0 + jnp.exp(-phase / tau_rise))
+    sigmoid = 1 / (1 + jnp.exp(10.0 * (gamma - phase)))
 
     flux_r = flux_const * (
         (1 - sigmoid) * (1 - beta * phase)
@@ -775,51 +870,69 @@ def flux_from_posteriors(t, params, max_flux):
 
     # g band
     phase_b = t - t0_b
-    flux_const_b = A / (1. + jnp.exp(-phase_b / tau_rise_b))
-    sigmoid_b = 1 / (1 + jnp.exp(10.*(gamma_b-phase_b)))
+    flux_const_b = A / (1.0 + jnp.exp(-phase_b / tau_rise_b))
+    sigmoid_b = 1 / (1 + jnp.exp(10.0 * (gamma_b - phase_b)))
 
     flux_g = flux_const_b * (
         (1 - sigmoid_b) * (1 - beta_b * phase_b)
-        + sigmoid_b
-        * (1 - beta_b * gamma_b)
-        * jnp.exp(-(phase_b - gamma_b) / tau_fall_b)
+        + sigmoid_b * (1 - beta_b * gamma_b) * jnp.exp(-(phase_b - gamma_b) / tau_fall_b)
     )
 
     return flux_g, flux_r
 
 
-def main_loop_directory(test_fns, output_dir=FITS_DIR):
-    #try:
+def main_loop_directory(test_filenames, output_dir=FITS_DIR):
+    """Runs MCMC on given filenames and saves results.
+
+    Parameters
+    ----------
+    test_filenames : list of str
+        Names of files to use as input.
+    output_dir : str
+        Directory to save outputs to. Defaults to FITS_DIR.
+    """
+    # try:
     os.makedirs(output_dir, exist_ok=True)
-    #prefix = test_fn.split("/")[-1][:-4]
-    #if os.path.exists(output_dir + str(prefix) + '_eqwt.npz'):
+    # prefix = test_fn.split("/")[-1][:-4]
+    # if os.path.exists(output_dir + str(prefix) + '_eqwt.npz'):
     #    return None
 
-    eq_samples = run_mcmc_batch(test_fns, plot=True)
+    eq_samples = run_mcmc_batch(test_filenames, plot=True)
 
     if eq_samples is None:
         return None
-    print(np.mean(eq_samples['log_tau_fall']))
+    print(np.mean(eq_samples["log_tau_fall"]))
 
     return None
 
-    np.savez_compressed(output_dir + str(prefix) + '_eqwt.npz', eq_samples)
-    #except:
+    np.savez_compressed(output_dir + str(prefix) + "_eqwt.npz", eq_samples)
+    # except:
     #    print("skipped")
     #    return None
 
 
-def numpyro_single_file(test_fn, output_dir=FITS_DIR, sampler="svi"):
+def numpyro_single_file(test_filename, output_dir=FITS_DIR, sampler="svi"):
+    """Runs MCMC on a single file.
+
+    Parameters
+    ----------
+    test_filename : str
+        Name of the file to use as input.
+    output_dir : str
+        Directory to save outputs to. Defaults to FITS_DIR.
+    sampler : str
+        The MCMC sampler to use. Defaults to "svi".
+    """
     os.makedirs(output_dir, exist_ok=True)
 
-    eq_samples = run_mcmc(test_fn, sampler=sampler, plot=False)
+    eq_samples = run_mcmc(test_filename, sampler=sampler, plot=False)
 
     if eq_samples is None:
         return None
 
     print(np.mean(eq_samples, axis=0))
-    prefix = test_fn.split("/")[-1][:-4]
+    prefix = test_filename.split("/")[-1][:-4]
 
-    np.savez_compressed(output_dir + str(prefix) + '_eqwt_%s.npz' % sampler, eq_samples)
+    np.savez_compressed(os.path.join(output_dir, f"{prefix}_eqwt_{sampler}.npz"), eq_samples)
 
     return None

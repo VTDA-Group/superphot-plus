@@ -54,3 +54,16 @@ write_to = "src/superphot_plus/_version.py"
 testpaths = [
     "tests",
 ]
+
+[tool.black]
+line-length = 110
+target-version = ["py38"]
+
+[tool.isort]
+profile = "black"
+line_length = 110
+
+[tool.coverage.report]
+omit = [
+    "src/superphot_plus/_version.py", # auto-generated
+]
