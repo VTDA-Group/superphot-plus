@@ -2,7 +2,9 @@
 
 name: Benchmark runtime and memory usage
 
-on: [push]
+on:
+  push:
+    branches: [ main ]
 
 permissions:
   contents: write
