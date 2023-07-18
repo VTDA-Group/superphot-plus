@@ -11,6 +11,8 @@ from superphot_plus.import_ztf_from_alerce import (
     import_lc,
 )
 
+from time import sleep
+
 OUTPUT_DIR = "benchmarks/data/"
 
 test_sn = "ZTF22abvdwik"  # can change to any ZTF supernova
@@ -33,11 +35,12 @@ def test_dynesty_single_file():
     dynesty_single_file(fn_to_fit, OUTPUT_DIR, skip_if_exists=False)
 
 
-def test_nuts_single_file():
-    """Uses the NUTS optimizer with nested sampling"""
+def nuts_single_file():
+    """Uses the NUTS sampler"""
+    sleep(30)
     numpyro_single_file(fn_to_fit, OUTPUT_DIR, sampler="NUTS")
 
 
-def test_svi_single_file():
-    """Uses the svi optimizer with nested sampling"""
+def svi_single_file():
+    """Uses the svi sampler"""
     numpyro_single_file(fn_to_fit, OUTPUT_DIR, sampler="svi")
