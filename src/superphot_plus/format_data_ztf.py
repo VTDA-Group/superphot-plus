@@ -122,6 +122,7 @@ def import_labels_only(input_csvs, allowed_types, fits_dir=None, redshift=False)
         return np.array(names), np.array(labels), np.array(redshifts)
     return np.array(names), np.array(labels)
 
+
 def generate_K_fold(features, classes, num_folds):
     """Generates set of K test sets and corresponding training sets.
 
@@ -163,6 +164,7 @@ def tally_each_class(labels):
     for tally_label in tally_dict:
         print(tally_label, ": ", str(tally_dict[tally_label]))
     print()
+
 
 def get_posterior_samples(ztf_name, output_dir=None):
     """Get all EQUAL WEIGHT posterior samples from a ZTF lightcurve fit.

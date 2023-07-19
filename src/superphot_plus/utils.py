@@ -42,6 +42,7 @@ def get_band_extinctions(ra, dec):
 
     return ext_list
 
+
 def calc_accuracy(pred_classes, test_labels):
     """Calculates the accuracy of the random forest after predicting all
     classes.
