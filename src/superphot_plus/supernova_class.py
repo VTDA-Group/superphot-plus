@@ -64,6 +64,6 @@ class SupernovaClass(str, Enum):
             "SNII": cls.SUPERNOVA_II.value,
             "SNIa": cls.SUPERNOVA_IA.value,
             "SLSN": cls.SUPERLUMINOUS_SUPERNOVA_I.value,
-            "SNIbc": cls.SUPERNOVA_IBC,
+            "SNIbc": cls.SUPERNOVA_IBC.value,
         }
         return label_reflect_style[label]
