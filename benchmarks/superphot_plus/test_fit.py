@@ -7,19 +7,9 @@ from superphot_plus.ztf_transient_fit import dynesty_single_file
 from superphot_plus.fit_numpyro import numpyro_single_file
 from superphot_plus.import_ztf_from_alerce import save_datafile, import_lc
 
-test_sn = "ZTF22abvdwik"  # can change to any ZTF supernova
-
 OUTPUT_DIR = "benchmarks/data/"
 
-lc_fn = os.path.join(OUTPUT_DIR, test_sn + ".csv")
-fn_to_fit = os.path.join(OUTPUT_DIR, test_sn + ".npz")
-
-
-@pytest.fixture(scope="session", autouse=True)
-def setup():
-    """Generates the compressed sample file for benchmarking purposes."""
-    t, f, ferr, b, _, _ = import_lc(lc_fn)
-    save_datafile(test_sn, t, f, ferr, b, OUTPUT_DIR)
+fn_to_fit = os.path.join(OUTPUT_DIR, "ZTF22abvdwik.npz")
 
 
 def test_dynesty_single_file():
