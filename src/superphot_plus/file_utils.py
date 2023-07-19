@@ -3,7 +3,18 @@ import numpy as np
 
 def read_single_lightcurve(filename, t0_lim=None):
     """
-    Import the datafile.
+    Import a compressed lightcurve data file.
+
+    Parameters
+    ----------
+    filename : str
+        Name of the data file.
+    t0_lim : float, optional
+        Upper limit for t0. Defaults to None.
+    Returns
+    -------
+    tuple
+        Tuple containing the imported data (t, f, ferr, b).
     """
     npy_array = np.load(filename)
     arr = npy_array["arr_0"]
