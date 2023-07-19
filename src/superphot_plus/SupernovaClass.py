@@ -23,47 +23,37 @@ class SupernovaClass(str, Enum):
         return labels_to_classes, classes_to_labels
 
     @classmethod
-    def get_allowed_types(cls):
-        """Returns all supernova class types as strings."""
-        return list(map(lambda sn_class: sn_class.value, cls))
-
-    @classmethod
-    def get_alts(cls, sn_type):
+    def get_alts(cls):
         """Returns the alternative namings for each supernova class."""
-        alts = []
-        match sn_type:
-            case cls.SUPERNOVA_IA:
-                alts = [
-                    "SN Ia-91T-like",
-                    "SN Ia-CSM",
-                    "SN Ia-91bg-like",
-                    "SNIa",
-                    "SN Ia-91T",
-                    "SN Ia-91bg",
-                    "10",
-                    "11",
-                    "12",
-                ]
-            case cls.SUPERNOVA_IBC:
-                alts = [
-                    "SN Ic",
-                    "SN Ib",
-                    "SN Ic-BL",
-                    "SN Ib-Ca-rich",
-                    "SN Ib/c",
-                    "SNIb",
-                    "SNIc",
-                    "SNIc-BL",
-                    "21",
-                    "20",
-                    "27",
-                    "26",
-                    "25",
-                ]
-            case cls.SUPERNOVA_IIN:
-                alts = ["SNIIn", "35", "SLSN-II"]
-            case cls.SUPERLUMINOUS_SUPERNOVA_I:
-                alts = ["40", "SLSN"]
-            case cls.SUPERLUMINOUS_SUPERNOVA_II:
-                alts = ["SN IIP", "SN IIL", "SNII", "SNIIP", "32", "30", "31"]
-        return alts
+        return {
+            cls.SUPERNOVA_IA.value: [
+                "SN Ia-91T-like",
+                "SN Ia-CSM",
+                "SN Ia-91bg-like",
+                "SNIa",
+                "SN Ia-91T",
+                "SN Ia-91bg",
+                "10",
+                "11",
+                "12",
+            ],
+            cls.SUPERNOVA_IBC.value: [
+                "SN Ic",
+                "SN Ib",
+                "SN Ic-BL",
+                "SN Ib-Ca-rich",
+                "SN Ib/c",
+                "SNIb",
+                "SNIc",
+                "SNIc-BL",
+                "21",
+                "20",
+                "27",
+                "26",
+                "25",
+            ],
+            cls.SUPERNOVA_IIN.value: ["SNIIn", "35", "SLSN-II"],
+            cls.SUPERLUMINOUS_SUPERNOVA_I.value: ["40", "SLSN"],
+            cls.SUPERLUMINOUS_SUPERNOVA_II.value: ["SN IIP", "SN IIL", "SNII", "SNIIP", "32", "30", "31"],
+            "TDE": ["42"],
+        }

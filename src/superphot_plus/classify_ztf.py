@@ -74,10 +74,10 @@ def classify(goal_per_class, num_epochs, neurons_per_layer, num_layers, fits_plo
 
     # for file in os.scandir('models'):
     #    os.remove(file.path)
-    allowed_types = SnClass.get_allowed_types()
+    allowed_types = ["SN Ia", "SN II", "SN IIn", "SLSN-I", "SN Ibc", "SLSN-II"]
     output_dim = len(allowed_types)  # number of classes
 
-    labels_to_classes, classes_to_labels = SnClass.get_type_maps()
+    labels_to_classes, classes_to_labels = SnClass.get_type_maps(allowed_types)
 
     fn_prefix = "cm_%d_%d_%d_%d" % (goal_per_class, num_epochs, neurons_per_layer, num_layers)
     fn_purity = os.path.join(CM_FOLDER, fn_prefix + "_p.pdf")

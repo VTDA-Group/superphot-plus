@@ -44,14 +44,7 @@ def import_labels_only(input_csvs, allowed_types, fits_dir=None, redshift=False)
     repeat_ct = 0
     names = []
     redshifts = []
-    sn1bc_alts = SnClass.get_alts(SnClass.SUPERNOVA_IBC)
-    snIIn_alts = SnClass.get_alts(SnClass.SUPERNOVA_IIN)
-    snIa_alts = SnClass.get_alts(SnClass.SUPERNOVA_IA)
-    snII_alts = SnClass.get_alts(SnClass.SUPERNOVA_II)
-    slsnI_alts = SnClass.get_alts(SnClass.SUPERLUMINOUS_SUPERNOVA_I)
-    tde_alts = [
-        "42",
-    ]
+    alts = SnClass.get_alts()
     # TODO: make more compact
     for input_csv in input_csvs:
         with open(input_csv, newline="") as csvfile:
@@ -66,17 +59,17 @@ def import_labels_only(input_csvs, allowed_types, fits_dir=None, redshift=False)
                 if redshift and z <= 0.0:
                     print(name, l)
                     continue
-                if l in sn1bc_alts:
+                if l in alts[SnClass.SUPERNOVA_IBC]:
                     l = "SN Ibc"
-                elif l in snIIn_alts:
+                elif l in alts[SnClass.SUPERNOVA_IIN]:
                     l = "SN IIn"
-                elif l in snIa_alts:
+                elif l in alts[SnClass.SUPERNOVA_IA]:
                     l = "SN Ia"
-                elif l in snII_alts:
+                elif l in alts[SnClass.SUPERNOVA_II]:
                     l = "SN II"
-                elif l in slsnI_alts:
+                elif l in alts[SnClass.SUPERLUMINOUS_SUPERNOVA_I]:
                     l = "SLSN-I"
-                elif l in tde_alts:
+                elif l in alts["TDE"]:
                     l = "TDE"
                 if l not in allowed_types:
                     # print(l)
