@@ -14,7 +14,22 @@ class SupernovaClass(str, Enum):
     @classmethod
     def get_type_maps(cls, allowed_types=["SN Ia", "SN II", "SN IIn", "SLSN-I", "SN Ibc"]):
         """For some allowed supernova classes, create dictionaries
-        mapping an integer classification to the type string."""
+        mapping an integer classification to the type string.
+
+        Parameters
+        ----------
+        cls : SupernovaClass
+            The SupernovaClass class.
+        allowed_types : list of str, optional
+            The list of supernova classes to be included in the mapping.
+            Defaults to ["SN Ia", "SN II", "SN IIn", "SLSN-I", "SN Ibc"].
+
+        Returns
+        -------
+        tuple of dict
+            Tuple containing the mapping of string labels to integer identifiers
+            and the mapping of integer identifiers to string labels, respectively.
+        """
         allowed_types = [a_type.value if isinstance(a_type, cls) else a_type for a_type in allowed_types]
 
         labels_to_classes = {a_type: i for i, a_type in enumerate(allowed_types)}
@@ -24,7 +39,19 @@ class SupernovaClass(str, Enum):
 
     @classmethod
     def get_alts(cls):
-        """Returns the alternative namings for each supernova class."""
+        """Returns the alternative namings for each supernova class.
+
+        Parameters
+        ----------
+        cls : SupernovaClass
+            The SupernovaClass class.
+
+        Returns
+        -------
+        dict
+            A dictionary that maps each supernova class label to its
+            respective alternative namings.
+        """
         return {
             cls.SUPERNOVA_IA.value: [
                 "SN Ia-91T-like",
@@ -60,6 +87,21 @@ class SupernovaClass(str, Enum):
 
     @classmethod
     def get_reflect_style(cls, label):
+        """Returns a supernova class label in reflect style.
+
+        Parameters
+        ----------
+        cls : SupernovaClass
+            The SupernovaClass class.
+        label : str
+            The predicted supernova class label, provided by the
+            ZTF classifier, for which the reflected style is requested.
+
+        Returns
+        -------
+        str
+            The supernova class label in reflect style.
+        """
         label_reflect_style = {
             "SNII": cls.SUPERNOVA_II.value,
             "SNIa": cls.SUPERNOVA_IA.value,
