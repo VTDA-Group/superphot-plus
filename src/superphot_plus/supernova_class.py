@@ -57,3 +57,13 @@ class SupernovaClass(str, Enum):
             cls.SUPERLUMINOUS_SUPERNOVA_II.value: ["SN IIP", "SN IIL", "SNII", "SNIIP", "32", "30", "31"],
             "TDE": ["42"],
         }
+
+    @classmethod
+    def get_reflect_style(cls, label):
+        label_reflect_style = {
+            "SNII": cls.SUPERNOVA_II.value,
+            "SNIa": cls.SUPERNOVA_IA.value,
+            "SLSN": cls.SUPERLUMINOUS_SUPERNOVA_I.value,
+            "SNIbc": cls.SUPERNOVA_IBC,
+        }
+        return label_reflect_style[label]

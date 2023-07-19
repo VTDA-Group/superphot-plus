@@ -15,6 +15,7 @@ from .constants import BIGGER_SIZE, MEDIUM_SIZE, SMALL_SIZE
 from .file_paths import CM_FOLDER
 from .format_data_ztf import import_labels_only, oversample_using_posteriors
 from .import_ztf_from_alerce import clip_lightcurve_end, import_lc
+from .supernova_class import SupernovaClass as SnClass
 from .utils import calc_accuracy, f1_score, flux_model
 from .ztf_transient_fit import import_data
 
@@ -42,7 +43,7 @@ def plot_high_confidence_confusion_matrix(probs_csv, filename, cutoff=0.7):
         Probability cutoff value for high-confidence predictions.
         Default is 0.7.
     """
-    _, classes_to_labels = SupernovaClass.type_maps()
+    _, classes_to_labels = SnClass.get_type_maps()
     true_classes = []
     pred_classes = []
 
@@ -121,15 +122,7 @@ def get_pred_class(ztf_name, reflect_style=False):
     o = alerce.query_probabilities(oid=ztf_name, format="pandas")
     o_transient = o[o["classifier_name"] == "lc_classifier_transient"]
     label = o_transient[o_transient["ranking"] == 1]["class_name"].iat[0]
-    if reflect_style:
-        label_reflect_style = {
-            "SNII": "SN II",
-            "SNIa": "SN Ia",
-            "SLSN": "SLSN-I",
-            "SNIbc": "SN Ibc",
-        }
-        return label_reflect_style[label]
-    return label
+    return SnClass.get_reflect_style(label) if reflect_style else label
 
 
 def plot_alerce_confusion_matrix(probs_csv, filename, p07=False):
@@ -148,7 +141,7 @@ def plot_alerce_confusion_matrix(probs_csv, filename, p07=False):
         If True, only include predictions with a probability >= 0.7.
         Default is False.
     """
-    _, classes_to_labels = SupernovaClass.type_maps()
+    _, classes_to_labels = SnClass.get_type_maps()
     true_classes = []
     pred_classes = []
     with open(probs_csv, "r") as csvfile:
@@ -200,7 +193,7 @@ def plot_agreement_matrix(probs_csv, filename):
     filename : str
         Base filename for saving the agreement matrix plot.
     """
-    _, classes_to_labels = SupernovaClass.type_maps()
+    _, classes_to_labels = SnClass.get_type_maps()
     pred_classes = []
     alerce_preds = []
     with open(probs_csv, "r") as csvfile:
@@ -244,7 +237,7 @@ def plot_expected_agreement_matrix(probs_csv, filename, cmap=plt.cm.Purples):
     cmap : matplotlib.colors.Colormap, optional
         Color map for the plot. Default is plt.cm.Purples.
     """
-    _, classes_to_labels = SupernovaClass.type_maps()
+    _, classes_to_labels = SnClass.get_type_maps()
     pred_classes = []
     alerce_preds = []
 
@@ -421,7 +414,7 @@ def save_class_fractions(spec_probs_csv, phot_probs_csv, save_fn):
     save_fn : str
         Filename for saving the class fractions.
     """
-    labels_to_class, _ = SupernovaClass.type_maps()
+    labels_to_class, _ = SnClass.get_type_maps()
     true_classes = []
     pred_classes = []
     pred_classes_spec = []
@@ -508,7 +501,7 @@ def plot_class_fractions(saved_cf_file, fig_dir):
     fig_dir : str
         Directory for saving the class fractions plot.
     """
-    _, classes_to_labels = SupernovaClass.type_maps()
+    _, classes_to_labels = SnClass.get_type_maps()
     labels = [
         "Spec (ZTF)",
         "Spec (YSE)",

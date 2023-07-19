@@ -12,7 +12,6 @@ import numpy as np
 import torch
 from joblib import Parallel, delayed
 
-from SupernovaClass import SupernovaClass as SnClass
 
 from .constants import MEANS_TRAINED_MODEL, NUM_FOLDS, STDDEVS_TRAINED_MODEL
 from .file_paths import *  # pylint: disable=wildcard-import
@@ -34,6 +33,7 @@ from .mlp import (
     save_unclassified_test_probabilities,
 )
 from .plotting import plot_confusion_matrix
+from .supernova_class import SupernovaClass as SnClass
 from .utils import calc_accuracy, calculate_neg_chi_squareds, f1_score
 from .ztf_transient_fit import import_data, run_mcmc
 

@@ -8,8 +8,7 @@ import numpy as np
 from sklearn.model_selection import StratifiedKFold
 
 from .file_paths import FITS_DIR
-
-from SupernovaClass import SupernovaClass as SnClass
+from .supernova_class import SupernovaClass as SnClass
 
 
 def import_labels_only(input_csvs, allowed_types, fits_dir=None, redshift=False):
