@@ -28,7 +28,7 @@ dependencies = [
     "numpy",
     "numpyro",
     "tensorflow_probability",
-    "sklearn",
+    "scikit-learn",
 ]
 
 # On a mac, install optional dependencies with `pip install '.[dev]'` (include the single quotes)
