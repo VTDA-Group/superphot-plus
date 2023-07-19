@@ -846,10 +846,6 @@ def plot_lc_fit(ztf_name, data_dir, fit_dir, out_dir, sampling_method="dynesty")
 
     tdata, fdata, ferrdata, bdata = read_single_lightcurve(data_fn)
 
-    max_flux_loc = tdata[bdata == "r"][np.argmax(fdata[bdata == "r"] - np.abs(ferrdata[bdata == "r"]))]
-
-    tdata -= max_flux_loc  # make relative
-
     eq_wt_samples = np.load(fit_fn)["arr_0"]
 
     plot_sampling_lc_fit(ztf_name, out_dir, tdata, fdata, ferrdata, bdata, eq_wt_samples)

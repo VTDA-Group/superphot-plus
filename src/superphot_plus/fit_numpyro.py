@@ -48,7 +48,7 @@ def import_data(filename, t0_lim=None):
         valid points, None is returned.
 
     """
-    t, f, ferr, b = read_single_lightcurve(filename=filename, t0_lim=t0_lim)
+    t, f, ferr, b = read_single_lightcurve(filename=filename, time_ceiling=t0_lim)
 
     if (t[b == "r"] is None) or (len(t[b == "r"]) == 0):
         return None

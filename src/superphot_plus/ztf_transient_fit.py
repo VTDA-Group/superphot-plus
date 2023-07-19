@@ -208,6 +208,169 @@ def run_mcmc(filename, t0_lim=None, plot=False, rstate=None):
     return eq_wt_samples
 
 
+def run_curve_fit(filename):
+    """Run curve fit on data file.
+
+    Parameters
+    ----------
+    filename : str
+        Name of the data file.
+
+    Returns
+    -------
+    tuple or None
+        Tuple containing the fitted parameters for the "g" and "r"
+        bands, or None if the required data is missing.
+    """
+    ref_band_idx = 1  # red band # pylint: disable=unused-variable
+
+    prefix = filename.split("/")[-1][:-4]
+
+    print(prefix)
+    n_params = 14  # pylint: disable=unused-variable
+
+    tdata, fdata, ferrdata, bdata = read_single_lightcurve(filename)
+
+    if (tdata[bdata == "r"] is None) or (len(tdata[bdata == "r"]) == 0):
+        return None
+    if (tdata[bdata == "g"] is None) or (len(tdata[bdata == "g"]) == 0):
+        return None
+
+    max_flux = np.max(fdata[bdata == "r"] - np.abs(ferrdata[bdata == "r"]))
+
+    max_flux_loc = tdata[bdata == "r"][np.argmax(fdata[bdata == "r"] - np.abs(ferrdata[bdata == "r"]))]
+
+    # p0 = np.array([max_flux, 0.0052, 10.**1.1391, max_flux_loc, 10**0.5990, 10**1.4296])
+    bounds = (
+        [max_flux * 10 ** (-0.2), 0.0, -2.0, np.amin(tdata) - 50.0, -1.0, 0.5],
+        [max_flux * 10 ** (1.2), 0.02, 2.5, np.amax(tdata) + 50.0, 3.0, 4.0],
+    )
+    p0 = np.array(
+        [
+            max_flux,
+            0.0052,
+            1.1391,
+            max_flux_loc,
+            0.5990,
+            1.4296,
+            1.0607,
+            1.0424,
+            np.log10(1.0075),
+            1.0006,
+            np.log10(0.9663),
+            np.log10(0.5488),
+        ]
+    )
+
+    def flux_model_smooth(t_data, A, beta, gamma, t0, tau_rise, tau_fall):
+        """Tests the smooth model implemented in ALERCE's classifier.
+
+        Parameters
+        ----------
+        t_data : array-like
+            Time data.
+        A : float
+            Parameter A.
+        beta : float
+            Parameter beta.
+        gamma : float
+            Parameter gamma.
+        t0 : float
+            Parameter t0.
+        tau_rise : float
+            Parameter tau_rise.
+        tau_fall : float
+            Parameter tau_fall.
+
+        Returns
+        -------
+        np.ndarray
+            Flux model.
+        """
+        gamma = 10.0**gamma
+        tau_rise = 10.0**tau_rise
+        tau_fall = 10.0**tau_fall
+
+        sigma_arg = (t_data - gamma - t0) / 3.0
+        sigma = 1.0 / (1.0 + np.exp(-sigma_arg))
+        if not params_valid(beta, gamma, tau_rise, tau_fall):
+            return 1e10 * np.ones(len(t_data))
+
+        phase = t_data - t0
+        f_model = (
+            A
+            / (1.0 + np.exp(-phase / tau_rise))
+            * (1.0 - beta * gamma)
+            * np.exp((gamma - phase) / tau_fall)
+            * sigma
+        )
+        f_model += A / (1.0 + np.exp(-phase / tau_rise)) * (1.0 - beta * phase) * (1.0 - sigma)
+
+        return f_model
+
+    popt_r, pcov = curve_fit(  # pylint: disable=unused-variable
+        flux_model_smooth,
+        tdata[bdata == "r"],
+        fdata[bdata == "r"],
+        p0=p0[:6],
+        sigma=ferrdata[bdata == "r"],
+        bounds=bounds,
+        maxfev=100000,
+    )
+
+    p0_g = popt_r * p0[6:]
+    p0_g[2] = popt_r[2] + p0[8]
+    p0_g[5] = popt_r[5] + p0[-1]
+    p0_g[4] = popt_r[4] + p0[-2]
+
+    popt_g, pcov = curve_fit(
+        flux_model_smooth,
+        tdata[bdata == "g"],
+        fdata[bdata == "g"],
+        p0=p0_g,
+        sigma=ferrdata[bdata == "g"],
+        bounds=bounds,
+        maxfev=100000,
+    )
+
+    print(popt_g, popt_r)
+
+    prefix = fn.split("/")[-1][:-4]
+
+    plt.errorbar(
+        tdata[bdata == "g"],
+        fdata[bdata == "g"],
+        yerr=ferrdata[bdata == "g"],
+        c="g",
+        label="g",
+        fmt="o",
+    )
+    plt.errorbar(
+        tdata[bdata == "r"],
+        fdata[bdata == "r"],
+        yerr=ferrdata[bdata == "r"],
+        c="r",
+        label="r",
+        fmt="o",
+    )
+
+    trange_fine = np.linspace(np.amin(tdata), np.amax(tdata), num=500)
+
+    bdata = ["g"] * len(trange_fine)
+    plt.plot(trange_fine, flux_model_smooth(trange_fine, *popt_g), c="g", lw=1)
+    bdata = ["r"] * len(trange_fine)
+    plt.plot(trange_fine, flux_model_smooth(trange_fine, *popt_r), c="r", lw=1)
+
+    print(flux_model_smooth(1e20, *popt_r), flux_model_smooth(1e20, *popt_g))
+    plt.xlabel("MJD")
+    plt.ylabel("Flux")
+    plt.title(prefix)
+
+    plt.savefig("../figs/fits_curve_fit/" + prefix + ".png")
+
+    return popt_g, popt_r
+
+
 def dynesty_single_file(test_fn, output_dir, skip_if_exists=True, rstate=None):
     """Perform model fitting using dynesty on a single data file.
 

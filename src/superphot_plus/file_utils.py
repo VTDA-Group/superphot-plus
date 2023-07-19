@@ -1,7 +1,9 @@
+"""Methods for reading and writing input, intermediate, and output files."""
+
 import numpy as np
 
 
-def read_single_lightcurve(filename, t0_lim=None):
+def read_single_lightcurve(filename, time_ceiling=None):
     """
     Import a compressed lightcurve data file.
 
@@ -9,8 +11,10 @@ def read_single_lightcurve(filename, t0_lim=None):
     ----------
     filename : str
         Name of the data file.
-    t0_lim : float, optional
-        Upper limit for t0. Defaults to None.
+    time_ceiling : float, optional
+        Upper limit for time, and any points in the light curve after this ceiling
+        will be dropped. Defaults to None and all points are returned.
+
     Returns
     -------
     tuple
@@ -25,14 +29,15 @@ def read_single_lightcurve(filename, t0_lim=None):
     b = arr[3][ferr != "nan"]
     ferr = ferr[ferr != "nan"].astype(float)
 
-    if t0_lim is not None:
-        f = f[t <= t0_lim]
-        b = b[t <= t0_lim]
-        ferr = ferr[t <= t0_lim]
-        t = t[t <= t0_lim]
+    if time_ceiling is not None:
+        f = f[t <= time_ceiling]
+        b = b[t <= time_ceiling]
+        ferr = ferr[t <= time_ceiling]
+        t = t[t <= time_ceiling]
 
-    max_flux_loc = t[b == "r"][np.argmax(f[b == "r"] - np.abs(ferr[b == "r"]))]
+    if len(t) > 0:
+        max_flux_loc = t[b == "r"][np.argmax(f[b == "r"] - np.abs(ferr[b == "r"]))]
 
-    t -= max_flux_loc  # make relative
+        t -= max_flux_loc  # make relative
 
     return t, f, ferr, b
