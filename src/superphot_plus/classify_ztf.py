@@ -12,6 +12,8 @@ import numpy as np
 import torch
 from joblib import Parallel, delayed
 
+from SupernovaClass import SupernovaClass as SnClass
+
 from .constants import MEANS_TRAINED_MODEL, NUM_FOLDS, STDDEVS_TRAINED_MODEL
 from .file_paths import *  # pylint: disable=wildcard-import
 from .format_data_ztf import (
@@ -72,11 +74,10 @@ def classify(goal_per_class, num_epochs, neurons_per_layer, num_layers, fits_plo
 
     # for file in os.scandir('models'):
     #    os.remove(file.path)
-    allowed_types = ["SN Ia", "SN II", "SN IIn", "SLSN-I", "SN Ibc", "SLSN-II"]
+    allowed_types = SnClass.get_allowed_types()
     output_dim = len(allowed_types)  # number of classes
 
-    labels_to_classes = {allowed_types[i]: i for i in range(len(allowed_types))}
-    classes_to_labels = {i: allowed_types[i] for i in range(len(allowed_types))}
+    labels_to_classes, classes_to_labels = SnClass.get_type_maps()
 
     fn_prefix = "cm_%d_%d_%d_%d" % (goal_per_class, num_epochs, neurons_per_layer, num_layers)
     fn_purity = os.path.join(CM_FOLDER, fn_prefix + "_p.pdf")
@@ -288,20 +289,7 @@ def return_new_classifications(test_csv, data_dirs, fit_dir, include_labels=Fals
     model = MLP(13, 5, 128, 3)  # set up empty multi-layer perceptron
     model.load_state_dict(torch.load(TRAINED_MODEL_FN))  # load trained state dict to the MLP
 
-    classes_to_labels = {
-        0: "SN Ia",
-        1: "SN II",
-        2: "SN IIn",
-        3: "SLSN-I",
-        4: "SN Ibc",
-    }  # converts the MLP classes to types # pylint: disable=unused-variable
-    labels_to_classes = {
-        "SN Ia": 0,
-        "SN II": 1,
-        "SN IIn": 2,
-        "SLSN-I": 3,
-        "SN Ibc": 4,
-    }  # pylint: disable=unused-variable
+    labels_to_classes, classes_to_labels = SnClass.get_type_maps()  # pylint: disable=unused-variable
 
     special_labels = {
         "SN Iax[02cx-like]",
@@ -378,20 +366,7 @@ def save_phase_versus_class_probs(probs_csv, data_dir):
     model = MLP(13, 5, 128, 3)  # set up empty multi-layer perceptron
     model.load_state_dict(torch.load(TRAINED_MODEL_FN))  # load trained state dict to the MLP
 
-    classes_to_labels = {
-        0: "SN Ia",
-        1: "SN II",
-        2: "SN IIn",
-        3: "SLSN-I",
-        4: "SN Ibc",
-    }  # converts the MLP classes to types # pylint: disable=unused-variable
-    labels_to_classes = {
-        "SN Ia": 0,
-        "SN II": 1,
-        "SN IIn": 2,
-        "SLSN-I": 3,
-        "SN Ibc": 4,
-    }  # pylint: disable=unused-variable
+    labels_to_classes, classes_to_labels = SnClass.get_type_maps()  # pylint: disable=unused-variable
 
     ct = 0
 

@@ -9,6 +9,8 @@ from sklearn.model_selection import StratifiedKFold
 
 from .file_paths import FITS_DIR
 
+from SupernovaClass import SupernovaClass as SnClass
+
 
 def import_labels_only(input_csvs, allowed_types, fits_dir=None, redshift=False):
     """Filters CSVs for rows where label is in allowed_types and returns
@@ -42,42 +44,14 @@ def import_labels_only(input_csvs, allowed_types, fits_dir=None, redshift=False)
     repeat_ct = 0
     names = []
     redshifts = []
-    sn1bc_alts = [
-        "SN Ic",
-        "SN Ib",
-        "SN Ic-BL",
-        "SN Ib-Ca-rich",
-        "SN Ib/c",
-        "SNIb",
-        "SNIc",
-        "SNIc-BL",
-        "21",
-        "20",
-        "27",
-        "26",
-        "25",
-    ]
-    snIIn_alts = ["SNIIn", "35", "SLSN-II"]
-    snIa_alts = [
-        "SN Ia-91T-like",
-        "SN Ia-CSM",
-        "SN Ia-91bg-like",
-        "SNIa",
-        "SN Ia-91T",
-        "SN Ia-91bg",
-        "10",
-        "11",
-        "12",
-    ]
-    snII_alts = ["SN IIP", "SN IIL", "SNII", "SNIIP", "32", "30", "31"]
-    slsnI_alts = [
-        "40",
-        "SLSN",
-    ]
+    sn1bc_alts = SnClass.get_alts(SnClass.SUPERNOVA_IBC)
+    snIIn_alts = SnClass.get_alts(SnClass.SUPERNOVA_IIN)
+    snIa_alts = SnClass.get_alts(SnClass.SUPERNOVA_IA)
+    snII_alts = SnClass.get_alts(SnClass.SUPERNOVA_II)
+    slsnI_alts = SnClass.get_alts(SnClass.SUPERLUMINOUS_SUPERNOVA_I)
     tde_alts = [
         "42",
     ]
-
     # TODO: make more compact
     for input_csv in input_csvs:
         with open(input_csv, newline="") as csvfile:
@@ -122,6 +96,7 @@ def import_labels_only(input_csvs, allowed_types, fits_dir=None, redshift=False)
         return np.array(names), np.array(labels), np.array(redshifts)
     return np.array(names), np.array(labels)
 
+
 def generate_K_fold(features, classes, num_folds):
     """Generates set of K test sets and corresponding training sets.
 
@@ -163,6 +138,7 @@ def tally_each_class(labels):
     for tally_label in tally_dict:
         print(tally_label, ": ", str(tally_dict[tally_label]))
     print()
+
 
 def get_posterior_samples(ztf_name, output_dir=None):
     """Get all EQUAL WEIGHT posterior samples from a ZTF lightcurve fit.
