@@ -10,6 +10,10 @@ from dynesty import utils as dyfunc
 from scipy.optimize import curve_fit
 from scipy.stats import truncnorm
 
+from superphot_plus.file_utils import read_single_lightcurve
+from superphot_plus.plotting import plot_sampling_lc_fit
+from superphot_plus.utils import flux_model
+
 from .constants import *  # pylint: disable=wildcard-import
 from .file_paths import FIT_PLOTS_FOLDER
 
@@ -30,43 +34,6 @@ def tqdm_joblib(tqdm_object):
     finally:
         joblib.parallel.BatchCompletionCallBack = old_batch_callback
         tqdm_object.close()
-
-
-def import_data(filename, t0_lim=None):
-    """Import the data file.
-
-    Parameters
-    ----------
-    filename : str
-        Name of the data file.
-    t0_lim : float, optional
-        Upper limit for t0. Defaults to None.
-
-    Returns
-    -------
-    tuple
-        Tuple containing the imported data (t, f, ferr, b).
-    """
-    npy_array = np.load(filename)
-    arr = npy_array["arr_0"]
-
-    ferr = arr[2]
-    t = arr[0][ferr != "nan"].astype(float)
-    f = arr[1][ferr != "nan"].astype(float)
-    b = arr[3][ferr != "nan"]
-    ferr = ferr[ferr != "nan"].astype(float)
-
-    if t0_lim is not None:
-        f = f[t <= t0_lim]
-        b = b[t <= t0_lim]
-        ferr = ferr[t <= t0_lim]
-        t = t[t <= t0_lim]
-
-    max_flux_loc = t[b == "r"][np.argmax(f[b == "r"] - np.abs(ferr[b == "r"]))]
-
-    t -= max_flux_loc  # make relative
-
-    return t, f, ferr, b
 
 
 def trunc_gauss(quantile, clip_a, clip_b, mean, std):
@@ -154,7 +121,7 @@ def run_mcmc(filename, t0_lim=None, plot=False, rstate=None):
     print(prefix)
     n_params = 14
 
-    tdata, fdata, ferrdata, bdata = import_data(filename, t0_lim)
+    tdata, fdata, ferrdata, bdata = read_single_lightcurve(filename, t0_lim)
 
     if (tdata[bdata == "r"] is None) or (len(tdata[bdata == "r"]) == 0):
         return None
@@ -162,63 +129,6 @@ def run_mcmc(filename, t0_lim=None, plot=False, rstate=None):
         return None
 
     max_flux = np.max(fdata[bdata == "r"] - np.abs(ferrdata[bdata == "r"]))
-
-    def flux_model(cube, t_data, b_data):
-        """Flux model for the dynesty fit.
-
-        Parameters
-        ----------
-        cube : np.ndarray
-            Array of parameters (all of type float).
-        t_data : np.ndarray of float
-            Time data (as floats).
-        b_data : np.ndarray
-            Band data.
-
-        Returns
-        -------
-        np.ndarray
-            Flux model.
-        """
-        A, beta, gamma, t0, tau_rise, tau_fall, es = cube[:7]  # pylint: disable=unused-variable
-
-        if not params_valid(beta, gamma, tau_rise, tau_fall):
-            return 1e10 * np.ones(len(t_data))
-
-        phase = t_data - t0
-        f_model = (
-            A / (1.0 + np.exp(-phase / tau_rise)) * (1.0 - beta * gamma) * np.exp((gamma - phase) / tau_fall)
-        )
-        f_model[phase < gamma] = (
-            A / (1.0 + np.exp(-phase[phase < gamma] / tau_rise)) * (1.0 - beta * phase[phase < gamma])
-        )
-
-        # for secondary band
-        start_idx = 7
-        A_b = A * cube[start_idx]
-        beta_b = beta * cube[start_idx + 1]
-        gamma_b = gamma * cube[start_idx + 2]
-        t0_b = t0 * cube[start_idx + 3]
-        tau_rise_b = tau_rise * cube[start_idx + 4]
-        tau_fall_b = tau_fall * cube[start_idx + 5]
-
-        if not params_valid(beta_b, gamma_b, tau_rise_b, tau_fall_b):
-            return 1e10 * np.ones(len(t_data))
-
-        inc_band_ix = np.array(b_data) == "g"
-        phase_b = (t_data - t0_b)[inc_band_ix]
-        phase_b2 = (t_data - t0_b)[inc_band_ix & (t_data - t0_b < gamma_b)]
-
-        f_model[inc_band_ix] = (
-            A_b
-            / (1.0 + np.exp(-phase_b / tau_rise_b))
-            * (1.0 - beta_b * gamma_b)
-            * np.exp((gamma_b - phase_b) / tau_fall_b)
-        )
-        f_model[inc_band_ix & (t_data - t0_b < gamma_b)] = (
-            A_b / (1.0 + np.exp(-phase_b2 / tau_rise_b)) * (1.0 - phase_b2 * beta_b)
-        )
-        return f_model
 
     def create_prior(cube):
         """Creates prior for pymultinest, where each side of the "cube"
@@ -294,50 +204,7 @@ def run_mcmc(filename, t0_lim=None, plot=False, rstate=None):
     eq_wt_samples = dyfunc.resample_equal(samples, weights, rstate=rstate)
 
     if plot:
-        plt.errorbar(
-            tdata[bdata == "g"],
-            fdata[bdata == "g"],
-            yerr=ferrdata[bdata == "g"],
-            c="g",
-            label="g",
-            fmt="o",
-        )
-        plt.errorbar(
-            tdata[bdata == "r"],
-            fdata[bdata == "r"],
-            yerr=ferrdata[bdata == "r"],
-            c="r",
-            label="r",
-            fmt="o",
-        )
-
-        trange_fine = np.linspace(np.amin(tdata), np.amax(tdata), num=500)
-
-        for sample in eq_wt_samples[:30]:
-            plt.plot(
-                trange_fine,
-                flux_model(sample, trange_fine, ["g"] * len(trange_fine)),
-                c="g",
-                lw=1,
-                alpha=0.1,
-            )
-            plt.plot(
-                trange_fine,
-                flux_model(sample, trange_fine, ["r"] * len(trange_fine)),
-                c="r",
-                lw=1,
-                alpha=0.1,
-            )
-
-        plt.xlabel("MJD")
-        plt.ylabel("Flux")
-        plt.title(prefix)
-        if t0_lim is None:
-            plt.savefig(os.path.join(FIT_PLOTS_FOLDER, prefix + ".png"))
-        else:
-            plt.savefig(os.path.join(FIT_PLOTS_FOLDER, prefix + "_%.02f.png" % t0))
-        plt.close()
-
+        plot_sampling_lc_fit(prefix, FIT_PLOTS_FOLDER, tdata, fdata, ferrdata, bdata, eq_wt_samples)
     return eq_wt_samples
 
 
@@ -362,7 +229,7 @@ def run_curve_fit(filename):
     print(prefix)
     n_params = 14  # pylint: disable=unused-variable
 
-    tdata, fdata, ferrdata, bdata = import_data(filename)
+    tdata, fdata, ferrdata, bdata = read_single_lightcurve(filename)
 
     if (tdata[bdata == "r"] is None) or (len(tdata[bdata == "r"]) == 0):
         return None

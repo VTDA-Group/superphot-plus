@@ -18,6 +18,9 @@ from numpyro.distributions import constraints
 from numpyro.infer import MCMC, NUTS, SVI, Trace_ELBO
 from numpyro.infer.initialization import init_to_uniform
 
+from superphot_plus.file_utils import read_single_lightcurve
+from superphot_plus.plotting import flux_from_posteriors
+
 from .constants import *  # pylint: disable=wildcard-import
 from .file_paths import FIT_PLOTS_FOLDER, FITS_DIR
 
@@ -45,20 +48,7 @@ def import_data(filename, t0_lim=None):
         valid points, None is returned.
 
     """
-    npy_array = np.load(filename)
-    arr = npy_array["arr_0"]
-
-    ferr = arr[2]
-    t = arr[0][ferr != "nan"].astype(float)
-    f = arr[1][ferr != "nan"].astype(float)
-    b = arr[3][ferr != "nan"]
-    ferr = ferr[ferr != "nan"].astype(float)
-
-    if t0_lim is not None:
-        f = f[t <= t0_lim]
-        b = b[t <= t0_lim]
-        ferr = ferr[t <= t0_lim]
-        t = t[t <= t0_lim]
+    t, f, ferr, b = read_single_lightcurve(filename=filename, time_ceiling=t0_lim)
 
     if (t[b == "r"] is None) or (len(t[b == "r"]) == 0):
         return None
@@ -73,10 +63,6 @@ def import_data(filename, t0_lim=None):
     f = f[sort_idx]
     ferr = ferr[sort_idx]
     b = b[sort_idx]
-
-    max_flux_loc = t[b == 1][np.argmax(f[b == 1] - np.abs(ferr[b == 1]))]
-
-    t -= max_flux_loc  # make relative
 
     # separate r and g band points
     # necessary for static indexing for jax
@@ -816,69 +802,6 @@ def run_mcmc_batch(filenames, t0_lim=None, plot=False):
             plt.close()
 
     return posterior_samples
-
-
-def flux_from_posteriors(t, params, max_flux):
-    """Generates g- and r- band fluxes from given posteriors.
-
-    Parameters
-    ----------
-    t : float
-        Time parameter.
-    params : dict-like ?
-        A collection of parameters used in the calculation.
-    max_flux : float
-        The upper limit of flux values.
-    """
-    logA, beta, log_gamma = params["logA"], params["beta"], params["log_gamma"]
-    t0, log_tau_rise, log_tau_fall, log_extra_sigma = (
-        params["t0"],
-        params["log_tau_rise"],
-        params["log_tau_fall"],
-        params["log_extra_sigma"],
-    )
-
-    A = max_flux * 10**logA
-    gamma = 10**log_gamma
-    tau_rise = 10**log_tau_rise
-    tau_fall = 10**log_tau_fall
-    extra_sigma = 10**log_extra_sigma  # pylint: disable=unused-variable
-
-    A_g, beta_g, gamma_g = params["A_g"], params["beta_g"], params["gamma_g"]
-    t0_g, tau_rise_g, tau_fall_g, extra_sigma_g = (  # pylint: disable=unused-variable
-        params["t0_g"],
-        params["tau_rise_g"],
-        params["tau_fall_g"],
-        params["extra_sigma_g"],
-    )
-
-    A_b = A * A_g  # pylint: disable=unused-variable
-    beta_b = beta * beta_g
-    gamma_b = gamma * gamma_g
-    t0_b = t0 * t0_g
-    tau_rise_b = tau_rise * tau_rise_g
-    tau_fall_b = tau_fall * tau_fall_g
-
-    phase = t - t0
-    flux_const = A / (1.0 + jnp.exp(-phase / tau_rise))
-    sigmoid = 1 / (1 + jnp.exp(10.0 * (gamma - phase)))
-
-    flux_r = flux_const * (
-        (1 - sigmoid) * (1 - beta * phase)
-        + sigmoid * (1 - beta * gamma) * jnp.exp(-(phase - gamma) / tau_fall)
-    )
-
-    # g band
-    phase_b = t - t0_b
-    flux_const_b = A / (1.0 + jnp.exp(-phase_b / tau_rise_b))
-    sigmoid_b = 1 / (1 + jnp.exp(10.0 * (gamma_b - phase_b)))
-
-    flux_g = flux_const_b * (
-        (1 - sigmoid_b) * (1 - beta_b * phase_b)
-        + sigmoid_b * (1 - beta_b * gamma_b) * jnp.exp(-(phase_b - gamma_b) / tau_fall_b)
-    )
-
-    return flux_g, flux_r
 
 
 def main_loop_directory(test_filenames, output_dir=FITS_DIR):
