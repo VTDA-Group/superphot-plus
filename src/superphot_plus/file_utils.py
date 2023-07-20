@@ -41,3 +41,26 @@ def read_single_lightcurve(filename, time_ceiling=None):
         t -= max_flux_loc  # make relative
 
     return t, f, ferr, b
+
+def save_lightcurves(filename, lc, compressed=True, overwrite=False):
+    """
+    Write a compressed lightcurve data file.
+
+    Parameters
+    ----------
+    filename : str
+        Name of the data file including path.
+    lcs : array-like
+        The list of lightcurve data to save.
+    compressed : bool, optional
+        Whether to save in compressed format.
+    overwrite : bool, optional
+        Whether to overwrite existing data.
+    """
+    if os.path.exists(filename) and not overwrite:
+        raise FileExistsError(f"ERROR: File already exists {filename}")
+
+    if compressed:
+        np.savez_compressed(filename, lcs)
+    else:
+        np.savez(filename, lcs)

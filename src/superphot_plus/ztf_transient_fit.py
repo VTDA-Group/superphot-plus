@@ -392,11 +392,10 @@ def dynesty_single_file(test_fn, output_dir, skip_if_exists=True, rstate=None):
 
     Returns
     -------
-    None
-        Returns None if the fitting is skipped or encounters an error.
+    sample_mean: numpy array
+        Return the mean of the MCMC samples or None if the fitting is
+        skipped or encounters an error.
     """
-    # try:
-
     os.makedirs(output_dir, exist_ok=True)
     prefix = test_fn.split("/")[-1][:-4]
     if skip_if_exists and os.path.exists(os.path.join(output_dir, f"{prefix}_eqwt.npz")):
@@ -405,6 +404,8 @@ def dynesty_single_file(test_fn, output_dir, skip_if_exists=True, rstate=None):
     eq_samples = run_mcmc(test_fn, plot=False, rstate=rstate)
     if eq_samples is None:
         return None
-    print(np.mean(eq_samples, axis=0))
+    sample_mean = np.mean(eq_samples, axis=0)
+    print(sample_mean)
 
     np.savez_compressed(os.path.join(output_dir, f"{prefix}_eqwt_dynesty.npz"), eq_samples)
+    return sample_mean
