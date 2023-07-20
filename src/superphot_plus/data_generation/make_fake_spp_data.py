@@ -116,13 +116,15 @@ def create_prior(cube, tdata):
 
     return cube
 
-def create_clean_models(nmodels):
+def create_clean_models(nmodels, num_times=100):
     """Generate 'clean' (noiseless) models from the prior
 
     Parameters
     ----------
     nmodels : int
         The number of models you want to generate
+    num_times : int, optional
+        The number of timesteps to use.
 
     Returns
     -------
@@ -131,12 +133,15 @@ def create_clean_models(nmodels):
     lcs : array-like of numpy arrays
         The array of individual light curves for each model generated
     """
-    params = np.array([])
-    lcs = np.array([])
+    params = []
+    lcs = []
+
+    tdata = np.linspace(-100, 100, num_times)
+    bdata = np.asarray(["g"] * num_times, dtype=str)
+    edata = np.asarray([1e-6] * num_times, dtype=float)
 
     while len(lcs) < nmodels:
         cube = np.random.uniform(0, 1, 14)
-        tdata = np.linspace(-100, 100, 100)
         cube = create_prior(cube, tdata)
         A, beta, gamma, t0, tau_rise, tau_fall, es = cube[:7]  # pylint: disable=unused-variable
 
@@ -145,8 +150,7 @@ def create_clean_models(nmodels):
             continue
         params.append(cube)
 
-        bdata = np.asarray(["g"] * 100, dtype=str)
         f_model = flux_model(cube, tdata, bdata)
-        lcs.append(f_model)
+        lcs.append(np.array([tdata, f_model, bdata, edata]))
 
     return params, lcs
