@@ -396,8 +396,6 @@ def dynesty_single_file(test_fn, output_dir, skip_if_exists=True, rstate=None):
         Return the mean of the MCMC samples or None if the fitting is
         skipped or encounters an error.
     """
-    # try:
-
     os.makedirs(output_dir, exist_ok=True)
     prefix = test_fn.split("/")[-1][:-4]
     if skip_if_exists and os.path.exists(os.path.join(output_dir, f"{prefix}_eqwt.npz")):

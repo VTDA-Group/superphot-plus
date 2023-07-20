@@ -117,31 +117,41 @@ def create_prior(cube, tdata):
     return cube
 
 
-def create_clean_models(nmodels):
-    """
-    Generate "clean" (noiseless) models from the prior
+def create_clean_models(nmodels, num_times=100):
+    """Generate 'clean' (noiseless) models from the prior
 
-    inputs:
-    nmodels : number of models you want to generate
+    Parameters
+    ----------
+    nmodels : int
+        The number of models you want to generate
+    num_times : int, optional
+        The number of timesteps to use.
 
-    outputs:
-    params : set of parameters used to generate each model
-    lcs : light curves for each model generated
+    Returns
+    -------
+    params : array-like of numpy arrays
+        The array of parameters used to generate each model
+    lcs : array-like of numpy arrays
+        The array of individual light curves for each model generated
     """
-    for i in np.arange(nmodels):
+    params = []
+    lcs = []
+
+    tdata = np.linspace(-100, 100, num_times)
+    bdata = np.asarray(["g"] * num_times, dtype=str)
+    edata = np.asarray([1e-6] * num_times, dtype=float)
+
+    while len(lcs) < nmodels:
         cube = np.random.uniform(0, 1, 14)
-        tdata = np.linspace(-100, 100, 100)
         cube = create_prior(cube, tdata)
         A, beta, gamma, t0, tau_rise, tau_fall, es = cube[:7]  # pylint: disable=unused-variable
 
+        # Try again if we picked invalid priors.
         if not params_valid(A, beta, gamma, t0, tau_rise, tau_fall):
             continue
-        print(cube)
-        bdata = np.asarray(["g"] * 100, dtype=str)
+        params.append(cube)
+
         f_model = flux_model(cube, tdata, bdata)
-        plt.plot(tdata, f_model, ".")
+        lcs.append(np.array([tdata, f_model, edata, bdata]))
 
-
-# ASHLEY is still working on this...
-create_clean_models(100)
-plt.show()
+    return params, lcs
