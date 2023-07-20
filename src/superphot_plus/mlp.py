@@ -81,9 +81,7 @@ def get_predictions(model, iterator, device):
     sample_idxs = []
 
     with torch.no_grad():
-
-        for (x, y, z) in iterator:
-
+        for x, y, z in iterator:
             x = x.to(device)
 
             y_pred, _ = model(x)
@@ -127,9 +125,7 @@ def get_predictions_new(model, iterator, device):
     probs = []
 
     with torch.no_grad():
-
         for x in iterator:
-
             x = x[0].to(device)
 
             y_pred, _ = model(x)
@@ -287,8 +283,7 @@ def train(model, iterator, optimizer, criterion, device):
 
     model.train()
 
-    for (x, y) in iterator:
-
+    for x, y in iterator:
         x = x.to(device)
         y = y.to(device)
 
@@ -334,9 +329,7 @@ def evaluate(model, iterator, criterion, device):
     model.eval()
 
     with torch.no_grad():
-
-        for (x, y) in iterator:
-
+        for x, y in iterator:
             x = x.to(device)
             y = y.to(device)
 
@@ -455,7 +448,6 @@ def run_mlp(
     val_acc_arr = []
     val_loss_arr = []
     for epoch in np.arange(0, num_epochs):
-
         start_time = time.monotonic()
 
         train_loss, train_acc = train(model, train_iterator, optimizer, criterion, device)
@@ -490,7 +482,6 @@ def run_mlp(
     labels, pred_labels, max_probs, names = [], [], [], []
 
     for group_idx_set in test_group_idxs:
-
         test_data = create_dataset(
             test_sample_features[group_idx_set],
             test_sample_classes[group_idx_set],
