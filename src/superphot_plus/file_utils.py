@@ -1,7 +1,9 @@
 """Methods for reading and writing input, intermediate, and output files."""
 
-import numpy as np
 import os
+
+import numpy as np
+
 
 def read_single_lightcurve(filename, time_ceiling=None):
     """
@@ -42,14 +44,8 @@ def read_single_lightcurve(filename, time_ceiling=None):
 
     return t, f, ferr, b
 
-def save_single_lightcurve(
-    filename,
-    times,
-    fluxes,
-    errors,
-    bands,
-    compressed=True,
-    overwrite=False):
+
+def save_single_lightcurve(filename, times, fluxes, errors, bands, compressed=True, overwrite=False):
     """
     Write a single lightcurve data file.
 

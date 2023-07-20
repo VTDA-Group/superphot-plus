@@ -116,6 +116,7 @@ def create_prior(cube, tdata):
 
     return cube
 
+
 def create_clean_models(nmodels, num_times=100):
     """Generate 'clean' (noiseless) models from the prior
 

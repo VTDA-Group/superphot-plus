@@ -4,6 +4,7 @@ import numpy as np
 
 from superphot_plus.ztf_transient_fit import dynesty_single_file
 
+
 def test_dynesty_single_file(tmp_path, single_ztf_lightcurve_compressed):
     """Just test that we generated a new file with fits"""
     dynesty_single_file(
@@ -19,4 +20,3 @@ def test_dynesty_single_file(tmp_path, single_ztf_lightcurve_compressed):
     params = np.load(output_file)["arr_0"]
     ## could be between ~600 and ~800, and can vary based on hardware.
     assert 600 <= len(params) <= 800
-    
