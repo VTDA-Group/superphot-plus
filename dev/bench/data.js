@@ -1,0 +1,62 @@
+window.BENCHMARK_DATA = {
+  "lastUpdate": 1689861851437,
+  "repoUrl": "https://github.com/lincc-frameworks/superphot-plus",
+  "entries": {
+    "SUPERHOT-PLUS Benchmarking Monitor": [
+      {
+        "commit": {
+          "author": {
+            "email": "scampos@andrew.cmu.edu",
+            "name": "Sandro Campos",
+            "username": "camposandro"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "77b8543bd9c7dfaa2a9f3817d17bb7d2da212353",
+          "message": "Merge pull request #34 from lincc-frameworks/benchmarking-fix\n\nImport compressed ztf file for benchmarking",
+          "timestamp": "2023-07-20T10:00:16-04:00",
+          "tree_id": "43528a8da226dc70da30250cb58f9831c91d2f1e",
+          "url": "https://github.com/lincc-frameworks/superphot-plus/commit/77b8543bd9c7dfaa2a9f3817d17bb7d2da212353"
+        },
+        "date": 1689861850322,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "test_fit::test_dynesty_single_file - Runtime",
+            "value": 43.182352781295776,
+            "unit": "s"
+          },
+          {
+            "name": "test_fit::test_dynesty_single_file - Memory Used",
+            "value": 252.31640625,
+            "unit": "MB"
+          },
+          {
+            "name": "test_fit::test_nuts_single_file - Runtime",
+            "value": 17.30958914756775,
+            "unit": "s"
+          },
+          {
+            "name": "test_fit::test_nuts_single_file - Memory Used",
+            "value": 520.6328125,
+            "unit": "MB"
+          },
+          {
+            "name": "test_fit::test_svi_single_file - Runtime",
+            "value": 17.426944255828857,
+            "unit": "s"
+          },
+          {
+            "name": "test_fit::test_svi_single_file - Memory Used",
+            "value": 803.57421875,
+            "unit": "MB"
+          }
+        ]
+      }
+    ]
+  }
+}
