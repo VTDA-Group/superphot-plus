@@ -245,7 +245,6 @@ def get_all_unclassified_samples(save_csv):
 
         while True:
             try:
-
                 objs = alerce.query_objects(
                     classifier="stamp_classifier",
                     classifier_version="stamp_classifier_1.0.4",
@@ -346,7 +345,6 @@ def import_lc(filename):
         bands = []
 
         for row in csvreader:
-
             if ra is None:
                 ra = float(row[ra_idx])
                 dec = float(row[dec_idx])
@@ -466,7 +464,6 @@ def save_new_datafiles():
         csvreader = csv.reader(csv_f, delimiter=",", skipinitialspace=True)
         next(csvreader)
         for row in csvreader:
-
             if len(row) == 0:
                 continue
             # name = row[1].strip().split()[-1]
