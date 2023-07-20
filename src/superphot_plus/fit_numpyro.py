@@ -743,7 +743,6 @@ def run_mcmc_batch(filenames, t0_lim=None, plot=False):
 
     if plot:
         for i in range(len(tdata_stacked)):
-
             ignore_idx = ferrdata_stacked[i] == 1e10  # pylint: ignore-superfluous parens
             tdata = tdata_stacked[i][~ignore_idx]
             fdata = fdata_stacked[i][~ignore_idx]
