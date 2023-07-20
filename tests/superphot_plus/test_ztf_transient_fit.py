@@ -7,6 +7,11 @@ from superphot_plus.ztf_transient_fit import dynesty_single_file
 def test_dynesty_single_file(tmp_path, single_ztf_lightcurve_compressed):
     """Just test that we generated a new file with fits"""
 
+    # Set a random seed to avoid flaky tests. WARNING: Do not do this
+    # for scientific runs as it will not produce correct results.
+    assert "DYNESTY_RANDOM_SEED" not in os.environ
+    os.environ["DYNESTY_RANDOM_SEED"] = "2023"
+
     sample_mean = dynesty_single_file(
         single_ztf_lightcurve_compressed,
         tmp_path,
@@ -41,3 +46,7 @@ def test_dynesty_single_file(tmp_path, single_ztf_lightcurve_compressed):
         0.87,
     ]
     assert np.all(np.isclose(sample_mean, expected, rtol=.1))
+
+    # Unset the random seed for consistency.
+    del os.environ["DYNESTY_RANDOM_SEED"]
+    assert "DYNESTY_RANDOM_SEED" not in os.environ
