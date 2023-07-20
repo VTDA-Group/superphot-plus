@@ -116,42 +116,79 @@ def create_prior(cube, tdata):
 
     return cube
 
-
-def create_clean_models(nmodels, num_times=100):
-    """Generate 'clean' (noiseless) models from the prior
-
-    Parameters
-    ----------
-    nmodels : int
-        The number of models you want to generate
-    num_times : int, optional
-        The number of timesteps to use.
-
-    Returns
-    -------
-    params : array-like of numpy arrays
-        The array of parameters used to generate each model
-    lcs : array-like of numpy arrays
-        The array of individual light curves for each model generated
+def ztf_noise_model(mag, band, snr_range_g = [1,10], snr_range_r=[1,10]):
     """
-    params = []
-    lcs = []
+    A very, very simple noise model which assumes the dimmest magnitude is at SNR = 1, and the brightest mad is at SNR = 10
 
-    tdata = np.linspace(-100, 100, num_times)
-    bdata = np.asarray(["g"] * num_times, dtype=str)
-    edata = np.asarray([1e-6] * num_times, dtype=float)
+    inputs: 
+    mag: observed magnitude
+    band: observed band (g or r)
+    snr_range_g: Range of signal-to-noise ratios you want to see in g-band
+    snr_range_r: Range of signal-to-noise ratios you want to see in g-band
 
-    while len(lcs) < nmodels:
-        cube = np.random.uniform(0, 1, 14)
-        cube = create_prior(cube, tdata)
-        A, beta, gamma, t0, tau_rise, tau_fall, es = cube[:7]  # pylint: disable=unused-variable
+    output:
+    snr: SNR of the observation.
+    """
 
-        # Try again if we picked invalid priors.
-        if not params_valid(A, beta, gamma, t0, tau_rise, tau_fall):
-            continue
-        params.append(cube)
+    snr = mag * 0 # set up a dummy array for the snr
+    gind_g = np.where(band == 'g') # let's do g-band first
+    snr[gind_g] = (snr_range_g[1] - snr_range_g[0]) / (np.max(mag[gind_g]) - np.min(mag[gind_g])) * (mag[gind_g] - np.min(mag[gind_g])) + snr_range_g[0]
+    gind_r = np.where(band == 'r') # let's do g-band first
+    snr[gind_r] = (snr_range_r[1] - snr_range_r[0]) / (np.max(mag[gind_r]) - np.min(mag[gind_r])) * (mag[gind_r]- np.min(mag[gind_r])) + snr_range_r[0]
+    return snr
+    
 
-        f_model = flux_model(cube, tdata, bdata)
-        lcs.append(np.array([tdata, f_model, edata, bdata]))
 
-    return params, lcs
+
+def create_model(plot=False):
+    """
+    Generate realisitic-ish ZTF light curves from the superphot+ prior
+
+    inputs:
+    plot: Boolean to just turn on some plotting functionality
+
+    outputs:
+    params : set of parameters used to generate model
+    tdata : time array for light curve
+    filter_data : filter array for light curve
+    dirty_model : flux values
+    sigmas = : errors on flux
+
+    """
+
+    # Randomly sample from parameter space and from data/filters
+    cube = np.random.uniform(0, 1, 14)
+
+    # This is going to random simulate some observation every 2-3 days across 2 filters
+    num_observations = 130
+    tdata = np.random.uniform(-100, 100, num_observations)
+    filter_data = np.random.choice(['g','r'],size=num_observations)
+
+    cube = create_prior(cube, tdata)
+    A, beta, gamma, t0, tau_rise, tau_fall, es = cube[:7]  # pylint: disable=unused-variable
+
+    # THIS IS A BAD SOLUTION -- it just skips if there is no good model, but it should actually attempt to regenerate until it gets a "good" model
+    if not params_valid(A, beta, gamma, t0, tau_rise, tau_fall):
+        return('Failure')
+    f_model = flux_model(cube, tdata, filter_data)
+    snr = ztf_noise_model(f_model, filter_data)
+
+
+    gind = np.where(snr>3)
+    snr = snr[gind]
+    f_model = f_model[gind]
+    tdata = tdata[gind]
+    filter_data = filter_data[gind]
+    sigmas = f_model/snr
+
+    dirty_model = f_model + np.random.normal(0,sigmas)
+
+    if plot:
+        plt.scatter(tdata, dirty_model, color=filter_data)
+        plt.errorbar(tdata, dirty_model, yerr=sigmas, color='grey', alpha=0.2, linestyle='None')
+        plt.xlabel('Time (days)')
+        plt.ylabel('Flux (arbitrary units)')
+        plt.show()
+    return cube[:,7], tdata, filter_data, dirty_model, sigmas
+
+# Can run this with create_model(plot=True)
