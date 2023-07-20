@@ -152,6 +152,6 @@ def create_clean_models(nmodels, num_times=100):
         params.append(cube)
 
         f_model = flux_model(cube, tdata, bdata)
-        lcs.append(np.array([tdata, f_model, bdata, edata]))
+        lcs.append(np.array([tdata, f_model, edata, bdata]))
 
     return params, lcs
