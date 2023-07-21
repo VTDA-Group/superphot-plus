@@ -5,7 +5,7 @@ from superphot_plus.file_utils import read_single_lightcurve, save_single_lightc
 
 
 class Lightcurve:
-    def __init__(self, times, fluxes, flux_errors, bands, name=None):
+    def __init__(self, times, fluxes, flux_errors, bands, name=None, sn_class=None):
         """A class for storing and manipulating a light curve.
 
         Parameters
@@ -20,6 +20,8 @@ class Lightcurve:
             The band labels
         name : str, optional
             The name of the light curve.
+        sn_type : int, optional
+            The classification of supernova (if known).
 
         Raises
         ------
@@ -33,6 +35,7 @@ class Lightcurve:
         self.flux_errors = flux_errors
         self.bands = bands
         self.name = name
+        self.sn_class = sn_class
 
     def obs_count(self, band=None):
         """Return the count of observations (in a given band).
