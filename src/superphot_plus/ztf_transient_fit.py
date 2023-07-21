@@ -118,15 +118,14 @@ def run_mcmc(lc, t0_lim=None, plot=False, rstate=None):
     ref_band_idx = 1  # red band # pylint: disable=unused-variable
     n_params = 14
 
+    # Require data in both the g and r bands.
+    if lc.obs_count("r") == 0 or lc.obs_count("g") == 0:
+        return None
+
     tdata = lc.times
     fdata = lc.fluxes
     ferrdata = lc.flux_errors
     bdata = lc.bands
-
-    if (tdata[bdata == "r"] is None) or (len(tdata[bdata == "r"]) == 0):
-        return None
-    if (tdata[bdata == "g"] is None) or (len(tdata[bdata == "g"]) == 0):
-        return None
 
     max_flux = np.max(fdata[bdata == "r"] - np.abs(ferrdata[bdata == "r"]))
 
@@ -203,12 +202,10 @@ def run_mcmc(lc, t0_lim=None, plot=False, rstate=None):
 
     eq_wt_samples = dyfunc.resample_equal(samples, weights, rstate=rstate)
 
-    if plot:
+    if plot:  # pragma: no cover
         if lc.name is None:
-            plotname = ""
-        else:
-            plotname = lc.name
-        plot_sampling_lc_fit(plotname, FIT_PLOTS_FOLDER, tdata, fdata, ferrdata, bdata, eq_wt_samples)
+            raise ValueError("Missing file name for plotting files.")
+        plot_sampling_lc_fit(lc.name, FIT_PLOTS_FOLDER, tdata, fdata, ferrdata, bdata, eq_wt_samples)
     return eq_wt_samples
 
 
