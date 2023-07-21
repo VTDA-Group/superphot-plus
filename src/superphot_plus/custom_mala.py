@@ -48,8 +48,8 @@ class MALA(LocalSamplerBase):
             this_position, dt, data = carry
             dt2 = dt*dt
             this_log_prob, this_d_log = jax.value_and_grad(self.logpdf)(this_position, data)
-            proposal = this_position #+ jnp.dot(dt2, this_d_log) / 2
-            proposal += jnp.dot(dt, jax.random.normal(this_key, shape=this_position.shape))
+            proposal = this_position + dt2 * this_d_log / 2
+            proposal += dt * jax.random.normal(this_key, shape=this_position.shape)
             return (proposal,dt, data), (proposal, this_log_prob, this_d_log)
 
         def mala_kernel(rng_key, position, log_prob, data, params = {"step_size": 0.1}):
@@ -78,8 +78,7 @@ class MALA(LocalSamplerBase):
             _, (proposal, logprob, d_logprob) = jax.lax.scan(
                 body, (position, dt, data), jnp.array([key1, key1])
             )
-            print(d_logprob)
-
+            #print(jnp.dot(dt2, d_logprob[0]))
             ratio = logprob[1] - logprob[0]
             cov = jnp.diag(dt2)
             ratio -= multivariate_normal.logpdf(

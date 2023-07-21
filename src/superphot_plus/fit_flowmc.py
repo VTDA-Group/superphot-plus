@@ -115,12 +115,12 @@ def import_data(filename, t0_lim=None):
     return t_padded, f_padded, ferr_padded, b_padded
 
 @jit
-def prior_eval(cube):
+def prior_eval(cube, _):
     """
     From a parameter cube, evaluates the associated
     prior probability.
     """
-    return -0.5 * jnp.linalg.norm((cube - PRIOR_MEANS) / PRIOR_SIGMAS)
+    return -0.5 * jnp.sum((cube - PRIOR_MEANS)**2 / PRIOR_SIGMAS**2)
     
 @jit
 def posterior_eval(cube, data_stacked):
@@ -150,7 +150,7 @@ def posterior_eval(cube, data_stacked):
     extra_sigma = 10**extra_sigma
     
     phase = t - t0
-    flux_const = jnp.divide(1.0, cube[4])
+    flux_const = A / (1. + jnp.exp(-phase / tau_rise))
     
     sigmoid = 1 / (1 + jnp.exp(10.*(gamma - phase)))
 
@@ -193,7 +193,7 @@ def posterior_eval(cube, data_stacked):
         jnp.sqrt(uncertainties[inc_band_ix] ** 2 + extra_sigma_g**2 * extra_sigma**2)
     )
 
-    return - 0.5 * jnp.linalg.norm((flux - obsflux) / sigma_tot)**2 - jnp.sum( jnp.log( jnp.sqrt(2 * jnp.pi) * sigma_tot ) )
+    return prior_eval(cube, None) - 0.5 * jnp.sum((flux - obsflux)**2 / sigma_tot**2) - jnp.sum( jnp.log( jnp.sqrt(2 * jnp.pi) * sigma_tot ) )
 
     
 def run_flowMC(lc_filename):
@@ -207,14 +207,18 @@ def run_flowMC(lc_filename):
 
     max_flux = np.max( fdata - ferrdata )
     print(max_flux)
-    data_stacked = np.array([tdata, fdata, ferrdata])
+    data_stacked = jnp.array([tdata, fdata, ferrdata])
     
     n_chains = NCHAINS
     rng_key_set = initialize_rng_keys(n_chains, seed=SEED)
     n_dim = 14
-    initial_position = np.tile(PRIOR_MEANS, (n_chains, 1))
+    initial_position = jnp.tile(PRIOR_MEANS, (n_chains, 1))
     #initial_position[:,0] = max_flux * 10.0**initial_position[:,0]
     #initial_position[:,[2,4,5,6]] = 10.0**initial_position[:,[2,4,5,6]]
+    
+    print(jax.value_and_grad(prior_eval)(initial_position[0], None))
+    print(jax.value_and_grad(posterior_eval)(initial_position[0], data_stacked))
+    #return
     
     n_layer = 10  # number of coupling layers
     n_hidden = 128  # with of hidden layers in MLPs parametrizing coupling layers
@@ -235,7 +239,7 @@ def run_flowMC(lc_filename):
     max_samples = 500
 
 
-    sampler = MALA(posterior_eval, True, {"step_size": PRIOR_SIGMAS/10.}, use_autotune=True)#{"})
+    sampler = MALA(posterior_eval, True, {"step_size": PRIOR_SIGMAS / 100.}, use_autotune=True)#{"})
     #sampler = HMC(posterior_eval, True, {"step_size": 0.1, "n_leapfrog": 4, "inverse_metric": 1}, verbose=True)
     nf_sampler = Sampler(
         n_dim=n_dim,
