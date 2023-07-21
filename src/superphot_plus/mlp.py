@@ -373,7 +373,6 @@ def run_mlp(
     test_sample_classes,
     test_sample_names,
     test_group_idxs,
-    input_dim,
     output_dim,
     neurons_per_layer,
     num_layers,
@@ -400,8 +399,6 @@ def run_mlp(
         The test sample names.
     test_group_idxs : list of int
         The list of test group indices.
-    input_dim : int
-        The input dimension.
     output_dim : int
         The output dimension.
     neurons_per_layer : int

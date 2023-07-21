@@ -2,7 +2,6 @@
 data from the Alerce API."""
 
 import csv
-import glob
 import os
 import zipfile
 
@@ -10,11 +9,15 @@ import numpy as np
 from alerce.core import Alerce
 from antares_client.search import get_by_ztf_object_id
 
+from superphot_plus.file_paths import *  # pylint: disable=wildcard-import
 from superphot_plus.utils import convert_mags_to_flux, get_band_extinctions
 
 alerce = Alerce()
 MIN_PER_FILTER = 5
-
+EXTRACT_DIR=""
+OUTPUT_CSV=""
+OUTPUT_FOLDER=""
+CSV_FILE=""
 
 def add_stamp_column(input_filename, output_filename):
     """Checks whether stamp classifier categorizes each lightcurve in

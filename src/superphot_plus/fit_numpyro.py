@@ -8,7 +8,6 @@ import os
 import arviz as az
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
-import numpy as np
 import numpyro
 import numpyro.distributions as dist
 from jax import random
@@ -16,7 +15,7 @@ from jax.config import config
 from numpyro.contrib.nested_sampling import NestedSampler
 from numpyro.distributions import constraints
 from numpyro.infer import MCMC, NUTS, SVI, Trace_ELBO
-from numpyro.infer.initialization import init_to_uniform
+from numpyro.infer.initialization import init_to_sample, init_to_uniform
 
 from superphot_plus.file_utils import read_single_lightcurve
 from superphot_plus.plotting import flux_from_posteriors
@@ -167,6 +166,8 @@ def run_mcmc(filename, sampler="NUTS", t0_lim=None, plot=False):
     max_flux = np.max(fdata[PAD_SIZE:] - np.abs(ferrdata[PAD_SIZE:]))
     inc_band_ix = np.arange(0, PAD_SIZE)
 
+    t0 = numpyro.sample("t0", trunc_norm(*PRIOR_T0))
+
     def jax_model(t=None, obsflux=None, uncertainties=None, max_flux=None, inc_band_ix=None):
         """JAX model for MCMC.
 
@@ -186,7 +187,6 @@ def run_mcmc(filename, sampler="NUTS", t0_lim=None, plot=False):
         A = max_flux * 10 ** numpyro.sample("logA", trunc_norm(*PRIOR_A))
         beta = numpyro.sample("beta", trunc_norm(*PRIOR_BETA))
         gamma = 10 ** numpyro.sample("log_gamma", trunc_norm(*PRIOR_GAMMA))
-        t0 = numpyro.sample("t0", trunc_norm(*PRIOR_T0))
         tau_rise = 10 ** numpyro.sample("log_tau_rise", trunc_norm(*PRIOR_TAU_RISE))
         tau_fall = 10 ** numpyro.sample("log_tau_fall", trunc_norm(*PRIOR_TAU_FALL))
         extra_sigma = 10 ** numpyro.sample("log_extra_sigma", trunc_norm(*PRIOR_EXTRA_SIGMA))
@@ -382,9 +382,9 @@ def run_mcmc(filename, sampler="NUTS", t0_lim=None, plot=False):
         numpyro.sample("extra_sigma_g", dist.Normal(extra_sigma_g_mu, extra_sigma_g_sigma))
 
     if sampler == "NUTS":
+        num_samples = 300
         kernel = NUTS(jax_model, init_strategy=init_to_uniform)
 
-        num_samples = 300
         mcmc = MCMC(
             kernel,
             num_warmup=1000,
@@ -408,7 +408,9 @@ def run_mcmc(filename, sampler="NUTS", t0_lim=None, plot=False):
         posterior_samples = mcmc.get_samples()
 
     elif sampler == "nested":
+        num_samples = 300
         ns = NestedSampler(jax_model, constructor_kwargs=None)
+
         ns.run(
             random.PRNGKey(1),
             obsflux=fdata,
@@ -612,6 +614,8 @@ def run_mcmc_batch(filenames, t0_lim=None, plot=False):
     N = len(tdata_stacked)
     print(N)
 
+    t0 = numpyro.sample("t0", trunc_norm(-100.0, 200.0, 0.0, 20.0))
+
     def jax_model(t=None, obsflux=None, uncertainties=None, max_flux=None, inc_band_ix=None):
         """JAX model for MCMC.
 
@@ -632,7 +636,6 @@ def run_mcmc_batch(filenames, t0_lim=None, plot=False):
             A = max_flux * 10 ** numpyro.sample("logA", trunc_norm(*PRIOR_A))
             beta = numpyro.sample("beta", trunc_norm(*PRIOR_BETA))
             gamma = 10 ** numpyro.sample("log_gamma", trunc_norm(*PRIOR_GAMMA))
-            t0 = numpyro.sample("t0", trunc_norm(-100.0, 200.0, 0.0, 20.0))
             tau_rise = 10 ** numpyro.sample("log_tau_rise", trunc_norm(*PRIOR_TAU_RISE))
             tau_fall = 10 ** numpyro.sample("log_tau_fall", trunc_norm(*PRIOR_TAU_FALL))
             extra_sigma = 10 ** numpyro.sample("log_extra_sigma", trunc_norm(*PRIOR_EXTRA_SIGMA))

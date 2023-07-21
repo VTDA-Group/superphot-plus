@@ -15,7 +15,7 @@ from sklearn.utils.multiclass import unique_labels
 from superphot_plus.file_utils import read_single_lightcurve
 
 from .constants import BIGGER_SIZE, MEDIUM_SIZE, SMALL_SIZE
-from .file_paths import CM_FOLDER
+from .file_paths import CM_FOLDER, DATA_FOLDER
 from .format_data_ztf import import_labels_only, oversample_using_posteriors
 from .import_ztf_from_alerce import clip_lightcurve_end, import_lc
 from .utils import calc_accuracy, f1_score, flux_model
@@ -507,7 +507,7 @@ def save_class_fractions(spec_probs_csv, phot_probs_csv, save_fn):
         csvwriter.writerow(alerce_fracs_corr)
 
 
-def plot_class_fractions(saved_cf_file, fig_dir):
+def plot_class_fractions(saved_cf_file, fig_dir, filename):
     """Plot class fractions saved from 'save_class_fractions'.
 
     Parameters
@@ -516,6 +516,8 @@ def plot_class_fractions(saved_cf_file, fig_dir):
         Path to the saved class fractions file.
     fig_dir : str
         Directory for saving the class fractions plot.
+    filename: str
+        Filename for the class fractions plot figure.
     """
     classes_to_labels = {0: "SN Ia", 1: "SN II", 2: "SN IIn", 3: "SLSN-I", 4: "SN Ibc"}
     label_to_class = {
@@ -740,7 +742,7 @@ def corner_plot_all(input_csvs, save_file):
     figure.savefig(save_file)
 
 
-def plot_lightcurve_clipping(ztf_name):
+def plot_lightcurve_clipping(ztf_name, save_dir):
     """Plot the lightcurve WITH clipped points and lines demonstrating
     how those points are clipped.
 

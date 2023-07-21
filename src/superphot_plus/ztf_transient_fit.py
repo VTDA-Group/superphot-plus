@@ -335,8 +335,6 @@ def run_curve_fit(filename):
 
     print(popt_g, popt_r)
 
-    prefix = fn.split("/")[-1][:-4]
-
     plt.errorbar(
         tdata[bdata == "g"],
         fdata[bdata == "g"],
