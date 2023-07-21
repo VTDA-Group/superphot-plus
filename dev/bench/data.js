@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1689969509961,
+  "lastUpdate": 1689970317678,
   "repoUrl": "https://github.com/lincc-frameworks/superphot-plus",
   "entries": {
     "SUPERHOT-PLUS Benchmarking Monitor": [
@@ -323,6 +323,60 @@ window.BENCHMARK_DATA = {
           {
             "name": "test_fit::test_svi_single_file - Memory Used",
             "value": 825.37890625,
+            "unit": "MB"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "kmd6851@psu.edu",
+            "name": "Kaylee de Soto",
+            "username": "kdesoto-psu"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "d6a1212efbd67d99ebb397891af3463d48bae01b",
+          "message": "Merge pull request #31 from lincc-frameworks/issue/25/label-conversion\n\nImprove mapping of supernovae class labels",
+          "timestamp": "2023-07-21T16:08:26-04:00",
+          "tree_id": "d5f1fbd119ba00ce7f134267b6a7b468022c4f65",
+          "url": "https://github.com/lincc-frameworks/superphot-plus/commit/d6a1212efbd67d99ebb397891af3463d48bae01b"
+        },
+        "date": 1689970316684,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "test_fit::test_dynesty_single_file - Runtime",
+            "value": 35.41228103637695,
+            "unit": "s"
+          },
+          {
+            "name": "test_fit::test_dynesty_single_file - Memory Used",
+            "value": 267.0625,
+            "unit": "MB"
+          },
+          {
+            "name": "test_fit::test_nuts_single_file - Runtime",
+            "value": 14.43879747390747,
+            "unit": "s"
+          },
+          {
+            "name": "test_fit::test_nuts_single_file - Memory Used",
+            "value": 534.703125,
+            "unit": "MB"
+          },
+          {
+            "name": "test_fit::test_svi_single_file - Runtime",
+            "value": 13.69063687324524,
+            "unit": "s"
+          },
+          {
+            "name": "test_fit::test_svi_single_file - Memory Used",
+            "value": 823.25390625,
             "unit": "MB"
           }
         ]
