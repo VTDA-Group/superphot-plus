@@ -5,11 +5,14 @@ import csv
 import os
 
 import corner
+import jax.numpy as jnp
 import matplotlib.pyplot as plt
 import numpy as np
 from alerce.core import Alerce
 from sklearn.metrics import confusion_matrix
 from sklearn.utils.multiclass import unique_labels
+
+from superphot_plus.file_utils import read_single_lightcurve
 
 from .constants import BIGGER_SIZE, MEDIUM_SIZE, SMALL_SIZE
 from .file_paths import CM_FOLDER
@@ -17,7 +20,6 @@ from .format_data_ztf import import_labels_only, oversample_using_posteriors
 from .import_ztf_from_alerce import clip_lightcurve_end, import_lc
 from .supernova_class import SupernovaClass as SnClass
 from .utils import calc_accuracy, f1_score, flux_model
-from .ztf_transient_fit import import_data
 
 alerce = Alerce()
 
@@ -821,13 +823,45 @@ def plot_lc_fit(ztf_name, data_dir, fit_dir, out_dir, sampling_method="dynesty")
     data_fn = os.path.join(data_dir, ztf_name + ".npz")
     fit_fn = os.path.join(fit_dir, ztf_name + "_eqwt_" + sampling_method + ".npz")
 
-    tdata, fdata, ferrdata, bdata = import_data(data_fn)
-
-    max_flux_loc = tdata[bdata == "r"][np.argmax(fdata[bdata == "r"] - np.abs(ferrdata[bdata == "r"]))]
-
-    tdata -= max_flux_loc  # make relative
+    tdata, fdata, ferrdata, bdata = read_single_lightcurve(data_fn)
 
     eq_wt_samples = np.load(fit_fn)["arr_0"]
+
+    plot_sampling_lc_fit(ztf_name, out_dir, tdata, fdata, ferrdata, bdata, eq_wt_samples)
+
+
+def plot_sampling_lc_fit(
+    ztf_name,
+    out_dir,
+    tdata,
+    fdata,
+    ferrdata,
+    bdata,
+    eq_wt_samples,
+    sampling_method="dynesty",
+):
+    """
+    Plot lightcurve sampling fit using in-memory samples.
+
+    Parameters
+    ----------
+    ztf_name : str
+        ZTF name of the object.
+    out_dir : str
+        Directory for saving the plot.
+    tdata : array-like
+        Time of data.
+    fdata : array-like
+        Flux of data.
+    ferrdata : array-like
+        Error in flux of data.
+    bdata : array-like
+        Band of data.
+    eq_wt_samples: array-like
+        Equally weighted samples from data.
+    sampling_method : str, optional
+        Sampling method used for the fit. Default is "dynesty".
+    """
 
     plt.errorbar(
         tdata[bdata == "g"],
@@ -871,3 +905,55 @@ def plot_lc_fit(ztf_name, data_dir, fit_dir, out_dir, sampling_method="dynesty")
     plt.savefig(os.path.join(out_dir, ztf_name + "_" + sampling_method + ".png"))
 
     plt.close()
+
+
+def flux_from_posteriors(t, params, max_flux):
+    logA, beta, log_gamma = params["logA"], params["beta"], params["log_gamma"]
+    t0, log_tau_rise, log_tau_fall, log_extra_sigma = (
+        params["t0"],
+        params["log_tau_rise"],
+        params["log_tau_fall"],
+        params["log_extra_sigma"],
+    )
+
+    A = max_flux * 10**logA
+    gamma = 10**log_gamma
+    tau_rise = 10**log_tau_rise
+    tau_fall = 10**log_tau_fall
+    extra_sigma = 10**log_extra_sigma  # pylint: disable=unused-variable
+
+    A_g, beta_g, gamma_g = params["A_g"], params["beta_g"], params["gamma_g"]
+    t0_g, tau_rise_g, tau_fall_g, extra_sigma_g = (  # pylint: disable=unused-variable
+        params["t0_g"],
+        params["tau_rise_g"],
+        params["tau_fall_g"],
+        params["extra_sigma_g"],
+    )
+
+    A_b = A * A_g  # pylint: disable=unused-variable
+    beta_b = beta * beta_g
+    gamma_b = gamma * gamma_g
+    t0_b = t0 * t0_g
+    tau_rise_b = tau_rise * tau_rise_g
+    tau_fall_b = tau_fall * tau_fall_g
+
+    phase = t - t0
+    flux_const = A / (1.0 + jnp.exp(-phase / tau_rise))
+    sigmoid = 1 / (1 + jnp.exp(10.0 * (gamma - phase)))
+
+    flux_r = flux_const * (
+        (1 - sigmoid) * (1 - beta * phase)
+        + sigmoid * (1 - beta * gamma) * jnp.exp(-(phase - gamma) / tau_fall)
+    )
+
+    # g band
+    phase_b = t - t0_b
+    flux_const_b = A / (1.0 + jnp.exp(-phase_b / tau_rise_b))
+    sigmoid_b = 1 / (1 + jnp.exp(10.0 * (gamma_b - phase_b)))
+
+    flux_g = flux_const_b * (
+        (1 - sigmoid_b) * (1 - beta_b * phase_b)
+        + sigmoid_b * (1 - beta_b * gamma_b) * jnp.exp(-(phase_b - gamma_b) / tau_fall_b)
+    )
+
+    return flux_g, flux_r

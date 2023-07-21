@@ -6,17 +6,11 @@ import glob
 import os
 import zipfile
 
-import extinction
 import numpy as np
 from alerce.core import Alerce
 from antares_client.search import get_by_ztf_object_id
-from astropy.coordinates import SkyCoord
-from dustmaps.config import config
-from dustmaps.sfd import SFDQuery
 
-from superphot_plus.sfd import dust_filepath
-
-from .utils import convert_mags_to_flux
+from superphot_plus.utils import convert_mags_to_flux, get_band_extinctions
 
 alerce = Alerce()
 MIN_PER_FILTER = 5
@@ -251,7 +245,6 @@ def get_all_unclassified_samples(save_csv):
 
         while True:
             try:
-
                 objs = alerce.query_objects(
                     classifier="stamp_classifier",
                     classifier_version="stamp_classifier_1.0.4",
@@ -316,39 +309,6 @@ def get_all_unclassified_samples(save_csv):
         i += 1
 
 
-def get_band_extinctions(ra, dec):
-    """Get g- and r-band extinctions in magnitudes for a single
-    supernova lightcurve based on right ascension (RA) and declination
-    (DEC).
-
-    Parameters
-    ----------
-    ra : float
-        The right ascension of the object of interest, in degrees.
-    dec : float
-        The declination of the object of interest, in degrees.
-
-    Returns
-    -------
-    ext_list : np.ndarray
-        A list of extinction magnitudes for the given coordinates, in
-        the g- and r-bands.
-    """
-    config["data_dir"] = dust_filepath
-    sfd = SFDQuery()
-    # First look up the amount of mw dust at this location
-    coords = SkyCoord(ra, dec, frame="icrs", unit="deg")
-    Av_sfd = 2.742 * sfd(coords)  # from https://dustmaps.readthedocs.io/en/latest/examples.html
-
-    # for gr, the was are:
-    band_wvs = 1.0 / (0.0001 * np.asarray([4741.64, 6173.23]))  # in inverse microns
-
-    # Now figure out how much the magnitude is affected by this dust
-    ext_list = extinction.fm07(band_wvs, Av_sfd, unit="invum")  # in magnitudes
-
-    return ext_list
-
-
 def import_lc(filename):
     """Imports a single file, but only the points from a single
     telescope, in only g and r bands.
@@ -385,7 +345,6 @@ def import_lc(filename):
         bands = []
 
         for row in csvreader:
-
             if ra is None:
                 ra = float(row[ra_idx])
                 dec = float(row[dec_idx])
@@ -505,7 +464,6 @@ def save_new_datafiles():
         csvreader = csv.reader(csv_f, delimiter=",", skipinitialspace=True)
         next(csvreader)
         for row in csvreader:
-
             if len(row) == 0:
                 continue
             # name = row[1].strip().split()[-1]

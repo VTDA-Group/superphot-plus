@@ -18,6 +18,7 @@ dependencies = [
     "antares_client",
     "arviz",
     "astropy",
+    "colorcet",
     "corner",
     "etils",
     "dustmaps",
@@ -25,9 +26,11 @@ dependencies = [
     "jaxns",
     "joblib",
     "extinction",
+    "matplotlib",
     "numpy",
     "numpyro",
     "tensorflow_probability",
+    "scikit-learn",
 ]
 
 # On a mac, install optional dependencies with `pip install '.[dev]'` (include the single quotes)
@@ -37,6 +40,7 @@ dev = [
     "pytest-cov", # Used to report total code coverage
     "pre-commit", # Used to run checks before finalizing a git commit
     "pylint", # Used for static linting of files
+    "pytest-monitor" # Used to run benchmarks on the test suite
 ]
 
 [build-system]
