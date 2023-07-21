@@ -12,9 +12,47 @@ def test_default_type_maps():
     assert list(labels_to_classes.values()) == list(classes_to_labels.keys())
 
 
-def test_type_maps_for_allowed_types():
-    """Test that we can get the supernovae mappings for the allowed types."""
+def test_type_maps_for_allowed_types_string():
+    """Test that we can get the supernovae mappings for allowed string types."""
     allowed_types = ["SN Ia", "SN II", "SN IIn", "SLSN-I", "SN Ibc", "SLSN-II"]
+
+    labels_to_classes, classes_to_labels = SnClass.get_type_maps(allowed_types)
+
+    assert list(labels_to_classes.keys()) == allowed_types
+    assert list(classes_to_labels.values()) == allowed_types
+    assert list(labels_to_classes.values()) == list(classes_to_labels.keys())
+
+
+def test_type_maps_for_allowed_types_enum():
+    """Test that we can get the supernovae mappings for allowed types
+    of the SupernovaClass enum."""
+    allowed_types = [
+        SnClass.SUPERNOVA_IA,
+        SnClass.SUPERNOVA_IBC,
+        SnClass.SUPERNOVA_II,
+        SnClass.SUPERNOVA_IIN,
+        SnClass.SUPERLUMINOUS_SUPERNOVA_I,
+        SnClass.SUPERLUMINOUS_SUPERNOVA_II,
+    ]
+
+    labels_to_classes, classes_to_labels = SnClass.get_type_maps(allowed_types)
+
+    assert list(labels_to_classes.keys()) == allowed_types
+    assert list(classes_to_labels.values()) == allowed_types
+    assert list(labels_to_classes.values()) == list(classes_to_labels.keys())
+
+
+def test_type_maps_for_allowed_types_mixed():
+    """Test that we can get the supernovae mappings for mixed allowed types
+    (of string, enum or a mix of both)."""
+    allowed_types = [
+        SnClass.SUPERNOVA_IA,
+        "SN II",
+        SnClass.SUPERNOVA_IIN,
+        SnClass.SUPERLUMINOUS_SUPERNOVA_I,
+        "SN Ibc",
+        "SLSN-II",
+    ]
 
     labels_to_classes, classes_to_labels = SnClass.get_type_maps(allowed_types)
 
