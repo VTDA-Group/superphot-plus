@@ -43,7 +43,7 @@ def import_labels_only(input_csvs, allowed_types, fits_dir=None, redshift=False)
     repeat_ct = 0
     names = []
     redshifts = []
-    alts = SnClass.get_alts()
+    alts = SnClass.get_alternative_namings()
     # TODO: make more compact
     for input_csv in input_csvs:
         with open(input_csv, newline="") as csvfile:

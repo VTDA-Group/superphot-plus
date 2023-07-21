@@ -38,7 +38,7 @@ class SupernovaClass(str, Enum):
         return labels_to_classes, classes_to_labels
 
     @classmethod
-    def get_alts(cls):
+    def get_alternative_namings(cls):
         """Returns the alternative namings for each supernova class.
 
         Parameters

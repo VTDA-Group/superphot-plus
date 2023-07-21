@@ -1,7 +1,7 @@
 from superphot_plus.supernova_class import SupernovaClass as SnClass
 
 
-def test_get_type_maps():
+def test_default_type_maps():
     """Test that we can get the default supernovae type maps."""
     expected_classes = ["SN Ia", "SN II", "SN IIn", "SLSN-I", "SN Ibc"]
 
@@ -9,9 +9,21 @@ def test_get_type_maps():
 
     assert list(labels_to_classes.keys()) == expected_classes
     assert list(classes_to_labels.values()) == expected_classes
+    assert list(labels_to_classes.values()) == list(classes_to_labels.keys())
 
 
-def test_get_alts():
+def test_type_maps_for_allowed_types():
+    """Test that we can get the supernovae mappings for the allowed types."""
+    allowed_types = ["SN Ia", "SN II", "SN IIn", "SLSN-I", "SN Ibc", "SLSN-II"]
+
+    labels_to_classes, classes_to_labels = SnClass.get_type_maps(allowed_types)
+
+    assert list(labels_to_classes.keys()) == allowed_types
+    assert list(classes_to_labels.values()) == allowed_types
+    assert list(labels_to_classes.values()) == list(classes_to_labels.keys())
+
+
+def test_supernovae_alternatives():
     """Test that we get alternative namings for each supernova class."""
     expected_alts = {
         SnClass.SUPERNOVA_IA.value: [
@@ -46,19 +58,12 @@ def test_get_alts():
         "TDE": ["42"],
     }
 
-    alts = SnClass.get_alts()
-
-    assert alts == expected_alts
+    assert SnClass.get_alternative_namings() == expected_alts
 
 
-def test_get_reflect_style():
+def test_reflect_style():
     """Test that we get the reflect style naming for each supernova class."""
-    reflect_style_II = SnClass.get_reflect_style("SNII")
-    reflect_style_Ia = SnClass.get_reflect_style("SNIa")
-    reflect_style_SLSN = SnClass.get_reflect_style("SLSN")
-    reflect_style_SNIbc = SnClass.get_reflect_style("SNIbc")
-
-    assert reflect_style_II == SnClass.SUPERNOVA_II.value
-    assert reflect_style_Ia == SnClass.SUPERNOVA_IA.value
-    assert reflect_style_SLSN == SnClass.SUPERLUMINOUS_SUPERNOVA_I.value
-    assert reflect_style_SNIbc == SnClass.SUPERNOVA_IBC.value
+    assert SnClass.get_reflect_style("SNII") == SnClass.SUPERNOVA_II.value
+    assert SnClass.get_reflect_style("SNIa") == SnClass.SUPERNOVA_IA.value
+    assert SnClass.get_reflect_style("SLSN") == SnClass.SUPERLUMINOUS_SUPERNOVA_I.value
+    assert SnClass.get_reflect_style("SNIbc") == SnClass.SUPERNOVA_IBC.value
