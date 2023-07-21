@@ -61,7 +61,7 @@ def test_write_and_read_single_lightcurve(tmp_path):
     assert np.allclose(e2, errors)
 
 
-def test_sort(tmp_path):
+def test_sort():
     times = np.array([2.0, 1.0, 0.0, 4.0, 3.0])
     fluxes = np.array([1.0, 2.0, 3.0, 4.0, 5.0])
     bands = np.array(["r", "r", "g", "r", "g"])
@@ -73,3 +73,57 @@ def test_sort(tmp_path):
     assert np.all(lc.fluxes == np.array([3.0, 2.0, 1.0, 5.0, 4.0]))
     assert np.all(lc.flux_errors == np.array([0.3, 0.2, 0.1, 0.5, 0.4]))
     assert np.all(lc.bands == np.array(["g", "r", "r", "g", "r"]))
+
+
+def test_sort_copy():
+    times = np.array([2.0, 1.0, 0.0, 4.0, 3.0])
+    fluxes = np.array([1.0, 2.0, 3.0, 4.0, 5.0])
+    bands = np.array(["r", "r", "g", "r", "g"])
+    errors = np.array([0.1, 0.2, 0.3, 0.4, 0.5])
+    lc = Lightcurve(times, fluxes, errors, bands)
+    lc2 = lc.sort_by_time(in_place=False)
+
+    assert np.all(lc2.times == np.array([0.0, 1.0, 2.0, 3.0, 4.0]))
+    assert np.all(lc2.fluxes == np.array([3.0, 2.0, 1.0, 5.0, 4.0]))
+    assert np.all(lc2.flux_errors == np.array([0.3, 0.2, 0.1, 0.5, 0.4]))
+    assert np.all(lc2.bands == np.array(["g", "r", "r", "g", "r"]))
+
+    assert np.all(lc.times == times)
+    assert np.all(lc.fluxes == fluxes)
+    assert np.all(lc.flux_errors == errors)
+    assert np.all(lc.bands == bands)
+
+
+def test_padding():
+    # Add 7 points in r, 3 in g, 1 in b.
+    times = np.array([0.0, 1.5, 5.0, 1.0, 6.0, 2.0, 3.0, 4.0, 0.5, 2.5, 0.05])
+    fluxes = np.array([1.0, 1.5, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 0.5, 2.5, 1.0])
+    bands = np.array(["r", "g", "r", "r", "r", "r", "r", "r", "g", "g", "b"])
+    errors = np.array([0.1] * 11)
+    lc = Lightcurve(times, fluxes, errors, bands)
+
+    # Do the padding
+    lc2 = lc.pad_bands(["r", "g"], 6, in_place=False)
+    assert lc2.obs_count() == 12
+    assert lc2.obs_count("r") == 6
+    assert lc2.obs_count("g") == 6
+    assert lc2.obs_count("b") == 0
+
+    # Check that lc2 is correctly padded and ordered by band.
+    exp_times = np.array([0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 0.5, 1.5, 2.5, 5000.0, 5000.0, 5000.0])
+    assert np.all(lc2.times == exp_times)
+
+    exp_flux = np.array([1.0, 3.0, 5.0, 6.0, 7.0, 2.0, 0.5, 1.5, 2.5, 0.0, 0.0, 0.0])
+    assert np.all(lc2.fluxes == exp_flux)
+
+    exp_err = np.array([0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 1e10, 1e10, 1e10])
+    assert np.all(lc2.flux_errors == exp_err)
+
+    exp_bands = np.array(["r", "r", "r", "r", "r", "r", "g", "g", "g", "g", "g", "g"])
+    assert np.all(lc2.bands == exp_bands)
+
+    # Check that the original lc is not modified.
+    assert np.all(times == lc.times)
+    assert np.all(fluxes == lc.fluxes)
+    assert np.all(errors == lc.flux_errors)
+    assert np.all(bands == lc.bands)

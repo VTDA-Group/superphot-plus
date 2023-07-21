@@ -52,13 +52,106 @@ class Lightcurve:
         else:
             return np.count_nonzero(self.bands == band)
 
-    def sort_by_time(self):
-        """Sort the data by timestamp."""
+    def sort_by_time(self, in_place=True):
+        """Sort the data by timestamp.
+
+        Parameters
+        ----------
+        in_place : bool
+            A Boolean indicating whether to modify the data in-place.
+
+        Returns
+        -------
+        result : Lightcurve
+            The padded lightcurve. Returns self if in_place == True.
+        """
         sort_idx = np.argsort(self.times)
-        self.times = self.times[sort_idx]
-        self.fluxes = self.fluxes[sort_idx]
-        self.flux_errors = self.flux_errors[sort_idx]
-        self.bands = self.bands[sort_idx]
+        if in_place:
+            self.times = self.times[sort_idx]
+            self.fluxes = self.fluxes[sort_idx]
+            self.flux_errors = self.flux_errors[sort_idx]
+            self.bands = self.bands[sort_idx]
+            return self
+        else:
+            return Lightcurve(
+                self.times[sort_idx],
+                self.fluxes[sort_idx],
+                self.flux_errors[sort_idx],
+                self.bands[sort_idx],
+                name=self.name,
+            )
+
+    def pad_bands(self, bands, size, in_place=True):
+        """Truncate or pad the bands so that each band has
+        exactly ``size`` entries.
+
+        Parameters
+        ----------
+        bands : array-like
+            An array of bands to include in the final data.
+        size : int
+            The required number of data points in each band.
+        in_place : bool
+            A Boolean indicating whether to modify the data in-place.
+
+        Returns
+        -------
+        result : Lightcurve
+            The padded lightcurve. Returns self if in_place == True.
+        """
+        lc = self.sort_by_time(in_place)
+
+        t_padded = np.array([])
+        f_padded = np.array([])
+        ferr_padded = np.array([])
+        b_padded = np.array([])
+
+        for b in bands:
+            matches = lc.bands == b
+            len_b = len(lc.bands[matches])
+            t_s = lc.times[matches]
+            f_s = lc.fluxes[matches]
+            ferr_s = lc.flux_errors[matches]
+            b_s = lc.bands[matches]
+
+            print(f"Processing {b} -> {len_b}")
+            print(matches)
+            print(t_s)
+            print(f_s)
+            print(ferr_s)
+            print(b_s)
+
+            # If we have too many data points, use only the first ``size``
+            # as ordered by time. Otherwise pad the data.
+            if len_b > size:
+                t_padded = np.append(t_padded, t_s[:size])
+                f_padded = np.append(f_padded, f_s[:size])
+                ferr_padded = np.append(ferr_padded, ferr_s[:size])
+                b_padded = np.append(b_padded, b_s[:size])
+            else:
+                t_padded = np.append(t_padded, t_s)
+                f_padded = np.append(f_padded, f_s)
+                ferr_padded = np.append(ferr_padded, ferr_s)
+                b_padded = np.append(b_padded, b_s)
+
+                t_padded = np.append(t_padded, [5000] * (size - len_b))
+                f_padded = np.append(f_padded, [0.0] * (size - len_b))
+                ferr_padded = np.append(ferr_padded, [1e10] * (size - len_b))
+                b_padded = np.append(b_padded, [b] * (size - len_b))
+
+            print("AFTER:")
+            print(t_padded)
+            print(f_padded)
+            print(ferr_padded)
+            print(b_padded)
+
+        # Depending on the setting in_place, lc is either self or a new copy
+        # of the lightcurve.
+        lc.times = t_padded
+        lc.fluxes = f_padded
+        lc.flux_errors = ferr_padded
+        lc.bands = b_padded
+        return lc
 
     def save_to_file(self, filename, overwrite=False):
         """Write the light curve to a file.
