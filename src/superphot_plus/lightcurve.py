@@ -52,6 +52,14 @@ class Lightcurve:
         else:
             return np.count_nonzero(self.bands == band)
 
+    def sort_by_time(self):
+        """Sort the data by timestamp."""
+        sort_idx = np.argsort(self.times)
+        self.times = self.times[sort_idx]
+        self.fluxes = self.fluxes[sort_idx]
+        self.flux_errors = self.flux_errors[sort_idx]
+        self.bands = self.bands[sort_idx]
+
     def save_to_file(self, filename, overwrite=False):
         """Write the light curve to a file.
 

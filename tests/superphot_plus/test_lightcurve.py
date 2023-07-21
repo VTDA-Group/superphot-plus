@@ -59,3 +59,17 @@ def test_write_and_read_single_lightcurve(tmp_path):
     assert np.allclose(t2, times)
     assert np.allclose(f2, fluxes)
     assert np.allclose(e2, errors)
+
+
+def test_sort(tmp_path):
+    times = np.array([2.0, 1.0, 0.0, 4.0, 3.0])
+    fluxes = np.array([1.0, 2.0, 3.0, 4.0, 5.0])
+    bands = np.array(["r", "r", "g", "r", "g"])
+    errors = np.array([0.1, 0.2, 0.3, 0.4, 0.5])
+    lc = Lightcurve(times, fluxes, errors, bands)
+    lc.sort_by_time()
+
+    assert np.all(lc.times == np.array([0.0, 1.0, 2.0, 3.0, 4.0]))
+    assert np.all(lc.fluxes == np.array([3.0, 2.0, 1.0, 5.0, 4.0]))
+    assert np.all(lc.flux_errors == np.array([0.3, 0.2, 0.1, 0.5, 0.4]))
+    assert np.all(lc.bands == np.array(["g", "r", "r", "g", "r"]))
