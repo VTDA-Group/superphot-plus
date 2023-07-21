@@ -8,6 +8,7 @@ import numpy as np
 from sklearn.model_selection import StratifiedKFold
 
 from .file_paths import FITS_DIR
+from .supernova_class import SupernovaClass as SnClass
 
 
 def import_labels_only(input_csvs, allowed_types, fits_dir=None, redshift=False):
@@ -42,42 +43,7 @@ def import_labels_only(input_csvs, allowed_types, fits_dir=None, redshift=False)
     repeat_ct = 0
     names = []
     redshifts = []
-    sn1bc_alts = [
-        "SN Ic",
-        "SN Ib",
-        "SN Ic-BL",
-        "SN Ib-Ca-rich",
-        "SN Ib/c",
-        "SNIb",
-        "SNIc",
-        "SNIc-BL",
-        "21",
-        "20",
-        "27",
-        "26",
-        "25",
-    ]
-    snIIn_alts = ["SNIIn", "35", "SLSN-II"]
-    snIa_alts = [
-        "SN Ia-91T-like",
-        "SN Ia-CSM",
-        "SN Ia-91bg-like",
-        "SNIa",
-        "SN Ia-91T",
-        "SN Ia-91bg",
-        "10",
-        "11",
-        "12",
-    ]
-    snII_alts = ["SN IIP", "SN IIL", "SNII", "SNIIP", "32", "30", "31"]
-    slsnI_alts = [
-        "40",
-        "SLSN",
-    ]
-    tde_alts = [
-        "42",
-    ]
-
+    alts = SnClass.get_alternative_namings()
     # TODO: make more compact
     for input_csv in input_csvs:
         with open(input_csv, newline="") as csvfile:
@@ -92,17 +58,17 @@ def import_labels_only(input_csvs, allowed_types, fits_dir=None, redshift=False)
                 if redshift and z <= 0.0:
                     print(name, l)
                     continue
-                if l in sn1bc_alts:
+                if l in alts[SnClass.SUPERNOVA_IBC]:
                     l = "SN Ibc"
-                elif l in snIIn_alts:
+                elif l in alts[SnClass.SUPERNOVA_IIN]:
                     l = "SN IIn"
-                elif l in snIa_alts:
+                elif l in alts[SnClass.SUPERNOVA_IA]:
                     l = "SN Ia"
-                elif l in snII_alts:
+                elif l in alts[SnClass.SUPERNOVA_II]:
                     l = "SN II"
-                elif l in slsnI_alts:
+                elif l in alts[SnClass.SUPERLUMINOUS_SUPERNOVA_I]:
                     l = "SLSN-I"
-                elif l in tde_alts:
+                elif l in alts["TDE"]:
                     l = "TDE"
                 if l not in allowed_types:
                     # print(l)

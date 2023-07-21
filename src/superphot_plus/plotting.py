@@ -18,6 +18,7 @@ from .constants import BIGGER_SIZE, MEDIUM_SIZE, SMALL_SIZE
 from .file_paths import CM_FOLDER
 from .format_data_ztf import import_labels_only, oversample_using_posteriors
 from .import_ztf_from_alerce import clip_lightcurve_end, import_lc
+from .supernova_class import SupernovaClass as SnClass
 from .utils import calc_accuracy, f1_score, flux_model
 
 alerce = Alerce()
@@ -44,7 +45,7 @@ def plot_high_confidence_confusion_matrix(probs_csv, filename, cutoff=0.7):
         Probability cutoff value for high-confidence predictions.
         Default is 0.7.
     """
-    classes_to_labels = {0: "SN Ia", 1: "SN II", 2: "SN IIn", 3: "SLSN-I", 4: "SN Ibc"}
+    _, classes_to_labels = SnClass.get_type_maps()
     true_classes = []
     pred_classes = []
 
@@ -123,15 +124,7 @@ def get_pred_class(ztf_name, reflect_style=False):
     o = alerce.query_probabilities(oid=ztf_name, format="pandas")
     o_transient = o[o["classifier_name"] == "lc_classifier_transient"]
     label = o_transient[o_transient["ranking"] == 1]["class_name"].iat[0]
-    if reflect_style:
-        label_reflect_style = {
-            "SNII": "SN II",
-            "SNIa": "SN Ia",
-            "SLSN": "SLSN-I",
-            "SNIbc": "SN Ibc",
-        }
-        return label_reflect_style[label]
-    return label
+    return SnClass.get_reflect_style(label) if reflect_style else label
 
 
 def plot_alerce_confusion_matrix(probs_csv, filename, p07=False):
@@ -150,7 +143,7 @@ def plot_alerce_confusion_matrix(probs_csv, filename, p07=False):
         If True, only include predictions with a probability >= 0.7.
         Default is False.
     """
-    classes_to_labels = {0: "SN Ia", 1: "SN II", 2: "SN IIn", 3: "SLSN-I", 4: "SN Ibc"}
+    _, classes_to_labels = SnClass.get_type_maps()
     true_classes = []
     pred_classes = []
     with open(probs_csv, "r") as csvfile:
@@ -202,7 +195,7 @@ def plot_agreement_matrix(probs_csv, filename):
     filename : str
         Base filename for saving the agreement matrix plot.
     """
-    classes_to_labels = {0: "SN Ia", 1: "SN II", 2: "SN IIn", 3: "SLSN-I", 4: "SN Ibc"}
+    _, classes_to_labels = SnClass.get_type_maps()
     pred_classes = []
     alerce_preds = []
     with open(probs_csv, "r") as csvfile:
@@ -246,7 +239,7 @@ def plot_expected_agreement_matrix(probs_csv, filename, cmap=plt.cm.Purples):
     cmap : matplotlib.colors.Colormap, optional
         Color map for the plot. Default is plt.cm.Purples.
     """
-    classes_to_labels = {0: "SN Ia", 1: "SN II", 2: "SN IIn", 3: "SLSN-I", 4: "SN Ibc"}
+    _, classes_to_labels = SnClass.get_type_maps()
     pred_classes = []
     alerce_preds = []
 
@@ -423,14 +416,7 @@ def save_class_fractions(spec_probs_csv, phot_probs_csv, save_fn):
     save_fn : str
         Filename for saving the class fractions.
     """
-    classes_to_labels = {
-        0: "SN Ia",
-        1: "SN II",
-        2: "SN IIn",
-        3: "SLSN-I",
-        4: "SN Ibc",
-    }  # pylint: disable=unused-variable
-    label_to_class = {"SN Ia": 0, "SN II": 1, "SN IIn": 2, "SLSN-I": 3, "SN Ibc": 4}
+    labels_to_class, _ = SnClass.get_type_maps()
     true_classes = []
     pred_classes = []
     pred_classes_spec = []
@@ -445,7 +431,7 @@ def save_class_fractions(spec_probs_csv, phot_probs_csv, save_fn):
             ct += 1
             print(ct)
             try:
-                alerce_pred = label_to_class[get_pred_class(row[0], reflect_style=True)]
+                alerce_pred = labels_to_class[get_pred_class(row[0], reflect_style=True)]
             except:
                 continue
             alerce_preds_spec.append(alerce_pred)
@@ -465,7 +451,7 @@ def save_class_fractions(spec_probs_csv, phot_probs_csv, save_fn):
             if row[1] == "SKIP":
                 continue
             try:
-                alerce_pred = label_to_class[get_pred_class(name, reflect_style=True)]
+                alerce_pred = labels_to_class[get_pred_class(name, reflect_style=True)]
                 # print(alerce_pred, e)
             except:
                 print(name, " skipped")
@@ -517,14 +503,7 @@ def plot_class_fractions(saved_cf_file, fig_dir):
     fig_dir : str
         Directory for saving the class fractions plot.
     """
-    classes_to_labels = {0: "SN Ia", 1: "SN II", 2: "SN IIn", 3: "SLSN-I", 4: "SN Ibc"}
-    label_to_class = {
-        "SN Ia": 0,
-        "SN II": 1,
-        "SN IIn": 2,
-        "SLSN-I": 3,
-        "SN Ibc": 4,
-    }  # pylint: disable=unused-variable
+    _, classes_to_labels = SnClass.get_type_maps()
     labels = [
         "Spec (ZTF)",
         "Spec (YSE)",
