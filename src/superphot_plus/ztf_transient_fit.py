@@ -10,6 +10,7 @@ from dynesty import utils as dyfunc
 from scipy.optimize import curve_fit
 from scipy.stats import truncnorm
 
+from superphot_plus.lightcurve import Lightcurve
 from superphot_plus.file_utils import read_single_lightcurve
 from superphot_plus.plotting import plot_sampling_lc_fit
 from superphot_plus.utils import flux_model
@@ -93,14 +94,14 @@ def params_valid(beta, gamma, tau_rise, tau_fall):
     return True
 
 
-def run_mcmc(filename, t0_lim=None, plot=False, rstate=None):
-    """Runs dynesty importance nested sampling on datafile; returns set
+def run_mcmc(lc, t0_lim=None, plot=False, rstate=None):
+    """Runs dynesty importance nested sampling on a single light curve; returns set
     of equally weighted posteriors (sets of fit parameters).
 
     Parameters
     ----------
-    filename : str
-        Data file name.
+    lc : Lightcurve object
+        The lightcurve of interest
     t0_lim : float, optional
         Upper limit for t0. Defaults to None.
     plot : bool, optional
@@ -115,18 +116,16 @@ def run_mcmc(filename, t0_lim=None, plot=False, rstate=None):
         if the data is invalid.
     """
     ref_band_idx = 1  # red band # pylint: disable=unused-variable
-
-    prefix = filename.split("/")[-1][:-4]
-
-    print(prefix)
     n_params = 14
 
-    tdata, fdata, ferrdata, bdata = read_single_lightcurve(filename, t0_lim)
+    # Require data in both the g and r bands.
+    if lc.obs_count("r") == 0 or lc.obs_count("g") == 0:
+        return None
 
-    if (tdata[bdata == "r"] is None) or (len(tdata[bdata == "r"]) == 0):
-        return None
-    if (tdata[bdata == "g"] is None) or (len(tdata[bdata == "g"]) == 0):
-        return None
+    tdata = lc.times
+    fdata = lc.fluxes
+    ferrdata = lc.flux_errors
+    bdata = lc.bands
 
     max_flux = np.max(fdata[bdata == "r"] - np.abs(ferrdata[bdata == "r"]))
 
@@ -203,8 +202,10 @@ def run_mcmc(filename, t0_lim=None, plot=False, rstate=None):
 
     eq_wt_samples = dyfunc.resample_equal(samples, weights, rstate=rstate)
 
-    if plot:
-        plot_sampling_lc_fit(prefix, FIT_PLOTS_FOLDER, tdata, fdata, ferrdata, bdata, eq_wt_samples)
+    if plot:  # pragma: no cover
+        if lc.name is None:
+            raise ValueError("Missing file name for plotting files.")
+        plot_sampling_lc_fit(lc.name, FIT_PLOTS_FOLDER, tdata, fdata, ferrdata, bdata, eq_wt_samples)
     return eq_wt_samples
 
 
@@ -371,7 +372,49 @@ def run_curve_fit(filename):
     return popt_g, popt_r
 
 
-def dynesty_single_file(test_fn, output_dir, skip_if_exists=True, rstate=None):
+def dynesty_single_curve(lc, output_dir, skip_if_exists=True, rstate=None):
+    """Perform model fitting using dynesty on a single light curve.
+
+    This function runs the dynesty importance nested sampling algorithm
+    on a single light curve. It saves the resulting equally weighted
+    posterior samples to a compressed NumPy archive file.
+
+    Parameters
+    ----------
+    lc : Lightcurve object
+        The light curve of interest.
+    output_dir : str
+        The directory where the output file will be saved.
+    skip_if_exists : bool, optional
+        Flag indicating whether to skip fitting if the output file
+        already exists. Defaults to true.
+    rstate : int, optional
+        Random state that is seeded. if none, use machine entropy.
+
+    Returns
+    -------
+    sample_mean: numpy array
+        Return the mean of the MCMC samples or None if the fitting is
+        skipped or encounters an error.
+    """
+    if lc.name is None or lc.name == "":
+        raise ValueError("Empty light curve name.")
+
+    os.makedirs(output_dir, exist_ok=True)
+    if skip_if_exists and os.path.exists(os.path.join(output_dir, f"{lc.name}_eqwt.npz")):
+        return None
+
+    eq_samples = run_mcmc(lc, plot=False, rstate=rstate)
+    if eq_samples is None:
+        return None
+    sample_mean = np.mean(eq_samples, axis=0)
+    print(sample_mean)
+
+    np.savez_compressed(os.path.join(output_dir, f"{lc.name}_eqwt_dynesty.npz"), eq_samples)
+    return sample_mean
+
+
+def dynesty_single_file(test_fn, output_dir, skip_if_exists=True, rstate=None, t0_lim=None):
     """Perform model fitting using dynesty on a single data file.
 
     This function runs the dynesty importance nested sampling algorithm
@@ -389,6 +432,8 @@ def dynesty_single_file(test_fn, output_dir, skip_if_exists=True, rstate=None):
         already exists. Defaults to true.
     rstate : int, optional
         Random state that is seeded. if none, use machine entropy.
+    t0_lim : float, optional
+        Upper limit for t0. Defaults to None.
 
     Returns
     -------
@@ -396,16 +441,6 @@ def dynesty_single_file(test_fn, output_dir, skip_if_exists=True, rstate=None):
         Return the mean of the MCMC samples or None if the fitting is
         skipped or encounters an error.
     """
-    os.makedirs(output_dir, exist_ok=True)
-    prefix = test_fn.split("/")[-1][:-4]
-    if skip_if_exists and os.path.exists(os.path.join(output_dir, f"{prefix}_eqwt.npz")):
-        return None
-
-    eq_samples = run_mcmc(test_fn, plot=False, rstate=rstate)
-    if eq_samples is None:
-        return None
-    sample_mean = np.mean(eq_samples, axis=0)
-    print(sample_mean)
-
-    np.savez_compressed(os.path.join(output_dir, f"{prefix}_eqwt_dynesty.npz"), eq_samples)
+    lc = Lightcurve.from_file(test_fn)
+    sample_mean = dynesty_single_curve(lc, output_dir, skip_if_exists, rstate)
     return sample_mean
