@@ -11,9 +11,9 @@ from .file_paths import FITS_DIR
 from .supernova_class import SupernovaClass as SnClass
 
 
-def import_labels_only(input_csvs, allowed_types, fits_dir=None, redshift=False):
+def import_labels_only(input_csvs, allowed_types, fits_dir=None):
     """Filters CSVs for rows where label is in allowed_types and returns
-    names, labels, and optionally redshift numpy arrays.
+    names, labels.
 
     Parameters
     ----------
@@ -23,13 +23,11 @@ def import_labels_only(input_csvs, allowed_types, fits_dir=None, redshift=False)
         List of allowed types for labels.
     fits_dir : str, optional
         Directory path for FITS files. Defaults to None.
-    redshift : bool, optional
-        Whether to include redshift. Defaults to False.
 
     Returns
     -------
     tuple of np.ndarray
-        Tuple of names, labels, and redshifts (if redshift==True).
+        Tuple of names and labels
 
     Notes
     -----
@@ -42,50 +40,40 @@ def import_labels_only(input_csvs, allowed_types, fits_dir=None, redshift=False)
     labels_orig = []
     repeat_ct = 0
     names = []
-    redshifts = []
     alts = SnClass.get_alternative_namings()
     # TODO: make more compact
     for input_csv in input_csvs:
-        with open(input_csv, newline="") as csvfile:
+        with open(input_csv, newline="", encoding="utf-8") as csvfile:
             csvreader = csv.reader(csvfile)
             for row in csvreader:
                 name = row[0]
-                if not os.path.isfile(fits_dir + name + "_eqwt.npz"):
+                if not os.path.isfile(os.path.join(fits_dir, f"{name}_eqwt.npz")):
                     continue
                 label_orig = row[1]
-                l = row[1]
-                z = float(row[2])
-                if redshift and z <= 0.0:
-                    print(name, l)
-                    continue
-                if l in alts[SnClass.SUPERNOVA_IBC]:
-                    l = "SN Ibc"
-                elif l in alts[SnClass.SUPERNOVA_IIN]:
-                    l = "SN IIn"
-                elif l in alts[SnClass.SUPERNOVA_IA]:
-                    l = "SN Ia"
-                elif l in alts[SnClass.SUPERNOVA_II]:
-                    l = "SN II"
-                elif l in alts[SnClass.SUPERLUMINOUS_SUPERNOVA_I]:
-                    l = "SLSN-I"
-                elif l in alts["TDE"]:
-                    l = "TDE"
-                if l not in allowed_types:
-                    # print(l)
+                row_label = row[1]
+                if row_label in alts[SnClass.SUPERNOVA_IBC]:
+                    row_label = SnClass.SUPERNOVA_IBC.value
+                elif row_label in alts[SnClass.SUPERNOVA_IIN]:
+                    row_label = SnClass.SUPERNOVA_IIN.value
+                elif row_label in alts[SnClass.SUPERNOVA_IA]:
+                    row_label = SnClass.SUPERNOVA_IA.value
+                elif row_label in alts[SnClass.SUPERNOVA_II]:
+                    row_label = SnClass.SUPERNOVA_II.value
+                elif row_label in alts[SnClass.SUPERLUMINOUS_SUPERNOVA_I]:
+                    row_label = SnClass.SUPERLUMINOUS_SUPERNOVA_I.value
+                elif row_label in alts["TDE"]:
+                    row_label = "TDE"
+                if row_label not in allowed_types:
                     continue
                 if name not in names:
                     names.append(name)
-                    labels.append(l)
+                    labels.append(row_label)
                     labels_orig.append(label_orig)
-                    if redshift:
-                        redshifts.append(z)
                 else:
                     repeat_ct += 1
 
     tally_each_class(labels_orig)
     print(repeat_ct)
-    if redshift:
-        return np.array(names), np.array(labels), np.array(redshifts)
     return np.array(names), np.array(labels)
 
 

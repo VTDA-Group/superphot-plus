@@ -79,6 +79,7 @@ class SupernovaClass(str, Enum):
                 "26",
                 "25",
             ],
+            cls.SUPERNOVA_II.value: [],
             cls.SUPERNOVA_IIN.value: ["SNIIn", "35", "SLSN-II"],
             cls.SUPERLUMINOUS_SUPERNOVA_I.value: ["40", "SLSN"],
             cls.SUPERLUMINOUS_SUPERNOVA_II.value: ["SN IIP", "SN IIL", "SNII", "SNIIP", "32", "30", "31"],
@@ -109,3 +110,8 @@ class SupernovaClass(str, Enum):
             "SNIbc": cls.SUPERNOVA_IBC.value,
         }
         return label_reflect_style[label]
+
+    @classmethod
+    def all_classes(cls):
+        """Fetch a list of all supernova classes"""
+        return [t.value for t in cls]
