@@ -6,23 +6,29 @@ from ..utils import flux_model
 from ..constants import *
 from ..ztf_transient_fit import trunc_gauss, params_valid
 
-max_flux = 1
-def create_prior(cube, tdata):
-    """
-    Creates prior for pymultinest, where each side
-    of the "cube" is a value sampled between 0 and 1
-    representing each parameter.
+DEFAULT_MAX_FLUX = 1.0
 
-    This function is used in ztf_transient_fit.py!
-    """
+def create_prior(cube):
+    """Creates prior for dynesty, where each side of the "cube"
+    is a value sampled between 0 and 1 representing each parameter.
+    Slightly altered from ztf_transient_fit.py
 
-    cube[0] = max_flux * 10 ** (
+    Parameters
+    ----------
+    cube : np.ndarray
+        Array of parameters.
+
+    Returns
+    -------
+    np.ndarray
+        Updated array of parameters.
+    """
+    cube[0] = DEFAULT_MAX_FLUX * 10 ** (
         trunc_gauss(cube[0], *PRIOR_A)
     )  # log-uniform for A from 1.0x to 16x of max flux
     cube[1] = trunc_gauss(cube[1], *PRIOR_BETA)  # beta UPDATED, looks more Lorentzian so widened by 1.5x
     cube[2] = 10 ** trunc_gauss(cube[2], *PRIOR_GAMMA)  # very broad Gaussian temporary solution for gamma
-    max_flux_loc = np.median(tdata)  # THIS IS DISTINCT FROM OTHER FUNC
-    cube[3] = trunc_gauss(cube[3], np.amin(tdata) - 50.0, np.amax(tdata) + 50.0, max_flux_loc, 20.0)  # t0
+    cube[3] = trunc_gauss(cube[3], *PRIOR_T0)  # t0
     cube[4] = 10 ** (trunc_gauss(cube[4], *PRIOR_TAU_RISE))  # taurise, UPDATED
     cube[5] = 10 ** (trunc_gauss(cube[5], *PRIOR_TAU_FALL))  # tau fall UPDATED
     cube[6] = 10 ** (trunc_gauss(cube[6], *PRIOR_EXTRA_SIGMA))  # lognormal for extrasigma, UPDATED
@@ -37,7 +43,7 @@ def create_prior(cube, tdata):
     cube[13] = trunc_gauss(cube[13], *PRIOR_EXTRA_SIGMA_g)  # extra sigma UPDATED, Gaussian
 
     return cube
-
+    
 
 def ztf_noise_model(mag, band, snr_range_g = [1,10], snr_range_r=[1,10]):
     """A very, very simple noise model which assumes the dimmest magnitude is at SNR = 1, and the brightest mad is at SNR = 10.
