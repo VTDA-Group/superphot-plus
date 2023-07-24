@@ -12,7 +12,7 @@ class SupernovaClass(str, Enum):
     SUPERLUMINOUS_SUPERNOVA_II = "SLSN-II"
 
     @classmethod
-    def get_type_maps(cls, allowed_types=["SN Ia", "SN II", "SN IIn", "SLSN-I", "SN Ibc"]):
+    def get_type_maps(cls, allowed_types=None):
         """For some allowed supernova classes, create dictionaries
         mapping an integer classification to the type string.
 
@@ -30,6 +30,9 @@ class SupernovaClass(str, Enum):
             Tuple containing the mapping of string labels to integer identifiers
             and the mapping of integer identifiers to string labels, respectively.
         """
+        if not allowed_types:
+            allowed_types = ["SN Ia", "SN II", "SN IIn", "SLSN-I", "SN Ibc"]
+
         allowed_types = [a_type.value if isinstance(a_type, cls) else a_type for a_type in allowed_types]
 
         labels_to_classes = {a_type: i for i, a_type in enumerate(allowed_types)}
@@ -79,12 +82,40 @@ class SupernovaClass(str, Enum):
                 "26",
                 "25",
             ],
-            cls.SUPERNOVA_II.value: [],
-            cls.SUPERNOVA_IIN.value: ["SNIIn", "35", "SLSN-II"],
+            cls.SUPERNOVA_II.value: ["SN IIP", "SN IIL", "SNII", "SNIIP", "32", "30", "31"],
+            cls.SUPERNOVA_IIN.value: ["SNIIn", "35"],
             cls.SUPERLUMINOUS_SUPERNOVA_I.value: ["40", "SLSN"],
-            cls.SUPERLUMINOUS_SUPERNOVA_II.value: ["SN IIP", "SN IIL", "SNII", "SNIIP", "32", "30", "31"],
-            "TDE": ["42"],
+            cls.SUPERLUMINOUS_SUPERNOVA_II.value: [],
+            "TDE": ["TDE", "42"],
         }
+
+    @classmethod
+    def canonicalize(cls, label):
+        """Returns a canonical label, using the proper and alternative namings for
+        each supernova class.
+
+        Parameters
+        ----------
+        cls : SupernovaClass
+            The SupernovaClass class.
+        label : str
+            The label to canonicalize
+
+        Returns
+        -------
+        str
+            original label if already canonical, supernova class string if found in
+            dictionary of alternative names, or the original label if not able to be
+            canonicalized.
+        """
+        if label in cls.all_classes():
+            return label
+
+        alts = cls.get_alternative_namings()
+        for canon_label, other_names in alts.items():
+            if label in other_names:
+                return canon_label
+        return label
 
     @classmethod
     def get_reflect_style(cls, label):
