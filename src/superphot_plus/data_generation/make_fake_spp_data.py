@@ -118,17 +118,23 @@ def create_prior(cube, tdata):
 
 
 def ztf_noise_model(mag, band, snr_range_g = [1,10], snr_range_r=[1,10]):
-    """
-    A very, very simple noise model which assumes the dimmest magnitude is at SNR = 1, and the brightest mad is at SNR = 10
+    """A very, very simple noise model which assumes the dimmest magnitude is at SNR = 1, and the brightest mad is at SNR = 10.
 
-    inputs: 
-    mag: observed magnitude
-    band: observed band (g or r)
-    snr_range_g: Range of signal-to-noise ratios you want to see in g-band
-    snr_range_r: Range of signal-to-noise ratios you want to see in g-band
+    Parameters
+    ----------
+    mag : np.ndarray
+        Observed magnitudes.
+    band : np.ndarray
+        Observed bands (g or r).
+    snr_range_g : tuple
+        Range of signal-to-noise ratios desired in g-band.
+    snr_range_r : tuple
+        Range of signal-to-noise ratios desired in r-band.
 
-    output:
-    snr: SNR of the observation.
+    Returns
+    ----------
+    snr : np.ndarray
+        Signal-to-noise ratios (SNR) of the observations.
     """
 
     snr = mag * 0 # set up a dummy array for the snr
@@ -148,16 +154,16 @@ def create_clean_models(nmodels, num_times=100):
     Parameters
     ----------
     nmodels : int
-        The number of models you want to generate
+        The number of models you want to generate.
     num_times : int, optional
         The number of timesteps to use.
 
     Returns
     -------
     params : array-like of numpy arrays
-        The array of parameters used to generate each model
+        The array of parameters used to generate each model.
     lcs : array-like of numpy arrays
-        The array of individual light curves for each model generated
+        The array of individual light curves for each model generated.
     """
     params = []
     lcs = []
@@ -183,19 +189,25 @@ def create_clean_models(nmodels, num_times=100):
 
 
 def create_ztf_model(plot=False):
-    """
-    Generate realisitic-ish ZTF light curves from the superphot+ prior
+    """Generate realisitic-ish ZTF light curves from the Superphot+ prior.
 
-    inputs:
-    plot: Boolean to just turn on some plotting functionality
+    Parameters
+    ----------
+    plot : bool
+        Whether resulting light curve is plotted and saved. Defaults to False.
 
-    outputs:
-    params : set of parameters used to generate model
-    tdata : time array for light curve
-    filter_data : filter array for light curve
-    dirty_model : flux values
-    sigmas = : errors on flux
-
+    Returns
+    ----------
+    params : np.ndarray
+        Set of parameters used to generate model.
+    tdata : np.ndarray
+        Time values of each datapoint.
+    filter_data : np.ndarray
+        Filter corresponding to each datapoint.
+    dirty_model : np.ndarray
+        Dirty flux values at each time value.
+    sigmas : np.ndarray
+        Uncertainties of each dirty flux value.
     """
 
     # Randomly sample from parameter space and from data/filters
@@ -204,12 +216,12 @@ def create_ztf_model(plot=False):
     # This is going to random simulate some observation every 2-3 days across 2 filters
     num_observations = 130
     tdata = np.random.uniform(-100, 100, num_observations)
-    filter_data = np.random.choice(['g','r'],size=num_observations)
+    filter_data = np.random.choice(['g','r'], size=num_observations)
 
     cube = create_prior(cube, tdata)
     A, beta, gamma, t0, tau_rise, tau_fall, es = cube[:7]  # pylint: disable=unused-variable
 
-    found_valid = params_valid(A, beta, gamma, t0, tau_rise, tau_fall)
+    found_valid = False
     num_tried = 0
     
     # Now re-attempts to regenerate until it gets a "good" model
@@ -232,7 +244,7 @@ def create_ztf_model(plot=False):
     filter_data = filter_data[gind]
     sigmas = f_model/snr
 
-    dirty_model = f_model + np.random.normal(0,sigmas)
+    dirty_model = f_model + np.random.normal(0, sigmas)
 
     if plot:
         plt.scatter(tdata, dirty_model, color=filter_data)
