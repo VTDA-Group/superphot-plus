@@ -18,7 +18,7 @@ from numpyro.distributions import constraints
 from numpyro.infer import MCMC, NUTS, SVI, Trace_ELBO
 from numpyro.infer.initialization import init_to_uniform
 
-from superphot_plus.file_utils import read_single_lightcurve
+from superphot_plus.lightcurve import Lightcurve
 from superphot_plus.plotting import flux_from_posteriors
 
 from .constants import *  # pylint: disable=wildcard-import
@@ -26,79 +26,6 @@ from .file_paths import FIT_PLOTS_FOLDER, FITS_DIR
 
 config.update("jax_enable_x64", True)
 numpyro.enable_x64()
-
-
-def import_data(filename, t0_lim=None):
-    """Import the data file.
-
-    Parameters
-    ----------
-    filename : str
-        The name of the data file to import.
-    t0_lim : float or None, optional
-        The upper time limit for the data. If provided, only data points
-        with time values less than or equal to t0_lim will be included.
-        Defaults to None.
-
-    Returns
-    -------
-    tuple of np.ndarray or None
-        A tuple containing the padded time, flux, flux error, and band
-        arrays, respectively. If the input data does not contain any
-        valid points, None is returned.
-
-    """
-    t, f, ferr, b = read_single_lightcurve(filename=filename, time_ceiling=t0_lim)
-
-    if (t[b == "r"] is None) or (len(t[b == "r"]) == 0):
-        return None
-    if (t[b == "g"] is None) or (len(t[b == "g"]) == 0):
-        return None
-
-    b = np.where(b == "r", 1, 0)  # change to integers
-
-    # sort
-    sort_idx = np.argsort(t)
-    t = t[sort_idx]
-    f = f[sort_idx]
-    ferr = ferr[sort_idx]
-    b = b[sort_idx]
-
-    # separate r and g band points
-    # necessary for static indexing for jax
-
-    # pad data
-    t_padded, f_padded, ferr_padded, b_padded = (
-        np.array([]),
-        np.array([]),
-        np.array([]),
-        np.array([]),
-    )
-
-    for b_int in [0, 1]:
-        len_b = len(b[b == b_int])
-        t_s = t[b == b_int]
-        f_s = f[b == b_int]
-        ferr_s = ferr[b == b_int]
-        b_s = b[b == b_int]
-
-        if len_b > PAD_SIZE:
-            t_padded = np.append(t_padded, t_s[:PAD_SIZE])
-            f_padded = np.append(f_padded, f_s[:PAD_SIZE])
-            ferr_padded = np.append(ferr_padded, ferr_s[:PAD_SIZE])
-            b_padded = np.append(b_padded, b_s[:PAD_SIZE])
-        else:
-            t_padded = np.append(t_padded, t_s)
-            f_padded = np.append(f_padded, f_s)
-            ferr_padded = np.append(ferr_padded, ferr_s)
-            b_padded = np.append(b_padded, b_s)
-
-            t_padded = np.append(t_padded, [5000] * (PAD_SIZE - len_b))
-            f_padded = np.append(f_padded, [0.0] * (PAD_SIZE - len_b))
-            ferr_padded = np.append(ferr_padded, [1e10] * (PAD_SIZE - len_b))
-            b_padded = np.append(b_padded, [b_int] * (PAD_SIZE - len_b))
-
-    return t_padded, f_padded, ferr_padded, b_padded
 
 
 def trunc_norm(low, high, loc, scale):
@@ -123,14 +50,14 @@ def trunc_norm(low, high, loc, scale):
     return dist.TruncatedNormal(loc=loc, scale=scale, low=low, high=high)
 
 
-def run_mcmc(filename, sampler="NUTS", t0_lim=None, plot=False):
+def run_mcmc(lc, sampler="NUTS", t0_lim=None, plot=False):
     """Runs dynesty importance nested sampling on data file to get set
     of equally weighted posteriors (sets of fit parameters).
 
     Parameters
     ----------
-    filename : str
-        The file name of the data file to run MCMC on.
+    lc : Lightcurve object
+        The Lightcurve object on which to run MCMC
     sampler : str, optional
         The MCMC sampler to use. Defaults to "NUTS".
     t0_lim : float or None, optional
@@ -153,16 +80,12 @@ def run_mcmc(filename, sampler="NUTS", t0_lim=None, plot=False):
     rng_key, rng_key_ = random.split(rng_key)  # pylint: disable=unused-variable
 
     ref_band_idx = 1  # red band # pylint: disable=unused-variable
-
-    # prefix = filename.split("/")[-1][:-4]
-
-    # print(prefix)
     n_params = 14  # pylint: disable=unused-variable
 
-    prefix = filename.split("/")[-1][:-4]
-    tdata, fdata, ferrdata, bdata = import_data(filename, t0_lim)
-    if tdata is None:
-        return None
+    tdata = lc.times
+    fdata = lc.fluxes
+    ferrdata = lc.flux_errors
+    bdata = np.where(lc.bands == "r", ref_band_idx, 1 - ref_band_idx)  # change to integers
 
     max_flux = np.max(fdata[PAD_SIZE:] - np.abs(ferrdata[PAD_SIZE:]))
     inc_band_ix = np.arange(0, PAD_SIZE)
@@ -523,12 +446,12 @@ def run_mcmc(filename, sampler="NUTS", t0_lim=None, plot=False):
 
         plt.xlabel("MJD")
         plt.ylabel("Flux")
-        plt.title(prefix)
+        plt.title(lc.name)
 
         if t0_lim is None:
-            plt.savefig(os.path.join(FIT_PLOTS_FOLDER, "%s.pdf" % prefix))
+            plt.savefig(os.path.join(FIT_PLOTS_FOLDER, "%s.pdf" % lc.name))
         else:
-            plt.savefig(os.path.join(FIT_PLOTS_FOLDER, "%s_%.02f.pdf" % (prefix, t0)))
+            plt.savefig(os.path.join(FIT_PLOTS_FOLDER, "%s_%.02f.pdf" % (lc.name, t0)))
         plt.close()
 
     param_list = [
@@ -560,14 +483,14 @@ def run_mcmc(filename, sampler="NUTS", t0_lim=None, plot=False):
     return np.array(post_reformatted_for_save).T
 
 
-def run_mcmc_batch(filenames, t0_lim=None, plot=False):
+def run_mcmc_batch(lcs, t0_lim=None, plot=False):
     """Runs numpyro's NUTS sampler on data file to get a set of equally
     weighted posteriors (sets of fit parameters).
 
     Parameters
     ----------
-    filenames : str
-        The names of the files to run MCMC on.
+    lcs : list of Lightcurves
+        A list of Lightcurve objects
     t0_lim : float or None, optional
         Upper time limit for the data. Defaults to None.
     plot : bool, optional
@@ -578,27 +501,18 @@ def run_mcmc_batch(filenames, t0_lim=None, plot=False):
     rng_key, rng_key_ = random.split(rng_key)  # pylint: disable=unused-variable
 
     ref_band_idx = 1  # red band # pylint: disable=unused-variable
-
-    # prefix = filename.split("/")[-1][:-4]
-
-    # print(prefix)
     n_params = 14  # pylint: disable=unused-variable
 
     tdata_stacked = []
     fdata_stacked = []
     ferrdata_stacked = []
     bdata_stacked = []
-    prefixes = []
 
-    for filename in filenames:
-        prefixes.append(filename.split("/")[-1][:-4])
-        tdata, fdata, ferrdata, bdata = import_data(filename, t0_lim)
-        if tdata is None:
-            continue
-        tdata_stacked.append(tdata)
-        fdata_stacked.append(fdata)
-        ferrdata_stacked.append(ferrdata)
-        bdata_stacked.append(bdata)
+    for lc in lcs:
+        tdata_stacked.append(lc.times)
+        fdata_stacked.append(lc.fluxes)
+        ferrdata_stacked.append(lc.flux_errors)
+        bdata_stacked.append(np.where(lc.bands == "r", ref_band_idx, 1 - ref_band_idx))  # change to integers
 
     tdata_stacked = np.array(tdata_stacked)
     fdata_stacked = np.array(fdata_stacked)
@@ -793,11 +707,11 @@ def run_mcmc_batch(filenames, t0_lim=None, plot=False):
 
             plt.xlabel("MJD")
             plt.ylabel("Flux")
-            plt.title(prefixes[i])
+            plt.title(lcs[i].name)
             if t0_lim is None:
-                plt.savefig(os.path.join(FIT_PLOTS_FOLDER, "%s.pdf" % prefixes[i]))
+                plt.savefig(os.path.join(FIT_PLOTS_FOLDER, "%s.pdf" % lcs[i].name))
             else:
-                plt.savefig(os.path.join(FIT_PLOTS_FOLDER, "%s_%.02f.pdf" % (prefixes[i], t0)))
+                plt.savefig(os.path.join(FIT_PLOTS_FOLDER, "%s_%.02f.pdf" % (lcs[i].name, t0)))
             plt.close()
 
     return posterior_samples
@@ -813,24 +727,57 @@ def main_loop_directory(test_filenames, output_dir=FITS_DIR):
     output_dir : str
         Directory to save outputs to. Defaults to FITS_DIR.
     """
-    # try:
     os.makedirs(output_dir, exist_ok=True)
-    # prefix = test_fn.split("/")[-1][:-4]
-    # if os.path.exists(output_dir + str(prefix) + '_eqwt.npz'):
-    #    return None
 
-    eq_samples = run_mcmc_batch(test_filenames, plot=True)
+    lcs = []
+    for filename in test_filenames:
+        lc = Lightcurve.from_file(filename)
+        lc.pad_bands(["g", "r"], PAD_SIZE)
+        lcs.append(lc)
 
+    eq_samples = run_mcmc_batch(lcs, plot=True)
     if eq_samples is None:
         return None
+
     print(np.mean(eq_samples["log_tau_fall"]))
 
     return None
 
-    np.savez_compressed(output_dir + str(prefix) + "_eqwt.npz", eq_samples)
-    # except:
-    #    print("skipped")
-    #    return None
+
+def numpyro_single_curve(lc, output_dir=FITS_DIR, sampler="svi"):
+    """Perform model fitting using dynesty on a single light curve.
+
+    This function runs the dynesty importance nested sampling algorithm
+    on a single light curve. It saves the resulting equally weighted
+    posterior samples to a compressed NumPy archive file.
+
+    Parameters
+    ----------
+    lc : Lightcurve object
+        The light curve of interest.
+    output_dir : str
+        Directory to save outputs to. Defaults to FITS_DIR.
+    sampler : str
+        The MCMC sampler to use. Defaults to "svi".
+
+    Returns
+    -------
+    sample_mean: numpy array
+        Return the mean of the MCMC samples or None if the fitting is
+        skipped or encounters an error.
+    """
+    if lc.name is None or lc.name == "":
+        raise ValueError("Empty light curve name.")
+
+    os.makedirs(output_dir, exist_ok=True)
+
+    eq_samples = run_mcmc(lc, sampler=sampler, plot=False)
+    if eq_samples is None:
+        return None
+
+    np.savez_compressed(os.path.join(output_dir, f"{lc.name}_eqwt_{sampler}.npz"), eq_samples)
+    sample_mean = np.mean(eq_samples, axis=0)
+    return sample_mean
 
 
 def numpyro_single_file(test_filename, output_dir=FITS_DIR, sampler="svi"):
@@ -844,17 +791,15 @@ def numpyro_single_file(test_filename, output_dir=FITS_DIR, sampler="svi"):
         Directory to save outputs to. Defaults to FITS_DIR.
     sampler : str
         The MCMC sampler to use. Defaults to "svi".
+
+    Returns
+    -------
+    sample_mean: numpy array
+        Return the mean of the MCMC samples or None if the fitting is
+        skipped or encounters an error.
     """
-    os.makedirs(output_dir, exist_ok=True)
+    lc = Lightcurve.from_file(test_filename)
+    lc.pad_bands(["g", "r"], PAD_SIZE)
 
-    eq_samples = run_mcmc(test_filename, sampler=sampler, plot=False)
-
-    if eq_samples is None:
-        return None
-
-    print(np.mean(eq_samples, axis=0))
-    prefix = test_filename.split("/")[-1][:-4]
-
-    np.savez_compressed(os.path.join(output_dir, f"{prefix}_eqwt_{sampler}.npz"), eq_samples)
-
-    return None
+    sample_mean = numpyro_single_curve(lc, output_dir, sampler)
+    return sample_mean
