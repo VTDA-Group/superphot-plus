@@ -750,6 +750,8 @@ def plot_lightcurve_clipping(ztf_name, save_dir):
     ----------
     ztf_name : str
         ZTF name of the plotted object.
+    save_dir: str
+        Directory path where to store the plot figure.
     """
     data_fn = DATA_FOLDER + ztf_name + ".csv"
     t, f, ferr, b, ra, dec = import_lc(data_fn)  # pylint: disable=unused-variable

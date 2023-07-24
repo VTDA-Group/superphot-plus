@@ -166,8 +166,6 @@ def run_mcmc(filename, sampler="NUTS", t0_lim=None, plot=False):
     max_flux = np.max(fdata[PAD_SIZE:] - np.abs(ferrdata[PAD_SIZE:]))
     inc_band_ix = np.arange(0, PAD_SIZE)
 
-    t0 = numpyro.sample("t0", trunc_norm(*PRIOR_T0))
-
     def jax_model(t=None, obsflux=None, uncertainties=None, max_flux=None, inc_band_ix=None):
         """JAX model for MCMC.
 
@@ -187,6 +185,7 @@ def run_mcmc(filename, sampler="NUTS", t0_lim=None, plot=False):
         A = max_flux * 10 ** numpyro.sample("logA", trunc_norm(*PRIOR_A))
         beta = numpyro.sample("beta", trunc_norm(*PRIOR_BETA))
         gamma = 10 ** numpyro.sample("log_gamma", trunc_norm(*PRIOR_GAMMA))
+        t0 = numpyro.sample("t0", trunc_norm(*PRIOR_T0))
         tau_rise = 10 ** numpyro.sample("log_tau_rise", trunc_norm(*PRIOR_TAU_RISE))
         tau_fall = 10 ** numpyro.sample("log_tau_fall", trunc_norm(*PRIOR_TAU_FALL))
         extra_sigma = 10 ** numpyro.sample("log_extra_sigma", trunc_norm(*PRIOR_EXTRA_SIGMA))
@@ -530,7 +529,7 @@ def run_mcmc(filename, sampler="NUTS", t0_lim=None, plot=False):
         if t0_lim is None:
             plt.savefig(os.path.join(FIT_PLOTS_FOLDER, "%s.pdf" % prefix))
         else:
-            plt.savefig(os.path.join(FIT_PLOTS_FOLDER, "%s_%.02f.pdf" % (prefix, t0)))
+            plt.savefig(os.path.join(FIT_PLOTS_FOLDER, "%s_%.02f.pdf" % (prefix, t0_lim)))
         plt.close()
 
     param_list = [
@@ -614,8 +613,6 @@ def run_mcmc_batch(filenames, t0_lim=None, plot=False):
     N = len(tdata_stacked)
     print(N)
 
-    t0 = numpyro.sample("t0", trunc_norm(-100.0, 200.0, 0.0, 20.0))
-
     def jax_model(t=None, obsflux=None, uncertainties=None, max_flux=None, inc_band_ix=None):
         """JAX model for MCMC.
 
@@ -636,6 +633,7 @@ def run_mcmc_batch(filenames, t0_lim=None, plot=False):
             A = max_flux * 10 ** numpyro.sample("logA", trunc_norm(*PRIOR_A))
             beta = numpyro.sample("beta", trunc_norm(*PRIOR_BETA))
             gamma = 10 ** numpyro.sample("log_gamma", trunc_norm(*PRIOR_GAMMA))
+            t0 = numpyro.sample("t0", trunc_norm(-100.0, 200.0, 0.0, 20.0))
             tau_rise = 10 ** numpyro.sample("log_tau_rise", trunc_norm(*PRIOR_TAU_RISE))
             tau_fall = 10 ** numpyro.sample("log_tau_fall", trunc_norm(*PRIOR_TAU_FALL))
             extra_sigma = 10 ** numpyro.sample("log_extra_sigma", trunc_norm(*PRIOR_EXTRA_SIGMA))
@@ -800,7 +798,7 @@ def run_mcmc_batch(filenames, t0_lim=None, plot=False):
             if t0_lim is None:
                 plt.savefig(os.path.join(FIT_PLOTS_FOLDER, "%s.pdf" % prefixes[i]))
             else:
-                plt.savefig(os.path.join(FIT_PLOTS_FOLDER, "%s_%.02f.pdf" % (prefixes[i], t0)))
+                plt.savefig(os.path.join(FIT_PLOTS_FOLDER, "%s_%.02f.pdf" % (prefixes[i], t0_lim)))
             plt.close()
 
     return posterior_samples

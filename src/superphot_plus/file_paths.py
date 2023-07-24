@@ -17,5 +17,5 @@ MODEL_DIR = "./models"
 METRICS_DIR = "~/work/superphot+_local/figs/metrics"
 PROBS_FILE = "slsnII_separate_probs.csv"
 PROBS_FILE2 = "phase_classified_05_09_2023_60.csv"
-TRAINED_MODEL_FN = glob.glob("models_saved/*ZTF23aagkgnz.pt")[0]
+TRAINED_MODEL_FN = ""  # glob.glob("models_saved/*ZTF23aagkgnz.pt")[0]
 DATA_FOLDER = ""
