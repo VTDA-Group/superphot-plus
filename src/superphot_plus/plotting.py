@@ -827,7 +827,7 @@ def plot_lc_fit(ztf_name, data_dir, fit_dir, out_dir, sampling_method="dynesty")
 
     eq_wt_samples = np.load(fit_fn)["arr_0"]
 
-    plot_sampling_lc_fit(ztf_name, out_dir, tdata, fdata, ferrdata, bdata, eq_wt_samples)
+    plot_sampling_lc_fit(ztf_name, out_dir, tdata, fdata, ferrdata, bdata, eq_wt_samples, sampling_method)
 
 
 def plot_sampling_lc_fit(
