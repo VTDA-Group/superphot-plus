@@ -379,7 +379,7 @@ def run_mcmc(lc, sampler="NUTS", t0_lim=None, plot=False):
     
     print(discrete_samples.keys())
     """
-    if plot:
+    if plot:  # pragma: no cover
         plt.hist(posterior_samples["log_tau_fall"].flatten(), bins=10)
         plt.savefig("test_hist.png")
         plt.close()
@@ -766,13 +766,13 @@ def numpyro_single_curve(lc, output_dir=FITS_DIR, sampler="svi"):
         Return the mean of the MCMC samples or None if the fitting is
         skipped or encounters an error.
     """
-    if lc.name is None or lc.name == "":
+    if lc.name is None or lc.name == "":  # pragma: no cover
         raise ValueError("Empty light curve name.")
 
     os.makedirs(output_dir, exist_ok=True)
 
     eq_samples = run_mcmc(lc, sampler=sampler, plot=False)
-    if eq_samples is None:
+    if eq_samples is None:  # pragma: no cover
         return None
 
     np.savez_compressed(os.path.join(output_dir, f"{lc.name}_eqwt_{sampler}.npz"), eq_samples)
