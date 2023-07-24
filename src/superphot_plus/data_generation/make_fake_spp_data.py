@@ -102,7 +102,7 @@ def create_clean_models(nmodels, num_times=100):
 
     while len(lcs) < nmodels:
         cube = np.random.uniform(0, 1, 14)
-        cube = create_prior(cube, tdata)
+        cube = create_prior(cube)
         A, beta, gamma, t0, tau_rise, tau_fall, es = cube[:7]  # pylint: disable=unused-variable
 
         # Try again if we picked invalid priors.
@@ -146,7 +146,7 @@ def create_ztf_model(plot=False):
     tdata = np.random.uniform(-100, 100, num_observations)
     filter_data = np.random.choice(['g','r'], size=num_observations)
 
-    cube = create_prior(cube, tdata)
+    cube = create_prior(cube)
     A, beta, gamma, t0, tau_rise, tau_fall, es = cube[:7]  # pylint: disable=unused-variable
 
     found_valid = False
