@@ -14,10 +14,11 @@ from superphot_plus.utils import convert_mags_to_flux, get_band_extinctions
 
 alerce = Alerce()
 MIN_PER_FILTER = 5
-EXTRACT_DIR=""
-OUTPUT_CSV=""
-OUTPUT_FOLDER=""
-CSV_FILE=""
+EXTRACT_DIR = ""
+OUTPUT_CSV = ""
+OUTPUT_FOLDER = ""
+CSV_FILE = ""
+
 
 def add_stamp_column(input_filename, output_filename):
     """Checks whether stamp classifier categorizes each lightcurve in
