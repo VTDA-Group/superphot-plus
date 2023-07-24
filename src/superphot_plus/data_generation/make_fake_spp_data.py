@@ -106,7 +106,7 @@ def create_clean_models(nmodels, num_times=100):
         A, beta, gamma, t0, tau_rise, tau_fall, es = cube[:7]  # pylint: disable=unused-variable
 
         # Try again if we picked invalid priors.
-        if not params_valid(A, beta, gamma, t0, tau_rise, tau_fall):
+        if not params_valid(beta, gamma, tau_rise, tau_fall):
             continue
         params.append(cube)
 
@@ -156,7 +156,7 @@ def create_ztf_model(plot=False):
     while ( not found_valid and num_tried < 100 ):
         cube = create_prior(cube, tdata)
         A, beta, gamma, t0, tau_rise, tau_fall, es = cube[:7]  # pylint: disable=unused-variable
-        found_valid = params_valid(A, beta, gamma, t0, tau_rise, tau_fall)
+        found_valid = params_valid(beta, gamma, tau_rise, tau_fall)
         num_tried += 1
         
     if not found_valid:
