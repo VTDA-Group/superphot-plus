@@ -116,6 +116,7 @@ def create_prior(cube, tdata):
 
     return cube
 
+
 def ztf_noise_model(mag, band, snr_range_g = [1,10], snr_range_r=[1,10]):
     """
     A very, very simple noise model which assumes the dimmest magnitude is at SNR = 1, and the brightest mad is at SNR = 10
@@ -132,15 +133,56 @@ def ztf_noise_model(mag, band, snr_range_g = [1,10], snr_range_r=[1,10]):
 
     snr = mag * 0 # set up a dummy array for the snr
     gind_g = np.where(band == 'g') # let's do g-band first
-    snr[gind_g] = (snr_range_g[1] - snr_range_g[0]) / (np.max(mag[gind_g]) - np.min(mag[gind_g])) * (mag[gind_g] - np.min(mag[gind_g])) + snr_range_g[0]
-    gind_r = np.where(band == 'r') # let's do g-band first
-    snr[gind_r] = (snr_range_r[1] - snr_range_r[0]) / (np.max(mag[gind_r]) - np.min(mag[gind_r])) * (mag[gind_r]- np.min(mag[gind_r])) + snr_range_r[0]
-    return snr
+    range_g = np.max(mag[gind_g]) - np.min(mag[gind_g])
+    snr[gind_g] = (snr_range_g[1] - snr_range_g[0]) * (mag[gind_g] - np.min(mag[gind_g])) / range_g + snr_range_g[0]
     
+    gind_r = np.where(band == 'r') # r-band
+    range_r = np.max(mag[gind_r]) - np.min(mag[gind_r])
+    snr[gind_r] = (snr_range_r[1] - snr_range_r[0]) * (mag[gind_r] - np.min(mag[gind_r])) / range_r + snr_range_r[0]
+    return snr
 
 
+def create_clean_models(nmodels, num_times=100):
+    """Generate 'clean' (noiseless) models from the prior
 
-def create_model(plot=False):
+    Parameters
+    ----------
+    nmodels : int
+        The number of models you want to generate
+    num_times : int, optional
+        The number of timesteps to use.
+
+    Returns
+    -------
+    params : array-like of numpy arrays
+        The array of parameters used to generate each model
+    lcs : array-like of numpy arrays
+        The array of individual light curves for each model generated
+    """
+    params = []
+    lcs = []
+
+    tdata = np.linspace(-100, 100, num_times)
+    bdata = np.asarray(["g"] * num_times, dtype=str)
+    edata = np.asarray([1e-6] * num_times, dtype=float)
+
+    while len(lcs) < nmodels:
+        cube = np.random.uniform(0, 1, 14)
+        cube = create_prior(cube, tdata)
+        A, beta, gamma, t0, tau_rise, tau_fall, es = cube[:7]  # pylint: disable=unused-variable
+
+        # Try again if we picked invalid priors.
+        if not params_valid(A, beta, gamma, t0, tau_rise, tau_fall):
+            continue
+        params.append(cube)
+
+        f_model = flux_model(cube, tdata, bdata)
+        lcs.append(np.array([tdata, f_model, edata, bdata]))
+
+    return params, lcs
+
+
+def create_ztf_model(plot=False):
     """
     Generate realisitic-ish ZTF light curves from the superphot+ prior
 
@@ -167,14 +209,23 @@ def create_model(plot=False):
     cube = create_prior(cube, tdata)
     A, beta, gamma, t0, tau_rise, tau_fall, es = cube[:7]  # pylint: disable=unused-variable
 
-    # THIS IS A BAD SOLUTION -- it just skips if there is no good model, but it should actually attempt to regenerate until it gets a "good" model
-    if not params_valid(A, beta, gamma, t0, tau_rise, tau_fall):
+    found_valid = params_valid(A, beta, gamma, t0, tau_rise, tau_fall)
+    num_tried = 0
+    
+    # Now re-attempts to regenerate until it gets a "good" model
+    while ( not found_valid and num_tried < 100 ):
+        cube = create_prior(cube, tdata)
+        A, beta, gamma, t0, tau_rise, tau_fall, es = cube[:7]  # pylint: disable=unused-variable
+        found_valid = params_valid(A, beta, gamma, t0, tau_rise, tau_fall)
+        num_tried += 1
+        
+    if not found_valid:
         return('Failure')
+    
     f_model = flux_model(cube, tdata, filter_data)
     snr = ztf_noise_model(f_model, filter_data)
 
-
-    gind = np.where(snr>3)
+    gind = np.where(snr>3) # any points with SNR < 3 are ignored
     snr = snr[gind]
     f_model = f_model[gind]
     tdata = tdata[gind]
