@@ -13,11 +13,11 @@ from jax.config import config
 from numpyro.contrib.nested_sampling import NestedSampler
 from numpyro.distributions import constraints
 from numpyro.infer import MCMC, NUTS, SVI, Trace_ELBO
-from numpyro.infer.initialization import init_to_uniform
+from numpyro.infer.initialization import init_to_uniform, init_to_sample
 
 from superphot_plus.lightcurve import Lightcurve
 from superphot_plus.plotting import (
-    plot_log_tau_fall_hist,
+    plot_posterior_hist,
     plot_sampling_lc_fit_numpyro,
     plot_sampling_trace_numpyro,
 )
@@ -381,9 +381,9 @@ def run_mcmc(lc, sampler="NUTS", t0_lim=None, plot=False):
     print(discrete_samples.keys())
     """
     if plot:  # pragma: no cover
-        plot_log_tau_fall_hist(posterior_samples["log_tau_fall"])
+        plot_posterior_hist(posterior_samples, parameter="log_tau_fall")
         plot_sampling_lc_fit_numpyro(
-            posterior_samples=posterior_samples,
+            posterior_samples,
             tdata=[tdata],
             fdata=[fdata],
             ferrdata=[ferrdata],
@@ -581,9 +581,10 @@ def run_mcmc_batch(lcs, t0_lim=None, plot=False):
     """
 
     if plot:  # pragma: no cover
-        plot_log_tau_fall_hist(posterior_samples["log_tau_fall"])
+        plot_posterior_hist(posterior_samples, parameter="log_tau_fall")
+
         plot_sampling_lc_fit_numpyro(
-            posterior_samples=posterior_samples,
+            posterior_samples,
             tdata=tdata_stacked,
             fdata=fdata_stacked,
             ferrdata=ferrdata_stacked,
@@ -592,6 +593,7 @@ def run_mcmc_batch(lcs, t0_lim=None, plot=False):
             lcs=lcs,
             t0_lim=t0_lim,
         )
+
         plot_sampling_trace_numpyro(posterior_samples)
 
     return posterior_samples

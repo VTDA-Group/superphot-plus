@@ -960,24 +960,29 @@ def flux_from_posteriors(t, params, max_flux):
     return flux_g, flux_r
 
 
-def plot_log_tau_fall_hist(log_tau_fall_samples):
+def plot_posterior_hist(posterior_samples, parameter):
     """
-    Plot histogram of log_tau_fall samples.
+    Plot histogram for a posterior parameter.
 
     Parameters
     ----------
-    log_tau_fall :
-        Posterior log_tau_fall samples.
+    posterior_samples :
+        Light curve posterior samples.
+    parameter :
+        Posterior parameter for which to plot histogram.
     """
-    samples = []
+    if parameter is None or parameter not in posterior_samples:
+        raise ValueError("Invalid posterior parameter.")
 
-    if len(log_tau_fall_samples.shape) > 1:
-        samples = log_tau_fall_samples[:, 0]
+    samples = posterior_samples[parameter]
+
+    if len(samples.shape) > 1:
+        samples = samples[:, 0]
     else:
-        samples = log_tau_fall_samples.flatten()
+        samples = samples.flatten()
 
     plt.hist(samples, bins=10)
-    plt.savefig("test_hist.png")
+    plt.savefig(f"test_hist_{parameter}.png")
     plt.close()
 
 
@@ -1035,7 +1040,12 @@ def plot_sampling_lc_fit_numpyro(posterior_samples, tdata, fdata, ferrdata, bdat
 
         model_i = np.array(
             [
-                {k: posterior_samples[k].flatten()[j] for k in posterior_samples.keys()}
+                {
+                    k: posterior_samples[k][j, i]
+                    if len(posterior_samples[k].shape) > 1
+                    else posterior_samples[k][j]
+                    for k in posterior_samples.keys()
+                }
                 for j in range(len(posterior_samples["log_tau_fall"]))
             ]
         )
