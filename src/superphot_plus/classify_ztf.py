@@ -13,10 +13,8 @@ import torch
 from joblib import Parallel, delayed
 from sklearn.model_selection import train_test_split
 
-
-from .constants import MEANS_TRAINED_MODEL, NUM_FOLDS, STDDEVS_TRAINED_MODEL
+from .constants import MEANS_TRAINED_MODEL, NUM_FOLDS, STDDEVS_TRAINED_MODEL, PAD_SIZE
 from .file_paths import *  # pylint: disable=wildcard-import
-from .fit_numpyro import import_data
 from .format_data_ztf import (
     generate_K_fold,
     get_posterior_samples,
@@ -25,6 +23,7 @@ from .format_data_ztf import (
     oversample_using_posteriors,
     tally_each_class,
 )
+from .lightcurve import Lightcurve
 from .mlp import (
     MLP,
     create_dataset,
@@ -381,7 +380,10 @@ def save_phase_versus_class_probs(probs_csv, data_dir):
             ct += 1
 
             try:
-                tarr, farr, _, _ = import_data(os.path.join(data_dir, test_name + ".npz"))
+                lc = Lightcurve.from_file(os.path.join(data_dir, test_name + ".npz"))
+                lc.pad_bands(["g", "r"], PAD_SIZE)
+                tarr = lc.times
+                farr = lc.fluxes
             except:
                 print("skipping import")
                 continue
