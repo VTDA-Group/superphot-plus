@@ -1,3 +1,18 @@
+"""Runs diffing to make sure results have not been changed.
+
+The first call to this script will generate golden files in a goldens/
+directory; any following calls (while goldens/ and expected golden files
+still exist) will generate temporary results files and compare them to
+the goldens to see if results have diverged in unexpected ways.
+
+Make sure to generate the goldens from a clean version of the code.
+
+Borrows from KBMOD's diff test:
+https://github.com/dirac-institute/kbmod/blob/main/tests/diff_test.py
+
+Note: Currently, this just checks svi fitting just to get the structure
+of the code up. Will be updated to run on end-to-end results.
+"""
 import os
 from pathlib import Path
 
@@ -46,6 +61,12 @@ def compare_result_files(goldens_file, new_results_file, delta=0.001):
             f"{np.isclose(res_old, res_new, atol=delta).sum()} of {res_old.size} values mismatch. (max delta={delta})"
         )
         files_equal = False
+
+    # Final call
+    if files_equal:
+        print("Files are equal.")
+    else:
+        print("Files are mismatched.")
 
     return files_equal
 
