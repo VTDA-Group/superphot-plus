@@ -78,7 +78,7 @@ def save_single_lightcurve(filename, times, fluxes, errors, bands, compressed=Tr
 
 
 def get_posterior_filename(lc_name, fits_dir=None, sampler=None):
-    """Get all EQUAL WEIGHT posterior samples from a lightcurve fit.
+    """Get the file name for equal weight posterior samples from a lightcurve fit.
 
     Parameters
     ----------
@@ -91,8 +91,8 @@ def get_posterior_filename(lc_name, fits_dir=None, sampler=None):
 
     Returns
     -------
-    np.ndarray
-        Numpy array containing the posterior samples.
+    str
+        File name for numpy array file containing the posterior samples.
     """
     if fits_dir is None:
         fits_dir = FITS_DIR
