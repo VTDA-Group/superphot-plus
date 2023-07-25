@@ -19,6 +19,7 @@ from numpyro.infer.initialization import init_to_sample, init_to_uniform
 
 from superphot_plus.lightcurve import Lightcurve
 from superphot_plus.plotting import flux_from_posteriors
+from superphot_plus.file_utils import get_posterior_filename
 
 from .constants import *  # pylint: disable=wildcard-import
 from .file_paths import FIT_PLOTS_FOLDER, FITS_DIR
@@ -776,7 +777,8 @@ def numpyro_single_curve(lc, output_dir=FITS_DIR, sampler="svi"):
     if eq_samples is None:  # pragma: no cover
         return None
 
-    np.savez_compressed(os.path.join(output_dir, f"{lc.name}_eqwt_{sampler}.npz"), eq_samples)
+    posterior_filename = get_posterior_filename(lc.name, output_dir, sampler)
+    np.savez_compressed(posterior_filename, eq_samples)
     sample_mean = np.mean(eq_samples, axis=0)
     return sample_mean
 

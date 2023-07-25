@@ -8,6 +8,7 @@ import numpy as np
 from sklearn.model_selection import StratifiedKFold
 
 from superphot_plus.file_paths import FITS_DIR
+from superphot_plus.file_utils import get_posterior_samples, has_posterior_samples
 from superphot_plus.supernova_class import SupernovaClass as SnClass
 
 
@@ -45,7 +46,7 @@ def import_labels_only(input_csvs, allowed_types, fits_dir=None):
             csvreader = csv.reader(csvfile)
             for row in csvreader:
                 name = row[0]
-                if not os.path.isfile(os.path.join(fits_dir, f"{name}_eqwt.npz")):
+                if not has_posterior_samples(lc_name=name, fits_dir=fits_dir):
                     continue
                 label_orig = row[1]
                 row_label = SnClass.canonicalize(label_orig)
@@ -104,39 +105,6 @@ def tally_each_class(labels):
     for tally_label in tally_dict:
         print(tally_label, ": ", str(tally_dict[tally_label]))
     print()
-
-
-def get_posterior_samples(ztf_name, output_dir=None):
-    """Get all EQUAL WEIGHT posterior samples from a ZTF lightcurve fit.
-
-    Parameters
-    ----------
-    ztf_name : str
-        ZTF name.
-    output_dir : str, optional
-        Output directory path. Defaults to None.
-
-    Returns
-    -------
-    np.ndarray
-        Numpy array containing the posterior samples.
-    """
-    if output_dir is None:
-        output_dir = FITS_DIR
-    post_fn = os.path.join(output_dir, ztf_name + "_eqwt.npz")
-    # output_dir = "../outputs/"
-    # post_fn = output_dir + ztf_name +"/" + ztf_name + "post_equal_weights.dat"
-    """
-    with open(post_fn, "r") as post_ew:
-        post_rows = post_ew.read().split("\n")
-        post_arr = []
-        for row in post_rows[:-1]:
-            post_arr.append([float(x) for x in row.split()])
-        post_arr = np.array(post_arr)[:,:-1] # exclude the loglikelihoods
-    """
-    npy_array = np.load(post_fn)
-    post_arr = npy_array["arr_0"]
-    return post_arr
 
 
 def oversample_using_posteriors(ztf_names, labels, goal_per_class):

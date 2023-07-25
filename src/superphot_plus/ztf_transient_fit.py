@@ -11,7 +11,7 @@ from scipy.optimize import curve_fit
 from scipy.stats import truncnorm
 
 from superphot_plus.lightcurve import Lightcurve
-from superphot_plus.file_utils import read_single_lightcurve
+from superphot_plus.file_utils import read_single_lightcurve, has_posterior_samples, get_posterior_filename
 from superphot_plus.plotting import plot_sampling_lc_fit
 from superphot_plus.utils import flux_model
 
@@ -406,7 +406,7 @@ def dynesty_single_curve(lc, output_dir, skip_if_exists=True, rstate=None):
         raise ValueError("Empty light curve name.")
 
     os.makedirs(output_dir, exist_ok=True)
-    if skip_if_exists and os.path.exists(os.path.join(output_dir, f"{lc.name}_eqwt.npz")):
+    if skip_if_exists and has_posterior_samples(lc_name=lc.name, fits_dir=output_dir, sampler="dynesty"):
         return None
 
     eq_samples = run_mcmc(lc, plot=False, rstate=rstate)
@@ -415,7 +415,9 @@ def dynesty_single_curve(lc, output_dir, skip_if_exists=True, rstate=None):
     sample_mean = np.mean(eq_samples, axis=0)
     print(sample_mean)
 
-    np.savez_compressed(os.path.join(output_dir, f"{lc.name}_eqwt_dynesty.npz"), eq_samples)
+    posterior_filename = get_posterior_filename(lc.name, output_dir, "dynesty")
+
+    np.savez_compressed(posterior_filename, eq_samples)
     return sample_mean
 
 

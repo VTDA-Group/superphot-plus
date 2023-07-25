@@ -12,7 +12,7 @@ from alerce.core import Alerce
 from sklearn.metrics import confusion_matrix
 from sklearn.utils.multiclass import unique_labels
 
-from superphot_plus.file_utils import read_single_lightcurve
+from superphot_plus.file_utils import get_posterior_samples
 
 from .constants import BIGGER_SIZE, MEDIUM_SIZE, SMALL_SIZE
 from .file_paths import CM_FOLDER
@@ -20,6 +20,7 @@ from .format_data_ztf import import_labels_only, oversample_using_posteriors
 from .import_ztf_from_alerce import clip_lightcurve_end, import_lc
 from .supernova_class import SupernovaClass as SnClass
 from .utils import calc_accuracy, f1_score, flux_model
+from superphot_plus.lightcurve import Lightcurve
 
 alerce = Alerce()
 
@@ -827,13 +828,20 @@ def plot_lc_fit(ztf_name, data_dir, fit_dir, out_dir, sampling_method="dynesty")
         Sampling method used for the fit. Default is "dynesty".
     """
     data_fn = os.path.join(data_dir, ztf_name + ".npz")
-    fit_fn = os.path.join(fit_dir, ztf_name + "_eqwt_" + sampling_method + ".npz")
 
-    tdata, fdata, ferrdata, bdata = read_single_lightcurve(data_fn)
+    lightcurve = Lightcurve.from_file(data_fn)
 
-    eq_wt_samples = np.load(fit_fn)["arr_0"]
+    eq_wt_samples = get_posterior_samples(ztf_name, fit_dir, sampling_method)
 
-    plot_sampling_lc_fit(ztf_name, out_dir, tdata, fdata, ferrdata, bdata, eq_wt_samples, sampling_method)
+    plot_sampling_lc_fit(
+        ztf_name,
+        out_dir,
+        lightcurve.times,
+        lightcurve.fluxes,
+        lightcurve.flux_errors,
+        lightcurve.bands,
+        eq_wt_samples,
+    )
 
 
 def plot_sampling_lc_fit(

@@ -17,7 +17,6 @@ from .constants import MEANS_TRAINED_MODEL, NUM_FOLDS, STDDEVS_TRAINED_MODEL, PA
 from .file_paths import *  # pylint: disable=wildcard-import
 from .format_data_ztf import (
     generate_K_fold,
-    get_posterior_samples,
     import_labels_only,
     normalize_features,
     oversample_using_posteriors,
@@ -36,6 +35,7 @@ from .plotting import plot_confusion_matrix
 from .supernova_class import SupernovaClass as SnClass
 from .utils import calc_accuracy, calculate_neg_chi_squareds, f1_score
 from .ztf_transient_fit import run_mcmc
+from superphot_plus.file_utils import get_posterior_samples
 
 
 def adjust_log_dists(features):

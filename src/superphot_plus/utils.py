@@ -7,6 +7,8 @@ from dustmaps.config import config
 from dustmaps.sfd import SFDQuery
 
 from superphot_plus.sfd import dust_filepath
+from superphot_plus.file_utils import get_posterior_samples
+from superphot_plus.lightcurve import Lightcurve
 
 
 def get_band_extinctions(ra, dec):
@@ -221,3 +223,4 @@ def calculate_neg_chi_squareds(cubes, t, f, ferr, b):
     ) / len(t)
     
     return log_likelihoods
+
