@@ -270,6 +270,26 @@ def classify(goal_per_class, num_epochs, neurons_per_layer, num_layers, fits_plo
     )
 
 
+def load_mlp(mlp_filename, mlp_params):
+    """Load a trained MLP for subsequent classification of new objects.
+    
+    Parameters
+    ----------
+    mlp_filename : str
+        Where the trained MLP is stored.
+    mlp_params : tuple or array
+        Includes (in order): input_size, output_size, n_neurons, n_hidden.
+        
+    Returns
+    ----------
+    torch.nn.Module
+        The pre-trained MLP object.
+    """
+    model = MLP(*mlp_params)  # set up empty multi-layer perceptron
+    model.load_state_dict(torch.load(mlp_filename))  # load trained state dict to the MLP
+    return model
+    
+    
 def classify_from_fit_params(fit_params):
     """Classify one or multiple light curves
     solely from the fit parameters used in the
@@ -362,24 +382,18 @@ def return_new_classifications(test_csv, data_dirs, fit_dir, include_labels=Fals
         If True, labels from the test data are included in the
         probability saving process. Defaults to False.
     """
-    model = MLP(13, 5, 128, 3)  # set up empty multi-layer perceptron
-    model.load_state_dict(torch.load(TRAINED_MODEL_FN))  # load trained state dict to the MLP
-
-    labels_to_classes, classes_to_labels = SnClass.get_type_maps()  # pylint: disable=unused-variable
-
-    #special_labels = {
-    #    "SN Iax[02cx-like]",
-    #}
-    
+    model = load_mlp(TRAINED_MODEL_FN, TRAINED_MODEL_PARAMS)
     with open(test_csv, "r") as tc:
         csv_reader = csv.reader(tc, delimiter=",")
         next(csv_reader)
         for _, row in enumerate(csv_reader):
+            
             try:
                 test_name = row[0]
             except:
-                print(row)
+                print(row, "skipped")
                 continue
+                
             if include_labels:
                 label = row[1]
 
@@ -395,6 +409,9 @@ def save_phase_versus_class_probs(probs_csv, data_dir):
     """Apply classifier to dataset over different phases. Plot overall
     trends of phase vs confidence, phase vs F1 score, phase vs each
     class accuracy.
+    
+    Note this was being manually altered for different desired plots.
+    Future versions will move all that to function args.
 
     Parameters
     ----------
@@ -403,10 +420,7 @@ def save_phase_versus_class_probs(probs_csv, data_dir):
     data_dir : str
         Path to the directory containing the data.
     """
-    model = MLP(13, 5, 128, 3)  # set up empty multi-layer perceptron
-    model.load_state_dict(torch.load(TRAINED_MODEL_FN))  # load trained state dict to the MLP
-
-    labels_to_classes, classes_to_labels = SnClass.get_type_maps()  # pylint: disable=unused-variable
+    model = load_mlp(TRAINED_MODEL_FN, TRAINED_MODEL_PARAMS)
 
     ct = 0
 
@@ -461,12 +475,7 @@ def save_phase_versus_class_probs(probs_csv, data_dir):
 
                 # normalize the log distributions
                 test_features = adjust_log_dists(test_features)
-                test_features, means2, stds2 = normalize_features(  # pylint: disable=unused-variable
-                    test_features, MEANS_TRAINED_MODEL, STDDEVS_TRAINED_MODEL
-                )
-                test_data = torch.utils.data.TensorDataset(torch.Tensor(test_features))
-                test_iterator = torch.utils.data.DataLoader(test_data, batch_size=32)
-                _, probs = get_predictions_new(model, test_iterator, "cpu")
+                probs = classify_from_fit_params(test_features)
                 probs_avg = np.mean(probs.numpy(), axis=0)
                 # idx_random = np.random.choice(np.arange(len(probs)))
                 save_test_probabilities(str(label), round(phase, 2), probs_avg)
