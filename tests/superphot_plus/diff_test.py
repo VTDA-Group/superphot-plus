@@ -7,72 +7,81 @@ from superphot_plus.fit_numpyro import numpyro_single_file
 
 
 def compare_result_files(goldens_file, new_results_file, delta=0.001):
-    """
-    Compare two result files.
+    """Compare a golden file with a new result file.
 
-    Arguments:
-         goldens_file - The path and filename of the golden results.
-         new_results_file - The path and filename of the new results.
-         delta - The maximum difference in numerical values.
+    Parameters
+    ----------
+    goldens_file : str
+        The path and filename of the golden results.
+    new_results_file : str
+        The path and filename of the new results.
+    delta : float 
+        The maximum absolute difference in numerical values.
 
-    Returns:
-         A Boolean indicating whether the files are the same.
+    Returns
+    -------
+    boolean
+        True if files are the same (within delta); False otherwise.
     """
     files_equal = True
 
     res_new = np.load(new_results_file)["arr_0"]
-    print("Loaded %i new results from %s." % (len(res_new), new_results_file))
+    print(f'Loaded {len(res_new)} rows from new file {new_results_file}.')
     res_old = np.load(goldens_file)["arr_0"]
-    print("Loaded %i old results from %s." % (len(res_old), goldens_file))
+    print(f'Loaded {len(res_old)} rows from new file {goldens_file}.')
 
-    # Check that the number of results matches up.
+    # Check that the number of results matches up
     if len(res_new) != len(res_old):
-        print("Mismatched number of results (%i vs %i)." % (len(res_old), len(res_new)))
+        print(f'Mismatched number of results ({len(res_new)} vs {len(res_old)} rows).')
         files_equal = False
-    
-    # Check that the values are close to each other.
+    if res_new.size != res_old.size:
+        print(f'Mismatched number of results ({res_new.size} vs {res_old.size} values).')
+        files_equal = False
+
+    # Check that the values are close to each other
     # This makes less sense for svi (we'd rather check to some mean than
     # row by row), but we're just using this as a placeholder for now)
-    tolerance = 7.5
-    if not np.all(np.isclose(res_old, res_new, rtol=tolerance)):
-        print(f'{np.isclose(res_old, res_new, rtol=tolerance).sum()} of {res_old.size} rows mismatch.')
+    if not np.all(np.isclose(res_old, res_new, atol=delta)):
+        print(
+            f"{np.isclose(res_old, res_new, atol=delta).sum()} of {res_old.size} values mismatch. (max delta={delta})"
+        )
         files_equal = False
 
     return files_equal
 
-#if __name__ == "__main__":
-def test_diffs():
-    """ Make golden files and compare"""
-    print('\nRunning diff...')
 
+def test_diffs():
+    """ Make golden files if they do not yet exist; otherwise, make new 
+    results and compare with goldens.
+    """
     lc_name = 'ZTF22abvdwik'
     suffix = '_eqwt_svi.npz'
     lc_data_path = Path('tests', 'data', f'{lc_name}.npz')
     goldens_dir = Path('tests', 'data', 'goldens')
-    temp_diffs_dir = Path('tests', 'data', 'temp_diffs')
+    goldens_file = Path(goldens_dir, f'{lc_name}{suffix}')
+    temp_results_dir = Path('tests', 'data', 'temp_results')
+    temp_results_file = Path(temp_results_dir, f'{lc_name}{suffix}')
 
     # Check that goldens dir exists and that the files we'll use are there:
-    if not goldens_dir.is_dir(): # TODO check files exist
-        print("Making goldens...")
-        os.makedirs(goldens_dir)
-        numpyro_single_file(str(lc_data_path), goldens_dir, sampler="svi")
+    if not goldens_dir.is_dir() or not goldens_file.is_file():
+        print("Creating goldens...")
+        if not goldens_dir.is_dir():
+            os.makedirs(goldens_dir)
+        numpyro_single_file(str(lc_data_path), goldens_dir, sampler='svi')
+        print(f'Created goldens: {goldens_file}')
 
     # If we're comparing to the goldens this time:
     else:
         print("Comparing...")
-        
-        # Make new file to diff against goldens
-        if not temp_diffs_dir.is_dir():
-            os.makedirs(temp_diffs_dir)
-        
-        numpyro_single_file(str(lc_data_path), temp_diffs_dir, sampler="svi")
 
-        # Run comparison
-        golden_file = Path(goldens_dir, f'{lc_name}{suffix}')
-        temp_diff_file = Path(temp_diffs_dir, f'{lc_name}{suffix}')
-        compare_result_files(golden_file, temp_diff_file)
+        if not temp_results_dir.is_dir():
+            os.makedirs(temp_results_dir)
+        numpyro_single_file(str(lc_data_path), temp_results_dir, sampler='svi')
 
-    print("Done.")
+        compare_result_files(goldens_file, temp_results_file, 5.0)
+
+        os.remove(temp_results_file)
+        os.rmdir(temp_results_dir)
 
 if __name__ == "__main__":
     test_diffs()
