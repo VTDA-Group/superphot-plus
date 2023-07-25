@@ -309,11 +309,11 @@ def classify_single_light_curve(obj_name, fits_dir, data_dirs):
     np.ndarray
         The average probability for each SN type across all equally-weighted sets of fit parameters.
     """
-    try:
-        post_features = get_posterior_samples(obj_name, fits_dir)
-    except:
-        print("no posts")
-        return
+    #try:
+    post_features = get_posterior_samples(obj_name, fits_dir)
+    #except:
+    #    print("no posts")
+    #    return
     
     chisq = np.mean(post_features[:,-1])
     if np.abs(chisq) > 10: # probably not a SN

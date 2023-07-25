@@ -197,7 +197,7 @@ def run_mcmc(lc, t0_lim=None, plot=False, rstate=None):
     )
     sampler.run_nested(maxiter=MAX_ITER, dlogz=DLOGZ, print_progress=False)
     res = sampler.results
-    logl =  sampler.logl
+    logl =  res.logl
     samples, weights = res.samples, np.exp(res.logwt - res.logz[-1])
     
     eq_wt_samples = dyfunc.resample_equal(samples, weights, rstate=rstate)
