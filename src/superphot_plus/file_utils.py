@@ -3,6 +3,7 @@
 import os
 
 import numpy as np
+from superphot_plus.file_paths import FITS_DIR
 
 
 def read_single_lightcurve(filename, time_ceiling=None):
@@ -74,3 +75,73 @@ def save_single_lightcurve(filename, times, fluxes, errors, bands, compressed=Tr
         np.savez_compressed(filename, lcs)
     else:
         np.savez(filename, lcs)
+
+
+def get_posterior_filename(lc_name, fits_dir=None, sampler=None):
+    """Get all EQUAL WEIGHT posterior samples from a lightcurve fit.
+
+    Parameters
+    ----------
+    lc_name : str
+        Lightcurve name.
+    fits_dir : str, optional
+        Output directory path. Defaults to FITS_DIR.
+    sampler : str, optional
+        Variety of sampler. Can be included in the sample file name.
+
+    Returns
+    -------
+    np.ndarray
+        Numpy array containing the posterior samples.
+    """
+    if fits_dir is None:
+        fits_dir = FITS_DIR
+    if sampler is not None:
+        posterior_filename = os.path.join(fits_dir, f"{lc_name}_eqwt_{sampler}.npz")
+    else:
+        posterior_filename = os.path.join(fits_dir, f"{lc_name}_eqwt.npz")
+    return posterior_filename
+
+
+def get_posterior_samples(lc_name, fits_dir=None, sampler=None):
+    """Get all EQUAL WEIGHT posterior samples from a lightcurve fit.
+
+    Parameters
+    ----------
+    lc_name : str
+        Lightcurve name.
+    fits_dir : str, optional
+        Output directory path. Defaults to FITS_DIR.
+    sampler : str, optional
+        Variety of sampler. Can be included in the sample file name.
+
+    Returns
+    -------
+    np.ndarray
+        Numpy array containing the posterior samples.
+    """
+    posterior_filename = get_posterior_filename(lc_name, fits_dir, sampler)
+
+    return np.load(posterior_filename)["arr_0"]
+
+
+def has_posterior_samples(lc_name, fits_dir=None, sampler=None):
+    """Determine if we already have some posterior sample data for the lightcurve.
+
+    Parameters
+    ----------
+    lc_name : str
+        Lightcurve name.
+    fits_dir : str, optional
+        Output directory path. Defaults to FITS_DIR.
+    sampler : str, optional
+        Variety of sampler. Can be included in the sample file name.
+
+    Returns
+    -------
+    boolean
+        Does a file already exist for the lightcurve fit
+    """
+    posterior_filename = get_posterior_filename(lc_name, fits_dir, sampler)
+
+    return os.path.isfile(posterior_filename)
