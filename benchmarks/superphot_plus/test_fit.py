@@ -1,11 +1,9 @@
 """Benchmarks the available fitting methods."""
 
 import os
-import pytest
 
-from superphot_plus.ztf_transient_fit import dynesty_single_file
 from superphot_plus.fit_numpyro import numpyro_single_file
-from superphot_plus.import_ztf_from_alerce import save_datafile, import_lc
+from superphot_plus.ztf_transient_fit import dynesty_single_file
 
 OUTPUT_DIR = "benchmarks/data/"
 
