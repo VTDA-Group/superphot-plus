@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from superphot_plus.utils import calc_accuracy, f1_score, get_band_extinctions
+from superphot_plus.utils import calc_accuracy, f1_score, get_band_extinctions, calculate_neg_chi_squareds
 
 
 def test_calc_accuracy() -> None:
@@ -57,3 +57,11 @@ def test_get_band_extinctions() -> None:
     """
     ext_list = get_band_extinctions(0.0, 10.0)
     assert np.all(ext_list == pytest.approx([0.3133, 0.2202], 0.01))
+
+
+def test_neg_chi_squareds(test_data_dir, single_ztf_sn_id):
+    """This is currently a change detection test where we are just confirming
+    the function runs correctly returns the same value as it used to.
+    """
+    result = calculate_neg_chi_squareds([single_ztf_sn_id], fit_dir=test_data_dir, data_dirs=[test_data_dir])
+    assert np.all(np.isclose(result, [-38.4], rtol=0.1))
