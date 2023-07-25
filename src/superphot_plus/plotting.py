@@ -15,7 +15,7 @@ from sklearn.utils.multiclass import unique_labels
 from superphot_plus.file_utils import read_single_lightcurve
 
 from .constants import BIGGER_SIZE, MEDIUM_SIZE, SMALL_SIZE
-from .file_paths import CM_FOLDER, DATA_FOLDER
+from .file_paths import CM_FOLDER
 from .format_data_ztf import import_labels_only, oversample_using_posteriors
 from .import_ztf_from_alerce import clip_lightcurve_end, import_lc
 from .supernova_class import SupernovaClass as SnClass
@@ -721,7 +721,7 @@ def corner_plot_all(input_csvs, save_file):
     figure.savefig(save_file)
 
 
-def plot_lightcurve_clipping(ztf_name, save_dir):
+def plot_lightcurve_clipping(ztf_name, data_folder, save_dir):
     """Plot the lightcurve WITH clipped points and lines demonstrating
     how those points are clipped.
 
@@ -729,10 +729,12 @@ def plot_lightcurve_clipping(ztf_name, save_dir):
     ----------
     ztf_name : str
         ZTF name of the plotted object.
+    data_folder: str
+        The path to the folder holding the CSV data.
     save_dir: str
         Directory path where to store the plot figure.
     """
-    data_fn = DATA_FOLDER + ztf_name + ".csv"
+    data_fn = f"{data_folder}/{ztf_name}.csv"
     t, f, ferr, b, ra, dec = import_lc(data_fn)  # pylint: disable=unused-variable
     t_clip, f_clip, ferr_clip, b_clip = clip_lightcurve_end(t, f, ferr, b)
 
