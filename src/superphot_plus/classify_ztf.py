@@ -270,6 +270,82 @@ def classify(goal_per_class, num_epochs, neurons_per_layer, num_layers, fits_plo
     )
 
 
+def classify_from_fit_params(fit_params):
+    """Classify one or multiple light curves
+    solely from the fit parameters used in the
+    classifier. Excludes t0 and, for redshift-
+    exclusive classifier, A. Includes chi-squared
+    value.
+    
+    Parameters
+    ----------
+    fit_params : np.ndarray
+        Set of model fit parameters.
+        
+    Returns
+    ----------
+    np.ndarray
+        Probability of each light curve being each SN type. Sums to 1 along each row.
+    """
+    fit_params_2d = np.atleast_2d(fit_params_2d) # cast to 2D if only 1 light curve
+        
+    test_features, means, stds = normalize_features(  # pylint: disable=unused-variable
+        fit_params_2d, MEANS_TRAINED_MODEL, STDDEVS_TRAINED_MODEL
+    )
+    test_data = torch.utils.data.TensorDataset(torch.Tensor(test_features))
+    test_iterator = torch.utils.data.DataLoader(test_data, batch_size=32)
+    images, probs = get_predictions_new(
+        model, test_iterator, "cpu"
+    )  # pylint: disable=unused-variable
+    return probs
+        
+
+def classify_single_light_curve(obj_name, fits_dir, data_dirs):
+    """Given an object name, return classification probabilities
+    based on the model fit and data.
+    
+    Parameters
+    ----------
+    obj_name : str
+        Name of the supernova.
+    fits_dir : str
+        Where model fit information is stored.
+    data_dirs : np.ndarray
+        Where the object's datafile could be stored.
+        
+    Returns
+    ----------
+    np.ndarray
+        The average probability for each SN type across all equally-weighted sets of fit parameters.
+    """
+    try:
+        post_features = get_posterior_samples(obj_name, fits_dir)
+    except:
+        print("no posts")
+        return
+    
+    chisq = calculate_neg_chi_squareds(
+        [
+            obj_name,
+        ]
+        fits_dir,
+        data_dirs,
+    )[0]
+    
+    if np.abs(chisq) > 10: # probably not a SN
+        print("OBJECT LIKELY NOT A SN")
+        
+    chisq_arr = np.array([chisq] * len(post_features))
+    # concat chisq vals to end of input features
+    post_features = np.append(post_features, chisq_arr.T, 1) 
+
+    # normalize the log distributions
+    test_features = adjust_log_dists(post_features)
+    probs = classify_from_fit_params(post_features)
+    probs_avg = np.mean(probs.numpy(), axis=0)
+    return probs_avg
+    
+
 def return_new_classifications(test_csv, data_dirs, fit_dir, include_labels=False):
     """Return new classifications based on model and save probabilities
     to a CSV file.
@@ -291,14 +367,10 @@ def return_new_classifications(test_csv, data_dirs, fit_dir, include_labels=Fals
 
     labels_to_classes, classes_to_labels = SnClass.get_type_maps()  # pylint: disable=unused-variable
 
-    special_labels = {
-        "SN Iax[02cx-like]",
-    }
-    test_features = []
-    test_classes_os = []  # pylint: disable=unused-variable
-    test_group_idxs = []  # pylint: disable=unused-variable
-    test_names_os = []  # pylint: disable=unused-variable
-    test_chis_os = []  # pylint: disable=unused-variable
+    #special_labels = {
+    #    "SN Iax[02cx-like]",
+    #}
+    
     with open(test_csv, "r") as tc:
         csv_reader = csv.reader(tc, delimiter=",")
         next(csv_reader)
@@ -310,45 +382,15 @@ def return_new_classifications(test_csv, data_dirs, fit_dir, include_labels=Fals
                 continue
             if include_labels:
                 label = row[1]
-                if label not in special_labels:  # to classify special types
-                    continue
-            try:
-                print(test_name, fit_dir)
-                test_posts = get_posterior_samples(test_name, fit_dir)
-            except:
-                print("no posts")
-                continue
-            test_features = test_posts
-            test_names = np.array([test_name] * len(test_posts))
-            test_chi = calculate_neg_chi_squareds(
-                [
-                    test_name,
-                ],
-                fit_dir,
-                data_dirs,
-            )[0]
-            # if np.abs(test_chi) > 10: # probably not a SN
-            #    print(test_name, "CHISQ TOO HIGH")
-            #    label = "SKIP"
-            test_chis = np.array([[test_chi] * len(test_posts)])
+                #if label not in special_labels:  # to classify special types
+                #    continue
 
-            test_features = np.append(test_features, test_chis.T, 1)
-
-            # normalize the log distributions
-            test_features = adjust_log_dists(test_features)
-            test_features, means, stds = normalize_features(  # pylint: disable=unused-variable
-                test_features, MEANS_TRAINED_MODEL, STDDEVS_TRAINED_MODEL
-            )
-            test_data = torch.utils.data.TensorDataset(torch.Tensor(test_features))
-            test_iterator = torch.utils.data.DataLoader(test_data, batch_size=32)
-            images, probs = get_predictions_new(
-                model, test_iterator, "cpu"
-            )  # pylint: disable=unused-variable
-            probs_avg = np.mean(probs.numpy(), axis=0)
+            probs_avg = classify_single_light_curve(test_name, fit_dir, data_dirs)
+            
             if include_labels:
-                save_test_probabilities(test_names[0], label, probs_avg)
+                save_test_probabilities(test_name, label, probs_avg)
             else:
-                save_unclassified_test_probabilities(test_names[0], probs_avg)
+                save_unclassified_test_probabilities(test_name, probs_avg)
 
 
 def save_phase_versus_class_probs(probs_csv, data_dir):
