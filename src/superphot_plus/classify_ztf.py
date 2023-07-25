@@ -113,40 +113,19 @@ def classify(goal_per_class, num_epochs, neurons_per_layer, num_layers, fits_plo
         val_classes = np.array([labels_to_classes[l] for l in val_labels]).astype(int)
         test_classes = np.array([labels_to_classes[l] for l in test_labels]).astype(int)
 
-        train_chis = calculate_neg_chi_squareds(train_names, FITS_DIR, DATA_DIRS)
-        train_features, train_classes, train_chis = oversample_using_posteriors(
-            train_names, train_classes, train_chis, goal_per_class
+        #train_chis = calculate_neg_chi_squareds(train_names, FITS_DIR, DATA_DIRS)
+        train_features, train_classes = oversample_using_posteriors(
+            train_names, train_classes, goal_per_class
         )
-        val_chis = calculate_neg_chi_squareds(val_names, FITS_DIR, DATA_DIRS)
-        val_features, val_classes, val_chis = oversample_using_posteriors(
-            val_names, val_classes, val_chis, round(0.1 * goal_per_class)
-        )
-
-        train_features = np.append(
-            train_features,
-            np.array(
-                [
-                    train_chis,
-                ]
-            ).T,
-            1,
-        )
-        val_features = np.append(
-            val_features,
-            np.array(
-                [
-                    val_chis,
-                ]
-            ).T,
-            1,
+        #val_chis = calculate_neg_chi_squareds(val_names, FITS_DIR, DATA_DIRS)
+        val_features, val_classes = oversample_using_posteriors(
+            val_names, val_classes, round(0.1 * goal_per_class)
         )
 
         test_features = []
         test_classes_os = []
         test_group_idxs = []
         test_names_os = []
-        test_chis_os = []
-        test_chis = calculate_neg_chi_squareds(test_names, FITS_DIR, DATA_DIRS)
 
         for i in range(len(test_names)):
             test_name = test_names[i]
@@ -154,7 +133,6 @@ def classify(goal_per_class, num_epochs, neurons_per_layer, num_layers, fits_plo
             test_features.extend(test_posts)
             test_classes_os.extend([test_classes[i]] * len(test_posts))
             test_names_os.extend([test_names[i]] * len(test_posts))
-            test_chis_os.extend([test_chis[i]] * len(test_posts))
             if len(test_group_idxs) == 0:
                 start_idx = 0
             else:
@@ -162,13 +140,6 @@ def classify(goal_per_class, num_epochs, neurons_per_layer, num_layers, fits_plo
             test_group_idxs.append(np.arange(start_idx, start_idx + len(test_posts)))
 
         test_features = np.array(test_features)
-        test_chis = np.array(
-            [
-                test_chis_os,
-            ]
-        )
-
-        test_features = np.append(test_features, test_chis.T, 1)
 
         # normalize the log distributions
         test_features = adjust_log_dists(test_features)
@@ -344,20 +315,9 @@ def classify_single_light_curve(obj_name, fits_dir, data_dirs):
         print("no posts")
         return
     
-    chisq = calculate_neg_chi_squareds(
-        [
-            obj_name,
-        ]
-        fits_dir,
-        data_dirs,
-    )[0]
-    
+    chisq = np.mean(post_features[:,-1])
     if np.abs(chisq) > 10: # probably not a SN
         print("OBJECT LIKELY NOT A SN")
-        
-    chisq_arr = np.array([chisq] * len(post_features))
-    # concat chisq vals to end of input features
-    post_features = np.append(post_features, chisq_arr.T, 1) 
 
     # normalize the log distributions
     test_features = adjust_log_dists(post_features)
@@ -457,21 +417,9 @@ def save_phase_versus_class_probs(probs_csv, data_dir):
 
                 try:
                     refit_posts = run_mcmc(os.path.join(data_dir, test_name + ".npz"), t)
-                    test_chi = calculate_neg_chi_squareds(
-                        [
-                            test_name,
-                        ],
-                        FITS_DIR,
-                        [
-                            data_dir,
-                        ],
-                    )[0]
-                    test_chis = np.array([[test_chi] * len(refit_posts)])
                 except:
                     print("skipping fitting")
                     return None
-
-                test_features = np.append(refit_posts, test_chis.T, 1)
 
                 # normalize the log distributions
                 test_features = adjust_log_dists(test_features)

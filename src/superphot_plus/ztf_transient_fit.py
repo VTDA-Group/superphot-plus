@@ -197,15 +197,20 @@ def run_mcmc(lc, t0_lim=None, plot=False, rstate=None):
     )
     sampler.run_nested(maxiter=MAX_ITER, dlogz=DLOGZ, print_progress=False)
     res = sampler.results
-
+    logl =  sampler.logl
     samples, weights = res.samples, np.exp(res.logwt - res.logz[-1])
-
+    
     eq_wt_samples = dyfunc.resample_equal(samples, weights, rstate=rstate)
+    orig_idxs = np.array([np.argmin(np.sum((e-samples)**2, axis=1)) for e in eq_wt_samples])
+    eq_wt_logl = logl[orig_idxs]
+    
+    eq_wt_samples = np.append(eq_wt_samples, eq_wt_logl[np.newaxis,:].T, 1)
 
     if plot:  # pragma: no cover
         if lc.name is None:
             raise ValueError("Missing file name for plotting files.")
         plot_sampling_lc_fit(lc.name, FIT_PLOTS_FOLDER, tdata, fdata, ferrdata, bdata, eq_wt_samples)
+        
     return eq_wt_samples
 
 
@@ -335,6 +340,8 @@ def run_curve_fit(filename):
     )
 
     print(popt_g, popt_r)
+
+    prefix = fn.split("/")[-1][:-4]
 
     plt.errorbar(
         tdata[bdata == "g"],

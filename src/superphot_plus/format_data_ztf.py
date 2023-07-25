@@ -139,7 +139,7 @@ def get_posterior_samples(ztf_name, output_dir=None):
     return post_arr
 
 
-def oversample_using_posteriors(ztf_names, labels, chis, goal_per_class):
+def oversample_using_posteriors(ztf_names, labels, goal_per_class):
     """Oversamples, drawing from posteriors of a certain fit.
 
     Parameters
@@ -148,8 +148,6 @@ def oversample_using_posteriors(ztf_names, labels, chis, goal_per_class):
         List of ZTF names.
     labels : list
         List of labels.
-    chis : list
-        List of chi-squared values.
     goal_per_class : int
         Number of samples per class.
 
@@ -160,7 +158,6 @@ def oversample_using_posteriors(ztf_names, labels, chis, goal_per_class):
         values.
     """
     oversampled_labels = []
-    oversampled_chis = []
     oversampled_features = []
     labels_unique = np.unique(labels)
     for l in labels_unique:
@@ -174,8 +171,7 @@ def oversample_using_posteriors(ztf_names, labels, chis, goal_per_class):
             sampled_features = all_posts[sampled_idx]
             oversampled_features.extend(list(sampled_features))
             oversampled_labels.extend([l] * samples_per_fit)
-            oversampled_chis.extend([chis[i]] * samples_per_fit)
-    return np.array(oversampled_features), np.array(oversampled_labels), np.array(oversampled_chis)
+    return np.array(oversampled_features), np.array(oversampled_labels)
 
 
 def normalize_features(features, mean=None, std=None):
