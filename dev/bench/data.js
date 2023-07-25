@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1690301619350,
+  "lastUpdate": 1690306317588,
   "repoUrl": "https://github.com/lincc-frameworks/superphot-plus",
   "entries": {
     "SUPERHOT-PLUS Benchmarking Monitor": [
@@ -701,6 +701,60 @@ window.BENCHMARK_DATA = {
           {
             "name": "test_fit::test_svi_single_file - Memory Used",
             "value": 824.546875,
+            "unit": "MB"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "kmd6851@psu.edu",
+            "name": "Kaylee de Soto",
+            "username": "kdesoto-psu"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "e3da2c54e0c8b2e4e95c2ff778a84e9c541d2e34",
+          "message": "Merge pull request #52 from lincc-frameworks/issue/24/chi_sq\n\nAdd unit test for chi sq calculation",
+          "timestamp": "2023-07-25T13:27:53-04:00",
+          "tree_id": "61c53872d0d445363a2c9666c267fbc27d051567",
+          "url": "https://github.com/lincc-frameworks/superphot-plus/commit/e3da2c54e0c8b2e4e95c2ff778a84e9c541d2e34"
+        },
+        "date": 1690306316495,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "test_fit::test_dynesty_single_file - Runtime",
+            "value": 39.720847368240356,
+            "unit": "s"
+          },
+          {
+            "name": "test_fit::test_dynesty_single_file - Memory Used",
+            "value": 267.6015625,
+            "unit": "MB"
+          },
+          {
+            "name": "test_fit::test_nuts_single_file - Runtime",
+            "value": 17.495051622390747,
+            "unit": "s"
+          },
+          {
+            "name": "test_fit::test_nuts_single_file - Memory Used",
+            "value": 532.40234375,
+            "unit": "MB"
+          },
+          {
+            "name": "test_fit::test_svi_single_file - Runtime",
+            "value": 17.616979598999023,
+            "unit": "s"
+          },
+          {
+            "name": "test_fit::test_svi_single_file - Memory Used",
+            "value": 819.35546875,
             "unit": "MB"
           }
         ]
