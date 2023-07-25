@@ -11,9 +11,9 @@ import shutil
 import numpy as np
 import torch
 from joblib import Parallel, delayed
+from sklearn.model_selection import train_test_split
 
-
-from .constants import MEANS_TRAINED_MODEL, NUM_FOLDS, STDDEVS_TRAINED_MODEL
+from .constants import MEANS_TRAINED_MODEL, NUM_FOLDS, STDDEVS_TRAINED_MODEL, PAD_SIZE
 from .file_paths import *  # pylint: disable=wildcard-import
 from .format_data_ztf import (
     generate_K_fold,
@@ -22,8 +22,8 @@ from .format_data_ztf import (
     normalize_features,
     oversample_using_posteriors,
     tally_each_class,
-    train_test_split,
 )
+from .lightcurve import Lightcurve
 from .mlp import (
     MLP,
     create_dataset,
@@ -35,7 +35,7 @@ from .mlp import (
 from .plotting import plot_confusion_matrix
 from .supernova_class import SupernovaClass as SnClass
 from .utils import calc_accuracy, calculate_neg_chi_squareds, f1_score
-from .ztf_transient_fit import import_data, run_mcmc
+from .ztf_transient_fit import run_mcmc
 
 
 def adjust_log_dists(features):
@@ -195,7 +195,6 @@ def classify(goal_per_class, num_epochs, neurons_per_layer, num_layers, fits_plo
             test_classes,
             test_names,
             test_group_idxs,
-            input_dim,
             output_dim,
             neurons_per_layer,
             num_layers,
@@ -212,6 +211,7 @@ def classify(goal_per_class, num_epochs, neurons_per_layer, num_layers, fits_plo
         ztf_test_names,
         valid_loss_mlp,
     ) = zip(*r)
+
     predicted_classes_mlp = np.hstack(tuple(predicted_classes_mlp))
     prob_above_07_mlp = np.hstack(tuple(prob_above_07_mlp))
     true_classes_mlp = np.hstack(tuple(true_classes_mlp))
@@ -294,11 +294,7 @@ def return_new_classifications(test_csv, data_dirs, fit_dir, include_labels=Fals
     special_labels = {
         "SN Iax[02cx-like]",
     }
-    test_features = []
-    test_classes_os = []  # pylint: disable=unused-variable
-    test_group_idxs = []  # pylint: disable=unused-variable
-    test_names_os = []  # pylint: disable=unused-variable
-    test_chis_os = []  # pylint: disable=unused-variable
+
     with open(test_csv, "r") as tc:
         csv_reader = csv.reader(tc, delimiter=",")
         next(csv_reader)
@@ -341,10 +337,9 @@ def return_new_classifications(test_csv, data_dirs, fit_dir, include_labels=Fals
             )
             test_data = torch.utils.data.TensorDataset(torch.Tensor(test_features))
             test_iterator = torch.utils.data.DataLoader(test_data, batch_size=32)
-            images, probs = get_predictions_new(
-                model, test_iterator, "cpu"
-            )  # pylint: disable=unused-variable
+            _, probs = get_predictions_new(model, test_iterator, "cpu")
             probs_avg = np.mean(probs.numpy(), axis=0)
+
             if include_labels:
                 save_test_probabilities(test_names[0], label, probs_avg)
             else:
@@ -383,9 +378,12 @@ def save_phase_versus_class_probs(probs_csv, data_dir):
                 continue
 
             ct += 1
-            phases = []  # pylint: disable=unused-variable
+
             try:
-                tarr, farr, _, _ = import_data(os.path.join(data_dir, test_name + ".npz"))
+                lc = Lightcurve.from_file(os.path.join(data_dir, test_name + ".npz"))
+                lc.pad_bands(["g", "r"], PAD_SIZE)
+                tarr = lc.times
+                farr = lc.fluxes
             except:
                 print("skipping import")
                 continue
@@ -423,9 +421,7 @@ def save_phase_versus_class_probs(probs_csv, data_dir):
                 )
                 test_data = torch.utils.data.TensorDataset(torch.Tensor(test_features))
                 test_iterator = torch.utils.data.DataLoader(test_data, batch_size=32)
-                images, probs = get_predictions_new(
-                    model, test_iterator, "cpu"
-                )  # pylint: disable=unused-variable
+                _, probs = get_predictions_new(model, test_iterator, "cpu")
                 probs_avg = np.mean(probs.numpy(), axis=0)
                 # idx_random = np.random.choice(np.arange(len(probs)))
                 save_test_probabilities(str(label), round(phase, 2), probs_avg)
