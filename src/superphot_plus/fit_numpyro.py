@@ -8,7 +8,6 @@ import os
 import arviz as az
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
-import numpy as np
 import numpyro
 import numpyro.distributions as dist
 from jax import random
@@ -16,7 +15,7 @@ from jax.config import config
 from numpyro.contrib.nested_sampling import NestedSampler
 from numpyro.distributions import constraints
 from numpyro.infer import MCMC, NUTS, SVI, Trace_ELBO
-from numpyro.infer.initialization import init_to_uniform
+from numpyro.infer.initialization import init_to_sample, init_to_uniform
 
 from superphot_plus.lightcurve import Lightcurve
 from superphot_plus.plotting import flux_from_posteriors
@@ -306,9 +305,9 @@ def run_mcmc(lc, sampler="NUTS", t0_lim=None, plot=False):
         numpyro.sample("extra_sigma_g", dist.Normal(extra_sigma_g_mu, extra_sigma_g_sigma))
 
     if sampler == "NUTS":
+        num_samples = 300
         kernel = NUTS(jax_model, init_strategy=init_to_uniform)
 
-        num_samples = 300
         mcmc = MCMC(
             kernel,
             num_warmup=1000,
@@ -332,7 +331,9 @@ def run_mcmc(lc, sampler="NUTS", t0_lim=None, plot=False):
         posterior_samples = mcmc.get_samples()
 
     elif sampler == "nested":
+        num_samples = 300
         ns = NestedSampler(jax_model, constructor_kwargs=None)
+
         ns.run(
             random.PRNGKey(1),
             obsflux=fdata,
@@ -452,7 +453,7 @@ def run_mcmc(lc, sampler="NUTS", t0_lim=None, plot=False):
         if t0_lim is None:
             plt.savefig(os.path.join(FIT_PLOTS_FOLDER, "%s.pdf" % lc.name))
         else:
-            plt.savefig(os.path.join(FIT_PLOTS_FOLDER, "%s_%.02f.pdf" % (lc.name, t0)))
+            plt.savefig(os.path.join(FIT_PLOTS_FOLDER, "%s_%.02f.pdf" % (lc.name, t0_lim)))
         plt.close()
 
     param_list = [
@@ -712,7 +713,7 @@ def run_mcmc_batch(lcs, t0_lim=None, plot=False):
             if t0_lim is None:
                 plt.savefig(os.path.join(FIT_PLOTS_FOLDER, "%s.pdf" % lcs[i].name))
             else:
-                plt.savefig(os.path.join(FIT_PLOTS_FOLDER, "%s_%.02f.pdf" % (lcs[i].name, t0)))
+                plt.savefig(os.path.join(FIT_PLOTS_FOLDER, "%s_%.02f.pdf" % (lcs[i].name, t0_lim)))
             plt.close()
 
     return posterior_samples

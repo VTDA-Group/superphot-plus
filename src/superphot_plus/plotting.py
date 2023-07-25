@@ -494,7 +494,7 @@ def save_class_fractions(spec_probs_csv, phot_probs_csv, save_fn):
         csvwriter.writerow(alerce_fracs_corr)
 
 
-def plot_class_fractions(saved_cf_file, fig_dir):
+def plot_class_fractions(saved_cf_file, fig_dir, filename):
     """Plot class fractions saved from 'save_class_fractions'.
 
     Parameters
@@ -503,6 +503,8 @@ def plot_class_fractions(saved_cf_file, fig_dir):
         Path to the saved class fractions file.
     fig_dir : str
         Directory for saving the class fractions plot.
+    filename: str
+        Filename for the class fractions plot figure.
     """
     _, classes_to_labels = SnClass.get_type_maps()
     labels = [
@@ -720,7 +722,7 @@ def corner_plot_all(input_csvs, save_file):
     figure.savefig(save_file)
 
 
-def plot_lightcurve_clipping(ztf_name):
+def plot_lightcurve_clipping(ztf_name, data_folder, save_dir):
     """Plot the lightcurve WITH clipped points and lines demonstrating
     how those points are clipped.
 
@@ -728,8 +730,12 @@ def plot_lightcurve_clipping(ztf_name):
     ----------
     ztf_name : str
         ZTF name of the plotted object.
+    data_folder: str
+        The path to the folder holding the CSV data.
+    save_dir: str
+        Directory path where to store the plot figure.
     """
-    data_fn = DATA_FOLDER + ztf_name + ".csv"
+    data_fn = f"{data_folder}/{ztf_name}.csv"
     t, f, ferr, b, ra, dec = import_lc(data_fn)  # pylint: disable=unused-variable
     t_clip, f_clip, ferr_clip, b_clip = clip_lightcurve_end(t, f, ferr, b)
 
