@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1690244313687,
+  "lastUpdate": 1690300946454,
   "repoUrl": "https://github.com/lincc-frameworks/superphot-plus",
   "entries": {
     "SUPERHOT-PLUS Benchmarking Monitor": [
@@ -593,6 +593,60 @@ window.BENCHMARK_DATA = {
           {
             "name": "test_fit::test_svi_single_file - Memory Used",
             "value": 821.13671875,
+            "unit": "MB"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "olynn@andrew.cmu.edu",
+            "name": "Olivia R. Lynn",
+            "username": "OliviaLynn"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "23ac274e8729bf035226ab54f8187006c7cb0a4a",
+          "message": "Merge pull request #53 from lincc-frameworks/issue/22/diff\n\nAdd diffing - unit tests and a (to-be e2e) diff_test.py",
+          "timestamp": "2023-07-25T10:58:52-05:00",
+          "tree_id": "66c82ace18c03e97f317c26fa776dccf53a8e4c7",
+          "url": "https://github.com/lincc-frameworks/superphot-plus/commit/23ac274e8729bf035226ab54f8187006c7cb0a4a"
+        },
+        "date": 1690300945533,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "test_fit::test_dynesty_single_file - Runtime",
+            "value": 33.19166851043701,
+            "unit": "s"
+          },
+          {
+            "name": "test_fit::test_dynesty_single_file - Memory Used",
+            "value": 265.61328125,
+            "unit": "MB"
+          },
+          {
+            "name": "test_fit::test_nuts_single_file - Runtime",
+            "value": 14.638414144515991,
+            "unit": "s"
+          },
+          {
+            "name": "test_fit::test_nuts_single_file - Memory Used",
+            "value": 534.75390625,
+            "unit": "MB"
+          },
+          {
+            "name": "test_fit::test_svi_single_file - Runtime",
+            "value": 13.665853500366211,
+            "unit": "s"
+          },
+          {
+            "name": "test_fit::test_svi_single_file - Memory Used",
+            "value": 818.4375,
             "unit": "MB"
           }
         ]
