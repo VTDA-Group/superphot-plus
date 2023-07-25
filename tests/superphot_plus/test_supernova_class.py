@@ -61,42 +61,23 @@ def test_type_maps_for_allowed_types_mixed():
     assert list(labels_to_classes.values()) == list(classes_to_labels.keys())
 
 
-def test_supernovae_alternatives():
-    """Test that we get alternative namings for each supernova class."""
-    expected_alts = {
-        SnClass.SUPERNOVA_IA.value: [
-            "SN Ia-91T-like",
-            "SN Ia-CSM",
-            "SN Ia-91bg-like",
-            "SNIa",
-            "SN Ia-91T",
-            "SN Ia-91bg",
-            "10",
-            "11",
-            "12",
-        ],
-        SnClass.SUPERNOVA_IBC.value: [
-            "SN Ic",
-            "SN Ib",
-            "SN Ic-BL",
-            "SN Ib-Ca-rich",
-            "SN Ib/c",
-            "SNIb",
-            "SNIc",
-            "SNIc-BL",
-            "21",
-            "20",
-            "27",
-            "26",
-            "25",
-        ],
-        SnClass.SUPERNOVA_IIN.value: ["SNIIn", "35", "SLSN-II"],
-        SnClass.SUPERLUMINOUS_SUPERNOVA_I.value: ["40", "SLSN"],
-        SnClass.SUPERLUMINOUS_SUPERNOVA_II.value: ["SN IIP", "SN IIL", "SNII", "SNIIP", "32", "30", "31"],
-        "TDE": ["42"],
-    }
 
-    assert SnClass.get_alternative_namings() == expected_alts
+def test_canonicalize():
+    """Test that we can canonicalize all the labels and alternative labels."""
+
+    for sn_class in SnClass:
+        canon = SnClass.canonicalize(sn_class.value)
+        assert canon == sn_class.value
+
+    alts = SnClass.get_alternative_namings()
+
+    for alt_canon, alt_others in alts.items():
+        for other in alt_others:
+            canon = SnClass.canonicalize(other)
+            assert canon == alt_canon
+
+    canon = SnClass.canonicalize("nonsense")
+    assert canon == "nonsense"
 
 
 def test_reflect_style():
