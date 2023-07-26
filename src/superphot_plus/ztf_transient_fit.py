@@ -177,13 +177,13 @@ def run_mcmc(lc, t0_lim=None, plot=False, rstate=None):
         cube[6] = 10 ** (tg_vals[6])  # lognormal for extrasigma, UPDATED
 
         # green band
-        cube[7] = tg_vals[7]
-        cube[8] = tg_vals[8]
-        cube[9] = tg_vals[9]
-        cube[10] = tg_vals[10]
-        cube[11] = tg_vals[11]
-        cube[12] = tg_vals[12]
-        cube[13] = tg_vals[13]
+        cube[7] = tg_vals[7]  # A UPDATED
+        cube[8] = tg_vals[8]  # beta UPDATED
+        cube[9] = tg_vals[9]  # gamma, GAUSSIAN not Lorentzian
+        cube[10] = tg_vals[10]  # t0 UPDATED
+        cube[11] = tg_vals[11]  # taurise UPDATED, Gaussian
+        cube[12] = tg_vals[12]  # taufall UPDATED
+        cube[13] = tg_vals[13]  # extra sigma UPDATED, Gaussian
 
         return cube
 
