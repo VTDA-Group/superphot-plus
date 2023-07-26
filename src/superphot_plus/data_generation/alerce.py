@@ -33,9 +33,6 @@ def add_stamp_column(input_filename, output_filename):
     with open(output_filename, "w+", encoding="utf-8") as new_csv:
         csv_writer = csv.writer(new_csv, delimiter=",")
         csv_writer.writerow(["NAME", "PROB", "CLASS", "STAMP"])
-
-    with open(output_filename, "a+", encoding="utf-8") as new_csv:
-        csv_writer = csv.writer(new_csv, delimiter=",")
         for row in csv_rows:
             try:
                 name = row[0]
@@ -100,13 +97,9 @@ def get_all_unclassified_samples(save_csv):
             csv_writer = csv.writer(sc, delimiter=",")
 
             for row_idx in range(len(objs)):
-                # if row_idx % 100 == 0:
                 try:
                     row = objs.iloc[row_idx]
                     name = row.iat[0]
-                    # if os.path.exists(OUTPUT_FOLDER+name+".npz"):
-                    # print("true class known")
-                    #    continue
                     if name in repeat_names:
                         print("REPEAT")
                         continue

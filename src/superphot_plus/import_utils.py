@@ -48,8 +48,6 @@ def import_lc(filename):
             if ra is None:
                 ra = float(row[ra_idx])
                 dec = float(row[dec_idx])
-                # ra = float(row[19])
-                # dec = float(row[20])
                 try:
                     g_ext, r_ext = get_band_extinctions(ra, dec)
                 except:
@@ -83,9 +81,7 @@ def import_lc(filename):
     snr = np.abs(f / ferr)
 
     for band in ["g", "r"]:
-        # print(len(snr[(snr > 3.) & (b == band)]))
         if len(snr[(snr > 3.0) & (b == band)]) < 5:  # not enough good datapoints
-            # print("snr too low")
             return [
                 None,
             ] * 6

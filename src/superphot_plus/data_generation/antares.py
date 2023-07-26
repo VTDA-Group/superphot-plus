@@ -29,7 +29,6 @@ def generate_files_from_antares(input_csv, output_folder, output_csv):
         writer.writerow(["Name", "Label", "Redshift"])
 
     label_dict = {}
-    # os.makedirs(save_folder, exist_ok=True)
     with open(input_csv, "r", encoding="utf-8") as mc:
         csvreader = csv.reader(mc, delimiter=",", skipinitialspace=True)
         next(csvreader)
@@ -59,7 +58,6 @@ def generate_files_from_antares(input_csv, output_folder, output_csv):
             label = row[3]
             print(label)
             try:
-                # redshift = float(row[12].strip())
                 redshift = float(row[4].strip())
             except:
                 redshift = -1
@@ -83,9 +81,7 @@ def generate_files_from_antares(input_csv, output_folder, output_csv):
             merr = merr[valid_idx]
 
             f, ferr = convert_mags_to_flux(m, merr, zp)
-            # print(f, ferr)
             t, f, ferr, b = clip_lightcurve_end(t, f, ferr, b)
-            # print(f, ferr)
             snr = np.abs(f / ferr)
 
             if len(snr[(snr > 3.0) & (b == "g")]) < 5:  # not enough good datapoints
