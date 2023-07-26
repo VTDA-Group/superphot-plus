@@ -127,7 +127,8 @@ def run_mcmc(lc, t0_lim=None, plot=False, rstate=None):
     ferrdata = lc.flux_errors
     bdata = lc.bands
 
-    max_flux = np.max(fdata[bdata == "r"] - np.abs(ferrdata[bdata == "r"]))
+    r_band = bdata == "r"
+    max_flux = np.max(fdata[r_band] - np.abs(ferrdata[r_band]))
 
     def create_prior(cube):
         """Creates prior for pymultinest, where each side of the "cube"
@@ -149,7 +150,7 @@ def run_mcmc(lc, t0_lim=None, plot=False, rstate=None):
         )  # log-uniform for A from 1.0x to 16x of max flux
         cube[1] = trunc_gauss(cube[1], *PRIOR_BETA)  # beta UPDATED, looks more Lorentzian so widened by 1.5x
         cube[2] = 10 ** trunc_gauss(cube[2], *PRIOR_GAMMA)  # very broad Gaussian temporary solution for gamma
-        max_flux_loc = tdata[np.argmax(fdata[bdata == "r"] - np.abs(ferrdata[bdata == "r"]))]
+        max_flux_loc = tdata[r_band][np.argmax(fdata[r_band] - np.abs(ferrdata[r_band]))]
         cube[3] = trunc_gauss(cube[3], np.amin(tdata) - 50.0, np.amax(tdata) + 50.0, max_flux_loc, 20.0)  # t0
         cube[4] = 10 ** (trunc_gauss(cube[4], *PRIOR_TAU_RISE))  # taurise, UPDATED
         cube[5] = 10 ** (trunc_gauss(cube[5], *PRIOR_TAU_FALL))  # tau fall UPDATED
