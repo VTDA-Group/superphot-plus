@@ -106,14 +106,14 @@ def tally_each_class(labels):
     print()
 
 
-def get_posterior_samples(ztf_name, output_dir=None):
+def get_lightcurve_posterior_samples(ztf_name, fits_dir=None):
     """Get all EQUAL WEIGHT posterior samples from a ZTF lightcurve fit.
 
     Parameters
     ----------
     ztf_name : str
         ZTF name.
-    output_dir : str, optional
+    fits_dir : str, optional
         Output directory path. Defaults to None.
 
     Returns
@@ -121,22 +121,32 @@ def get_posterior_samples(ztf_name, output_dir=None):
     np.ndarray
         Numpy array containing the posterior samples.
     """
-    if output_dir is None:
-        output_dir = FITS_DIR
-    post_fn = os.path.join(output_dir, ztf_name + "_eqwt.npz")
-    # output_dir = "../outputs/"
-    # post_fn = output_dir + ztf_name +"/" + ztf_name + "post_equal_weights.dat"
-    """
-    with open(post_fn, "r") as post_ew:
-        post_rows = post_ew.read().split("\n")
-        post_arr = []
-        for row in post_rows[:-1]:
-            post_arr.append([float(x) for x in row.split()])
-        post_arr = np.array(post_arr)[:,:-1] # exclude the loglikelihoods
-    """
+    if fits_dir is None:
+        fits_dir = FITS_DIR
+    post_fn = os.path.join(fits_dir, ztf_name + "_eqwt.npz")
     npy_array = np.load(post_fn)
     post_arr = npy_array["arr_0"]
     return post_arr
+
+
+def get_multiple_lightcurve_posterior_samples(ztf_names, fits_dir):
+    """Reads posterior samples for a set of ZTF files.
+
+    Parameters
+    ----------
+    ztf_names : list
+        List of ZTF file names.
+
+    Returns
+    -------
+    dict of np.ndarray
+        Dictionary containing the posterior samples for the
+        set of ZTF light curves specified.
+    """
+    posterior_samples = {}
+    for ztf_name in np.unique(ztf_names):
+        posterior_samples[ztf_name] = get_lightcurve_posterior_samples(ztf_name, fits_dir)
+    return posterior_samples
 
 
 def oversample_using_posteriors(ztf_names, labels, chis, goal_per_class, fits_dir):
@@ -163,13 +173,16 @@ def oversample_using_posteriors(ztf_names, labels, chis, goal_per_class, fits_di
     oversampled_chis = []
     oversampled_features = []
     labels_unique = np.unique(labels)
+
+    posterior_samples = get_multiple_lightcurve_posterior_samples(ztf_names, fits_dir)
+
     for l in labels_unique:
         idxs_in_class = np.asarray(labels == l).nonzero()[0]
         num_in_class = len(idxs_in_class)
         samples_per_fit = max(1, np.round(goal_per_class / num_in_class).astype(int))
         for i in idxs_in_class:
             ztf_name = ztf_names[i]
-            all_posts = get_posterior_samples(ztf_name, fits_dir)
+            all_posts = posterior_samples[ztf_name]
             sampled_idx = np.random.choice(np.arange(len(all_posts)), samples_per_fit)
             sampled_features = all_posts[sampled_idx]
             oversampled_features.extend(list(sampled_features))

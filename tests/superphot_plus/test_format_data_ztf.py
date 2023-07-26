@@ -5,7 +5,7 @@ from pathlib import Path
 import numpy as np
 
 from superphot_plus.format_data_ztf import (
-    get_posterior_samples,
+    get_lightcurve_posterior_samples,
     import_labels_only,
     oversample_using_posteriors,
 )
@@ -48,7 +48,7 @@ def test_import_labels_only(tmp_path):
     assert len(labels) == 0
 
 
-def test_get_posterior_samples(tmp_path):
+def test_get_lightcurve_posterior_samples(tmp_path):
     """Test loading the posterior samples from an EQWT fits file"""
 
     # Create fake lightcurve data.
@@ -64,7 +64,7 @@ def test_get_posterior_samples(tmp_path):
     lc.save_to_file(f"{filename}_eqwt", overwrite=True)
 
     # Read posterior samples from file.
-    post_arr = get_posterior_samples(filename, output_dir=tmp_path)
+    post_arr = get_lightcurve_posterior_samples(filename, fits_dir=tmp_path)
 
     assert np.allclose(post_arr[0].astype(float), times)
     assert np.allclose(post_arr[1].astype(float), fluxes)
