@@ -8,6 +8,7 @@ import numpy as np
 from sklearn.model_selection import StratifiedKFold
 
 from superphot_plus.file_paths import FITS_DIR
+from superphot_plus.file_utils import get_posterior_samples, has_posterior_samples
 from superphot_plus.supernova_class import SupernovaClass as SnClass
 
 
@@ -45,7 +46,7 @@ def import_labels_only(input_csvs, allowed_types, fits_dir=None):
             csvreader = csv.reader(csvfile)
             for row in csvreader:
                 name = row[0]
-                if not os.path.isfile(os.path.join(fits_dir, f"{name}_eqwt.npz")):
+                if not has_posterior_samples(lc_name=name, fits_dir=fits_dir):
                     continue
                 label_orig = row[1]
                 row_label = SnClass.canonicalize(label_orig)
@@ -136,6 +137,8 @@ def get_multiple_lightcurve_posterior_samples(ztf_names, fits_dir):
     ----------
     ztf_names : list
         List of ZTF file names.
+    fits_dir : str, optional
+        Output directory path. Defaults to None.
 
     Returns
     -------

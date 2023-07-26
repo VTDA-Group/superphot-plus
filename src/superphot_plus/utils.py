@@ -7,6 +7,8 @@ from dustmaps.config import config
 from dustmaps.sfd import SFDQuery
 
 from superphot_plus.sfd import dust_filepath
+from superphot_plus.file_utils import get_posterior_samples
+from superphot_plus.lightcurve import Lightcurve
 
 
 def get_band_extinctions(ra, dec):
@@ -212,14 +214,15 @@ def calculate_neg_chi_squareds(names, fit_dir, data_dirs):
         The log likelihoods for each object.
     """
     log_likelihoods = []
-    for _, name in enumerate(names):
-        data_fn = None
+    for name in names:
+        data_filename = None
         for d in data_dirs:
-            data_fn = os.path.join(d, name + ".npz")
-            if os.path.exists(data_fn):
+            data_filename = os.path.join(d, name + ".npz")
+            if os.path.exists(data_filename):
                 break
 
-        npy_array = np.load(data_fn)
+        ## Load lightcurve data, but don't perform any additional filtering or normalization.
+        npy_array = np.load(data_filename)
         mjd, flux, flux_err, bands = npy_array["arr_0"]
 
         flux_err = flux_err.astype(float)
@@ -228,12 +231,8 @@ def calculate_neg_chi_squareds(names, fit_dir, data_dirs):
         bands = bands[~np.isnan(flux_err)]
         flux_err = flux_err[~np.isnan(flux_err)]
 
-        fit_fn = os.path.join(fit_dir, name + "_eqwt.npz")
-        npy_array_fit = np.load(fit_fn)
-        post_arr = npy_array_fit["arr_0"]
-
-        post_med = np.median(post_arr, axis=0)
-        # print(post_med)
+        posterior_array = get_posterior_samples(name, fit_dir)
+        post_med = np.median(posterior_array, axis=0)
 
         model_f = flux_model(post_med, mjd, bands)
         extra_sigma_arr = np.ones(len(mjd)) * np.max(flux[bands == "r"]) * post_med[6]
