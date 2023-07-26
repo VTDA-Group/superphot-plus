@@ -13,15 +13,15 @@ import torch
 from joblib import Parallel, delayed
 from sklearn.model_selection import train_test_split
 
-from .constants import MEANS_TRAINED_MODEL, NUM_FOLDS, STDDEVS_TRAINED_MODEL, PAD_SIZE
+from .constants import MEANS_TRAINED_MODEL, NUM_FOLDS, PAD_SIZE, STDDEVS_TRAINED_MODEL
 from .file_paths import *  # pylint: disable=wildcard-import
 from .format_data_ztf import (
     generate_K_fold,
+    get_lightcurve_posterior_samples,
     import_labels_only,
     normalize_features,
     oversample_using_posteriors,
     tally_each_class,
-    get_lightcurve_posterior_samples,
 )
 from .lightcurve import Lightcurve
 from .mlp import (
