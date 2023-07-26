@@ -168,7 +168,7 @@ def run_mcmc(lc, t0_lim=None, plot=False, rstate=None):
         # Compute the truncated Gaussian distribution for all values at once.
         tg_vals = truncnorm.ppf(cube, tg_a, tg_b, loc=prior_mean, scale=prior_std)
 
-        cube[0] = max_flux * 10 ** (tg_vals[0])  # log-uniform for A from 1.0x to 16x of max flux
+        cube[0] = max_flux * 10 ** tg_vals[0]  # log-uniform for A from 1.0x to 16x of max flux
         cube[1] = tg_vals[1]  # beta UPDATED, looks more Lorentzian so widened by 1.5x
         cube[2] = 10 ** (tg_vals[2])  # very broad Gaussian temporary solution for gamma
         cube[3] = tg_vals[3]
