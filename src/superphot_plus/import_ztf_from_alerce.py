@@ -2,7 +2,6 @@
 data from the Alerce API."""
 
 import csv
-import glob
 import os
 import zipfile
 
@@ -10,6 +9,7 @@ import numpy as np
 from alerce.core import Alerce
 from antares_client.search import get_by_ztf_object_id
 
+from superphot_plus.file_paths import *  # pylint: disable=wildcard-import
 from superphot_plus.utils import convert_mags_to_flux, get_band_extinctions
 
 alerce = Alerce()
@@ -195,22 +195,24 @@ def filter_tns_all_transients(tns_csv, reduced_fn):
             csvwriter.writerow([ztf_names[i], ras[i], decs[i], obj_types[i], zs[i]])
 
 
-def extract_all_zip_files(zip_folder):
+def extract_all_zip_files(zip_folder, extract_dir):
     """Extract all ZIP files in the specified folder.
 
     Parameters
     ----------
     zip_folder : str
         Path to the folder containing the ZIP files.
+    extract_dir : str
+        Path to the folder where to extract the ZIP files.
     """
     all_zip_files = glob.glob(zip_folder + "*.zip")
+
     for zf in all_zip_files:
         name = zf.split("_")[-2].split("/")[-1]
         with zipfile.ZipFile(zf, "r") as zip_ref:
-            zip_ref.extractall(EXTRACT_DIR)
-            # os.remove(EXTRACT_DIR+"non_detections.csv")
-            os.rename(EXTRACT_DIR + "non_detections.csv", EXTRACT_DIR + name + "_nd.csv")
-            os.rename(EXTRACT_DIR + "detections.csv", EXTRACT_DIR + name + "_d.csv")
+            zip_ref.extractall(extract_dir)
+            os.rename(f"{extract_dir}/non_detections.csv", f"{extract_dir}/{name}_nd.csv")
+            os.rename(f"{extract_dir}/detections.csv", f"{extract_dir}/{name}_d.csv")
 
 
 def get_all_unclassified_samples(save_csv):
@@ -453,14 +455,26 @@ def clip_lightcurve_end(times, fluxes, fluxerrs, bands):
     return np.array(t_clip), np.array(flux_clip), np.array(ferr_clip), np.array(b_clip)
 
 
-def save_new_datafiles():
-    """Save new data files based on the provided CSV file."""
-    with open(OUTPUT_CSV, "w+") as csv_file:
+def save_new_datafiles(input_csv, data_folder, output_folder, output_csv):
+    """Save new data files based on the provided CSV file.
+
+    Parameters
+    ----------
+    input_csv : str
+        The path to the input CSV file.
+    data_folder: str
+        The path to the folder containing the individual ZTF CSVs.
+    output_folder : str
+        Path to the output folder.
+    output_csv : str
+        The path to the output CSV file.
+    """
+    with open(output_csv, "w+") as csv_file:
         writer = csv.writer(csv_file, delimiter=",")
         writer.writerow(["Name", "Label", "Redshift"])
 
     label_dict = {}
-    with open(CSV_FILE, "r") as csv_f:
+    with open(input_csv, "r") as csv_f:
         csvreader = csv.reader(csv_f, delimiter=",", skipinitialspace=True)
         next(csvreader)
         for row in csvreader:
@@ -482,12 +496,12 @@ def save_new_datafiles():
             except:
                 redshift = -1
             print(name)
-            data_fn = DATA_FOLDER + name + ".csv"
+            data_fn = f"{data_folder}/{name}.csv"
             t, f, ferr, b, ra, dec = import_lc(data_fn)  # pylint: disable=unused-variable
             print(t)
             if t is not None:
-                save_datafile(name, t, f, ferr, b, OUTPUT_FOLDER)
-                add_to_new_csv(name, label, float(row[1].strip()))
+                save_datafile(name, t, f, ferr, b, output_folder)
+                add_to_new_csv(name, label, float(row[1].strip()), output_csv)
                 if label in label_dict:
                     label_dict[label] += 1
                 else:
@@ -520,7 +534,7 @@ def save_datafile(name, times, fluxes, fluxerrs, bands, save_dir):
     np.savez_compressed(save_dir + str(name) + ".npz", arr)
 
 
-def add_to_new_csv(name, label, redshift):
+def add_to_new_csv(name, label, redshift, output_csv):
     """Add row to CSV of included files for training.
 
     Parameters
@@ -531,9 +545,11 @@ def add_to_new_csv(name, label, redshift):
         Label in the new row.
     redshift : float
         Redshift value  in the new row.
+    output_csv : str
+        The output CSV file path.
     """
     print(name, label, redshift)
-    with open(OUTPUT_CSV, "a") as csv_file:
+    with open(output_csv, "a") as csv_file:
         writer = csv.writer(csv_file, delimiter=",")
         writer.writerow([name, label, redshift])
 
@@ -609,25 +625,32 @@ def generate_flux_files(master_csv, save_folder):
                 continue
 
 
-def generate_files_from_antares():
+def generate_files_from_antares(input_csv, output_folder, output_csv):
     """Generates flux files for all ZTF samples in the master CSV file,
     using ANTARES' API.
 
     Includes correct zeropoints.
+
+    input_csv : str
+        The path to the input CSV file.
+    output_folder : str
+        Path to the output folder.
+    output_csv : str
+        The output CSV file path.
     """
-    with open(OUTPUT_CSV, "w+") as csv_file:
+    with open(output_csv, "w+") as csv_file:
         writer = csv.writer(csv_file, delimiter=",")
         writer.writerow(["Name", "Label", "Redshift"])
 
     label_dict = {}
     # os.makedirs(save_folder, exist_ok=True)
-    with open(CSV_FILE, "r") as mc:
+    with open(input_csv, "r") as mc:
         csvreader = csv.reader(mc, delimiter=",", skipinitialspace=True)
         next(csvreader)
         for row in csvreader:
             try:
                 ztf_name = row[0]
-                if os.path.exists(OUTPUT_FOLDER + str(ztf_name) + ".npz"):
+                if os.path.exists(f"{output_folder}/{str(ztf_name)}.npz"):
                     continue
                 print(ztf_name)
                 # Getting detections for an object
@@ -691,8 +714,8 @@ def generate_files_from_antares():
             if (np.max(f[b == "r"]) - np.min(f[b == "r"])) < 3.0 * np.mean(ferr[b == "r"]):
                 continue
 
-            save_datafile(ztf_name, t, f, ferr, b)
-            add_to_new_csv(ztf_name, label, redshift)
+            save_datafile(ztf_name, t, f, ferr, b, output_folder)
+            add_to_new_csv(ztf_name, label, redshift, output_csv)
             if label in label_dict:
                 label_dict[label] += 1
             else:
