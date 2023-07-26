@@ -63,7 +63,7 @@ def test_neg_chi_squareds(single_ztf_lightcurve_compressed, test_data_dir, singl
     """This is currently a change detection test where we are just confirming
     the function runs correctly returns the same value as it used to.
     """
-    posts = get_posterior_samples(single_ztf_sn_id, fits_dir=test_data_dir, sampler="dynesty")
+    posts = get_posterior_samples(single_ztf_sn_id, fits_dir=test_data_dir, sampler=None)
     sn_data = read_single_lightcurve(single_ztf_lightcurve_compressed)
     result = calculate_neg_chi_squareds(posts, *sn_data)
     assert np.all(np.isclose(result, [-38.4], rtol=0.1))
