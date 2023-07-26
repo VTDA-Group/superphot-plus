@@ -176,7 +176,7 @@ def run_mcmc(lc, t0_lim=None, plot=False, rstate=None):
         cube[5] = 10 ** (tg_vals[5])  # tau fall UPDATED
         cube[6] = 10 ** (tg_vals[6])  # lognormal for extrasigma, UPDATED
 
-        # green band
+        # g band
         cube[7] = tg_vals[7]  # A UPDATED
         cube[8] = tg_vals[8]  # beta UPDATED
         cube[9] = tg_vals[9]  # gamma, GAUSSIAN not Lorentzian
