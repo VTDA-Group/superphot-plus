@@ -137,7 +137,7 @@ def run_mcmc(lc, t0_lim=None, plot=False, rstate=None):
     # current lightcurve.
     prior_clip_a = np.copy(ALL_PRIORS[0])
     prior_clip_a[3] = np.amin(tdata) - 50.0
-    
+
     prior_clip_b = np.copy(ALL_PRIORS[1])
     prior_clip_b[3] = np.amax(tdata) + 50.0
 
@@ -168,9 +168,8 @@ def run_mcmc(lc, t0_lim=None, plot=False, rstate=None):
         # Compute the truncated Gaussian distribution for all values at once.
         tg_vals = truncnorm.ppf(cube, tg_a, tg_b, loc=prior_mean, scale=prior_std)
 
-        # log-uniform for A from 1.0x to 16x of max flux
-        cube[0] = max_flux * 10 ** (tg_vals[0])
-        cube[1] = tg_vals[1]
+        cube[0] = max_flux * 10 ** (tg_vals[0])  # log-uniform for A from 1.0x to 16x of max flux
+        cube[1] = tg_vals[1]  # beta UPDATED, looks more Lorentzian so widened by 1.5x
         cube[2] = 10 ** (tg_vals[2])  # very broad Gaussian temporary solution for gamma
         cube[3] = tg_vals[3]
         cube[4] = 10 ** (tg_vals[4])  # taurise, UPDATED
