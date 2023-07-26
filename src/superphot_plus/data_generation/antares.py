@@ -1,0 +1,111 @@
+"""This script provides functions for importing and manipulating ZTF 
+data from the Antares API."""
+
+import csv
+import os
+
+import numpy as np
+from antares_client.search import get_by_ztf_object_id
+
+from superphot_plus.import_utils import add_to_new_csv, clip_lightcurve_end, save_datafile
+from superphot_plus.utils import convert_mags_to_flux, get_band_extinctions
+
+
+def generate_files_from_antares(input_csv, output_folder, output_csv):
+    """Generates flux files for all ZTF samples in the master CSV file,
+    using ANTARES' API.
+
+    Includes correct zeropoints.
+
+    input_csv : str
+        The path to the input CSV file.
+    output_folder : str
+        Path to the output folder.
+    output_csv : str
+        The output CSV file path.
+    """
+    with open(output_csv, "w+", encoding="utf-8") as csv_file:
+        writer = csv.writer(csv_file, delimiter=",")
+        writer.writerow(["Name", "Label", "Redshift"])
+
+    label_dict = {}
+    # os.makedirs(save_folder, exist_ok=True)
+    with open(input_csv, "r", encoding="utf-8") as mc:
+        csvreader = csv.reader(mc, delimiter=",", skipinitialspace=True)
+        next(csvreader)
+        for row in csvreader:
+            try:
+                ztf_name = row[0]
+                if os.path.exists(f"{output_folder}/{str(ztf_name)}.npz"):
+                    continue
+                print(ztf_name)
+                # Getting detections for an object
+                locus = get_by_ztf_object_id(ztf_name)
+                ts = locus.timeseries[
+                    [
+                        "ant_mjd",
+                        "ztf_magpsf",
+                        "ztf_sigmapsf",
+                        "ztf_fid",
+                        "ant_ra",
+                        "ant_dec",
+                        "ztf_magzpsci",
+                    ]
+                ]
+
+            except:
+                continue
+
+            label = row[3]
+            print(label)
+            try:
+                # redshift = float(row[12].strip())
+                redshift = float(row[4].strip())
+            except:
+                redshift = -1
+
+            t, m, merr, b_int, ra, dec, zp = ts.to_pandas().to_numpy().T
+            b = np.where(b_int.astype(int) == 1, "g", "r")
+            try:
+                ra = np.mean(ra[~np.isnan(ra)])
+                dec = np.mean(dec[~np.isnan(dec)])
+                g_ext, r_ext = get_band_extinctions(ra, dec)
+            except:
+                continue
+            m[b == "r"] -= r_ext
+            m[b == "g"] -= g_ext
+
+            valid_idx = ~np.isnan(merr) & ~np.isnan(zp)
+            t = t[valid_idx]
+            m = m[valid_idx]
+            b = b[valid_idx]
+            zp = zp[valid_idx]
+            merr = merr[valid_idx]
+
+            f, ferr = convert_mags_to_flux(m, merr, zp)
+            # print(f, ferr)
+            t, f, ferr, b = clip_lightcurve_end(t, f, ferr, b)
+            # print(f, ferr)
+            snr = np.abs(f / ferr)
+
+            if len(snr[(snr > 3.0) & (b == "g")]) < 5:  # not enough good datapoints
+                print("snr too low")
+                continue
+            if (np.max(f[b == "g"]) - np.min(f[b == "g"])) < 3.0 * np.mean(ferr[b == "g"]):
+                continue
+
+            if len(snr[(snr > 3.0) & (b == "r")]) < 5:  # not enough good datapoints
+                print("snr too low")
+                continue
+            if (np.max(f[b == "r"]) - np.min(f[b == "r"])) < 3.0 * np.mean(ferr[b == "r"]):
+                continue
+
+            save_datafile(ztf_name, t, f, ferr, b, output_folder)
+            add_to_new_csv(ztf_name, label, redshift, output_csv)
+            if label in label_dict:
+                label_dict[label] += 1
+            else:
+                label_dict[label] = 1
+
+    for label, counts in label_dict.items():
+        print(label, counts)

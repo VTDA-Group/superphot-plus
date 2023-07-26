@@ -17,7 +17,7 @@ from superphot_plus.file_utils import get_posterior_samples
 from .constants import BIGGER_SIZE, MEDIUM_SIZE, SMALL_SIZE
 from .file_paths import CM_FOLDER
 from .format_data_ztf import import_labels_only, oversample_using_posteriors
-from .import_ztf_from_alerce import clip_lightcurve_end, import_lc
+from .import_utils import clip_lightcurve_end, import_lc
 from .supernova_class import SupernovaClass as SnClass
 from .utils import calc_accuracy, f1_score, flux_model
 from superphot_plus.lightcurve import Lightcurve
