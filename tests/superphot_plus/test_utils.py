@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 
 from superphot_plus.utils import calc_accuracy, f1_score, get_band_extinctions, calculate_neg_chi_squareds
-from superphot_plus.file_utils import get_posterior_samples
+from superphot_plus.file_utils import get_posterior_samples, read_single_lightcurve
 
 def test_calc_accuracy() -> None:
     truth = np.array([1, 1, 0, 0, 2])
