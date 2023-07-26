@@ -127,7 +127,29 @@ def run_mcmc(lc, t0_lim=None, plot=False, rstate=None):
     ferrdata = lc.flux_errors
     bdata = lc.bands
 
-    max_flux = np.max(fdata[bdata == "r"] - np.abs(ferrdata[bdata == "r"]))
+    # Precompute the information about the maximum flux in the r band.
+    r_band = bdata == "r"
+    max_index = np.argmax(lc.fluxes[r_band] - np.abs(lc.flux_errors[r_band]))
+    max_flux = lc.fluxes[r_band][max_index] - np.abs(lc.flux_errors[r_band][max_index])
+    max_flux_loc = tdata[r_band][max_index]
+
+    # Create copies of the prior vectors with the value for t0 overwritten for the
+    # current lightcurve.
+    prior_clip_a = np.copy(ALL_PRIORS[0])
+    prior_clip_a[3] = np.amin(tdata) - 50.0
+    
+    prior_clip_b = np.copy(ALL_PRIORS[1])
+    prior_clip_b[3] = np.amax(tdata) + 50.0
+
+    prior_mean = np.copy(ALL_PRIORS[2])
+    prior_mean[3] = max_flux_loc
+
+    prior_std = np.copy(ALL_PRIORS[3])
+    prior_std[3] = 20.0
+
+    # Precompute the vectors of trunc_gauss a and b values.
+    tg_a = (prior_clip_a - prior_mean) / prior_std
+    tg_b = (prior_clip_b - prior_mean) / prior_std
 
     def create_prior(cube):
         """Creates prior for pymultinest, where each side of the "cube"
@@ -143,26 +165,26 @@ def run_mcmc(lc, t0_lim=None, plot=False, rstate=None):
         np.ndarray
             Updated array of parameters.
         """
+        # Compute the truncated Gaussian distribution for all values at once.
+        tg_vals = truncnorm.ppf(cube, tg_a, tg_b, loc=prior_mean, scale=prior_std)
 
-        cube[0] = max_flux * 10 ** (
-            trunc_gauss(cube[0], *PRIOR_A)
-        )  # log-uniform for A from 1.0x to 16x of max flux
-        cube[1] = trunc_gauss(cube[1], *PRIOR_BETA)  # beta UPDATED, looks more Lorentzian so widened by 1.5x
-        cube[2] = 10 ** trunc_gauss(cube[2], *PRIOR_GAMMA)  # very broad Gaussian temporary solution for gamma
-        max_flux_loc = tdata[np.argmax(fdata[bdata == "r"] - np.abs(ferrdata[bdata == "r"]))]
-        cube[3] = trunc_gauss(cube[3], np.amin(tdata) - 50.0, np.amax(tdata) + 50.0, max_flux_loc, 20.0)  # t0
-        cube[4] = 10 ** (trunc_gauss(cube[4], *PRIOR_TAU_RISE))  # taurise, UPDATED
-        cube[5] = 10 ** (trunc_gauss(cube[5], *PRIOR_TAU_FALL))  # tau fall UPDATED
-        cube[6] = 10 ** (trunc_gauss(cube[6], *PRIOR_EXTRA_SIGMA))  # lognormal for extrasigma, UPDATED
+        # log-uniform for A from 1.0x to 16x of max flux
+        cube[0] = max_flux * 10 ** (tg_vals[0])
+        cube[1] = tg_vals[1]
+        cube[2] = 10 ** (tg_vals[2])  # very broad Gaussian temporary solution for gamma
+        cube[3] = tg_vals[3]
+        cube[4] = 10 ** (tg_vals[4])  # taurise, UPDATED
+        cube[5] = 10 ** (tg_vals[5])  # tau fall UPDATED
+        cube[6] = 10 ** (tg_vals[6])  # lognormal for extrasigma, UPDATED
 
         # green band
-        cube[7] = trunc_gauss(cube[7], *PRIOR_A_g)  # A UPDATED
-        cube[8] = trunc_gauss(cube[8], *PRIOR_BETA_g)  # beta UPDATED
-        cube[9] = trunc_gauss(cube[9], *PRIOR_GAMMA_g)  # gamma, GAUSSIAN not Lorentzian
-        cube[10] = trunc_gauss(cube[10], *PRIOR_T0_g)  # t0 UPDATED
-        cube[11] = trunc_gauss(cube[11], *PRIOR_TAU_RISE_g)  # taurise UPDATED, Gaussian
-        cube[12] = trunc_gauss(cube[12], *PRIOR_TAU_FALL_g)  # taufall UPDATED
-        cube[13] = trunc_gauss(cube[13], *PRIOR_EXTRA_SIGMA_g)  # extra sigma UPDATED, Gaussian
+        cube[7] = tg_vals[7]
+        cube[8] = tg_vals[8]
+        cube[9] = tg_vals[9]
+        cube[10] = tg_vals[10]
+        cube[11] = tg_vals[11]
+        cube[12] = tg_vals[12]
+        cube[13] = tg_vals[13]
 
         return cube
 
