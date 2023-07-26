@@ -158,14 +158,16 @@ class SupernovaClass(str, Enum):
         cls : SupernovaClass
             The SupernovaClass class.
         labels : list of str
-            The supernova class labels.
+            The supernovae string labels.
 
         Returns
         -------
         np.array of int
-            Numpy array containing the integer classes.
+            Numpy array containing the supernovae integer classes.
         """
         labels_to_classes, _ = cls.get_type_maps()
+        if any(l not in labels_to_classes for l in labels):
+            raise ValueError("Invalid supernova label.")
         return np.array([labels_to_classes[l] for l in labels]).astype(int)
 
     @classmethod
@@ -176,13 +178,15 @@ class SupernovaClass(str, Enum):
         ----------
         cls : SupernovaClass
             The SupernovaClass class.
-        labels : list of int
-            The integer classes of supernova.
+        classes : list of int
+            The supernovae integer classes.
 
         Returns
         -------
         np.array of str
-            Numpy array containing the supernova labels.
+            Numpy array containing the supernovae string labels.
         """
         _, classes_to_labels = cls.get_type_maps()
-        return np.array([classes_to_labels[c] for c in classes])
+        if any(c not in classes_to_labels for c in classes):
+            raise ValueError("Invalid supernova class.")
+        return np.array([classes_to_labels[c] for c in classes]).astype(str)
