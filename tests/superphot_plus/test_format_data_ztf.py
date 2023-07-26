@@ -48,28 +48,37 @@ def test_import_labels_only(tmp_path):
     assert len(labels) == 0
 
 
-def test_get_lightcurve_posterior_samples(tmp_path):
+def test_get_lightcurve_posterior_samples(single_ztf_sn_id, single_ztf_eqwt_compressed, test_data_dir):
     """Test loading the posterior samples from an EQWT fits file"""
 
-    # Create fake lightcurve data.
-    times = np.array(range(10))
-    fluxes = np.array([100.1, 0.2, 0.3, 0.1, 0.2, 0.3, 0.1, 0.1, 0.1, 0.1])
-    bands = np.array(["r"] * 10)
-    errors = np.array([0.1] * 10)
-    lc = Lightcurve(times, fluxes, errors, bands)
-
-    filename = os.path.join(tmp_path, "my_test_file")
-
-    # Create simulated file for EQWT fit samples.
-    lc.save_to_file(f"{filename}_eqwt", overwrite=True)
+    # Check existence of EQWT fits file.
+    assert os.path.exists(single_ztf_eqwt_compressed)
 
     # Read posterior samples from file.
-    post_arr = get_lightcurve_posterior_samples(filename, fits_dir=tmp_path)
+    post_arr = get_lightcurve_posterior_samples(single_ztf_sn_id, fits_dir=test_data_dir)
 
-    assert np.allclose(post_arr[0].astype(float), times)
-    assert np.allclose(post_arr[1].astype(float), fluxes)
-    assert np.allclose(post_arr[2].astype(float), errors)
-    assert np.array_equal(post_arr[3], bands)
+    # Check output length.
+    assert len(post_arr) == 300
+
+    # Check output values.
+    expected = [
+        9.85589522e02,
+        5.19716954e-03,
+        1.61198756e01,
+        -5.75673236e00,
+        3.26708896e00,
+        2.38970410e01,
+        3.64242112e-02,
+        1.04759061e00,
+        1.04258722e00,
+        1.00856218e00,
+        9.99988091e-01,
+        9.66154117e-01,
+        5.76787619e-01,
+        8.59146651e-01,
+    ]
+    sample_mean = np.mean(post_arr, axis=0)
+    assert np.all(np.isclose(sample_mean, expected, rtol=0.5))
 
 
 def test_oversample_using_posteriors(test_data_dir, single_ztf_sn_id):
