@@ -92,7 +92,7 @@ def test_reflect_style():
 
 def test_get_classes_from_labels():
     """Test that we can get a list of classes from a list of supernova labels."""
-    classes = SnClass.get_class_from_labels(
+    classes = SnClass.get_classes_from_labels(
         [SnClass.SUPERNOVA_IA, SnClass.SUPERNOVA_II, SnClass.SUPERNOVA_IIN]
     )
 
@@ -101,7 +101,7 @@ def test_get_classes_from_labels():
 
     # When label is invalid, an exception is thrown.
     with pytest.raises(ValueError):
-        SnClass.get_class_from_labels(["TEST"])
+        SnClass.get_classes_from_labels(["TEST"])
 
 
 def test_get_labels_from_classes():

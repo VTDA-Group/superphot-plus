@@ -150,7 +150,7 @@ class SupernovaClass(str, Enum):
         return [t.value for t in cls]
 
     @classmethod
-    def get_class_from_labels(cls, labels):
+    def get_classes_from_labels(cls, labels):
         """Returns the integer classes for a list of supernova labels.
 
         Parameters
