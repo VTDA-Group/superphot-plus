@@ -2,7 +2,14 @@ import csv
 import os
 from pathlib import Path
 
-from superphot_plus.format_data_ztf import import_labels_only
+import numpy as np
+
+from superphot_plus.format_data_ztf import (
+    get_posterior_samples,
+    import_labels_only,
+    oversample_using_posteriors,
+)
+from superphot_plus.lightcurve import Lightcurve
 from superphot_plus.supernova_class import SupernovaClass
 
 
@@ -39,3 +46,54 @@ def test_import_labels_only(tmp_path):
 
     assert len(names) == 0
     assert len(labels) == 0
+
+
+def test_get_posterior_samples(tmp_path):
+    """Test loading the posterior samples from an EQWT fits file"""
+
+    # Create fake lightcurve data.
+    times = np.array(range(10))
+    fluxes = np.array([100.1, 0.2, 0.3, 0.1, 0.2, 0.3, 0.1, 0.1, 0.1, 0.1])
+    bands = np.array(["r"] * 10)
+    errors = np.array([0.1] * 10)
+    lc = Lightcurve(times, fluxes, errors, bands)
+
+    filename = os.path.join(tmp_path, "my_test_file")
+
+    # Create simulated file for EQWT fit samples.
+    lc.save_to_file(f"{filename}_eqwt", overwrite=True)
+
+    # Read posterior samples from file.
+    post_arr = get_posterior_samples(filename, output_dir=tmp_path)
+
+    assert np.allclose(post_arr[0].astype(float), times)
+    assert np.allclose(post_arr[1].astype(float), fluxes)
+    assert np.allclose(post_arr[2].astype(float), errors)
+    assert np.array_equal(post_arr[3], bands)
+
+
+def test_oversample_using_posteriors(tmp_path, single_ztf_sn_id):
+    """Test oversampling using posteriors"""
+
+    # Create fake lightcurve data.
+    times = np.array(range(10))
+    fluxes = np.array([100.1, 0.2, 0.3, 0.1, 0.2, 0.3, 0.1, 0.1, 0.1, 0.1])
+    bands = np.array(["r"] * 10)
+    errors = np.array([0.1] * 10)
+    lc = Lightcurve(times, fluxes, errors, bands)
+
+    filename = os.path.join(tmp_path, single_ztf_sn_id)
+
+    # Create simulated file for eqwt fit samples.
+    lc.save_to_file(f"{filename}_eqwt", overwrite=True)
+
+    names = [single_ztf_sn_id] * 3
+    labels = SupernovaClass.get_class_from_labels(["SN Ibc", "SN II", "SN IIn"])
+    chis = np.ones(len(names))
+    goal_per_class = 10
+
+    features, labels, chis = oversample_using_posteriors(names, labels, chis, goal_per_class, tmp_path)
+
+    assert len(features) == 30
+    assert len(labels) == 30
+    assert len(chis) == 30

@@ -139,7 +139,7 @@ def get_posterior_samples(ztf_name, output_dir=None):
     return post_arr
 
 
-def oversample_using_posteriors(ztf_names, labels, chis, goal_per_class):
+def oversample_using_posteriors(ztf_names, labels, chis, goal_per_class, fits_dir):
     """Oversamples, drawing from posteriors of a certain fit.
 
     Parameters
@@ -169,7 +169,7 @@ def oversample_using_posteriors(ztf_names, labels, chis, goal_per_class):
         samples_per_fit = max(1, np.round(goal_per_class / num_in_class).astype(int))
         for i in idxs_in_class:
             ztf_name = ztf_names[i]
-            all_posts = get_posterior_samples(ztf_name)
+            all_posts = get_posterior_samples(ztf_name, fits_dir)
             sampled_idx = np.random.choice(np.arange(len(all_posts)), samples_per_fit)
             sampled_features = all_posts[sampled_idx]
             oversampled_features.extend(list(sampled_features))

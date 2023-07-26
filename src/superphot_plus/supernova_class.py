@@ -1,3 +1,5 @@
+import numpy as np
+
 from enum import Enum
 
 
@@ -146,3 +148,41 @@ class SupernovaClass(str, Enum):
     def all_classes(cls):
         """Fetch a list of all supernova classes"""
         return [t.value for t in cls]
+
+    @classmethod
+    def get_class_from_labels(cls, labels):
+        """Returns the integer classes for a list of supernova labels.
+
+        Parameters
+        ----------
+        cls : SupernovaClass
+            The SupernovaClass class.
+        labels : list of str
+            The supernova class labels.
+
+        Returns
+        -------
+        np.array of int
+            Numpy array containing the integer classes.
+        """
+        labels_to_classes, _ = cls.get_type_maps()
+        return np.array([labels_to_classes[l] for l in labels]).astype(int)
+
+    @classmethod
+    def get_labels_from_classes(cls, classes):
+        """Returns the supernova labels for a list of integer classes.
+
+        Parameters
+        ----------
+        cls : SupernovaClass
+            The SupernovaClass class.
+        labels : list of int
+            The integer classes of supernova.
+
+        Returns
+        -------
+        np.array of str
+            Numpy array containing the supernova labels.
+        """
+        _, classes_to_labels = cls.get_type_maps()
+        return np.array([classes_to_labels[c] for c in classes])
