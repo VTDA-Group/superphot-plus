@@ -215,11 +215,12 @@ def calculate_neg_chi_squareds(cubes, t, f, ferr, b):
     """
     model_f = np.array([flux_model(cube, t, b) for cube in cubes]) # in future, maybe vectorize flux_model
     extra_sigma_arr = np.ones((len(cubes), len(t))) * np.max(f[b == "r"]) * cubes[:,6][:, np.newaxis]
-    extra_sigma_arr[b == "g"] *= cubes[:,-1][:, np.newaxis]
+    extra_sigma_arr[:, b == "g"] *= cubes[:,-2][:, np.newaxis]
     sigma_sq = extra_sigma_arr**2 + ferr**2
 
     log_likelihoods = np.sum(
-        np.log(1.0 / np.sqrt(2.0 * np.pi * sigma_sq)) - 0.5 * (f - model_f) ** 2 / sigma_sq
+        np.log(1.0 / np.sqrt(2.0 * np.pi * sigma_sq)) - 0.5 * (f - model_f) ** 2 / sigma_sq,
+        axis=1
     ) / len(t)
     
     return log_likelihoods
