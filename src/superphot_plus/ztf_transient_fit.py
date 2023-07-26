@@ -197,14 +197,15 @@ def run_mcmc(lc, t0_lim=None, plot=False, rstate=None):
     )
     sampler.run_nested(maxiter=MAX_ITER, dlogz=DLOGZ, print_progress=False)
     res = sampler.results
-    logl =  res.logl
-    samples, weights = res.samples, np.exp(res.logwt - res.logz[-1])
     
-    eq_wt_samples = dyfunc.resample_equal(samples, weights, rstate=rstate)
+    red_chisq =  res.logl / len(tdata)
+    samples = res.samples
+    eq_wt_samples = res.samples_equal(rstate=rstate)
+    
     orig_idxs = np.array([np.argmin(np.sum((e-samples)**2, axis=1)) for e in eq_wt_samples])
-    eq_wt_logl = logl[orig_idxs]
-    
-    eq_wt_samples = np.append(eq_wt_samples, eq_wt_logl[np.newaxis,:].T, 1)
+    eq_wt_red_chisq = red_chisq[orig_idxs]
+        
+    eq_wt_samples = np.append(eq_wt_samples, eq_wt_red_chisq[np.newaxis,:].T, 1)
 
     if plot:  # pragma: no cover
         if lc.name is None:

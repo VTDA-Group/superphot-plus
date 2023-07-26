@@ -129,7 +129,7 @@ def classify(goal_per_class, num_epochs, neurons_per_layer, num_layers, fits_plo
 
         for i in range(len(test_names)):
             test_name = test_names[i]
-            test_posts = get_posterior_samples(test_name)
+            test_posts = get_posterior_samples(test_name, FITS_DIR, "dynesty")
             test_features.extend(test_posts)
             test_classes_os.extend([test_classes[i]] * len(test_posts))
             test_names_os.extend([test_names[i]] * len(test_posts))
@@ -261,7 +261,7 @@ def load_mlp(mlp_filename, mlp_params):
     return model
     
     
-def classify_from_fit_params(fit_params):
+def classify_from_fit_params(model, fit_params):
     """Classify one or multiple light curves
     solely from the fit parameters used in the
     classifier. Excludes t0 and, for redshift-
@@ -278,7 +278,7 @@ def classify_from_fit_params(fit_params):
     np.ndarray
         Probability of each light curve being each SN type. Sums to 1 along each row.
     """
-    fit_params_2d = np.atleast_2d(fit_params_2d) # cast to 2D if only 1 light curve
+    fit_params_2d = np.atleast_2d(fit_params) # cast to 2D if only 1 light curve
         
     test_features, means, stds = normalize_features(  # pylint: disable=unused-variable
         fit_params_2d, MEANS_TRAINED_MODEL, STDDEVS_TRAINED_MODEL
@@ -288,10 +288,10 @@ def classify_from_fit_params(fit_params):
     images, probs = get_predictions_new(
         model, test_iterator, "cpu"
     )  # pylint: disable=unused-variable
-    return probs
+    return probs.numpy()
         
 
-def classify_single_light_curve(obj_name, fits_dir, data_dirs):
+def classify_single_light_curve(model, obj_name, fits_dir):
     """Given an object name, return classification probabilities
     based on the model fit and data.
     
@@ -310,7 +310,7 @@ def classify_single_light_curve(obj_name, fits_dir, data_dirs):
         The average probability for each SN type across all equally-weighted sets of fit parameters.
     """
     #try:
-    post_features = get_posterior_samples(obj_name, fits_dir)
+    post_features = get_posterior_samples(obj_name, fits_dir, "dynesty")
     #except:
     #    print("no posts")
     #    return
@@ -320,9 +320,9 @@ def classify_single_light_curve(obj_name, fits_dir, data_dirs):
         print("OBJECT LIKELY NOT A SN")
 
     # normalize the log distributions
-    test_features = adjust_log_dists(post_features)
-    probs = classify_from_fit_params(post_features)
-    probs_avg = np.mean(probs.numpy(), axis=0)
+    post_features = adjust_log_dists(post_features)
+    probs = classify_from_fit_params(model, post_features)
+    probs_avg = np.mean(probs, axis=0)
     return probs_avg
     
 

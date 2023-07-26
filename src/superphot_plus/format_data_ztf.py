@@ -165,5 +165,5 @@ def normalize_features(features, mean=None, std=None):
     if std is None:
         std = features.std(axis=-2)
 
-    print(mean, std)
+    #print(mean, std)
     return (features - mean) / std, mean, std
