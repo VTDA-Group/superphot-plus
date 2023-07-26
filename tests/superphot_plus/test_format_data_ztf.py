@@ -72,37 +72,25 @@ def test_get_lightcurve_posterior_samples(tmp_path):
     assert np.array_equal(post_arr[3], bands)
 
 
-def test_oversample_using_posteriors(tmp_path, single_ztf_sn_id):
+def test_oversample_using_posteriors(test_data_dir, single_ztf_sn_id):
     """Test oversampling using posteriors"""
-
-    # Create fake lightcurve data.
-    times = np.array(range(10))
-    fluxes = np.array([100.1, 0.2, 0.3, 0.1, 0.2, 0.3, 0.1, 0.1, 0.1, 0.1])
-    bands = np.array(["r"] * 10)
-    errors = np.array([0.1] * 10)
-    lc = Lightcurve(times, fluxes, errors, bands)
-
-    filename = os.path.join(tmp_path, single_ztf_sn_id)
-
-    # Create simulated file for eqwt fit samples.
-    lc.save_to_file(f"{filename}_eqwt", overwrite=True)
 
     names = [single_ztf_sn_id] * 3
     chis = np.ones(len(names))
     goal_per_class = 10
 
-    # Oversampling from a set of unique supernova classes
+    # Oversampling from a set of unique supernova classes.
     classes = [4, 1, 2]  # Classes for "Sn Ibc", "SN II" and "SN IIn"
-    features, labels, chis = oversample_using_posteriors(names, classes, chis, goal_per_class, tmp_path)
+    features, labels, chis = oversample_using_posteriors(names, classes, chis, goal_per_class, test_data_dir)
 
-    # We should have 30 samples in total, 10 for each class
+    # We should have 30 samples in total, 10 for each class.
     assert len(features) == len(labels) == len(chis) == 30
     assert len(labels[labels == 4]) == len(labels[labels == 1]) == len(labels[labels == 2]) == 10
 
-    # Oversampling from a set with repeated supernova classes
+    # Oversampling from a set with repeated supernova classes.
     classes = [4, 1, 1]  # Classes for "Sn Ibc" and "SN II"
-    features, labels, chis = oversample_using_posteriors(names, classes, chis, goal_per_class, tmp_path)
+    features, labels, chis = oversample_using_posteriors(names, classes, chis, goal_per_class, test_data_dir)
 
-    # We should not have repeated samples for the repeated class
+    # We should have less samples due to repeated class.
     assert len(features) == len(labels) == len(chis) == 20
     assert len(labels[labels == 4]) == len(labels[labels == 1]) == 10
