@@ -15,9 +15,9 @@ from sklearn.model_selection import train_test_split
 
 from .constants import MEANS_TRAINED_MODEL, NUM_FOLDS, PAD_SIZE, STDDEVS_TRAINED_MODEL
 from .file_paths import *  # pylint: disable=wildcard-import
+from .file_utils import get_posterior_samples
 from .format_data_ztf import (
     generate_K_fold,
-    get_lightcurve_posterior_samples,
     import_labels_only,
     normalize_features,
     oversample_using_posteriors,
@@ -150,7 +150,7 @@ def classify(goal_per_class, num_epochs, neurons_per_layer, num_layers, fits_plo
 
         for i in range(len(test_names)):
             test_name = test_names[i]
-            test_posts = get_lightcurve_posterior_samples(test_name)
+            test_posts = get_posterior_samples(test_name)
             test_features.extend(test_posts)
             test_classes_os.extend([test_classes[i]] * len(test_posts))
             test_names_os.extend([test_names[i]] * len(test_posts))
@@ -310,7 +310,7 @@ def return_new_classifications(test_csv, data_dirs, fit_dir, include_labels=Fals
                     continue
             try:
                 print(test_name, fit_dir)
-                test_posts = get_lightcurve_posterior_samples(test_name, fit_dir)
+                test_posts = get_posterior_samples(test_name, fit_dir)
             except:
                 print("no posts")
                 continue

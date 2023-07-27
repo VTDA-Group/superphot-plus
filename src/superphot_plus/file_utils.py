@@ -3,6 +3,7 @@
 import os
 
 import numpy as np
+
 from superphot_plus.file_paths import FITS_DIR
 
 
@@ -123,6 +124,29 @@ def get_posterior_samples(lc_name, fits_dir=None, sampler=None):
     posterior_filename = get_posterior_filename(lc_name, fits_dir, sampler)
 
     return np.load(posterior_filename)["arr_0"]
+
+
+def get_multiple_posterior_samples(lc_names, fits_dir):
+    """Reads all EQUAL WEIGHT posterior samples for a set of lightcurve fits.
+
+    Parameters
+    ----------
+    lc_names : str
+        Lightcurve names.
+    fits_dir : str, optional
+        Output directory path. Defaults to FITS_DIR.
+    sampler : str, optional
+        Variety of sampler. Can be included in the sample file name.
+
+    Returns
+    -------
+    dict of np.ndarray
+        Dictionary mapping the posterior samples to the light curves specified.
+    """
+    posterior_samples = {}
+    for lc_name in np.unique(lc_names):
+        posterior_samples[lc_name] = get_posterior_samples(lc_name, fits_dir)
+    return posterior_samples
 
 
 def has_posterior_samples(lc_name, fits_dir=None, sampler=None):
