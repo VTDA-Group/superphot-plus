@@ -170,11 +170,11 @@ def run_mcmc(lc, t0_lim=None, plot=False, rstate=None):
 
         cube[0] = max_flux * 10 ** tg_vals[0]  # log-uniform for A from 1.0x to 16x of max flux
         cube[1] = tg_vals[1]  # beta UPDATED, looks more Lorentzian so widened by 1.5x
-        cube[2] = 10 ** (tg_vals[2])  # very broad Gaussian temporary solution for gamma
+        cube[2] = 10 ** tg_vals[2]  # very broad Gaussian temporary solution for gamma
         cube[3] = tg_vals[3]
-        cube[4] = 10 ** (tg_vals[4])  # taurise, UPDATED
-        cube[5] = 10 ** (tg_vals[5])  # tau fall UPDATED
-        cube[6] = 10 ** (tg_vals[6])  # lognormal for extrasigma, UPDATED
+        cube[4] = 10 ** tg_vals[4]  # taurise, UPDATED
+        cube[5] = 10 ** tg_vals[5]  # tau fall UPDATED
+        cube[6] = 10 ** tg_vals[6]  # lognormal for extrasigma, UPDATED
 
         # g band
         cube[7] = tg_vals[7]  # A UPDATED
