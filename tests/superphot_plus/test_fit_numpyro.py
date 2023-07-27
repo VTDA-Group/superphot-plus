@@ -21,20 +21,20 @@ def test_numpyro_nuts(tmp_path, single_ztf_lightcurve_compressed):
 
     # Check output values
     expected = [
-        9.85589522e+02,
+        9.85589522e02,
         5.19716954e-03,
-        1.61198756e+01,
-        -5.75673236e+00,
-        3.26708896e+00,
-        2.38970410e+01,
+        1.61198756e01,
+        -5.75673236e00,
+        3.26708896e00,
+        2.38970410e01,
         3.64242112e-02,
-        1.04759061e+00,
-        1.04258722e+00,
-        1.00856218e+00,
+        1.04759061e00,
+        1.04258722e00,
+        1.00856218e00,
         9.99988091e-01,
         9.66154117e-01,
         5.76787619e-01,
-        8.59146651e-01
+        8.59146651e-01,
     ]
     sample_mean = np.mean(params, axis=0)
     assert np.all(np.isclose(sample_mean, expected, rtol=0.5))
