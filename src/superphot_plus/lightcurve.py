@@ -117,13 +117,6 @@ class Lightcurve:
             ferr_s = lc.flux_errors[matches]
             b_s = lc.bands[matches]
 
-            print(f"Processing {b} -> {len_b}")
-            print(matches)
-            print(t_s)
-            print(f_s)
-            print(ferr_s)
-            print(b_s)
-
             # If we have too many data points, use only the first ``size``
             # as ordered by time. Otherwise pad the data.
             if len_b > size:
@@ -141,12 +134,6 @@ class Lightcurve:
                 f_padded = np.append(f_padded, [0.0] * (size - len_b))
                 ferr_padded = np.append(ferr_padded, [1e10] * (size - len_b))
                 b_padded = np.append(b_padded, [b] * (size - len_b))
-
-            print("AFTER:")
-            print(t_padded)
-            print(f_padded)
-            print(ferr_padded)
-            print(b_padded)
 
         # Depending on the setting in_place, lc is either self or a new copy
         # of the lightcurve.
