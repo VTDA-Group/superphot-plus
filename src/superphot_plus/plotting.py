@@ -14,6 +14,7 @@ from sklearn.metrics import confusion_matrix
 from sklearn.utils.multiclass import unique_labels
 
 from superphot_plus.file_utils import get_posterior_samples
+from superphot_plus.lightcurve import Lightcurve
 
 from .constants import BIGGER_SIZE, MEDIUM_SIZE, SMALL_SIZE
 from .file_paths import CM_FOLDER, FIT_PLOTS_FOLDER
@@ -21,7 +22,6 @@ from .format_data_ztf import import_labels_only, oversample_using_posteriors
 from .import_ztf_from_alerce import clip_lightcurve_end, import_lc
 from .supernova_class import SupernovaClass as SnClass
 from .utils import calc_accuracy, f1_score, flux_model
-from superphot_plus.lightcurve import Lightcurve
 
 alerce = Alerce()
 
@@ -973,19 +973,25 @@ def flux_from_posteriors(t, params, max_flux):
     return flux_g, flux_r
 
 
-def plot_posterior_hist(posterior_samples, parameter):
+def plot_posterior_hist(posterior_samples, parameter, output_dir=None):
     """
     Plot histogram for a posterior parameter.
 
     Parameters
     ----------
     posterior_samples :
-        Light curve posterior samples.
+        Dictionary of posterior samples.
     parameter :
         Posterior parameter for which to plot histogram.
+    output_dir :
+        The directory where to store the plot.
     """
     if parameter is None or parameter not in posterior_samples:
         raise ValueError("Invalid posterior parameter.")
+
+    output_file = f"test_hist_{parameter}.png"
+    if output_dir is not None:
+        output_file = os.path.join(output_dir, output_file)
 
     samples = posterior_samples[parameter]
 
@@ -995,11 +1001,11 @@ def plot_posterior_hist(posterior_samples, parameter):
         samples = samples.flatten()
 
     plt.hist(samples, bins=10)
-    plt.savefig(f"test_hist_{parameter}.png")
+    plt.savefig(output_file)
     plt.close()
 
 
-def plot_sampling_trace_numpyro(posterior_samples):
+def plot_sampling_trace_numpyro(posterior_samples, output_dir=None):
     """
     Plot trace of all posterior samples.
 
@@ -1007,7 +1013,14 @@ def plot_sampling_trace_numpyro(posterior_samples):
     ----------
     posterior_samples :
         The lightcurve samples given by MCMC.
+    output_dir :
+        The directory where to store the plot.
     """
+
+    output_file = "test_trace.png"
+    if output_dir is not None:
+        output_file = os.path.join(output_dir, output_file)
+
     post_reformatted = {}
     for p in posterior_samples:
         post_reformatted[p] = np.array(
@@ -1015,12 +1028,23 @@ def plot_sampling_trace_numpyro(posterior_samples):
                 posterior_samples[p],
             ]
         )
+
     az.plot_trace(post_reformatted, compact=True)
-    plt.savefig("test_trace.png")
+    plt.savefig(output_file)
     plt.close()
 
 
-def plot_sampling_lc_fit_numpyro(posterior_samples, tdata, fdata, ferrdata, bdata, max_flux, lcs, t0_lim):
+def plot_sampling_lc_fit_numpyro(
+    posterior_samples,
+    tdata,
+    fdata,
+    ferrdata,
+    bdata,
+    max_flux,
+    lcs,
+    t0_lim=None,
+    output_folder=FIT_PLOTS_FOLDER,
+):
     """
     Plot lightcurve sampling fit using in-memory samples.
 
@@ -1040,8 +1064,10 @@ def plot_sampling_lc_fit_numpyro(posterior_samples, tdata, fdata, ferrdata, bdat
         Max flux of data.
     lcs: array-like
         Light curve objects on which sampling was run.
-    t0_lim: float or None, optional
+    t0_lim:  float or None, optional
         Upper time limit for the data.
+    output_folder : str or FITS_PLOTS_FOLDER, optional
+        Directory where to store the light curve sampling fit.
     """
 
     for i in range(len(tdata)):
@@ -1103,8 +1129,8 @@ def plot_sampling_lc_fit_numpyro(posterior_samples, tdata, fdata, ferrdata, bdat
         plt.title(lcs[i].name)
 
         if t0_lim is None:
-            plt.savefig(os.path.join(FIT_PLOTS_FOLDER, "%s.pdf" % lcs[i].name))
+            plt.savefig(os.path.join(output_folder, "%s.pdf" % lcs[i].name))
         else:
-            plt.savefig(os.path.join(FIT_PLOTS_FOLDER, "%s_%.02f.pdf" % (lcs[i].name, t0_lim)))
+            plt.savefig(os.path.join(output_folder, "%s_%.02f.pdf" % (lcs[i].name, t0_lim)))
 
         plt.close()
