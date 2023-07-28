@@ -61,7 +61,6 @@ def test_type_maps_for_allowed_types_mixed():
     assert list(labels_to_classes.values()) == list(classes_to_labels.keys())
 
 
-
 def test_canonicalize():
     """Test that we can canonicalize all the labels and alternative labels."""
 
