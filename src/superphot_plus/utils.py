@@ -192,6 +192,7 @@ def flux_model(cube, t_data, b_data):
     f_model[inc_band_ix & (t_data - t0_b < gamma_b)] = (
         A_b / (1.0 + np.exp(-phase_b2 / tau_rise_b)) * (1.0 - phase_b2 * beta_b)
     )
+
     return f_model
 
 
