@@ -19,6 +19,29 @@ PRIOR_TAU_RISE_g = [0.5, 2.0, 0.9663, 0.0128]
 PRIOR_TAU_FALL_g = [0.1, 3.0, 0.5488, 0.0553]
 PRIOR_EXTRA_SIGMA_g = [0.2, 2.0, 0.8606, 0.0388]
 
+# The priors in columnar format with columns for
+# clip_a, clip_b, mean, std
+ALL_PRIORS = np.transpose(
+    np.array(
+        [
+            PRIOR_A,
+            PRIOR_BETA,
+            PRIOR_GAMMA,
+            PRIOR_T0,
+            PRIOR_TAU_RISE,
+            PRIOR_TAU_FALL,
+            PRIOR_EXTRA_SIGMA,
+            PRIOR_A_g,
+            PRIOR_BETA_g,
+            PRIOR_GAMMA_g,
+            PRIOR_T0_g,
+            PRIOR_TAU_RISE_g,
+            PRIOR_TAU_FALL_g,
+            PRIOR_EXTRA_SIGMA_g,
+        ]
+    )
+)
+
 # Nested sampling parameters
 MAX_ITER = 5000
 DLOGZ = 0.5
