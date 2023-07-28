@@ -107,7 +107,7 @@ def test_flux_model():
     assert np.all(fluxes_g <= cube[7] * cube[0])
 
     # Check that the peak happens near t0 + gamma for both bands. It might happen
-    # +/- one index depending on the slops of the curves and how close the peak time
+    # +/- one index depending on the slopes of the curves and how close the peak time
     # is to a sampled timestep.
     times_r = times[bands == "r"]
     times_g = times[bands == "g"]
