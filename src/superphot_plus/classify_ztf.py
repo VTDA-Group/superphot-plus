@@ -38,15 +38,21 @@ from .ztf_transient_fit import run_mcmc
 from superphot_plus.file_utils import get_posterior_samples
 
 
-def adjust_log_dists(features):
+def adjust_log_dists(features_orig):
     """Takes log of fit parameters with log-Gaussian priors before
     feeding into classifier. Also removes apparent amplitude and t0.
 
     Parameters
     ----------
-    features : np.ndarray
+    features_orig : np.ndarray
         Array of fit features of all samples.
+        
+    Returns
+    ---------
+    features : np.ndarray
+        Array of adjusted fit features.
     """
+    features = np.copy(features_orig)
     features[:, 4:7] = np.log10(features[:, 4:7])
     features[:, 2] = np.log10(features[:, 2])
     return np.delete(features, [0, 3], 1)

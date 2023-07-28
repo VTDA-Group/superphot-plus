@@ -161,7 +161,6 @@ def flux_model(cube, t_data, b_data):
         The flux model for the given set of time and band data.
     """
     A, beta, gamma, t0, tau_rise, tau_fall, es = cube[:7]  # pylint: disable=unused-variable
-
     phase = t_data - t0
     f_model = (
         A / (1.0 + np.exp(-phase / tau_rise)) * (1.0 - beta * gamma) * np.exp((gamma - phase) / tau_fall)
