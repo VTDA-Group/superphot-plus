@@ -2,7 +2,10 @@ import csv
 import os
 from pathlib import Path
 
-from superphot_plus.format_data_ztf import import_labels_only
+import numpy as np
+
+from superphot_plus.format_data_ztf import import_labels_only, oversample_using_posteriors
+from superphot_plus.lightcurve import Lightcurve
 from superphot_plus.supernova_class import SupernovaClass
 
 
@@ -39,3 +42,27 @@ def test_import_labels_only(tmp_path):
 
     assert len(names) == 0
     assert len(labels) == 0
+
+
+def test_oversample_using_posteriors(test_data_dir, single_ztf_sn_id):
+    """Test oversampling using posteriors"""
+
+    names = [single_ztf_sn_id] * 3
+    chis = np.ones(len(names))
+    goal_per_class = 10
+
+    # Oversampling from a set of unique supernova classes.
+    classes = [4, 1, 2]  # Classes for "Sn Ibc", "SN II" and "SN IIn"
+    features, labels, chis = oversample_using_posteriors(names, classes, chis, goal_per_class, test_data_dir)
+
+    # We should have 30 samples in total, 10 for each class.
+    assert len(features) == len(labels) == len(chis) == 30
+    assert len(labels[labels == 4]) == len(labels[labels == 1]) == len(labels[labels == 2]) == 10
+
+    # Oversampling from a set with repeated supernova classes.
+    classes = [4, 1, 1]  # Classes for "Sn Ibc" and "SN II"
+    features, labels, chis = oversample_using_posteriors(names, classes, chis, goal_per_class, test_data_dir)
+
+    # We should have less samples due to repeated class.
+    assert len(features) == len(labels) == len(chis) == 20
+    assert len(labels[labels == 4]) == len(labels[labels == 1]) == 10

@@ -1,3 +1,6 @@
+import numpy as np
+import pytest
+
 from superphot_plus.supernova_class import SupernovaClass as SnClass
 
 
@@ -85,3 +88,29 @@ def test_reflect_style():
     assert SnClass.get_reflect_style("SNIa") == SnClass.SUPERNOVA_IA.value
     assert SnClass.get_reflect_style("SLSN") == SnClass.SUPERLUMINOUS_SUPERNOVA_I.value
     assert SnClass.get_reflect_style("SNIbc") == SnClass.SUPERNOVA_IBC.value
+
+
+def test_get_classes_from_labels():
+    """Test that we can get a list of classes from a list of supernova labels."""
+    classes = SnClass.get_classes_from_labels(
+        [SnClass.SUPERNOVA_IA, SnClass.SUPERNOVA_II, SnClass.SUPERNOVA_IIN]
+    )
+
+    # Array values are of type int
+    assert classes.dtype.type is np.int_
+
+    # When label is invalid, an exception is thrown.
+    with pytest.raises(ValueError):
+        SnClass.get_classes_from_labels(["TEST"])
+
+
+def test_get_labels_from_classes():
+    """Test that we can get a list of supernova labels from a list of classes."""
+    labels = SnClass.get_labels_from_classes([0, 1, 2])
+
+    # Array values are of type string
+    assert labels.dtype.type is np.str_
+
+    # When class is invalid, an exception is thrown.
+    with pytest.raises(ValueError):
+        SnClass.get_labels_from_classes([0, 1, 100])
