@@ -111,7 +111,7 @@ def tally_each_class(labels):
     print()
 
 
-def oversample_using_posteriors(ztf_names, labels, goal_per_class, fits_dir):
+def oversample_using_posteriors(lc_names, labels, goal_per_class, fits_dir):
     """Oversamples, drawing from posteriors of a certain fit.
 
     Parameters
