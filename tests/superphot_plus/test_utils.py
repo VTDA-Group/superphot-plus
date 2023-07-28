@@ -116,7 +116,7 @@ def test_flux_model():
     assert np.abs(brightest_ind_r - np.argmax(fluxes_r)) <= 1
     assert np.abs(brightest_ind_g - np.argmax(fluxes_g)) <= 1
 
-    # Check that the curve is monotonlically increasing before the peak
+    # Check that the curve is monotonically increasing before the peak
     for i in range(1, brightest_ind_r):
         assert fluxes_r[i] > fluxes_r[i - 1]
     for i in range(1, brightest_ind_g):
