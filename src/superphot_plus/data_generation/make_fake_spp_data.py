@@ -7,6 +7,7 @@ from ..ztf_transient_fit import trunc_gauss, params_valid
 
 DEFAULT_MAX_FLUX = 1.0
 
+
 def create_prior(cube):
     """Creates prior for dynesty, where each side of the "cube"
     is a value sampled between 0 and 1 representing each parameter.
@@ -42,9 +43,9 @@ def create_prior(cube):
     cube[13] = trunc_gauss(cube[13], *PRIOR_EXTRA_SIGMA_g)  # extra sigma UPDATED, Gaussian
 
     return cube
-    
 
-def ztf_noise_model(mag, band, snr_range_g = [1,10], snr_range_r=[1,10]):
+
+def ztf_noise_model(mag, band, snr_range_g=[1, 10], snr_range_r=[1, 10]):
     """A very, very simple noise model which assumes the dimmest magnitude is at SNR = 1, and the brightest mad is at SNR = 10.
 
     Parameters
@@ -64,14 +65,18 @@ def ztf_noise_model(mag, band, snr_range_g = [1,10], snr_range_r=[1,10]):
         Signal-to-noise ratios (SNR) of the observations.
     """
 
-    snr = mag * 0 # set up a dummy array for the snr
-    gind_g = np.where(band == 'g') # let's do g-band first
+    snr = mag * 0  # set up a dummy array for the snr
+    gind_g = np.where(band == "g")  # let's do g-band first
     range_g = np.max(mag[gind_g]) - np.min(mag[gind_g])
-    snr[gind_g] = (snr_range_g[1] - snr_range_g[0]) * (mag[gind_g] - np.min(mag[gind_g])) / range_g + snr_range_g[0]
-    
-    gind_r = np.where(band == 'r') # r-band
+    snr[gind_g] = (snr_range_g[1] - snr_range_g[0]) * (
+        mag[gind_g] - np.min(mag[gind_g])
+    ) / range_g + snr_range_g[0]
+
+    gind_r = np.where(band == "r")  # r-band
     range_r = np.max(mag[gind_r]) - np.min(mag[gind_r])
-    snr[gind_r] = (snr_range_r[1] - snr_range_r[0]) * (mag[gind_r] - np.min(mag[gind_r])) / range_r + snr_range_r[0]
+    snr[gind_r] = (snr_range_r[1] - snr_range_r[0]) * (
+        mag[gind_r] - np.min(mag[gind_r])
+    ) / range_r + snr_range_r[0]
     return snr
 
 
@@ -143,42 +148,43 @@ def create_ztf_model(plot=False):
     # This is going to random simulate some observation every 2-3 days across 2 filters
     num_observations = 130
     tdata = np.random.uniform(-100, 100, num_observations)
-    filter_data = np.random.choice(['g','r'], size=num_observations)
+    filter_data = np.random.choice(["g", "r"], size=num_observations)
 
     cube = create_prior(cube)
     A, beta, gamma, t0, tau_rise, tau_fall, es = cube[:7]  # pylint: disable=unused-variable
 
     found_valid = False
     num_tried = 0
-    
+
     # Now re-attempts to regenerate until it gets a "good" model
-    while ( not found_valid and num_tried < 100 ):
+    while not found_valid and num_tried < 100:
         cube = create_prior(cube, tdata)
         A, beta, gamma, t0, tau_rise, tau_fall, es = cube[:7]  # pylint: disable=unused-variable
         found_valid = params_valid(beta, gamma, tau_rise, tau_fall)
         num_tried += 1
-        
+
     if not found_valid:
-        return('Failure')
-    
+        return "Failure"
+
     f_model = flux_model(cube, tdata, filter_data)
     snr = ztf_noise_model(f_model, filter_data)
 
-    gind = np.where(snr>3) # any points with SNR < 3 are ignored
+    gind = np.where(snr > 3)  # any points with SNR < 3 are ignored
     snr = snr[gind]
     f_model = f_model[gind]
     tdata = tdata[gind]
     filter_data = filter_data[gind]
-    sigmas = f_model/snr
+    sigmas = f_model / snr
 
     dirty_model = f_model + np.random.normal(0, sigmas)
 
     if plot:
         plt.scatter(tdata, dirty_model, color=filter_data)
-        plt.errorbar(tdata, dirty_model, yerr=sigmas, color='grey', alpha=0.2, linestyle='None')
-        plt.xlabel('Time (days)')
-        plt.ylabel('Flux (arbitrary units)')
+        plt.errorbar(tdata, dirty_model, yerr=sigmas, color="grey", alpha=0.2, linestyle="None")
+        plt.xlabel("Time (days)")
+        plt.ylabel("Flux (arbitrary units)")
         plt.show()
-    return cube[:,7], tdata, filter_data, dirty_model, sigmas
+    return cube[:, 7], tdata, filter_data, dirty_model, sigmas
+
 
 # Can run this with create_model(plot=True)

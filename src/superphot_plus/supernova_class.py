@@ -1,5 +1,7 @@
 from enum import Enum
 
+import numpy as np
+
 
 class SupernovaClass(str, Enum):
     """Classes of Supernovae"""
@@ -146,3 +148,45 @@ class SupernovaClass(str, Enum):
     def all_classes(cls):
         """Fetch a list of all supernova classes"""
         return [t.value for t in cls]
+
+    @classmethod
+    def get_classes_from_labels(cls, labels):
+        """Returns the integer classes for a list of supernova labels.
+
+        Parameters
+        ----------
+        cls : SupernovaClass
+            The SupernovaClass class.
+        labels : list of str
+            The supernovae string labels.
+
+        Returns
+        -------
+        np.array of int
+            Numpy array containing the supernovae integer classes.
+        """
+        labels_to_classes, _ = cls.get_type_maps()
+        if any(l not in labels_to_classes for l in labels):
+            raise ValueError("Invalid supernova label.")
+        return np.array([labels_to_classes[l] for l in labels]).astype(int)
+
+    @classmethod
+    def get_labels_from_classes(cls, classes):
+        """Returns the supernova labels for a list of integer classes.
+
+        Parameters
+        ----------
+        cls : SupernovaClass
+            The SupernovaClass class.
+        classes : list of int
+            The supernovae integer classes.
+
+        Returns
+        -------
+        np.array of str
+            Numpy array containing the supernovae string labels.
+        """
+        _, classes_to_labels = cls.get_type_maps()
+        if any(c not in classes_to_labels for c in classes):
+            raise ValueError("Invalid supernova class.")
+        return np.array([classes_to_labels[c] for c in classes]).astype(str)

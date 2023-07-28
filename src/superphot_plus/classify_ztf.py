@@ -13,8 +13,9 @@ import torch
 from joblib import Parallel, delayed
 from sklearn.model_selection import train_test_split
 
-from .constants import MEANS_TRAINED_MODEL, NUM_FOLDS, STDDEVS_TRAINED_MODEL, PAD_SIZE
+from .constants import MEANS_TRAINED_MODEL, NUM_FOLDS, PAD_SIZE, STDDEVS_TRAINED_MODEL
 from .file_paths import *  # pylint: disable=wildcard-import
+from .file_utils import get_posterior_samples
 from .format_data_ztf import (
     generate_K_fold,
     import_labels_only,
@@ -35,7 +36,6 @@ from .plotting import plot_confusion_matrix
 from .supernova_class import SupernovaClass as SnClass
 from .utils import calc_accuracy, calculate_neg_chi_squareds, f1_score
 from .ztf_transient_fit import run_mcmc
-from superphot_plus.file_utils import get_posterior_samples
 
 
 def adjust_log_dists(features_orig):
@@ -115,9 +115,9 @@ def classify(goal_per_class, num_epochs, neurons_per_layer, num_layers, fits_plo
         train_labels = labels[train_index]
         val_labels = labels[val_index]
 
-        train_classes = np.array([labels_to_classes[l] for l in train_labels]).astype(int)
-        val_classes = np.array([labels_to_classes[l] for l in val_labels]).astype(int)
-        test_classes = np.array([labels_to_classes[l] for l in test_labels]).astype(int)
+        train_classes = SnClass.get_classes_from_labels(train_labels)
+        val_classes = SnClass.get_classes_from_labels(val_labels)
+        test_classes = SnClass.get_classes_from_labels(test_labels)
 
         #train_chis = calculate_neg_chi_squareds(train_names, FITS_DIR, DATA_DIRS)
         train_features, train_classes = oversample_using_posteriors(
@@ -195,8 +195,8 @@ def classify(goal_per_class, num_epochs, neurons_per_layer, num_layers, fits_plo
     ztf_test_names = np.hstack(tuple(ztf_test_names))
     valid_loss_avg = np.mean(valid_loss_mlp)
 
-    true_classes_mlp = np.array([classes_to_labels[l] for l in true_classes_mlp])
-    predicted_classes_mlp = np.array([classes_to_labels[l] for l in predicted_classes_mlp])
+    true_classes_mlp = SnClass.get_labels_from_classes(true_classes_mlp)
+    predicted_classes_mlp = SnClass.get_labels_from_classes(predicted_classes_mlp)
 
     if fits_plotted:
         wrongly_classified = np.where(true_classes_mlp != predicted_classes_mlp)[0]

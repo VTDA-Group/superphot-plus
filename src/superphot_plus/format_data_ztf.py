@@ -8,7 +8,11 @@ import numpy as np
 from sklearn.model_selection import StratifiedKFold
 
 from superphot_plus.file_paths import FITS_DIR
-from superphot_plus.file_utils import get_posterior_samples, has_posterior_samples
+from superphot_plus.file_utils import (
+    get_multiple_posterior_samples,
+    get_posterior_samples,
+    has_posterior_samples,
+)
 from superphot_plus.supernova_class import SupernovaClass as SnClass
 
 
@@ -107,17 +111,19 @@ def tally_each_class(labels):
     print()
 
 
-def oversample_using_posteriors(ztf_names, labels, goal_per_class):
+def oversample_using_posteriors(ztf_names, labels, goal_per_class, fits_dir):
     """Oversamples, drawing from posteriors of a certain fit.
 
     Parameters
     ----------
-    ztf_names : list
-        List of ZTF names.
+    lc_names : str
+        Lightcurve names.
     labels : list
         List of labels.
     goal_per_class : int
         Number of samples per class.
+    fits_dir : str
+        Where fit parameters are stored.
 
     Returns
     -------
@@ -128,13 +134,16 @@ def oversample_using_posteriors(ztf_names, labels, goal_per_class):
     oversampled_labels = []
     oversampled_features = []
     labels_unique = np.unique(labels)
+
+    posterior_samples = get_multiple_posterior_samples(lc_names, fits_dir)
+
     for l in labels_unique:
         idxs_in_class = np.asarray(labels == l).nonzero()[0]
         num_in_class = len(idxs_in_class)
         samples_per_fit = max(1, np.round(goal_per_class / num_in_class).astype(int))
         for i in idxs_in_class:
-            ztf_name = ztf_names[i]
-            all_posts = get_posterior_samples(ztf_name)
+            lc_name = lc_names[i]
+            all_posts = posterior_samples[lc_name]
             sampled_idx = np.random.choice(np.arange(len(all_posts)), samples_per_fit)
             sampled_features = all_posts[sampled_idx]
             oversampled_features.extend(list(sampled_features))

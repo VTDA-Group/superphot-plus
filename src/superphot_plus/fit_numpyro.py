@@ -5,9 +5,7 @@ equally weighted posteriors (sets of fit parameters).
 
 import os
 
-import arviz as az
 import jax.numpy as jnp
-import matplotlib.pyplot as plt
 import numpyro
 import numpyro.distributions as dist
 from jax import random
@@ -15,10 +13,15 @@ from jax.config import config
 from numpyro.contrib.nested_sampling import NestedSampler
 from numpyro.distributions import constraints
 from numpyro.infer import MCMC, NUTS, SVI, Trace_ELBO
+
+from superphot_plus.plotting import (
+    plot_posterior_hist,
+    plot_sampling_lc_fit_numpyro,
+    plot_sampling_trace_numpyro,
+)
 from numpyro.infer.initialization import init_to_sample, init_to_uniform
 
 from superphot_plus.lightcurve import Lightcurve
-from superphot_plus.plotting import flux_from_posteriors
 from superphot_plus.file_utils import get_posterior_filename
 
 from .constants import *  # pylint: disable=wildcard-import
@@ -382,79 +385,18 @@ def run_mcmc(lc, sampler="NUTS", t0_lim=None, plot=False):
     print(discrete_samples.keys())
     """
     if plot:  # pragma: no cover
-        plt.hist(posterior_samples["log_tau_fall"].flatten(), bins=10)
-        plt.savefig("test_hist.png")
-        plt.close()
-
-        post_reformatted = {}
-        for p in posterior_samples:
-            post_reformatted[p] = np.array(
-                [
-                    posterior_samples[p],
-                ]
-            )
-
-        az.plot_trace(post_reformatted, compact=True)
-        plt.savefig("test_trace.png")
-        plt.close()
-
-        ignore_idx = ferrdata == 1e10
-        tdata = tdata[~ignore_idx]
-        fdata = fdata[~ignore_idx]
-        ferrdata = ferrdata[~ignore_idx]
-        bdata = bdata[~ignore_idx]
-
-        model_i = np.array(
-            [
-                {k: posterior_samples[k][j] for k in posterior_samples.keys()}
-                for j in range(len(posterior_samples["log_tau_fall"]))
-            ]
+        plot_posterior_hist(posterior_samples, parameter="log_tau_fall")
+        plot_sampling_lc_fit_numpyro(
+            posterior_samples,
+            tdata=[tdata],
+            fdata=[fdata],
+            ferrdata=[ferrdata],
+            bdata=[bdata],
+            max_flux=[max_flux],
+            lcs=[lc],
+            t0_lim=t0_lim,
         )
-
-        plt.errorbar(
-            tdata[bdata == 0],
-            fdata[bdata == 0],
-            yerr=ferrdata[bdata == 0],
-            c="g",
-            label="g",
-            fmt="o",
-        )
-        plt.errorbar(
-            tdata[bdata == 1],
-            fdata[bdata == 1],
-            yerr=ferrdata[bdata == 1],
-            c="r",
-            label="r",
-            fmt="o",
-        )
-
-        trange_fine = np.linspace(np.amin(tdata), np.amax(tdata), num=500)
-
-        for sample in model_i[:30]:
-            plt.plot(
-                trange_fine,
-                flux_from_posteriors(trange_fine, sample, max_flux)[0],
-                c="g",
-                lw=1,
-                alpha=0.1,
-            )
-            plt.plot(
-                trange_fine,
-                flux_from_posteriors(trange_fine, sample, max_flux)[1],
-                c="r",
-                lw=1,
-                alpha=0.1,
-            )
-
-        plt.xlabel("MJD")
-        plt.ylabel("Flux")
-        plt.title(lc.name)
-
-        if t0_lim is None:
-            plt.savefig(os.path.join(FIT_PLOTS_FOLDER, "%s.pdf" % lc.name))
-        else:
-            plt.savefig(os.path.join(FIT_PLOTS_FOLDER, "%s_%.02f.pdf" % (lc.name, t0_lim)))
-        plt.close()
+        plot_sampling_trace_numpyro(posterior_samples)
 
     param_list = [
         "logA",
@@ -641,80 +583,22 @@ def run_mcmc_batch(lcs, t0_lim=None, plot=False):
     
     print(discrete_samples.keys())
     """
-    plt.hist(posterior_samples["log_tau_fall"][:, 0], bins=10)
-    plt.savefig("test_hist.png")
-    plt.close()
 
-    post_reformatted = {}
-    for p in posterior_samples:
-        post_reformatted[p] = np.array(
-            [
-                posterior_samples[p],
-            ]
+    if plot:  # pragma: no cover
+        plot_posterior_hist(posterior_samples, parameter="log_tau_fall")
+
+        plot_sampling_lc_fit_numpyro(
+            posterior_samples,
+            tdata=tdata_stacked,
+            fdata=fdata_stacked,
+            ferrdata=ferrdata_stacked,
+            bdata=bdata_stacked,
+            max_flux=max_flux,
+            lcs=lcs,
+            t0_lim=t0_lim,
         )
 
-    az.plot_trace(post_reformatted, compact=True)
-    plt.savefig("test_trace.png")
-    plt.close()
-
-    if plot:
-        for i in range(len(tdata_stacked)):
-            ignore_idx = ferrdata_stacked[i] == 1e10  # pylint: ignore-superfluous parens
-            tdata = tdata_stacked[i][~ignore_idx]
-            fdata = fdata_stacked[i][~ignore_idx]
-            ferrdata = ferrdata_stacked[i][~ignore_idx]
-            bdata = bdata_stacked[i][~ignore_idx]
-
-            model_i = np.array(
-                [
-                    {k: posterior_samples[k][j, i] for k in posterior_samples.keys()}
-                    for j in range(len(posterior_samples["log_tau_fall"]))
-                ]
-            )
-
-            plt.errorbar(
-                tdata[bdata == 0],
-                fdata[bdata == 0],
-                yerr=ferrdata[bdata == 0],
-                c="g",
-                label="g",
-                fmt="o",
-            )
-            plt.errorbar(
-                tdata[bdata == 1],
-                fdata[bdata == 1],
-                yerr=ferrdata[bdata == 1],
-                c="r",
-                label="r",
-                fmt="o",
-            )
-
-            trange_fine = np.linspace(np.amin(tdata), np.amax(tdata), num=500)
-
-            for sample in model_i[:30]:
-                plt.plot(
-                    trange_fine,
-                    flux_from_posteriors(trange_fine, sample, max_flux[i])[0],
-                    c="g",
-                    lw=1,
-                    alpha=0.1,
-                )
-                plt.plot(
-                    trange_fine,
-                    flux_from_posteriors(trange_fine, sample, max_flux[i])[1],
-                    c="r",
-                    lw=1,
-                    alpha=0.1,
-                )
-
-            plt.xlabel("MJD")
-            plt.ylabel("Flux")
-            plt.title(lcs[i].name)
-            if t0_lim is None:
-                plt.savefig(os.path.join(FIT_PLOTS_FOLDER, "%s.pdf" % lcs[i].name))
-            else:
-                plt.savefig(os.path.join(FIT_PLOTS_FOLDER, "%s_%.02f.pdf" % (lcs[i].name, t0_lim)))
-            plt.close()
+        plot_sampling_trace_numpyro(posterior_samples)
 
     return posterior_samples
 
