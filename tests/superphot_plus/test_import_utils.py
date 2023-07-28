@@ -1,6 +1,6 @@
 import pytest
 
-from superphot_plus.import_ztf_from_alerce import import_lc
+from superphot_plus.import_utils import import_lc
 
 
 def test_import_lc(single_ztf_lightcurve):
