@@ -112,7 +112,7 @@ def test_get_posterior_samples(single_ztf_sn_id, single_ztf_eqwt_compressed, tes
         9.66154117e-01,
         5.76787619e-01,
         8.59146651e-01,
-        -5.43
+        -5.43,
     ]
     sample_mean = np.mean(post_arr, axis=0)
     assert np.all(np.isclose(sample_mean, expected, rtol=0.5))

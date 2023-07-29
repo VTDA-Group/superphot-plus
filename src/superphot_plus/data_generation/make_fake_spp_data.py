@@ -1,9 +1,9 @@
 import numpy as np
 from scipy.stats import truncnorm
 
-from ..utils import flux_model
 from ..constants import *
-from ..ztf_transient_fit import trunc_gauss, params_valid
+from ..utils import flux_model
+from ..ztf_transient_fit import params_valid, trunc_gauss
 
 DEFAULT_MAX_FLUX = 1.0
 

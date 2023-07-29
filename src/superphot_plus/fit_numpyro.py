@@ -13,16 +13,15 @@ from jax.config import config
 from numpyro.contrib.nested_sampling import NestedSampler
 from numpyro.distributions import constraints
 from numpyro.infer import MCMC, NUTS, SVI, Trace_ELBO
+from numpyro.infer.initialization import init_to_sample, init_to_uniform
 
+from superphot_plus.file_utils import get_posterior_filename
+from superphot_plus.lightcurve import Lightcurve
 from superphot_plus.plotting import (
     plot_posterior_hist,
     plot_sampling_lc_fit_numpyro,
     plot_sampling_trace_numpyro,
 )
-from numpyro.infer.initialization import init_to_sample, init_to_uniform
-
-from superphot_plus.lightcurve import Lightcurve
-from superphot_plus.file_utils import get_posterior_filename
 
 from .constants import *  # pylint: disable=wildcard-import
 from .file_paths import FIT_PLOTS_FOLDER, FITS_DIR
