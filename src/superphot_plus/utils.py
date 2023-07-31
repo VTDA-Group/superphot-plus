@@ -6,9 +6,9 @@ from astropy.coordinates import SkyCoord
 from dustmaps.config import config
 from dustmaps.sfd import SFDQuery
 
-from superphot_plus.sfd import dust_filepath
 from superphot_plus.file_utils import get_posterior_samples
 from superphot_plus.lightcurve import Lightcurve
+from superphot_plus.sfd import dust_filepath
 
 
 def get_band_extinctions(ra, dec):
@@ -212,15 +212,13 @@ def calculate_neg_chi_squareds(cubes, t, f, ferr, b):
     log_likelihoods : np.ndarray
         The log likelihoods for each object.
     """
-    model_f = np.array([flux_model(cube, t, b) for cube in cubes]) # in future, maybe vectorize flux_model
-    extra_sigma_arr = np.ones((len(cubes), len(t))) * np.max(f[b == "r"]) * cubes[:,6][:, np.newaxis]
-    extra_sigma_arr[:, b == "g"] *= cubes[:,-2][:, np.newaxis]
+    model_f = np.array([flux_model(cube, t, b) for cube in cubes])  # in future, maybe vectorize flux_model
+    extra_sigma_arr = np.ones((len(cubes), len(t))) * np.max(f[b == "r"]) * cubes[:, 6][:, np.newaxis]
+    extra_sigma_arr[:, b == "g"] *= cubes[:, -2][:, np.newaxis]
     sigma_sq = extra_sigma_arr**2 + ferr**2
 
     log_likelihoods = np.sum(
-        np.log(1.0 / np.sqrt(2.0 * np.pi * sigma_sq)) - 0.5 * (f - model_f) ** 2 / sigma_sq,
-        axis=1
+        np.log(1.0 / np.sqrt(2.0 * np.pi * sigma_sq)) - 0.5 * (f - model_f) ** 2 / sigma_sq, axis=1
     ) / len(t)
-    
-    return log_likelihoods
 
+    return log_likelihoods

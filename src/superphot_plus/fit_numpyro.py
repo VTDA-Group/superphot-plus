@@ -16,6 +16,7 @@ from numpyro.distributions import constraints
 from numpyro.infer import MCMC, NUTS, SVI, Trace_ELBO
 from numpyro.infer.initialization import init_to_sample, init_to_uniform
 
+
 from superphot_plus.constants import PAD_SIZE
 from superphot_plus.file_paths import FITS_DIR
 from superphot_plus.file_utils import get_posterior_filename
@@ -26,6 +27,7 @@ from superphot_plus.plotting import (
     plot_sampling_trace_numpyro,
 )
 from superphot_plus.priors.fitting_priors import MultibandPriors, PriorFields
+
 
 config.update("jax_enable_x64", True)
 numpyro.enable_x64()

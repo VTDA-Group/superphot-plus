@@ -1,5 +1,6 @@
-import numpy as np
 import os
+
+import numpy as np
 import pytest
 
 from superphot_plus.file_utils import read_single_lightcurve
