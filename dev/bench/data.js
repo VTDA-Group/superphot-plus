@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1690568259390,
+  "lastUpdate": 1690816152769,
   "repoUrl": "https://github.com/lincc-frameworks/superphot-plus",
   "entries": {
     "SUPERHOT-PLUS Benchmarking Monitor": [
@@ -1133,6 +1133,60 @@ window.BENCHMARK_DATA = {
           {
             "name": "test_fit::test_svi_single_file - Memory Used",
             "value": 860.859375,
+            "unit": "MB"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "kmd6851@psu.edu",
+            "name": "Kaylee de Soto",
+            "username": "kdesoto-psu"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "d090757c1c48a4153f0d4852c43c6d552c6e2481",
+          "message": "Merge pull request #51 from lincc-frameworks/new_classifications_modularity\n\nMake classify_ztf.py modular, fix redundant chisq calculations",
+          "timestamp": "2023-07-31T11:06:18-04:00",
+          "tree_id": "af483eb409416ec4aa46f0508f34ce51a7073ca3",
+          "url": "https://github.com/lincc-frameworks/superphot-plus/commit/d090757c1c48a4153f0d4852c43c6d552c6e2481"
+        },
+        "date": 1690816151035,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "test_fit::test_dynesty_single_file - Runtime",
+            "value": 4.161482334136963,
+            "unit": "s"
+          },
+          {
+            "name": "test_fit::test_dynesty_single_file - Memory Used",
+            "value": 257.8359375,
+            "unit": "MB"
+          },
+          {
+            "name": "test_fit::test_nuts_single_file - Runtime",
+            "value": 14.247833251953125,
+            "unit": "s"
+          },
+          {
+            "name": "test_fit::test_nuts_single_file - Memory Used",
+            "value": 551.953125,
+            "unit": "MB"
+          },
+          {
+            "name": "test_fit::test_svi_single_file - Runtime",
+            "value": 14.450304746627808,
+            "unit": "s"
+          },
+          {
+            "name": "test_fit::test_svi_single_file - Memory Used",
+            "value": 860.10546875,
             "unit": "MB"
           }
         ]
