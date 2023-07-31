@@ -1,6 +1,7 @@
 """A collection of constants used by many modules in the package."""
 
 import numpy as np
+import jax.numpy as jnp
 
 # Nested sampling priors
 PRIOR_A = [-0.2, 1.2, 0.0, 0.5]
@@ -41,6 +42,9 @@ ALL_PRIORS = np.transpose(
         ]
     )
 )
+
+PRIOR_MEANS = jnp.array([0., 0.0052, 1.1391, 0., 0.5990, 1.4296, -1.5364, 1.0607, 1.0424, 1.0075, 0.999 + 8.9289e-5, 0.9663, 0.5488, 0.8606])
+PRIOR_SIGMAS = jnp.array([0.5, 1.5 * 0.000336, 1.5 * .1719, 50., 1.5 * .2073, 1.5 * 0.1003, 0.2691, 1.5 * 0.1544, 0.0026, 0.0139, 1.5*4.5055e-05, 0.0128, 0.0553, 0.0388])
 
 # Nested sampling parameters
 MAX_ITER = 5000
