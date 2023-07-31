@@ -8,9 +8,13 @@ Superphot+ includes functionalities to both generate simulated light curves, and
 
 Superphot+ is the underlying package used in multiple real-time ANTARES classification filters[^2], as well as the ELASTICC challenge[^3].
 
-[^1] https://github.com/griffin-h/superphot/tree/master/superphot 
-[^2] https://antares.noirlab.edu/filters 
+
+[^1] https://github.com/griffin-h/superphot/tree/master/superphot
+
+[^2] https://antares.noirlab.edu/filters
+
 [^3] https://portal.nersc.gov/cfs/lsst/DESC_TD_PUBLIC/ELASTICC/ 
+
 
 ## Getting started
 
