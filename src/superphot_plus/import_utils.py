@@ -146,7 +146,6 @@ def clip_lightcurve_end(times, fluxes, fluxerrs, bands):
     return np.array(t_clip), np.array(flux_clip), np.array(ferr_clip), np.array(b_clip)
 
 
-
 def save_datafile(name, times, fluxes, fluxerrs, bands, save_dir):
     """Saves a reformatted version of data file to the output folder.
 

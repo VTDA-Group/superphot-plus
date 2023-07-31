@@ -10,8 +10,8 @@ from dynesty import utils as dyfunc
 from scipy.optimize import curve_fit
 from scipy.stats import truncnorm
 
+from superphot_plus.file_utils import get_posterior_filename, has_posterior_samples, read_single_lightcurve
 from superphot_plus.lightcurve import Lightcurve
-from superphot_plus.file_utils import read_single_lightcurve, has_posterior_samples, get_posterior_filename
 from superphot_plus.plotting import plot_sampling_lc_fit
 from superphot_plus.utils import flux_model
 
@@ -218,21 +218,21 @@ def run_mcmc(lc, t0_lim=None, plot=False, rstate=None):
     )
     sampler.run_nested(maxiter=MAX_ITER, dlogz=DLOGZ, print_progress=False)
     res = sampler.results
-    
-    red_chisq =  res.logl / len(tdata)
+
+    red_chisq = res.logl / len(tdata)
     samples = res.samples
     eq_wt_samples = res.samples_equal(rstate=rstate)
-    
-    orig_idxs = np.array([np.argmin(np.sum((e-samples)**2, axis=1)) for e in eq_wt_samples])
+
+    orig_idxs = np.array([np.argmin(np.sum((e - samples) ** 2, axis=1)) for e in eq_wt_samples])
     eq_wt_red_chisq = red_chisq[orig_idxs]
-        
-    eq_wt_samples = np.append(eq_wt_samples, eq_wt_red_chisq[np.newaxis,:].T, 1)
+
+    eq_wt_samples = np.append(eq_wt_samples, eq_wt_red_chisq[np.newaxis, :].T, 1)
 
     if plot:  # pragma: no cover
         if lc.name is None:
             raise ValueError("Missing file name for plotting files.")
         plot_sampling_lc_fit(lc.name, FIT_PLOTS_FOLDER, tdata, fdata, ferrdata, bdata, eq_wt_samples)
-        
+
     return eq_wt_samples
 
 
