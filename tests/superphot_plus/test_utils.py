@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 
 from superphot_plus.utils import calc_accuracy, f1_score, get_band_extinctions, calculate_neg_chi_squareds
-
+from superphot_plus.file_utils import get_posterior_samples, read_single_lightcurve
 
 def test_calc_accuracy() -> None:
     truth = np.array([1, 1, 0, 0, 2])
@@ -59,9 +59,11 @@ def test_get_band_extinctions() -> None:
     assert np.all(ext_list == pytest.approx([0.3133, 0.2202], 0.01))
 
 
-def test_neg_chi_squareds(test_data_dir, single_ztf_sn_id):
+def test_neg_chi_squareds(single_ztf_lightcurve_compressed, test_data_dir, single_ztf_sn_id):
     """This is currently a change detection test where we are just confirming
     the function runs correctly returns the same value as it used to.
     """
-    result = calculate_neg_chi_squareds([single_ztf_sn_id], fit_dir=test_data_dir, data_dirs=[test_data_dir])
-    assert np.all(np.isclose(result, [-38.4], rtol=0.1))
+    posts = get_posterior_samples(single_ztf_sn_id, fits_dir=test_data_dir, sampler="dynesty")
+    sn_data = read_single_lightcurve(single_ztf_lightcurve_compressed)
+    result = calculate_neg_chi_squareds(posts, *sn_data)
+    assert np.isclose(np.mean(result), -5.43, rtol=0.1)

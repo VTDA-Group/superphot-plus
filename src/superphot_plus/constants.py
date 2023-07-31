@@ -61,6 +61,7 @@ LEARNING_RATE = 1e-4
 NUM_FOLDS = 20
 
 # New classifications parameters
+TRAINED_MODEL_PARAMS = (13, 5, 128, 3)
 MEANS_TRAINED_MODEL = np.array(
     [
         5.18928404e-03,

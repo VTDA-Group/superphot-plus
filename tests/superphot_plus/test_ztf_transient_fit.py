@@ -13,7 +13,7 @@ def test_dynesty_single_file(tmp_path, single_ztf_lightcurve_compressed):
         skip_if_exists=False,
         rstate=np.random.default_rng(9876),
     )
-    assert len(sample_mean) == 14
+    assert len(sample_mean) == 15
 
     output_file = os.path.join(tmp_path, "ZTF22abvdwik_eqwt_dynesty.npz")
     assert os.path.exists(output_file)
@@ -40,6 +40,7 @@ def test_dynesty_single_file(tmp_path, single_ztf_lightcurve_compressed):
         0.96,
         0.56,
         0.87,
+        -5.43
     ]
     assert len(expected) == len(sample_mean)
     for i in range(len(expected)):

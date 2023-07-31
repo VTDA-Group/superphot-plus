@@ -111,7 +111,7 @@ def tally_each_class(labels):
     print()
 
 
-def oversample_using_posteriors(lc_names, labels, chis, goal_per_class, fits_dir):
+def oversample_using_posteriors(lc_names, labels, goal_per_class, fits_dir):
     """Oversamples, drawing from posteriors of a certain fit.
 
     Parameters
@@ -120,10 +120,10 @@ def oversample_using_posteriors(lc_names, labels, chis, goal_per_class, fits_dir
         Lightcurve names.
     labels : list
         List of labels.
-    chis : list
-        List of chi-squared values.
     goal_per_class : int
         Number of samples per class.
+    fits_dir : str
+        Where fit parameters are stored.
 
     Returns
     -------
@@ -132,7 +132,6 @@ def oversample_using_posteriors(lc_names, labels, chis, goal_per_class, fits_dir
         values.
     """
     oversampled_labels = []
-    oversampled_chis = []
     oversampled_features = []
     labels_unique = np.unique(labels)
 
@@ -149,8 +148,7 @@ def oversample_using_posteriors(lc_names, labels, chis, goal_per_class, fits_dir
             sampled_features = all_posts[sampled_idx]
             oversampled_features.extend(list(sampled_features))
             oversampled_labels.extend([l] * samples_per_fit)
-            oversampled_chis.extend([chis[i]] * samples_per_fit)
-    return np.array(oversampled_features), np.array(oversampled_labels), np.array(oversampled_chis)
+    return np.array(oversampled_features), np.array(oversampled_labels)
 
 
 def normalize_features(features, mean=None, std=None):
@@ -176,5 +174,5 @@ def normalize_features(features, mean=None, std=None):
     if std is None:
         std = features.std(axis=-2)
 
-    print(mean, std)
+    #print(mean, std)
     return (features - mean) / std, mean, std

@@ -829,6 +829,7 @@ def plot_lc_fit(ztf_name, data_dir, fit_dir, out_dir, sampling_method="dynesty")
         Sampling method used for the fit. Default is "dynesty".
     """
     data_fn = os.path.join(data_dir, ztf_name + ".npz")
+
     lightcurve = Lightcurve.from_file(data_fn)
 
     eq_wt_samples = get_posterior_samples(ztf_name, fit_dir, sampling_method)

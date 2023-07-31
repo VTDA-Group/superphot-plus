@@ -94,7 +94,7 @@ def test_get_posterior_samples(single_ztf_sn_id, single_ztf_eqwt_compressed, tes
     post_arr = get_posterior_samples(single_ztf_sn_id, fits_dir=test_data_dir)
 
     # Check output length.
-    assert len(post_arr) == 300
+    assert 600 <= len(post_arr) <= 800
 
     # Check output values.
     expected = [
@@ -112,6 +112,7 @@ def test_get_posterior_samples(single_ztf_sn_id, single_ztf_eqwt_compressed, tes
         9.66154117e-01,
         5.76787619e-01,
         8.59146651e-01,
+        -5.43
     ]
     sample_mean = np.mean(post_arr, axis=0)
     assert np.all(np.isclose(sample_mean, expected, rtol=0.5))

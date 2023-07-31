@@ -38,15 +38,21 @@ from .utils import calc_accuracy, calculate_neg_chi_squareds, f1_score
 from .ztf_transient_fit import run_mcmc
 
 
-def adjust_log_dists(features):
+def adjust_log_dists(features_orig):
     """Takes log of fit parameters with log-Gaussian priors before
     feeding into classifier. Also removes apparent amplitude and t0.
 
     Parameters
     ----------
-    features : np.ndarray
+    features_orig : np.ndarray
         Array of fit features of all samples.
+        
+    Returns
+    ---------
+    features : np.ndarray
+        Array of adjusted fit features.
     """
+    features = np.copy(features_orig)
     features[:, 4:7] = np.log10(features[:, 4:7])
     features[:, 2] = np.log10(features[:, 2])
     return np.delete(features, [0, 3], 1)
@@ -113,48 +119,26 @@ def classify(goal_per_class, num_epochs, neurons_per_layer, num_layers, fits_plo
         val_classes = SnClass.get_classes_from_labels(val_labels)
         test_classes = SnClass.get_classes_from_labels(test_labels)
 
-        train_chis = calculate_neg_chi_squareds(train_names, FITS_DIR, DATA_DIRS)
-        train_features, train_classes, train_chis = oversample_using_posteriors(
-            train_names, train_classes, train_chis, goal_per_class
+        #train_chis = calculate_neg_chi_squareds(train_names, FITS_DIR, DATA_DIRS)
+        train_features, train_classes = oversample_using_posteriors(
+            train_names, train_classes, goal_per_class
         )
-        val_chis = calculate_neg_chi_squareds(val_names, FITS_DIR, DATA_DIRS)
-        val_features, val_classes, val_chis = oversample_using_posteriors(
-            val_names, val_classes, val_chis, round(0.1 * goal_per_class)
-        )
-
-        train_features = np.append(
-            train_features,
-            np.array(
-                [
-                    train_chis,
-                ]
-            ).T,
-            1,
-        )
-        val_features = np.append(
-            val_features,
-            np.array(
-                [
-                    val_chis,
-                ]
-            ).T,
-            1,
+        #val_chis = calculate_neg_chi_squareds(val_names, FITS_DIR, DATA_DIRS)
+        val_features, val_classes = oversample_using_posteriors(
+            val_names, val_classes, round(0.1 * goal_per_class)
         )
 
         test_features = []
         test_classes_os = []
         test_group_idxs = []
         test_names_os = []
-        test_chis_os = []
-        test_chis = calculate_neg_chi_squareds(test_names, FITS_DIR, DATA_DIRS)
 
         for i in range(len(test_names)):
             test_name = test_names[i]
-            test_posts = get_posterior_samples(test_name)
+            test_posts = get_posterior_samples(test_name, FITS_DIR, "dynesty")
             test_features.extend(test_posts)
             test_classes_os.extend([test_classes[i]] * len(test_posts))
             test_names_os.extend([test_names[i]] * len(test_posts))
-            test_chis_os.extend([test_chis[i]] * len(test_posts))
             if len(test_group_idxs) == 0:
                 start_idx = 0
             else:
@@ -162,13 +146,6 @@ def classify(goal_per_class, num_epochs, neurons_per_layer, num_layers, fits_plo
             test_group_idxs.append(np.arange(start_idx, start_idx + len(test_posts)))
 
         test_features = np.array(test_features)
-        test_chis = np.array(
-            [
-                test_chis_os,
-            ]
-        )
-
-        test_features = np.append(test_features, test_chis.T, 1)
 
         # normalize the log distributions
         test_features = adjust_log_dists(test_features)
@@ -270,6 +247,91 @@ def classify(goal_per_class, num_epochs, neurons_per_layer, num_layers, fits_plo
     )
 
 
+def load_mlp(mlp_filename, mlp_params):
+    """Load a trained MLP for subsequent classification of new objects.
+    
+    Parameters
+    ----------
+    mlp_filename : str
+        Where the trained MLP is stored.
+    mlp_params : tuple or array
+        Includes (in order): input_size, output_size, n_neurons, n_hidden.
+        
+    Returns
+    ----------
+    torch.nn.Module
+        The pre-trained MLP object.
+    """
+    model = MLP(*mlp_params)  # set up empty multi-layer perceptron
+    model.load_state_dict(torch.load(mlp_filename))  # load trained state dict to the MLP
+    return model
+    
+    
+def classify_from_fit_params(model, fit_params):
+    """Classify one or multiple light curves
+    solely from the fit parameters used in the
+    classifier. Excludes t0 and, for redshift-
+    exclusive classifier, A. Includes chi-squared
+    value.
+    
+    Parameters
+    ----------
+    fit_params : np.ndarray
+        Set of model fit parameters.
+        
+    Returns
+    ----------
+    np.ndarray
+        Probability of each light curve being each SN type. Sums to 1 along each row.
+    """
+    fit_params_2d = np.atleast_2d(fit_params) # cast to 2D if only 1 light curve
+        
+    test_features, means, stds = normalize_features(  # pylint: disable=unused-variable
+        fit_params_2d, MEANS_TRAINED_MODEL, STDDEVS_TRAINED_MODEL
+    )
+    test_data = torch.utils.data.TensorDataset(torch.Tensor(test_features))
+    test_iterator = torch.utils.data.DataLoader(test_data, batch_size=32)
+    images, probs = get_predictions_new(
+        model, test_iterator, "cpu"
+    )  # pylint: disable=unused-variable
+    return probs.numpy()
+        
+
+def classify_single_light_curve(model, obj_name, fits_dir):
+    """Given an object name, return classification probabilities
+    based on the model fit and data.
+    
+    Parameters
+    ----------
+    obj_name : str
+        Name of the supernova.
+    fits_dir : str
+        Where model fit information is stored.
+    data_dirs : np.ndarray
+        Where the object's datafile could be stored.
+        
+    Returns
+    ----------
+    np.ndarray
+        The average probability for each SN type across all equally-weighted sets of fit parameters.
+    """
+    #try:
+    post_features = get_posterior_samples(obj_name, fits_dir, "dynesty")
+    #except:
+    #    print("no posts")
+    #    return
+    
+    chisq = np.mean(post_features[:,-1])
+    if np.abs(chisq) > 10: # probably not a SN
+        print("OBJECT LIKELY NOT A SN")
+
+    # normalize the log distributions
+    post_features = adjust_log_dists(post_features)
+    probs = classify_from_fit_params(model, post_features)
+    probs_avg = np.mean(probs, axis=0)
+    return probs_avg
+    
+
 def return_new_classifications(test_csv, data_dirs, fit_dir, include_labels=False):
     """Return new classifications based on model and save probabilities
     to a CSV file.
@@ -286,70 +348,36 @@ def return_new_classifications(test_csv, data_dirs, fit_dir, include_labels=Fals
         If True, labels from the test data are included in the
         probability saving process. Defaults to False.
     """
-    model = MLP(13, 5, 128, 3)  # set up empty multi-layer perceptron
-    model.load_state_dict(torch.load(TRAINED_MODEL_FN))  # load trained state dict to the MLP
-
-    labels_to_classes, classes_to_labels = SnClass.get_type_maps()  # pylint: disable=unused-variable
-
-    special_labels = {
-        "SN Iax[02cx-like]",
-    }
-
+    model = load_mlp(TRAINED_MODEL_FN, TRAINED_MODEL_PARAMS)
     with open(test_csv, "r") as tc:
         csv_reader = csv.reader(tc, delimiter=",")
         next(csv_reader)
         for _, row in enumerate(csv_reader):
+            
             try:
                 test_name = row[0]
             except:
-                print(row)
+                print(row, "skipped")
                 continue
+                
             if include_labels:
                 label = row[1]
-                if label not in special_labels:  # to classify special types
-                    continue
-            try:
-                print(test_name, fit_dir)
-                test_posts = get_posterior_samples(test_name, fit_dir)
-            except:
-                print("no posts")
-                continue
-            test_features = test_posts
-            test_names = np.array([test_name] * len(test_posts))
-            test_chi = calculate_neg_chi_squareds(
-                [
-                    test_name,
-                ],
-                fit_dir,
-                data_dirs,
-            )[0]
-            # if np.abs(test_chi) > 10: # probably not a SN
-            #    print(test_name, "CHISQ TOO HIGH")
-            #    label = "SKIP"
-            test_chis = np.array([[test_chi] * len(test_posts)])
 
-            test_features = np.append(test_features, test_chis.T, 1)
-
-            # normalize the log distributions
-            test_features = adjust_log_dists(test_features)
-            test_features, means, stds = normalize_features(  # pylint: disable=unused-variable
-                test_features, MEANS_TRAINED_MODEL, STDDEVS_TRAINED_MODEL
-            )
-            test_data = torch.utils.data.TensorDataset(torch.Tensor(test_features))
-            test_iterator = torch.utils.data.DataLoader(test_data, batch_size=32)
-            _, probs = get_predictions_new(model, test_iterator, "cpu")
-            probs_avg = np.mean(probs.numpy(), axis=0)
+            probs_avg = classify_single_light_curve(test_name, fit_dir, data_dirs)
 
             if include_labels:
-                save_test_probabilities(test_names[0], label, probs_avg)
+                save_test_probabilities(test_name, label, probs_avg)
             else:
-                save_unclassified_test_probabilities(test_names[0], probs_avg)
+                save_unclassified_test_probabilities(test_name, probs_avg)
 
 
 def save_phase_versus_class_probs(probs_csv, data_dir):
     """Apply classifier to dataset over different phases. Plot overall
     trends of phase vs confidence, phase vs F1 score, phase vs each
     class accuracy.
+    
+    Note this was being manually altered for different desired plots.
+    Future versions will move all that to function args.
 
     Parameters
     ----------
@@ -358,10 +386,7 @@ def save_phase_versus_class_probs(probs_csv, data_dir):
     data_dir : str
         Path to the directory containing the data.
     """
-    model = MLP(13, 5, 128, 3)  # set up empty multi-layer perceptron
-    model.load_state_dict(torch.load(TRAINED_MODEL_FN))  # load trained state dict to the MLP
-
-    labels_to_classes, classes_to_labels = SnClass.get_type_maps()  # pylint: disable=unused-variable
+    model = load_mlp(TRAINED_MODEL_FN, TRAINED_MODEL_PARAMS)
 
     ct = 0
 
@@ -398,30 +423,13 @@ def save_phase_versus_class_probs(probs_csv, data_dir):
 
                 try:
                     refit_posts = run_mcmc(os.path.join(data_dir, test_name + ".npz"), t)
-                    test_chi = calculate_neg_chi_squareds(
-                        [
-                            test_name,
-                        ],
-                        FITS_DIR,
-                        [
-                            data_dir,
-                        ],
-                    )[0]
-                    test_chis = np.array([[test_chi] * len(refit_posts)])
                 except:
                     print("skipping fitting")
                     return None
 
-                test_features = np.append(refit_posts, test_chis.T, 1)
-
                 # normalize the log distributions
                 test_features = adjust_log_dists(test_features)
-                test_features, means2, stds2 = normalize_features(  # pylint: disable=unused-variable
-                    test_features, MEANS_TRAINED_MODEL, STDDEVS_TRAINED_MODEL
-                )
-                test_data = torch.utils.data.TensorDataset(torch.Tensor(test_features))
-                test_iterator = torch.utils.data.DataLoader(test_data, batch_size=32)
-                _, probs = get_predictions_new(model, test_iterator, "cpu")
+                probs = classify_from_fit_params(test_features)
                 probs_avg = np.mean(probs.numpy(), axis=0)
                 # idx_random = np.random.choice(np.arange(len(probs)))
                 save_test_probabilities(str(label), round(phase, 2), probs_avg)

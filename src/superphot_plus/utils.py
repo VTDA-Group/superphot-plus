@@ -161,7 +161,6 @@ def flux_model(cube, t_data, b_data):
         The flux model for the given set of time and band data.
     """
     A, beta, gamma, t0, tau_rise, tau_fall, es = cube[:7]  # pylint: disable=unused-variable
-
     phase = t_data - t0
     f_model = (
         A / (1.0 + np.exp(-phase / tau_rise)) * (1.0 - beta * gamma) * np.exp((gamma - phase) / tau_fall)
@@ -195,7 +194,7 @@ def flux_model(cube, t_data, b_data):
     return f_model
 
 
-def calculate_neg_chi_squareds(names, fit_dir, data_dirs):
+def calculate_neg_chi_squareds(cubes, t, f, ferr, b):
     """Gets the negative chi-squared of posterior fits from the model
     parameters and original data files.
 
@@ -213,35 +212,15 @@ def calculate_neg_chi_squareds(names, fit_dir, data_dirs):
     log_likelihoods : np.ndarray
         The log likelihoods for each object.
     """
-    log_likelihoods = []
-    for name in names:
-        data_filename = None
-        for d in data_dirs:
-            data_filename = os.path.join(d, name + ".npz")
-            if os.path.exists(data_filename):
-                break
+    model_f = np.array([flux_model(cube, t, b) for cube in cubes]) # in future, maybe vectorize flux_model
+    extra_sigma_arr = np.ones((len(cubes), len(t))) * np.max(f[b == "r"]) * cubes[:,6][:, np.newaxis]
+    extra_sigma_arr[:, b == "g"] *= cubes[:,-2][:, np.newaxis]
+    sigma_sq = extra_sigma_arr**2 + ferr**2
 
-        ## Load lightcurve data, but don't perform any additional filtering or normalization.
-        npy_array = np.load(data_filename)
-        mjd, flux, flux_err, bands = npy_array["arr_0"]
+    log_likelihoods = np.sum(
+        np.log(1.0 / np.sqrt(2.0 * np.pi * sigma_sq)) - 0.5 * (f - model_f) ** 2 / sigma_sq,
+        axis=1
+    ) / len(t)
+    
+    return log_likelihoods
 
-        flux_err = flux_err.astype(float)
-        mjd = mjd.astype(float)[~np.isnan(flux_err)]
-        flux = flux.astype(float)[~np.isnan(flux_err)]
-        bands = bands[~np.isnan(flux_err)]
-        flux_err = flux_err[~np.isnan(flux_err)]
-
-        posterior_array = get_posterior_samples(name, fit_dir)
-        post_med = np.median(posterior_array, axis=0)
-
-        model_f = flux_model(post_med, mjd, bands)
-        extra_sigma_arr = np.ones(len(mjd)) * np.max(flux[bands == "r"]) * post_med[6]
-        extra_sigma_arr[bands == "g"] *= post_med[-1]
-        sigma_sq = extra_sigma_arr**2 + flux_err**2
-
-        logL = np.sum(
-            np.log(1.0 / np.sqrt(2.0 * np.pi * sigma_sq)) - 0.5 * (flux - model_f) ** 2 / sigma_sq
-        ) / len(mjd)
-        log_likelihoods.append(logL)
-
-    return np.array(log_likelihoods)
