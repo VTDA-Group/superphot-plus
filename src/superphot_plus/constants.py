@@ -2,46 +2,6 @@
 
 import numpy as np
 
-# Nested sampling priors
-PRIOR_A = [-0.2, 1.2, 0.0, 0.5]
-PRIOR_BETA = [0.0, 0.02, 0.0052, 1.5 * 0.000336]
-PRIOR_GAMMA = [-2.0, 2.5, 1.1391, 1.5 * 0.1719]
-PRIOR_T0 = [-100.0, 200.0, 0.0, 50.0]
-PRIOR_TAU_RISE = [-1.0, 3.0, 0.5990, 1.5 * 0.2073]
-PRIOR_TAU_FALL = [0.5, 4.0, 1.4296, 1.5 * 0.1003]
-PRIOR_EXTRA_SIGMA = [-5.0, -0.5, -1.5364, 0.2691]
-
-PRIOR_A_g = [0.0, 5.0, 1.0607, 1.5 * 0.1544]
-PRIOR_BETA_g = [1.0, 1.07, 1.0424, 0.0026]
-PRIOR_GAMMA_g = [0.8, 1.2, 1.0075, 0.0139]
-PRIOR_T0_g = [1.0 - 0.0006, 1.0006, 0.9999 + 8.9289e-5, 1.5 * 4.5055e-05]
-PRIOR_TAU_RISE_g = [0.5, 2.0, 0.9663, 0.0128]
-PRIOR_TAU_FALL_g = [0.1, 3.0, 0.5488, 0.0553]
-PRIOR_EXTRA_SIGMA_g = [0.2, 2.0, 0.8606, 0.0388]
-
-# The priors in columnar format with columns for
-# clip_a, clip_b, mean, std
-ALL_PRIORS = np.transpose(
-    np.array(
-        [
-            PRIOR_A,
-            PRIOR_BETA,
-            PRIOR_GAMMA,
-            PRIOR_T0,
-            PRIOR_TAU_RISE,
-            PRIOR_TAU_FALL,
-            PRIOR_EXTRA_SIGMA,
-            PRIOR_A_g,
-            PRIOR_BETA_g,
-            PRIOR_GAMMA_g,
-            PRIOR_T0_g,
-            PRIOR_TAU_RISE_g,
-            PRIOR_TAU_FALL_g,
-            PRIOR_EXTRA_SIGMA_g,
-        ]
-    )
-)
-
 # Nested sampling parameters
 MAX_ITER = 5000
 DLOGZ = 0.5

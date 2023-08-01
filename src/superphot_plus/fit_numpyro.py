@@ -6,6 +6,7 @@ equally weighted posteriors (sets of fit parameters).
 import os
 
 import jax.numpy as jnp
+import numpy as np
 import numpyro
 import numpyro.distributions as dist
 from jax import random
@@ -13,19 +14,20 @@ from jax.config import config
 from numpyro.contrib.nested_sampling import NestedSampler
 from numpyro.distributions import constraints
 from numpyro.infer import MCMC, NUTS, SVI, Trace_ELBO
+from numpyro.infer.initialization import init_to_sample, init_to_uniform
 
+
+from superphot_plus.constants import PAD_SIZE
+from superphot_plus.file_paths import FITS_DIR
+from superphot_plus.file_utils import get_posterior_filename
+from superphot_plus.lightcurve import Lightcurve
 from superphot_plus.plotting import (
     plot_posterior_hist,
     plot_sampling_lc_fit_numpyro,
     plot_sampling_trace_numpyro,
 )
-from numpyro.infer.initialization import init_to_sample, init_to_uniform
+from superphot_plus.priors.fitting_priors import MultibandPriors, PriorFields
 
-from superphot_plus.lightcurve import Lightcurve
-from superphot_plus.file_utils import get_posterior_filename
-
-from .constants import *  # pylint: disable=wildcard-import
-from .file_paths import FIT_PLOTS_FOLDER, FITS_DIR
 
 config.update("jax_enable_x64", True)
 numpyro.enable_x64()
@@ -51,6 +53,22 @@ def trunc_norm(low, high, loc, scale):
         A truncated normal distribution.
     """
     return dist.TruncatedNormal(loc=loc, scale=scale, low=low, high=high)
+
+
+def trunc_norm_fields(fields: PriorFields):
+    """Provides keyword parameters to numpyro's TruncatedNormal, using the fields in PriorFields.
+
+    Parameters
+    ----------
+    fields : PriorFields
+        The (low, high, mean, standard deviation) fields of the truncated normal distribution.
+
+    Returns
+    -------
+    numpyro.distributions.TruncatedDistribution
+        A truncated normal distribution.
+    """
+    return dist.TruncatedNormal(loc=fields.mean, scale=fields.std, low=fields.clip_a, high=fields.clip_b)
 
 
 def run_mcmc(lc, sampler="NUTS", t0_lim=None, plot=False):
@@ -109,30 +127,25 @@ def run_mcmc(lc, sampler="NUTS", t0_lim=None, plot=False):
         inc_band_ix : array-like, optional
             Index values for the band. Defaults to None.
         """
-        A = max_flux * 10 ** numpyro.sample("logA", trunc_norm(*PRIOR_A))
-        beta = numpyro.sample("beta", trunc_norm(*PRIOR_BETA))
-        gamma = 10 ** numpyro.sample("log_gamma", trunc_norm(*PRIOR_GAMMA))
-        t0 = numpyro.sample("t0", trunc_norm(*PRIOR_T0))
-        tau_rise = 10 ** numpyro.sample("log_tau_rise", trunc_norm(*PRIOR_TAU_RISE))
-        tau_fall = 10 ** numpyro.sample("log_tau_fall", trunc_norm(*PRIOR_TAU_FALL))
-        extra_sigma = 10 ** numpyro.sample("log_extra_sigma", trunc_norm(*PRIOR_EXTRA_SIGMA))
+        all_priors = MultibandPriors.load_ztf_priors()
+        r_priors = all_priors.bands["r"]
+        A = max_flux * 10 ** numpyro.sample("logA", trunc_norm_fields(r_priors.amp))
+        beta = numpyro.sample("beta", trunc_norm_fields(r_priors.beta))
+        gamma = 10 ** numpyro.sample("log_gamma", trunc_norm_fields(r_priors.gamma))
+        t0 = numpyro.sample("t0", trunc_norm_fields(r_priors.t_0))
+        tau_rise = 10 ** numpyro.sample("log_tau_rise", trunc_norm_fields(r_priors.tau_rise))
+        tau_fall = 10 ** numpyro.sample("log_tau_fall", trunc_norm_fields(r_priors.tau_fall))
+        extra_sigma = 10 ** numpyro.sample("log_extra_sigma", trunc_norm_fields(r_priors.extra_sigma))
 
-        A_g = numpyro.sample("A_g", trunc_norm(*PRIOR_A_g))
-        beta_g = numpyro.sample("beta_g", trunc_norm(*PRIOR_BETA_g))
-        gamma_g = numpyro.sample("gamma_g", trunc_norm(*PRIOR_GAMMA_g))
-        t0_g = numpyro.sample("t0_g", trunc_norm(*PRIOR_T0_g))
-        tau_rise_g = numpyro.sample("tau_rise_g", trunc_norm(*PRIOR_TAU_RISE_g))
-        tau_fall_g = numpyro.sample("tau_fall_g", trunc_norm(*PRIOR_TAU_FALL_g))
-        extra_sigma_g = numpyro.sample("extra_sigma_g", trunc_norm(*PRIOR_EXTRA_SIGMA_g))
-        """
-        A_g = numpyro.param("A_g", 1.)
-        beta_g = numpyro.param("beta_g", 1.)
-        gamma_g = numpyro.param("gamma_g", 1.)
-        t0_g = numpyro.param("t0_g", 1.)
-        tau_rise_g = numpyro.param("tau_rise_g", 1.)
-        tau_fall_g = numpyro.param("tau_fall_g", 1.)
-        extra_sigma_g = numpyro.param("extra_sigma_g", 1.)
-        """
+        g_priors = all_priors.bands["g"]
+        A_g = numpyro.sample("A_g", trunc_norm_fields(g_priors.amp))
+        beta_g = numpyro.sample("beta_g", trunc_norm_fields(g_priors.beta))
+        gamma_g = numpyro.sample("gamma_g", trunc_norm_fields(g_priors.gamma))
+        t0_g = numpyro.sample("t0_g", trunc_norm_fields(g_priors.t_0))
+        tau_rise_g = numpyro.sample("tau_rise_g", trunc_norm_fields(g_priors.tau_rise))
+        tau_fall_g = numpyro.sample("tau_fall_g", trunc_norm_fields(g_priors.tau_fall))
+        extra_sigma_g = numpyro.sample("extra_sigma_g", trunc_norm_fields(g_priors.extra_sigma))
+
         A_b = A * A_g  # pylint: disable=unused-variable
         beta_b = beta * beta_g
         gamma_b = gamma * gamma_g
@@ -193,119 +206,35 @@ def run_mcmc(lc, sampler="NUTS", t0_lim=None, plot=False):
         inc_band_ix : array-like, optional
             Index values for the band. Defaults to None.
         """
-        logA_mu = numpyro.param(
-            "logA_mu",
-            PRIOR_A[2],
-            constraint=constraints.interval(PRIOR_A[0], PRIOR_A[1]),
-        )
-        logA_sigma = numpyro.param("logA_sigma", 1e-3, constraint=constraints.positive)
-        numpyro.sample("logA", dist.Normal(logA_mu, logA_sigma))
 
-        beta_mu = numpyro.param(
-            "beta_mu",
-            PRIOR_BETA[2],
-            constraint=constraints.interval(PRIOR_BETA[0], PRIOR_BETA[1]),
-        )
-        beta_sigma = numpyro.param("beta_sigma", 1e-5, constraint=constraints.positive)
-        numpyro.sample("beta", dist.Normal(beta_mu, beta_sigma))
+        def numpyro_sample(prefix: str, fields: PriorFields, param_constraint: float):
+            param_mu = numpyro.param(
+                f"{prefix}_mu",
+                fields.mean,
+                constraint=constraints.interval(fields.clip_a, fields.clip_b),
+            )
+            param_sigma = numpyro.param(f"{prefix}_sigma", param_constraint, constraint=constraints.positive)
+            numpyro.sample(prefix, dist.Normal(param_mu, param_sigma))
 
-        log_gamma_mu = numpyro.param(
-            "log_gamma_mu",
-            PRIOR_GAMMA[2],
-            constraint=constraints.interval(PRIOR_GAMMA[0], PRIOR_GAMMA[1]),
-        )
-        log_gamma_sigma = numpyro.param("log_gamma_sigma", 1e-3, constraint=constraints.positive)
-        numpyro.sample("log_gamma", dist.Normal(log_gamma_mu, log_gamma_sigma))
-
-        t0_mu = numpyro.param(
-            "t0_mu",
-            PRIOR_T0[2],
-            constraint=constraints.interval(PRIOR_T0[0], PRIOR_T0[1]),
-        )
-        t0_sigma = numpyro.param("t0_sigma", 1e-3, constraint=constraints.positive)
-        numpyro.sample("t0", dist.Normal(t0_mu, t0_sigma))
-
-        log_tau_rise_mu = numpyro.param(
-            "log_tau_rise_mu",
-            PRIOR_TAU_RISE[2],
-            constraint=constraints.interval(PRIOR_TAU_RISE[0], PRIOR_TAU_RISE[1]),
-        )
-        log_tau_rise_sigma = numpyro.param("log_tau_rise_sigma", 1e-3, constraint=constraints.positive)
-        numpyro.sample("log_tau_rise", dist.Normal(log_tau_rise_mu, log_tau_rise_sigma))
-
-        log_tau_fall_mu = numpyro.param(
-            "log_tau_fall_mu",
-            PRIOR_TAU_FALL[2],
-            constraint=constraints.interval(PRIOR_TAU_FALL[0], PRIOR_TAU_FALL[1]),
-        )
-        log_tau_fall_sigma = numpyro.param("log_tau_fall_sigma", 1e-3, constraint=constraints.positive)
-        numpyro.sample("log_tau_fall", dist.Normal(log_tau_fall_mu, log_tau_fall_sigma))
-
-        log_extra_sigma_mu = numpyro.param(
-            "log_extra_sigma_mu",
-            PRIOR_EXTRA_SIGMA[2],
-            constraint=constraints.interval(PRIOR_EXTRA_SIGMA[0], PRIOR_EXTRA_SIGMA[1]),
-        )
-        log_extra_sigma_sigma = numpyro.param("log_extra_sigma_sigma", 1e-3, constraint=constraints.positive)
-        numpyro.sample("log_extra_sigma", dist.Normal(log_extra_sigma_mu, log_extra_sigma_sigma))
+        all_priors = MultibandPriors.load_ztf_priors()
+        r_priors = all_priors.bands["r"]
+        numpyro_sample("logA", r_priors.amp, 1e-3)
+        numpyro_sample("beta", r_priors.beta, 1e-5)
+        numpyro_sample("log_gamma", r_priors.gamma, 1e-3)
+        numpyro_sample("t0", r_priors.t_0, 1e-3)
+        numpyro_sample("log_tau_rise", r_priors.tau_rise, 1e-3)
+        numpyro_sample("log_tau_fall", r_priors.tau_fall, 1e-3)
+        numpyro_sample("log_extra_sigma", r_priors.extra_sigma, 1e-3)
 
         # aux bands
-
-        Ag_mu = numpyro.param(
-            "A_g_mu",
-            PRIOR_A_g[2],
-            constraint=constraints.interval(PRIOR_A_g[0], PRIOR_A_g[1]),
-        )
-        Ag_sigma = numpyro.param("A_g_sigma", 1e-3, constraint=constraints.positive)
-        numpyro.sample("A_g", dist.Normal(Ag_mu, Ag_sigma))
-
-        beta_g_mu = numpyro.param(
-            "beta_g_mu",
-            PRIOR_BETA_g[2],
-            constraint=constraints.interval(PRIOR_BETA_g[0], PRIOR_BETA_g[1]),
-        )
-        beta_g_sigma = numpyro.param("beta_g_sigma", 1e-3, constraint=constraints.positive)
-        numpyro.sample("beta_g", dist.Normal(beta_g_mu, beta_g_sigma))
-
-        gamma_g_mu = numpyro.param(
-            "gamma_g_mu",
-            PRIOR_GAMMA_g[2],
-            constraint=constraints.interval(PRIOR_GAMMA_g[0], PRIOR_GAMMA_g[1]),
-        )
-        gamma_g_sigma = numpyro.param("gamma_g_sigma", 1e-3, constraint=constraints.positive)
-        numpyro.sample("gamma_g", dist.Normal(gamma_g_mu, gamma_g_sigma))
-
-        t0_g_mu = numpyro.param(
-            "t0_g_mu",
-            PRIOR_T0_g[2],
-            constraint=constraints.interval(PRIOR_T0_g[0], PRIOR_T0_g[1]),
-        )
-        t0_g_sigma = numpyro.param("t0_g_sigma", 1e-3, constraint=constraints.positive)
-        numpyro.sample("t0_g", dist.Normal(t0_g_mu, t0_g_sigma))
-
-        tau_rise_g_mu = numpyro.param(
-            "tau_rise_g_mu",
-            PRIOR_TAU_RISE_g[2],
-            constraint=constraints.interval(PRIOR_TAU_RISE_g[0], PRIOR_TAU_RISE_g[1]),
-        )
-        tau_rise_g_sigma = numpyro.param("tau_rise_g_sigma", 1e-3, constraint=constraints.positive)
-        numpyro.sample("tau_rise_g", dist.Normal(tau_rise_g_mu, tau_rise_g_sigma))
-
-        tau_fall_g_mu = numpyro.param(
-            "tau_fall_g_mu",
-            PRIOR_TAU_FALL_g[2],
-            constraint=constraints.interval(PRIOR_TAU_FALL_g[0], PRIOR_TAU_FALL_g[1]),
-        )
-        tau_fall_g_sigma = numpyro.param("tau_fall_g_sigma", 1e-3, constraint=constraints.positive)
-        numpyro.sample("tau_fall_g", dist.Normal(tau_fall_g_mu, tau_fall_g_sigma))
-
-        extra_sigma_g_mu = numpyro.param(
-            "extra_sigma_g_mu",
-            PRIOR_EXTRA_SIGMA_g[2],
-            constraint=constraints.interval(PRIOR_EXTRA_SIGMA_g[0], PRIOR_EXTRA_SIGMA_g[1]),
-        )
-        extra_sigma_g_sigma = numpyro.param("extra_sigma_g_sigma", 1e-3, constraint=constraints.positive)
-        numpyro.sample("extra_sigma_g", dist.Normal(extra_sigma_g_mu, extra_sigma_g_sigma))
+        g_priors = all_priors.bands["g"]
+        numpyro_sample("A_g", g_priors.amp, 1e-3)
+        numpyro_sample("beta_g", g_priors.beta, 1e-3)
+        numpyro_sample("gamma_g", g_priors.gamma, 1e-3)
+        numpyro_sample("t0_g", g_priors.t_0, 1e-3)
+        numpyro_sample("tau_rise_g", g_priors.tau_rise, 1e-3)
+        numpyro_sample("tau_fall_g", g_priors.tau_fall, 1e-3)
+        numpyro_sample("extra_sigma_g", g_priors.extra_sigma, 1e-3)
 
     if sampler == "NUTS":
         num_samples = 300
@@ -487,21 +416,25 @@ def run_mcmc_batch(lcs, t0_lim=None, plot=False):
             Index values for the band. Defaults to None.
         """
         with numpyro.plate("components", N) as sn_index:  # pylint: disable=unused-variable
-            A = max_flux * 10 ** numpyro.sample("logA", trunc_norm(*PRIOR_A))
-            beta = numpyro.sample("beta", trunc_norm(*PRIOR_BETA))
-            gamma = 10 ** numpyro.sample("log_gamma", trunc_norm(*PRIOR_GAMMA))
-            t0 = numpyro.sample("t0", trunc_norm(-100.0, 200.0, 0.0, 20.0))
-            tau_rise = 10 ** numpyro.sample("log_tau_rise", trunc_norm(*PRIOR_TAU_RISE))
-            tau_fall = 10 ** numpyro.sample("log_tau_fall", trunc_norm(*PRIOR_TAU_FALL))
-            extra_sigma = 10 ** numpyro.sample("log_extra_sigma", trunc_norm(*PRIOR_EXTRA_SIGMA))
 
-            A_g = numpyro.sample("A_g", trunc_norm(*PRIOR_A_g))
-            beta_g = numpyro.sample("beta_g", trunc_norm(*PRIOR_BETA_g))
-            gamma_g = numpyro.sample("gamma_g", trunc_norm(*PRIOR_GAMMA_g))
-            t0_g = numpyro.sample("t0_g", trunc_norm(*PRIOR_T0_g))
-            tau_rise_g = numpyro.sample("tau_rise_g", trunc_norm(*PRIOR_TAU_RISE_g))
-            tau_fall_g = numpyro.sample("tau_fall_g", trunc_norm(*PRIOR_TAU_FALL_g))
-            extra_sigma_g = numpyro.sample("extra_sigma_g", trunc_norm(*PRIOR_EXTRA_SIGMA_g))
+            all_priors = MultibandPriors.load_ztf_priors()
+            r_priors = all_priors.bands["r"]
+            A = max_flux * 10 ** numpyro.sample("logA", trunc_norm_fields(r_priors.amp))
+            beta = numpyro.sample("beta", trunc_norm_fields(r_priors.beta))
+            gamma = 10 ** numpyro.sample("log_gamma", trunc_norm_fields(r_priors.gamma))
+            t0 = numpyro.sample("t0", trunc_norm(-100.0, 200.0, 0.0, 20.0))
+            tau_rise = 10 ** numpyro.sample("log_tau_rise", trunc_norm_fields(r_priors.tau_rise))
+            tau_fall = 10 ** numpyro.sample("log_tau_fall", trunc_norm_fields(r_priors.tau_fall))
+            extra_sigma = 10 ** numpyro.sample("log_extra_sigma", trunc_norm_fields(r_priors.extra_sigma))
+
+            g_priors = all_priors.bands["g"]
+            A_g = numpyro.sample("A_g", trunc_norm_fields(g_priors.amp))
+            beta_g = numpyro.sample("beta_g", trunc_norm_fields(g_priors.beta))
+            gamma_g = numpyro.sample("gamma_g", trunc_norm_fields(g_priors.gamma))
+            t0_g = numpyro.sample("t0_g", trunc_norm_fields(g_priors.t_0))
+            tau_rise_g = numpyro.sample("tau_rise_g", trunc_norm_fields(g_priors.tau_rise))
+            tau_fall_g = numpyro.sample("tau_fall_g", trunc_norm_fields(g_priors.tau_fall))
+            extra_sigma_g = numpyro.sample("extra_sigma_g", trunc_norm_fields(g_priors.extra_sigma))
 
         A_b = A * A_g  # pylint: disable=unused-variable
         beta_b = beta * beta_g

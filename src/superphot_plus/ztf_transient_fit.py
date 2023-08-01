@@ -10,12 +10,13 @@ from dynesty import utils as dyfunc
 from scipy.optimize import curve_fit
 from scipy.stats import truncnorm
 
+from superphot_plus.constants import DLOGZ, MAX_ITER, NLIVE
+from superphot_plus.file_utils import get_posterior_filename, has_posterior_samples, read_single_lightcurve
 from superphot_plus.lightcurve import Lightcurve
-from superphot_plus.file_utils import read_single_lightcurve, has_posterior_samples, get_posterior_filename
 from superphot_plus.plotting import plot_sampling_lc_fit
+from superphot_plus.priors.fitting_priors import MultibandPriors
 from superphot_plus.utils import flux_model
 
-from .constants import *  # pylint: disable=wildcard-import
 from .file_paths import FIT_PLOTS_FOLDER
 
 
@@ -35,32 +36,6 @@ def tqdm_joblib(tqdm_object):
     finally:
         joblib.parallel.BatchCompletionCallBack = old_batch_callback
         tqdm_object.close()
-
-
-def trunc_gauss(quantile, clip_a, clip_b, mean, std):
-    """Truncated Gaussian distribution.
-
-    Parameters
-    ----------
-    quantile : float
-        The quantile at which to evaluate the ppf. Should be a value
-        between 0 and 1.
-    clip_a : float
-        Lower clip value.
-    clip_b : float
-        Upper clip value.
-    mean : float
-        Mean of the distribution.
-    std : float
-        Standard deviation of the distribution.
-
-    Returns
-    -------
-    scipy.stats.truncnorm.ppf
-        Percent point function of the truncated Gaussian.
-    """
-    a, b = (clip_a - mean) / std, (clip_b - mean) / std
-    return truncnorm.ppf(quantile, a, b, loc=mean, scale=std)
 
 
 def params_valid(beta, gamma, tau_rise, tau_fall):
@@ -135,16 +110,17 @@ def run_mcmc(lc, t0_lim=None, plot=False, rstate=None):
 
     # Create copies of the prior vectors with the value for t0 overwritten for the
     # current lightcurve.
-    prior_clip_a = np.copy(ALL_PRIORS[0])
+    all_priors = MultibandPriors.load_ztf_priors().to_numpy().T
+    prior_clip_a = np.copy(all_priors[0])
     prior_clip_a[3] = np.amin(tdata) - 50.0
 
-    prior_clip_b = np.copy(ALL_PRIORS[1])
+    prior_clip_b = np.copy(all_priors[1])
     prior_clip_b[3] = np.amax(tdata) + 50.0
 
-    prior_mean = np.copy(ALL_PRIORS[2])
+    prior_mean = np.copy(all_priors[2])
     prior_mean[3] = max_flux_loc
 
-    prior_std = np.copy(ALL_PRIORS[3])
+    prior_std = np.copy(all_priors[3])
     prior_std[3] = 20.0
 
     # Precompute the vectors of trunc_gauss a and b values.
@@ -218,21 +194,21 @@ def run_mcmc(lc, t0_lim=None, plot=False, rstate=None):
     )
     sampler.run_nested(maxiter=MAX_ITER, dlogz=DLOGZ, print_progress=False)
     res = sampler.results
-    
-    red_chisq =  res.logl / len(tdata)
+
+    red_chisq = res.logl / len(tdata)
     samples = res.samples
     eq_wt_samples = res.samples_equal(rstate=rstate)
-    
-    orig_idxs = np.array([np.argmin(np.sum((e-samples)**2, axis=1)) for e in eq_wt_samples])
+
+    orig_idxs = np.array([np.argmin(np.sum((e - samples) ** 2, axis=1)) for e in eq_wt_samples])
     eq_wt_red_chisq = red_chisq[orig_idxs]
-        
-    eq_wt_samples = np.append(eq_wt_samples, eq_wt_red_chisq[np.newaxis,:].T, 1)
+
+    eq_wt_samples = np.append(eq_wt_samples, eq_wt_red_chisq[np.newaxis, :].T, 1)
 
     if plot:  # pragma: no cover
         if lc.name is None:
             raise ValueError("Missing file name for plotting files.")
         plot_sampling_lc_fit(lc.name, FIT_PLOTS_FOLDER, tdata, fdata, ferrdata, bdata, eq_wt_samples)
-        
+
     return eq_wt_samples
 
 
