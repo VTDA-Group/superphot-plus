@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1690906226101,
+  "lastUpdate": 1690912631076,
   "repoUrl": "https://github.com/lincc-frameworks/superphot-plus",
   "entries": {
     "SUPERHOT-PLUS Benchmarking Monitor": [
@@ -1511,6 +1511,60 @@ window.BENCHMARK_DATA = {
           {
             "name": "test_fit::test_svi_single_file - Memory Used",
             "value": 864.44140625,
+            "unit": "MB"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "kmd6851@psu.edu",
+            "name": "Kaylee de Soto",
+            "username": "kdesoto-psu"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "37efb5ef321fd2dfb216a1a3a8bfad3bd1db0a59",
+          "message": "Merge pull request #74 from lincc-frameworks/readme-getting-started-venv\n\nREADME: add venv instructions",
+          "timestamp": "2023-08-01T13:54:12-04:00",
+          "tree_id": "52b98f287833f151605be9032d86f0d1ce772008",
+          "url": "https://github.com/lincc-frameworks/superphot-plus/commit/37efb5ef321fd2dfb216a1a3a8bfad3bd1db0a59"
+        },
+        "date": 1690912630583,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "test_fit::test_dynesty_single_file - Runtime",
+            "value": 4.6215455532073975,
+            "unit": "s"
+          },
+          {
+            "name": "test_fit::test_dynesty_single_file - Memory Used",
+            "value": 257.75,
+            "unit": "MB"
+          },
+          {
+            "name": "test_fit::test_nuts_single_file - Runtime",
+            "value": 15.5809805393219,
+            "unit": "s"
+          },
+          {
+            "name": "test_fit::test_nuts_single_file - Memory Used",
+            "value": 555.3671875,
+            "unit": "MB"
+          },
+          {
+            "name": "test_fit::test_svi_single_file - Runtime",
+            "value": 15.472826719284058,
+            "unit": "s"
+          },
+          {
+            "name": "test_fit::test_svi_single_file - Memory Used",
+            "value": 856.2578125,
             "unit": "MB"
           }
         ]
