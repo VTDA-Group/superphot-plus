@@ -182,7 +182,7 @@ def run_mcmc(lc, t0_lim=None, plot=False, rstate=None, telescope="ZTF"):
         float
             Log-likelihood value.
         """
-        f_model = flux_model(cube, tdata, bdata)
+        f_model = flux_model(cube, tdata, bdata, unique_bands, ref_band)
         extra_sigma_arr = np.ones(len(tdata)) * cube[6] * max_flux
         
         for e, ub in enumerate(unique_bands):
