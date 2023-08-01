@@ -185,10 +185,10 @@ def run_mcmc(lc, t0_lim=None, plot=False, rstate=None, telescope="ZTF"):
         f_model = flux_model(cube, tdata, bdata, unique_bands, ref_band)
         extra_sigma_arr = np.ones(len(tdata)) * cube[6] * max_flux
         
-        for e, ub in enumerate(unique_bands):
-            if ub == ref_band:
+        for band_idx, ordered_band in enumerate(unique_bands):
+            if ordered_band == ref_band:
                 continue
-            extra_sigma_arr[bdata == ub] *= cube[7*e+6]
+            extra_sigma_arr[bdata == ordered_band] *= cube[7*band_idx+6]
 
         sigma_sq = ferrdata**2 + extra_sigma_arr**2
         logL = np.sum(np.log(1.0 / np.sqrt(2.0 * np.pi * sigma_sq)) - 0.5 * (f_model - fdata) ** 2 / sigma_sq)
