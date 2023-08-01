@@ -1,12 +1,52 @@
 import numpy as np
 from scipy.stats import truncnorm
 
-from ..constants import *
-from ..utils import flux_model
-from ..ztf_transient_fit import params_valid, trunc_gauss
+from superphot_plus.utils import flux_model
+from superphot_plus.ztf_transient_fit import params_valid
+
 
 DEFAULT_MAX_FLUX = 1.0
+# Nested sampling priors
+PRIOR_A = [-0.2, 1.2, 0.0, 0.5]
+PRIOR_BETA = [0.0, 0.02, 0.0052, 1.5 * 0.000336]
+PRIOR_GAMMA = [-2.0, 2.5, 1.1391, 1.5 * 0.1719]
+PRIOR_T0 = [-100.0, 200.0, 0.0, 50.0]
+PRIOR_TAU_RISE = [-1.0, 3.0, 0.5990, 1.5 * 0.2073]
+PRIOR_TAU_FALL = [0.5, 4.0, 1.4296, 1.5 * 0.1003]
+PRIOR_EXTRA_SIGMA = [-5.0, -0.5, -1.5364, 0.2691]
 
+PRIOR_A_g = [0.0, 5.0, 1.0607, 1.5 * 0.1544]
+PRIOR_BETA_g = [1.0, 1.07, 1.0424, 0.0026]
+PRIOR_GAMMA_g = [0.8, 1.2, 1.0075, 0.0139]
+PRIOR_T0_g = [1.0 - 0.0006, 1.0006, 0.9999 + 8.9289e-5, 1.5 * 4.5055e-05]
+PRIOR_TAU_RISE_g = [0.5, 2.0, 0.9663, 0.0128]
+PRIOR_TAU_FALL_g = [0.1, 3.0, 0.5488, 0.0553]
+PRIOR_EXTRA_SIGMA_g = [0.2, 2.0, 0.8606, 0.0388]
+
+def trunc_gauss(quantile, clip_a, clip_b, mean, std):
+    """Truncated Gaussian distribution.
+
+    Parameters
+    ----------
+    quantile : float
+        The quantile at which to evaluate the ppf. Should be a value
+        between 0 and 1.
+    clip_a : float
+        Lower clip value.
+    clip_b : float
+        Upper clip value.
+    mean : float
+        Mean of the distribution.
+    std : float
+        Standard deviation of the distribution.
+
+    Returns
+    -------
+    scipy.stats.truncnorm.ppf
+        Percent point function of the truncated Gaussian.
+    """
+    a, b = (clip_a - mean) / std, (clip_b - mean) / std
+    return truncnorm.ppf(quantile, a, b, loc=mean, scale=std)
 
 def create_prior(cube):
     """Creates prior for dynesty, where each side of the "cube"
