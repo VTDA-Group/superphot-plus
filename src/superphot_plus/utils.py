@@ -142,7 +142,7 @@ def convert_mags_to_flux(m, merr, zp):
     return fluxes, flux_unc
 
 
-def flux_model(cube, t_data, b_data):
+def flux_model(cube, t_data, b_data, ordered_bands, ref_band):
     """Given "cube" of fit parameters, returns the flux measurements for
     a given set of time and band data.
 
@@ -154,13 +154,21 @@ def flux_model(cube, t_data, b_data):
         The time data.
     b_data : array-like
         The band data.
+    ordered_bands : array-like
+        The band names in the cube's parameter order.
+    ref_band : str
+        The base/reference band which all other values are multiples of.
 
     Returns
     -------
     f_model : numpy array
         The flux model for the given set of time and band data.
     """
-    A, beta, gamma, t0, tau_rise, tau_fall, es = cube[:7]  # pylint: disable=unused-variable
+    b_data = np.array(b_data)
+    ref_band_idx = np.argmax(ref_band == np.array(ordered_bands))
+    start_idx = ref_band_idx*7
+    
+    A, beta, gamma, t0, tau_rise, tau_fall, es = cube[start_idx:start_idx+7]  # pylint: disable=unused-variable
     phase = t_data - t0
     f_model = (
         A / (1.0 + np.exp(-phase / tau_rise)) * (1.0 - beta * gamma) * np.exp((gamma - phase) / tau_fall)
@@ -169,32 +177,35 @@ def flux_model(cube, t_data, b_data):
         A / (1.0 + np.exp(-phase[phase < gamma] / tau_rise)) * (1.0 - beta * phase[phase < gamma])
     )
 
-    # for secondary band
-    start_idx = 7
-    A_b = A * cube[start_idx]
-    beta_b = beta * cube[start_idx + 1]
-    gamma_b = gamma * cube[start_idx + 2]
-    t0_b = t0 * cube[start_idx + 3]
-    tau_rise_b = tau_rise * cube[start_idx + 4]
-    tau_fall_b = tau_fall * cube[start_idx + 5]
+    for band_idx, ordered_band in enumerate(ordered_bands):
+        if ordered_band == ref_band:
+            continue
+        start_idx = 7*band_idx
+        A_b = A * cube[start_idx]
+        beta_b = beta * cube[start_idx + 1]
+        gamma_b = gamma * cube[start_idx + 2]
+        t0_b = t0 * cube[start_idx + 3]
+        tau_rise_b = tau_rise * cube[start_idx + 4]
+        tau_fall_b = tau_fall * cube[start_idx + 5]
 
-    inc_band_ix = np.array(b_data) == "g"
-    phase_b = (t_data - t0_b)[inc_band_ix]
-    phase_b2 = (t_data - t0_b)[inc_band_ix & (t_data - t0_b < gamma_b)]
+        inc_band_ix = (b_data == ordered_band)
+        phase_b = (t_data - t0_b)[inc_band_ix]
+        phase_b2 = (t_data - t0_b)[inc_band_ix & (t_data - t0_b < gamma_b)]
 
-    f_model[inc_band_ix] = (
-        A_b
-        / (1.0 + np.exp(-phase_b / tau_rise_b))
-        * (1.0 - beta_b * gamma_b)
-        * np.exp((gamma_b - phase_b) / tau_fall_b)
-    )
-    f_model[inc_band_ix & (t_data - t0_b < gamma_b)] = (
-        A_b / (1.0 + np.exp(-phase_b2 / tau_rise_b)) * (1.0 - phase_b2 * beta_b)
-    )
+        f_model[inc_band_ix] = (
+            A_b
+            / (1.0 + np.exp(-phase_b / tau_rise_b))
+            * (1.0 - beta_b * gamma_b)
+            * np.exp((gamma_b - phase_b) / tau_fall_b)
+        )
+        f_model[inc_band_ix & (t_data - t0_b < gamma_b)] = (
+            A_b / (1.0 + np.exp(-phase_b2 / tau_rise_b)) * (1.0 - phase_b2 * beta_b)
+        )
+        
     return f_model
 
 
-def calculate_neg_chi_squareds(cubes, t, f, ferr, b):
+def calculate_neg_chi_squareds(cubes, t, f, ferr, b, ordered_bands=["r","g"], ref_band="r"):
     """Gets the negative chi-squared of posterior fits from the model
     parameters and original data files.
 
@@ -206,13 +217,17 @@ def calculate_neg_chi_squareds(cubes, t, f, ferr, b):
         The directory where the fit files are located.
     data_dirs : list of str
         The directories where the data files are located.
+    ordered_bands : list of str
+        Bands in order they appear in cubes. Defaults to ZTF band order.
+    ref_band : str
+        Base/reference band. Defaults to 'r'.
 
     Returns
     -------
     log_likelihoods : np.ndarray
         The log likelihoods for each object.
     """
-    model_f = np.array([flux_model(cube, t, b) for cube in cubes])  # in future, maybe vectorize flux_model
+    model_f = np.array([flux_model(cube, t, b, ordered_bands, ref_band) for cube in cubes])  # in future, maybe vectorize flux_model
     extra_sigma_arr = np.ones((len(cubes), len(t))) * np.max(f[b == "r"]) * cubes[:, 6][:, np.newaxis]
     extra_sigma_arr[:, b == "g"] *= cubes[:, -2][:, np.newaxis]
     sigma_sq = extra_sigma_arr**2 + ferr**2

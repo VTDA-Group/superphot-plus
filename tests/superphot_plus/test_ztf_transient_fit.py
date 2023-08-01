@@ -27,5 +27,6 @@ def test_dynesty_single_file(tmp_path, single_ztf_lightcurve_compressed):
     # additional variations.
     expected = [1035.0, 0.005, 13.5, -4.8, 4.0, 23.4, 0.03, 1.1, 1.0, 1.0, 1.0, 0.96, 0.56, 0.87, -5.43]
     assert len(expected) == len(sample_mean)
+    
     for i in range(len(expected)):
         assert np.all(np.isclose(sample_mean, expected, rtol=0.5))
