@@ -23,8 +23,9 @@ To install this package for development use:
 ```
 $ git clone http://github.com/lincc-frameworks/superphot-plus
 $ cd superphot-plus
-$ pip install -e .
-$ pip install -e ".[dev]"
+$ python3 -m venv venv
+$ source venv/bin/activate
+$ python -m pip install -e ".[dev]"
 ```
 
 You can then run `$ pytest` to verify that all dependencies are correct,
