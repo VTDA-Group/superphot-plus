@@ -177,10 +177,10 @@ def flux_model(cube, t_data, b_data, ordered_bands, ref_band):
         A / (1.0 + np.exp(-phase[phase < gamma] / tau_rise)) * (1.0 - beta * phase[phase < gamma])
     )
 
-    for e, ub in enumerate(ordered_bands):
-        if ub == ref_band:
+    for band_idx, ordered_band in enumerate(ordered_bands):
+        if ordered_band == ref_band:
             continue
-        start_idx = 7*e
+        start_idx = 7*band_idx
         A_b = A * cube[start_idx]
         beta_b = beta * cube[start_idx + 1]
         gamma_b = gamma * cube[start_idx + 2]
@@ -188,7 +188,7 @@ def flux_model(cube, t_data, b_data, ordered_bands, ref_band):
         tau_rise_b = tau_rise * cube[start_idx + 4]
         tau_fall_b = tau_fall * cube[start_idx + 5]
 
-        inc_band_ix = b_data == ub
+        inc_band_ix = (b_data == ordered_band)
         phase_b = (t_data - t0_b)[inc_band_ix]
         phase_b2 = (t_data - t0_b)[inc_band_ix & (t_data - t0_b < gamma_b)]
 
