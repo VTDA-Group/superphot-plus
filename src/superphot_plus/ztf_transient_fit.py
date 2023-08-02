@@ -96,7 +96,9 @@ def run_mcmc(lc, t0_lim=None, plot=False, rstate=None, telescope="ZTF"):
         all_priors_cls = MultibandPriors.load_ztf_priors()
         all_priors = all_priors_cls.to_numpy().T
         ref_band = "r" # maybe define within MultibandPriors class
-
+    else:
+        raise ValueError("'telescope' must be one of: 'ZTF'")
+        
     n_params = len(all_priors.T)
     unique_bands = all_priors_cls.ordered_bands
     ref_band_idx = np.argmax(unique_bands == ref_band)
