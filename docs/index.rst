@@ -26,5 +26,12 @@ filters [2]_, as well as the ELASTICC challenge [3]_.
    :hidden:
 
    Home page <self>
-   API Reference <autoapi/index>
    Notebooks <notebooks>
+
+.. toctree::
+   :hidden:
+   :maxdepth: 1
+   :caption: Developers
+
+   contributing
+   API Reference <autoapi/index>
