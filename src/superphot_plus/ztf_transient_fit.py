@@ -10,13 +10,12 @@ from scipy.optimize import curve_fit
 from scipy.stats import truncnorm
 
 from superphot_plus.constants import DLOGZ, MAX_ITER, NLIVE
+from superphot_plus.file_paths import FIT_PLOTS_FOLDER
 from superphot_plus.file_utils import get_posterior_filename, has_posterior_samples
 from superphot_plus.lightcurve import Lightcurve
 from superphot_plus.plotting import plot_sampling_lc_fit
-from superphot_plus.priors.fitting_priors import MultibandPriors, CurvePriors
+from superphot_plus.priors.fitting_priors import MultibandPriors
 from superphot_plus.utils import flux_model
-
-from superphot_plus.file_paths import FIT_PLOTS_FOLDER
 
 
 @contextlib.contextmanager
@@ -94,7 +93,7 @@ def run_mcmc(lc, t0_lim=None, plot=False, rstate=None, telescope="ZTF"):
     if telescope == "ZTF":
         all_priors_cls = MultibandPriors.load_ztf_priors()
         all_priors = all_priors_cls.to_numpy().T
-        ref_band = "r" # maybe define within MultibandPriors class
+        ref_band = "r"  # maybe define within MultibandPriors class
 
     n_params = len(all_priors.T)
     unique_bands = all_priors_cls.ordered_bands
@@ -111,26 +110,26 @@ def run_mcmc(lc, t0_lim=None, plot=False, rstate=None, telescope="ZTF"):
     bdata = lc.bands
 
     # Precompute the information about the maximum flux in the r band.
-    where_ref_band = (bdata == ref_band)
+    where_ref_band = bdata == ref_band
     max_index = np.argmax(lc.fluxes[where_ref_band] - np.abs(lc.flux_errors[where_ref_band]))
     max_flux = lc.fluxes[where_ref_band][max_index] - np.abs(lc.flux_errors[where_ref_band][max_index])
     max_flux_loc = tdata[where_ref_band][max_index]
-    
-    start_idx = 7*ref_band_idx
+
+    start_idx = 7 * ref_band_idx
 
     # Create copies of the prior vectors with the value for t0 overwritten for the
     # current lightcurve.
     prior_clip_a = np.copy(all_priors[0])
-    prior_clip_a[start_idx+3] = np.amin(tdata) - 50.0
+    prior_clip_a[start_idx + 3] = np.amin(tdata) - 50.0
 
     prior_clip_b = np.copy(all_priors[1])
-    prior_clip_b[start_idx+3] = np.amax(tdata) + 50.0
+    prior_clip_b[start_idx + 3] = np.amax(tdata) + 50.0
 
     prior_mean = np.copy(all_priors[2])
-    prior_mean[start_idx+3] = max_flux_loc
+    prior_mean[start_idx + 3] = max_flux_loc
 
     prior_std = np.copy(all_priors[3])
-    prior_std[start_idx+3] = 20.0
+    prior_std[start_idx + 3] = 20.0
 
     # Precompute the vectors of trunc_gauss a and b values.
     tg_a = (prior_clip_a - prior_mean) / prior_std
@@ -153,16 +152,18 @@ def run_mcmc(lc, t0_lim=None, plot=False, rstate=None, telescope="ZTF"):
         # Compute the truncated Gaussian distribution for all values at once.
         tg_vals = truncnorm.ppf(cube, tg_a, tg_b, loc=prior_mean, scale=prior_std)
 
-        cube[start_idx] = max_flux * 10 ** tg_vals[start_idx]  # log-uniform for A from 1.0x to 16x of max flux
-        cube[start_idx+1] = tg_vals[start_idx+1]  # beta UPDATED, looks more Lorentzian so widened by 1.5x
-        cube[start_idx+2] = 10 ** tg_vals[start_idx+2]  # very broad Gaussian temporary solution for gamma
-        cube[start_idx+3] = tg_vals[start_idx+3]
-        cube[start_idx+4:start_idx+7] = 10 ** tg_vals[start_idx+4:start_idx+7]  # taurise, UPDATED
+        cube[start_idx] = (
+            max_flux * 10 ** tg_vals[start_idx]
+        )  # log-uniform for A from 1.0x to 16x of max flux
+        cube[start_idx + 1] = tg_vals[start_idx + 1]  # beta UPDATED, looks more Lorentzian so widened by 1.5x
+        cube[start_idx + 2] = 10 ** tg_vals[start_idx + 2]  # very broad Gaussian temporary solution for gamma
+        cube[start_idx + 3] = tg_vals[start_idx + 3]
+        cube[start_idx + 4 : start_idx + 7] = 10 ** tg_vals[start_idx + 4 : start_idx + 7]  # taurise, UPDATED
 
         # all other bands
         cube[:start_idx] = tg_vals[:start_idx]  # all non-ref params
-        cube[start_idx+7:] = tg_vals[start_idx+7:]
-    
+        cube[start_idx + 7 :] = tg_vals[start_idx + 7 :]
+
         return cube
 
     def create_logL(cube):
@@ -183,11 +184,11 @@ def run_mcmc(lc, t0_lim=None, plot=False, rstate=None, telescope="ZTF"):
         """
         f_model = flux_model(cube, tdata, bdata, unique_bands, ref_band)
         extra_sigma_arr = np.ones(len(tdata)) * cube[6] * max_flux
-        
+
         for band_idx, ordered_band in enumerate(unique_bands):
             if ordered_band == ref_band:
                 continue
-            extra_sigma_arr[bdata == ordered_band] *= cube[7*band_idx+6]
+            extra_sigma_arr[bdata == ordered_band] *= cube[7 * band_idx + 6]
 
         sigma_sq = ferrdata**2 + extra_sigma_arr**2
         logL = np.sum(np.log(1.0 / np.sqrt(2.0 * np.pi * sigma_sq)) - 0.5 * (f_model - fdata) ** 2 / sigma_sq)
@@ -322,7 +323,7 @@ def run_curve_fit(filename, output_dir, plot=True):
         priors.tau_fall.mean,
     ]
 
-    ref_results, _ = curve_fit(  # pylint: disable=unused-variable,unbalanced-tuple-unpacking
+    ref_results, _ = curve_fit(  # pylint: disable=unbalanced-tuple-unpacking
         flux_model_smooth,
         tdata[bdata == ref_band],
         fdata[bdata == ref_band],
@@ -338,27 +339,35 @@ def run_curve_fit(filename, output_dir, plot=True):
         if band == ref_band:
             continue
 
-        prior_array = [
+        aux_prior_array = [
             priors.amp.mean,
             priors.beta.mean,
-            priors.gamma.mean,
+            np.log10(priors.gamma.mean),
             priors.t_0.mean,
-            priors.tau_rise.mean,
-            priors.tau_fall.mean,
+            np.log10(priors.tau_rise.mean),
+            np.log10(priors.tau_fall.mean),
         ]
-        prior_array = prior_array * ref_results
+        aux_prior_array = aux_prior_array * ref_results
 
-        popt, _ = curve_fit(  # pylint: disable=unused-variable,unbalanced-tuple-unpacking
+        ## Gamma
+        aux_prior_array[2] = ref_results[2] + aux_prior_array[2]
+        ## Tau rise
+        aux_prior_array[4] = ref_results[4] + aux_prior_array[4]
+        ## Tau fall
+        aux_prior_array[5] = ref_results[5] + aux_prior_array[5]
+
+        popt, _ = curve_fit(  # pylint: disable=unbalanced-tuple-unpacking
             flux_model_smooth,
             tdata[bdata == band],
             fdata[bdata == band],
-            p0=prior_array,
+            p0=aux_prior_array,
             sigma=ferrdata[bdata == band],
             bounds=bounds,
             maxfev=100000,
         )
 
-        opts[band] = popt
+        ## Make results more easily comparable to other sampling techniques:
+        opts[band] = popt / ref_results
 
     if plot:
         trange_fine = np.linspace(np.amin(tdata), np.amax(tdata), num=500)

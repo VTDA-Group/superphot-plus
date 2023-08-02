@@ -34,7 +34,7 @@ def test_run_curve_fit(single_ztf_lightcurve_compressed, tmp_path):
     """Change detection test on returned curve fit."""
     results = run_curve_fit(single_ztf_lightcurve_compressed, tmp_path, plot=True)
 
-    expected_g = [1089.22, 0, 1.1282, -5.412, 0.6277, 1.146347]
+    expected_g = [1.006256, 4.13227076e-13, 0.86950, 1.196358, 1.236848, 0.912510]
     expected_r = [1082.44, 0.01575061, 1.297617, -4.5240395, 0.507503, 1.2562]
     assert np.all(np.isclose(results["g"], expected_g, rtol=0.01))
     assert np.all(np.isclose(results["r"], expected_r, rtol=0.01))
