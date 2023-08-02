@@ -81,8 +81,16 @@ class MultibandPriors:
             elif isinstance(curve_priors, dict):
                 self.bands[band] = CurvePriors(**curve_priors)
 
-    # def get_clip_a(self):
-
+    @property
+    def ordered_bands(self):
+        """Returns included bands in band_order."""
+        bands_ordered = []
+        for band in self.band_order:
+            if band in self.bands:
+                bands_ordered.append(band)
+        
+        return np.array(bands_ordered)
+    
     def to_numpy(self):
         """Fields as a (7*bands)x4 numpy array"""
         priors = []

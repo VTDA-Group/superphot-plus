@@ -68,7 +68,7 @@ def params_valid(beta, gamma, tau_rise, tau_fall):
     return True
 
 
-def run_mcmc(lc, t0_lim=None, plot=False, rstate=None):
+def run_mcmc(lc, t0_lim=None, plot=False, rstate=None, telescope="ZTF"):
     """Runs dynesty importance nested sampling on a single light curve; returns set
     of equally weighted posteriors (sets of fit parameters).
 
@@ -82,6 +82,8 @@ def run_mcmc(lc, t0_lim=None, plot=False, rstate=None):
         Flag to enable/disable plotting. Defaults to False.
     rstate : int, optional
         Random state that is seeded. if none, use machine entropy.
+    telescope : str, optional
+        Determines band and prior information. Defaults to ZTF.
 
     Returns
     -------
@@ -89,12 +91,19 @@ def run_mcmc(lc, t0_lim=None, plot=False, rstate=None):
         Numpy array containing the equally weighted posteriors, or None
         if the data is invalid.
     """
-    ref_band_idx = 1  # red band # pylint: disable=unused-variable
-    n_params = 14
+    if telescope == "ZTF":
+        all_priors_cls = MultibandPriors.load_ztf_priors()
+        all_priors = all_priors_cls.to_numpy().T
+        ref_band = "r" # maybe define within MultibandPriors class
+
+    n_params = len(all_priors.T)
+    unique_bands = all_priors_cls.ordered_bands
+    ref_band_idx = np.argmax(unique_bands == ref_band)
 
     # Require data in both the g and r bands.
-    if lc.obs_count("r") == 0 or lc.obs_count("g") == 0:
-        return None
+    for ub in unique_bands:
+        if lc.obs_count(ub) == 0:
+            return None
 
     tdata = lc.times
     fdata = lc.fluxes
@@ -102,25 +111,26 @@ def run_mcmc(lc, t0_lim=None, plot=False, rstate=None):
     bdata = lc.bands
 
     # Precompute the information about the maximum flux in the r band.
-    r_band = bdata == "r"
-    max_index = np.argmax(lc.fluxes[r_band] - np.abs(lc.flux_errors[r_band]))
-    max_flux = lc.fluxes[r_band][max_index] - np.abs(lc.flux_errors[r_band][max_index])
-    max_flux_loc = tdata[r_band][max_index]
+    where_ref_band = (bdata == ref_band)
+    max_index = np.argmax(lc.fluxes[where_ref_band] - np.abs(lc.flux_errors[where_ref_band]))
+    max_flux = lc.fluxes[where_ref_band][max_index] - np.abs(lc.flux_errors[where_ref_band][max_index])
+    max_flux_loc = tdata[where_ref_band][max_index]
+    
+    start_idx = 7*ref_band_idx
 
     # Create copies of the prior vectors with the value for t0 overwritten for the
     # current lightcurve.
-    all_priors = MultibandPriors.load_ztf_priors().to_numpy().T
     prior_clip_a = np.copy(all_priors[0])
-    prior_clip_a[3] = np.amin(tdata) - 50.0
+    prior_clip_a[start_idx+3] = np.amin(tdata) - 50.0
 
     prior_clip_b = np.copy(all_priors[1])
-    prior_clip_b[3] = np.amax(tdata) + 50.0
+    prior_clip_b[start_idx+3] = np.amax(tdata) + 50.0
 
     prior_mean = np.copy(all_priors[2])
-    prior_mean[3] = max_flux_loc
+    prior_mean[start_idx+3] = max_flux_loc
 
     prior_std = np.copy(all_priors[3])
-    prior_std[3] = 20.0
+    prior_std[start_idx+3] = 20.0
 
     # Precompute the vectors of trunc_gauss a and b values.
     tg_a = (prior_clip_a - prior_mean) / prior_std
@@ -143,23 +153,16 @@ def run_mcmc(lc, t0_lim=None, plot=False, rstate=None):
         # Compute the truncated Gaussian distribution for all values at once.
         tg_vals = truncnorm.ppf(cube, tg_a, tg_b, loc=prior_mean, scale=prior_std)
 
-        cube[0] = max_flux * 10 ** tg_vals[0]  # log-uniform for A from 1.0x to 16x of max flux
-        cube[1] = tg_vals[1]  # beta UPDATED, looks more Lorentzian so widened by 1.5x
-        cube[2] = 10 ** tg_vals[2]  # very broad Gaussian temporary solution for gamma
-        cube[3] = tg_vals[3]
-        cube[4] = 10 ** tg_vals[4]  # taurise, UPDATED
-        cube[5] = 10 ** tg_vals[5]  # tau fall UPDATED
-        cube[6] = 10 ** tg_vals[6]  # lognormal for extrasigma, UPDATED
+        cube[start_idx] = max_flux * 10 ** tg_vals[start_idx]  # log-uniform for A from 1.0x to 16x of max flux
+        cube[start_idx+1] = tg_vals[start_idx+1]  # beta UPDATED, looks more Lorentzian so widened by 1.5x
+        cube[start_idx+2] = 10 ** tg_vals[start_idx+2]  # very broad Gaussian temporary solution for gamma
+        cube[start_idx+3] = tg_vals[start_idx+3]
+        cube[start_idx+4:start_idx+7] = 10 ** tg_vals[start_idx+4:start_idx+7]  # taurise, UPDATED
 
-        # g band
-        cube[7] = tg_vals[7]  # A UPDATED
-        cube[8] = tg_vals[8]  # beta UPDATED
-        cube[9] = tg_vals[9]  # gamma, GAUSSIAN not Lorentzian
-        cube[10] = tg_vals[10]  # t0 UPDATED
-        cube[11] = tg_vals[11]  # taurise UPDATED, Gaussian
-        cube[12] = tg_vals[12]  # taufall UPDATED
-        cube[13] = tg_vals[13]  # extra sigma UPDATED, Gaussian
-
+        # all other bands
+        cube[:start_idx] = tg_vals[:start_idx]  # all non-ref params
+        cube[start_idx+7:] = tg_vals[start_idx+7:]
+    
         return cube
 
     def create_logL(cube):
@@ -178,9 +181,13 @@ def run_mcmc(lc, t0_lim=None, plot=False, rstate=None):
         float
             Log-likelihood value.
         """
-        f_model = flux_model(cube, tdata, bdata)
+        f_model = flux_model(cube, tdata, bdata, unique_bands, ref_band)
         extra_sigma_arr = np.ones(len(tdata)) * cube[6] * max_flux
-        extra_sigma_arr[bdata == "g"] *= cube[13]
+        
+        for band_idx, ordered_band in enumerate(unique_bands):
+            if ordered_band == ref_band:
+                continue
+            extra_sigma_arr[bdata == ordered_band] *= cube[7*band_idx+6]
 
         sigma_sq = ferrdata**2 + extra_sigma_arr**2
         logL = np.sum(np.log(1.0 / np.sqrt(2.0 * np.pi * sigma_sq)) - 0.5 * (f_model - fdata) ** 2 / sigma_sq)
