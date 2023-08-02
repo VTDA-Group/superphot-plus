@@ -247,7 +247,7 @@ def run_curve_fit(filename, output_dir, plot=True):
     ref_band = mb_priors.reference_band
 
     ## Exit early if we don't some data points in each band.
-    for band in mb_priors.bands_in_order():
+    for band in mb_priors.ordered_bands:
         if (tdata[bdata == band] is None) or (len(tdata[bdata == band]) == 0):
             return None
 
@@ -363,7 +363,7 @@ def run_curve_fit(filename, output_dir, plot=True):
     if plot:
         trange_fine = np.linspace(np.amin(tdata), np.amax(tdata), num=500)
 
-        for band in mb_priors.bands_in_order():
+        for band in mb_priors.ordered_bands:
             plt.errorbar(
                 tdata[bdata == band],
                 fdata[bdata == band],
