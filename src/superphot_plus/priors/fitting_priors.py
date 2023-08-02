@@ -69,6 +69,8 @@ class MultibandPriors:
     """Per-band curve priors."""
     band_order: str = "ugrizy"
     """Ordering of bands."""
+    reference_band: str = "r"
+    """Reference band."""
 
     def __post_init__(self):
         """Additional logic to coerce string dictionaries into the appropriate
@@ -97,6 +99,15 @@ class MultibandPriors:
                 priors.append(self.bands[band].to_numpy())
 
         return np.concatenate(priors)
+
+    def bands_in_order(self):
+        """Construct array of bands from the union of expected order in band_order
+        and the known bands of priors."""
+        bands_in_order = []
+        for band in self.band_order:
+            if band in self.bands:
+                bands_in_order.append(band)
+        return bands_in_order
 
     def write_to_file(self, file: str):
         """Write per-band curve priors to a yaml file."""
