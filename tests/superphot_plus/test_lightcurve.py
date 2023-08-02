@@ -7,7 +7,7 @@ from superphot_plus.file_utils import read_single_lightcurve
 from superphot_plus.lightcurve import Lightcurve
 
 
-def test_create(tmp_path):
+def test_create():
     times = np.array(range(10))
     fluxes = np.array([100.1, 0.2, 0.3, 0.1, 0.2, 0.3, 0.1, 0.1, 0.1, 0.1])
     bands = np.array(["r", "r", "r", "r", "r", "r", "r", "r", "r", "g"])
@@ -30,6 +30,33 @@ def test_create(tmp_path):
     times2 = np.array(range(20))
     with pytest.raises(ValueError):
         lc2 = Lightcurve(times2, fluxes, bands, errors)
+
+
+def test_max_flux():
+    times = np.array(range(11))
+    fluxes = np.array([1.1, 0.2, 0.3, 0.1, 100.2, 20.3, 0.1, 0.1, 1.1, 0.1, 1000.0])
+    bands = np.array(["r", "r", "r", "r", "g", "r", "r", "r", "g", "g", "b"])
+    errors = np.array([0.1] * 11)
+    lc = Lightcurve(times, fluxes, errors, bands)
+
+    # Test all bands with a standard adjustment (-1.0 * |error|)
+    all_max, all_max_t = lc.find_max_flux()
+    assert pytest.approx(999.9) == all_max
+    assert 10 == all_max_t
+
+    # Test g band with a standard adjustment (-1.0 * |error|)
+    g_max, g_max_t = lc.find_max_flux(band="g")
+    assert pytest.approx(100.1) == g_max
+    assert 4 == g_max_t
+
+    # Test r band with no adjustment
+    r_max, r_max_t = lc.find_max_flux(band="r", error_coeff=0.0)
+    assert pytest.approx(20.3) == r_max
+    assert 5 == r_max_t
+
+    # Test y band gives an error
+    with pytest.raises(ValueError):
+        _, _ = lc.find_max_flux(band="y", error_coeff=0.0)
 
 
 def test_from_file(single_ztf_lightcurve_compressed):
