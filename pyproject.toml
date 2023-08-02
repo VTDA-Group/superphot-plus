@@ -41,6 +41,7 @@ dev = [
     "ipython", # Also used in building notebooks into Sphinx
     "nbconvert", # Needed for pre-commit check to clear output from Python notebooks
     "nbsphinx", # Used to integrate Python notebooks into Sphinx documentation
+    "nbval", # Used to run Jupyter notebooks with pytest
     "pytest",
     "pytest-cov", # Used to report total code coverage
     "pre-commit", # Used to run checks before finalizing a git commit
@@ -62,8 +63,10 @@ build-backend = "setuptools.build_meta"
 write_to = "src/superphot_plus/_version.py"
 
 [tool.pytest.ini_options]
+addopts = ["--nbval-lax"] # Run notebooks and fail on errors, do not validate cell outputs
 testpaths = [
     "tests",
+    "docs/notebooks/*.ipynb",
 ]
 
 [tool.black]
