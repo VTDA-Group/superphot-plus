@@ -218,6 +218,10 @@ def run_curve_fit(filename, output_dir, plot=True):
     ----------
     filename : str
         Name of the data file.
+    output_dir : str
+        Directory to place plots, if generated.
+    plot : boolean
+        Whether or not to draw lightcurve fit plots.
 
     Returns
     -------
