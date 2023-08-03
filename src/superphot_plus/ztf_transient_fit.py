@@ -185,7 +185,9 @@ def run_mcmc(lc, t0_lim=None, plot=False, rstate=None, telescope="ZTF"):
             extra_sigma_arr[lc.bands == ordered_band] *= cube[7 * band_idx + 6]
 
         sigma_sq = lc.flux_errors**2 + extra_sigma_arr**2
-        logL = np.sum(np.log(1.0 / np.sqrt(2.0 * np.pi * sigma_sq)) - 0.5 * (f_model - fdata) ** 2 / sigma_sq)
+        logL = np.sum(
+            np.log(1.0 / np.sqrt(2.0 * np.pi * sigma_sq)) - 0.5 * (f_model - lc.fluxes) ** 2 / sigma_sq
+        )
         return logL
 
     st = time.time()  # pylint: disable=unused-variable
@@ -208,7 +210,9 @@ def run_mcmc(lc, t0_lim=None, plot=False, rstate=None, telescope="ZTF"):
     if plot:  # pragma: no cover
         if lc.name is None:
             raise ValueError("Missing file name for plotting files.")
-        plot_sampling_lc_fit(lc.name, FIT_PLOTS_FOLDER, lc.times, lc.fluxes, lc.flux_errors, lc.bands, eq_wt_samples)
+        plot_sampling_lc_fit(
+            lc.name, FIT_PLOTS_FOLDER, lc.times, lc.fluxes, lc.flux_errors, lc.bands, eq_wt_samples
+        )
 
     return eq_wt_samples
 
