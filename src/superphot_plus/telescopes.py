@@ -31,7 +31,7 @@ class Telescope:
     def ZTF(cls) -> Self:
         """Get ZTF priors and wavelengths.
         """
-        ztf_wvs = 
+        ztf_wvs = {"g": 4741.64, "r": 6173.23}
         return Telescope("ZTF", MultibandPriors.load_ztf_priors(), ztf_wvs)
         
         
