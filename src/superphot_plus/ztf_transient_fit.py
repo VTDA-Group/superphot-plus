@@ -109,11 +109,8 @@ def run_mcmc(lc, t0_lim=None, plot=False, rstate=None, telescope="ZTF"):
     ferrdata = lc.flux_errors
     bdata = lc.bands
 
-    # Precompute the information about the maximum flux in the r band.
-    where_ref_band = bdata == ref_band
-    max_index = np.argmax(lc.fluxes[where_ref_band] - np.abs(lc.flux_errors[where_ref_band]))
-    max_flux = lc.fluxes[where_ref_band][max_index] - np.abs(lc.flux_errors[where_ref_band][max_index])
-    max_flux_loc = tdata[where_ref_band][max_index]
+    # Precompute the information about the maximum flux in the reference band.
+    max_flux, max_flux_loc = lc.find_max_flux(band=ref_band)
 
     start_idx = 7 * ref_band_idx
 
