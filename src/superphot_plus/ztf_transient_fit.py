@@ -93,7 +93,7 @@ def run_mcmc(lc, priors=MultibandPriors.load_ztf_priors(), t0_lim=None, plot=Fal
     """
     all_priors = priors.to_numpy().T
     ref_band = priors.reference_band
-        
+
     n_params = len(all_priors.T)
     unique_bands = priors.ordered_bands
     ref_band_idx = np.argmax(unique_bands == ref_band)
@@ -383,7 +383,9 @@ def run_curve_fit(filename, output_dir, plot=True):
     return opts
 
 
-def dynesty_single_curve(lc, output_dir, skip_if_exists=True, rstate=None, priors=MultibandPriors.load_ztf_priors()):
+def dynesty_single_curve(
+    lc, output_dir, skip_if_exists=True, rstate=None, priors=MultibandPriors.load_ztf_priors()
+):
     """Perform model fitting using dynesty on a single light curve.
 
     This function runs the dynesty importance nested sampling algorithm
@@ -427,7 +429,14 @@ def dynesty_single_curve(lc, output_dir, skip_if_exists=True, rstate=None, prior
     return sample_mean
 
 
-def dynesty_single_file(test_fn, output_dir, skip_if_exists=True, rstate=None, t0_lim=None, priors=MultibandPriors.load_ztf_priors()):
+def dynesty_single_file(
+    test_fn,
+    output_dir,
+    skip_if_exists=True,
+    rstate=None,
+    t0_lim=None,
+    priors=MultibandPriors.load_ztf_priors(),
+):
     """Perform model fitting using dynesty on a single data file.
 
     This function runs the dynesty importance nested sampling algorithm

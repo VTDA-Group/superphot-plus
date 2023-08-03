@@ -82,6 +82,8 @@ def run_mcmc(lc, sampler="NUTS", priors=MultibandPriors.load_ztf_priors(), t0_li
         The Lightcurve object on which to run MCMC
     sampler : str, optional
         The MCMC sampler to use. Defaults to "NUTS".
+    priors : MultibandPriors, optional
+        The prior set to use for fitting. Defaults to ZTF's priors.
     t0_lim : float or None, optional
         Upper time limit for the data. If provided, only data points
         with time values less than or equal to t0_lim will be included.
@@ -89,8 +91,6 @@ def run_mcmc(lc, sampler="NUTS", priors=MultibandPriors.load_ztf_priors(), t0_li
     plot : bool, optional
         If True, associated plots will be generated and saved. Defaults
         to False.
-    telescope : Telescope
-        Information about telescope used to collect LC data.
 
     Returns
     -------
@@ -105,7 +105,7 @@ def run_mcmc(lc, sampler="NUTS", priors=MultibandPriors.load_ztf_priors(), t0_li
 
     all_priors = priors.to_numpy().T
     ref_band = priors.reference_band
-        
+
     n_params = len(all_priors.T)
     unique_bands = priors.ordered_bands
     ref_band_idx = np.argmax(unique_bands == ref_band)
@@ -114,13 +114,12 @@ def run_mcmc(lc, sampler="NUTS", priors=MultibandPriors.load_ztf_priors(), t0_li
     for ub in unique_bands:
         if lc.obs_count(ub) == 0:
             return None
-        
+
     tdata = lc.times
     fdata = lc.fluxes
     ferrdata = lc.flux_errors
-    
-    ref_padded_idx = ref_band_idx*PAD_SIZE
-    max_flux, max_flux_time = lc.find_max_flux()
+
+    max_flux, max_flux_time = lc.find_max_flux(band=ref_band)
     bdata = lc.band_as_int(priors.ordered_bands)  # change to integers
 
     def jax_model(t=None, obsflux=None, uncertainties=None, max_flux=None):
@@ -136,8 +135,6 @@ def run_mcmc(lc, sampler="NUTS", priors=MultibandPriors.load_ztf_priors(), t0_li
             Flux uncertainties. Defaults to None.
         max_flux : float, optional
             Maximum flux value. Defaults to None.
-        inc_band_ix : array-like, optional
-            Index values for the band. Defaults to None.
         """
         ref_priors = priors.bands[ref_band]
         A = max_flux * 10 ** numpyro.sample("logA", trunc_norm_fields(ref_priors.amp))
@@ -157,20 +154,22 @@ def run_mcmc(lc, sampler="NUTS", priors=MultibandPriors.load_ztf_priors(), t0_li
             + sigmoid * (1 - beta * gamma) * jnp.exp(-(phase - gamma) / tau_fall)
         )
         sigma_tot = jnp.sqrt(uncertainties**2 + extra_sigma**2)
-        
+
         # auxiliary bands
         for b_idx, uniq_b in enumerate(unique_bands):
             if uniq_b == ref_band:
                 continue
-                
+
             b_priors = priors.bands[uniq_b]
-            A_ratio = numpyro.sample("A_"+uniq_b, trunc_norm_fields(b_priors.amp))
-            beta_ratio = numpyro.sample("beta_"+uniq_b, trunc_norm_fields(b_priors.beta))
-            gamma_ratio = numpyro.sample("gamma_"+uniq_b, trunc_norm_fields(b_priors.gamma))
-            t0_ratio = numpyro.sample("t0_"+uniq_b, trunc_norm_fields(b_priors.t_0))
-            tau_rise_ratio = numpyro.sample("tau_rise_"+uniq_b, trunc_norm_fields(b_priors.tau_rise))
-            tau_fall_ratio = numpyro.sample("tau_fall_"+uniq_b, trunc_norm_fields(b_priors.tau_fall))
-            extra_sigma_ratio = numpyro.sample("extra_sigma_"+uniq_b, trunc_norm_fields(b_priors.extra_sigma))
+            A_ratio = numpyro.sample("A_" + uniq_b, trunc_norm_fields(b_priors.amp))
+            beta_ratio = numpyro.sample("beta_" + uniq_b, trunc_norm_fields(b_priors.beta))
+            gamma_ratio = numpyro.sample("gamma_" + uniq_b, trunc_norm_fields(b_priors.gamma))
+            t0_ratio = numpyro.sample("t0_" + uniq_b, trunc_norm_fields(b_priors.t_0))
+            tau_rise_ratio = numpyro.sample("tau_rise_" + uniq_b, trunc_norm_fields(b_priors.tau_rise))
+            tau_fall_ratio = numpyro.sample("tau_fall_" + uniq_b, trunc_norm_fields(b_priors.tau_fall))
+            extra_sigma_ratio = numpyro.sample(
+                "extra_sigma_" + uniq_b, trunc_norm_fields(b_priors.extra_sigma)
+            )
 
             A_b = A * A_ratio  # pylint: disable=unused-variable
             beta_b = beta * beta_ratio
@@ -179,9 +178,8 @@ def run_mcmc(lc, sampler="NUTS", priors=MultibandPriors.load_ztf_priors(), t0_li
             tau_rise_b = tau_rise * tau_rise_ratio
             tau_fall_b = tau_fall * tau_fall_ratio
 
+            inc_band_ix = np.arange(b_idx * PAD_SIZE, (b_idx + 1) * PAD_SIZE)
 
-            inc_band_ix = np.arange(b_idx*PAD_SIZE,(b_idx+1)*PAD_SIZE)
-            
             phase_b = (t - t0_b)[inc_band_ix]
             flux_const_b = A / (1.0 + jnp.exp(-phase_b / tau_rise_b))
             sigmoid_b = 1 / (1 + jnp.exp(10.0 * (gamma_b - phase_b)))
@@ -220,8 +218,6 @@ def run_mcmc(lc, sampler="NUTS", priors=MultibandPriors.load_ztf_priors(), t0_li
             Flux uncertainties. Defaults to None.
         max_flux : float, optional
             Maximum flux value. Defaults to None.
-        inc_band_ix : array-like, optional
-            Index values for the band. Defaults to None.
         """
 
         def numpyro_sample(prefix: str, fields: PriorFields, param_constraint: float):
@@ -247,13 +243,13 @@ def run_mcmc(lc, sampler="NUTS", priors=MultibandPriors.load_ztf_priors(), t0_li
             if uniq_b == ref_band:
                 continue
             b_priors = priors.bands[uniq_b]
-            numpyro_sample("A_"+uniq_b, b_priors.amp, 1e-3)
-            numpyro_sample("beta_"+uniq_b, b_priors.beta, 1e-3)
-            numpyro_sample("gamma_"+uniq_b, b_priors.gamma, 1e-3)
-            numpyro_sample("t0_"+uniq_b, b_priors.t_0, 1e-3)
-            numpyro_sample("tau_rise_"+uniq_b, b_priors.tau_rise, 1e-3)
-            numpyro_sample("tau_fall_"+uniq_b, b_priors.tau_fall, 1e-3)
-            numpyro_sample("extra_sigma_"+uniq_b, b_priors.extra_sigma, 1e-3)
+            numpyro_sample("A_" + uniq_b, b_priors.amp, 1e-3)
+            numpyro_sample("beta_" + uniq_b, b_priors.beta, 1e-3)
+            numpyro_sample("gamma_" + uniq_b, b_priors.gamma, 1e-3)
+            numpyro_sample("t0_" + uniq_b, b_priors.t_0, 1e-3)
+            numpyro_sample("tau_rise_" + uniq_b, b_priors.tau_rise, 1e-3)
+            numpyro_sample("tau_fall_" + uniq_b, b_priors.tau_fall, 1e-3)
+            numpyro_sample("extra_sigma_" + uniq_b, b_priors.extra_sigma, 1e-3)
 
     if sampler == "NUTS":
         num_samples = 300
@@ -279,7 +275,7 @@ def run_mcmc(lc, sampler="NUTS", priors=MultibandPriors.load_ztf_priors(), t0_li
 
         # mcmc.print_summary()
         posterior_samples = mcmc.get_samples()
-    
+
     elif sampler == "svi":
         optimizer = numpyro.optim.Adam(step_size=0.001)
         svi = SVI(jax_model, jax_guide, optimizer, loss=Trace_ELBO())
@@ -580,8 +576,8 @@ def numpyro_single_curve(lc, output_dir=FITS_DIR, sampler="svi", priors=Multiban
         Directory to save outputs to. Defaults to FITS_DIR.
     sampler : str
         The MCMC sampler to use. Defaults to "svi".
-    telescope : Telescope
-        Information about telescope used to collect LC data.
+    priors : MultibandPriors, optional
+        The prior set to use for fitting. Defaults to ZTF's priors.
 
     Returns
     -------
@@ -617,7 +613,7 @@ def numpyro_single_file(test_filename, output_dir=FITS_DIR, sampler="svi", teles
         The MCMC sampler to use. Defaults to "svi".
     telescope : Telescope
         Information about telescope used to collect LC data.
-        
+
     Returns
     -------
     sample_mean: numpy array

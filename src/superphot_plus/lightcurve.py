@@ -35,7 +35,6 @@ class Lightcurve:
         self.bands = bands
         self.name = name
         self.sn_class = sn_class
-        
 
     def _reindex(self, indices, in_place=True):
         """Rearrange or subset the values in each array to match
