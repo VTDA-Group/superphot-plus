@@ -351,7 +351,6 @@ def return_new_classifications(test_csv, data_dirs, fit_dir, include_labels=Fals
         csv_reader = csv.reader(tc, delimiter=",")
         next(csv_reader)
         for _, row in enumerate(csv_reader):
-
             try:
                 test_name = row[0]
             except:

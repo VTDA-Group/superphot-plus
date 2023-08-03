@@ -11,6 +11,7 @@ from scipy.stats import truncnorm
 
 from superphot_plus.constants import DLOGZ, MAX_ITER, NLIVE
 from superphot_plus.file_paths import FIT_PLOTS_FOLDER
+
 from superphot_plus.file_utils import get_posterior_filename, has_posterior_samples
 from superphot_plus.lightcurve import Lightcurve
 from superphot_plus.plotting import plot_sampling_lc_fit
@@ -104,11 +105,6 @@ def run_mcmc(lc, t0_lim=None, plot=False, rstate=None, telescope="ZTF"):
         if lc.obs_count(ub) == 0:
             return None
 
-    tdata = lc.times
-    fdata = lc.fluxes
-    ferrdata = lc.flux_errors
-    bdata = lc.bands
-
     # Precompute the information about the maximum flux in the reference band.
     max_flux, max_flux_loc = lc.find_max_flux(band=ref_band)
 
@@ -117,10 +113,10 @@ def run_mcmc(lc, t0_lim=None, plot=False, rstate=None, telescope="ZTF"):
     # Create copies of the prior vectors with the value for t0 overwritten for the
     # current lightcurve.
     prior_clip_a = np.copy(all_priors[0])
-    prior_clip_a[start_idx + 3] = np.amin(tdata) - 50.0
+    prior_clip_a[start_idx + 3] = np.amin(lc.times) - 50.0
 
     prior_clip_b = np.copy(all_priors[1])
-    prior_clip_b[start_idx + 3] = np.amax(tdata) + 50.0
+    prior_clip_b[start_idx + 3] = np.amax(lc.times) + 50.0
 
     prior_mean = np.copy(all_priors[2])
     prior_mean[start_idx + 3] = max_flux_loc
@@ -179,16 +175,18 @@ def run_mcmc(lc, t0_lim=None, plot=False, rstate=None, telescope="ZTF"):
         float
             Log-likelihood value.
         """
-        f_model = flux_model(cube, tdata, bdata, unique_bands, ref_band)
-        extra_sigma_arr = np.ones(len(tdata)) * cube[6] * max_flux
+        f_model = flux_model(cube, lc.times, lc.bands, unique_bands, ref_band)
+        extra_sigma_arr = np.ones(len(lc.times)) * cube[6] * max_flux
 
         for band_idx, ordered_band in enumerate(unique_bands):
             if ordered_band == ref_band:
                 continue
-            extra_sigma_arr[bdata == ordered_band] *= cube[7 * band_idx + 6]
+            extra_sigma_arr[lc.bands == ordered_band] *= cube[7 * band_idx + 6]
 
-        sigma_sq = ferrdata**2 + extra_sigma_arr**2
-        logL = np.sum(np.log(1.0 / np.sqrt(2.0 * np.pi * sigma_sq)) - 0.5 * (f_model - fdata) ** 2 / sigma_sq)
+        sigma_sq = lc.flux_errors**2 + extra_sigma_arr**2
+        logL = np.sum(
+            np.log(1.0 / np.sqrt(2.0 * np.pi * sigma_sq)) - 0.5 * (f_model - lc.fluxes) ** 2 / sigma_sq
+        )
         return logL
 
     st = time.time()  # pylint: disable=unused-variable
@@ -199,7 +197,7 @@ def run_mcmc(lc, t0_lim=None, plot=False, rstate=None, telescope="ZTF"):
     sampler.run_nested(maxiter=MAX_ITER, dlogz=DLOGZ, print_progress=False)
     res = sampler.results
 
-    red_chisq = res.logl / len(tdata)
+    red_chisq = res.logl / len(lc.times)
     samples = res.samples
     eq_wt_samples = res.samples_equal(rstate=rstate)
 
@@ -211,7 +209,9 @@ def run_mcmc(lc, t0_lim=None, plot=False, rstate=None, telescope="ZTF"):
     if plot:  # pragma: no cover
         if lc.name is None:
             raise ValueError("Missing file name for plotting files.")
-        plot_sampling_lc_fit(lc.name, FIT_PLOTS_FOLDER, tdata, fdata, ferrdata, bdata, eq_wt_samples)
+        plot_sampling_lc_fit(
+            lc.name, FIT_PLOTS_FOLDER, lc.times, lc.fluxes, lc.flux_errors, lc.bands, eq_wt_samples
+        )
 
     return eq_wt_samples
 
@@ -249,11 +249,7 @@ def run_curve_fit(filename, output_dir, plot=True):
         if (tdata[bdata == band] is None) or (len(tdata[bdata == band]) == 0):
             return None
 
-    max_flux = np.max(fdata[bdata == ref_band] - np.abs(ferrdata[bdata == ref_band]))
-
-    max_flux_loc = tdata[bdata == ref_band][
-        np.argmax(fdata[bdata == ref_band] - np.abs(ferrdata[bdata == ref_band]))
-    ]
+    max_flux, max_flux_loc = lightcurve.find_max_flux(band="r")
 
     bounds = (
         [max_flux * 10 ** (-0.2), 0.0, -2.0, np.amin(tdata) - 50.0, -1.0, 0.5],
