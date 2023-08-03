@@ -45,7 +45,7 @@ class Lightcurve:
         indices : array_like
             This can either be an array-like of integer indices to keep
             and the order in which to put them or an array-like of bools
-            that indicate whether to each each entry.
+            that indicate whether to keep each entry.
         in_place : bool
             A Boolean indicating whether to modify the data in-place or
             make a new copy of the light curve.
