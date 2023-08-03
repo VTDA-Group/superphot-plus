@@ -11,7 +11,7 @@ from superphot_plus.lightcurve import Lightcurve
 from superphot_plus.sfd import dust_filepath
 
 
-def get_band_extinctions(ra, dec):
+def get_band_extinctions(ra, dec, wvs):
     """Get g- and r-band extinctions in magnitudes for a single
     supernova lightcurve based on right ascension (RA) and declination
     (DEC).
@@ -22,12 +22,14 @@ def get_band_extinctions(ra, dec):
         The right ascension of the object of interest, in degrees.
     dec : float
         The declination of the object of interest, in degrees.
+    wvs : list or np.ndarray
+        Array of wavelengths, in angstroms.
+
 
     Returns
     -------
-    ext_list : np.ndarray
-        A list of extinction magnitudes for the given coordinates, in
-        the g- and r-bands.
+    ext_dict : Dict
+        A dictionary mapping bands to extinction magnitudes for the given coordinates.
     """
     config["data_dir"] = dust_filepath
     sfd = SFDQuery()
@@ -36,8 +38,7 @@ def get_band_extinctions(ra, dec):
     coords = SkyCoord(ra, dec, frame="icrs", unit="deg")
     Av_sfd = 2.742 * sfd(coords)  # from https://dustmaps.readthedocs.io/en/latest/examples.html
 
-    # for gr, the was are:
-    band_wvs = 1.0 / (0.0001 * np.asarray([4741.64, 6173.23]))  # in inverse microns
+    band_wvs = 1.0 / (0.0001 * np.asarray(wvs))  # in inverse microns
 
     # Now figure out how much the magnitude is affected by this dust
     ext_list = extinction.fm07(band_wvs, Av_sfd, unit="invum")  # in magnitudes

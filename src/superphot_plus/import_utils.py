@@ -7,9 +7,10 @@ import os
 import numpy as np
 
 from superphot_plus.utils import convert_mags_to_flux, get_band_extinctions
+from superphot_plus.telescopes import Telescope
 
 
-def import_lc(filename):
+def import_lc(filename, telescope=Telescope.ZTF()):
     """Imports a single file, but only the points from a single
     telescope, in only g and r bands.
 
@@ -49,16 +50,16 @@ def import_lc(filename):
                 ra = float(row[ra_idx])
                 dec = float(row[dec_idx])
                 try:
-                    g_ext, r_ext = get_band_extinctions(ra, dec)
+                    ext_dict = telescope.get_extinctions(ra, dec)
                 except:
                     return [
                         None,
                     ] * 6
             if int(row[b_idx]) == 2:
-                flux.append(float(row[f_idx]) - r_ext)
+                flux.append(float(row[f_idx]) - ext_dict["r"])
                 bands.append("r")
             elif int(row[b_idx]) == 1:
-                flux.append(float(row[f_idx]) - g_ext)
+                flux.append(float(row[f_idx]) - ext_dict["g"])
                 bands.append("g")
             else:
                 continue
@@ -80,7 +81,7 @@ def import_lc(filename):
     t, f, ferr, b = clip_lightcurve_end(t, f, ferr, b)
     snr = np.abs(f / ferr)
 
-    for band in ["g", "r"]:
+    for band in telescope.wavelengths:
         if len(snr[(snr > 3.0) & (b == band)]) < 5:  # not enough good datapoints
             return [
                 None,
@@ -114,7 +115,7 @@ def clip_lightcurve_end(times, fluxes, fluxerrs, bands):
     """
 
     t_clip, flux_clip, ferr_clip, b_clip = [], [], [], []
-    for b in ["g", "r"]:
+    for b in np.unique(bands):
         idx_b = bands == b
         t_b, f_b, ferr_b = times[idx_b], fluxes[idx_b], fluxerrs[idx_b]
         if len(f_b) == 0:
