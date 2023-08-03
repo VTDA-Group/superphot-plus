@@ -6,18 +6,17 @@ import joblib
 import matplotlib.pyplot as plt
 import numpy as np
 from dynesty import NestedSampler
-from dynesty import utils as dyfunc
 from scipy.optimize import curve_fit
 from scipy.stats import truncnorm
 
 from superphot_plus.constants import DLOGZ, MAX_ITER, NLIVE
-from superphot_plus.file_utils import get_posterior_filename, has_posterior_samples, read_single_lightcurve
+from superphot_plus.file_paths import FIT_PLOTS_FOLDER
+
+from superphot_plus.file_utils import get_posterior_filename, has_posterior_samples
 from superphot_plus.lightcurve import Lightcurve
 from superphot_plus.plotting import plot_sampling_lc_fit
 from superphot_plus.priors.fitting_priors import MultibandPriors
 from superphot_plus.utils import flux_model
-
-from .file_paths import FIT_PLOTS_FOLDER
 
 
 @contextlib.contextmanager
@@ -104,32 +103,24 @@ def run_mcmc(lc, prior=MultibandPriors.load_ztf_priors(), t0_lim=None, plot=Fals
         if lc.obs_count(ub) == 0:
             return None
 
-    tdata = lc.times
-    fdata = lc.fluxes
-    ferrdata = lc.flux_errors
-    bdata = lc.bands
+    # Precompute the information about the maximum flux in the reference band.
+    max_flux, max_flux_loc = lc.find_max_flux(band=ref_band)
 
-    # Precompute the information about the maximum flux in the r band.
-    where_ref_band = (bdata == ref_band)
-    max_index = np.argmax(lc.fluxes[where_ref_band] - np.abs(lc.flux_errors[where_ref_band]))
-    max_flux = lc.fluxes[where_ref_band][max_index] - np.abs(lc.flux_errors[where_ref_band][max_index])
-    max_flux_loc = tdata[where_ref_band][max_index]
-    
-    start_idx = 7*ref_band_idx
+    start_idx = 7 * ref_band_idx
 
     # Create copies of the prior vectors with the value for t0 overwritten for the
     # current lightcurve.
     prior_clip_a = np.copy(all_priors[0])
-    prior_clip_a[start_idx+3] = np.amin(tdata) - 50.0
+    prior_clip_a[start_idx + 3] = np.amin(lc.times) - 50.0
 
     prior_clip_b = np.copy(all_priors[1])
-    prior_clip_b[start_idx+3] = np.amax(tdata) + 50.0
+    prior_clip_b[start_idx + 3] = np.amax(lc.times) + 50.0
 
     prior_mean = np.copy(all_priors[2])
-    prior_mean[start_idx+3] = max_flux_loc
+    prior_mean[start_idx + 3] = max_flux_loc
 
     prior_std = np.copy(all_priors[3])
-    prior_std[start_idx+3] = 20.0
+    prior_std[start_idx + 3] = 20.0
 
     # Precompute the vectors of trunc_gauss a and b values.
     tg_a = (prior_clip_a - prior_mean) / prior_std
@@ -152,16 +143,18 @@ def run_mcmc(lc, prior=MultibandPriors.load_ztf_priors(), t0_lim=None, plot=Fals
         # Compute the truncated Gaussian distribution for all values at once.
         tg_vals = truncnorm.ppf(cube, tg_a, tg_b, loc=prior_mean, scale=prior_std)
 
-        cube[start_idx] = max_flux * 10 ** tg_vals[start_idx]  # log-uniform for A from 1.0x to 16x of max flux
-        cube[start_idx+1] = tg_vals[start_idx+1]  # beta UPDATED, looks more Lorentzian so widened by 1.5x
-        cube[start_idx+2] = 10 ** tg_vals[start_idx+2]  # very broad Gaussian temporary solution for gamma
-        cube[start_idx+3] = tg_vals[start_idx+3]
-        cube[start_idx+4:start_idx+7] = 10 ** tg_vals[start_idx+4:start_idx+7]  # taurise, UPDATED
+        cube[start_idx] = (
+            max_flux * 10 ** tg_vals[start_idx]
+        )  # log-uniform for A from 1.0x to 16x of max flux
+        cube[start_idx + 1] = tg_vals[start_idx + 1]  # beta UPDATED, looks more Lorentzian so widened by 1.5x
+        cube[start_idx + 2] = 10 ** tg_vals[start_idx + 2]  # very broad Gaussian temporary solution for gamma
+        cube[start_idx + 3] = tg_vals[start_idx + 3]
+        cube[start_idx + 4 : start_idx + 7] = 10 ** tg_vals[start_idx + 4 : start_idx + 7]  # taurise, UPDATED
 
         # all other bands
         cube[:start_idx] = tg_vals[:start_idx]  # all non-ref params
-        cube[start_idx+7:] = tg_vals[start_idx+7:]
-    
+        cube[start_idx + 7 :] = tg_vals[start_idx + 7 :]
+
         return cube
 
     def create_logL(cube):
@@ -180,16 +173,18 @@ def run_mcmc(lc, prior=MultibandPriors.load_ztf_priors(), t0_lim=None, plot=Fals
         float
             Log-likelihood value.
         """
-        f_model = flux_model(cube, tdata, bdata, unique_bands, ref_band)
-        extra_sigma_arr = np.ones(len(tdata)) * cube[6] * max_flux
-        
+        f_model = flux_model(cube, lc.times, lc.bands, unique_bands, ref_band)
+        extra_sigma_arr = np.ones(len(lc.times)) * cube[6] * max_flux
+
         for band_idx, ordered_band in enumerate(unique_bands):
             if ordered_band == ref_band:
                 continue
-            extra_sigma_arr[bdata == ordered_band] *= cube[7*band_idx+6]
+            extra_sigma_arr[lc.bands == ordered_band] *= cube[7 * band_idx + 6]
 
-        sigma_sq = ferrdata**2 + extra_sigma_arr**2
-        logL = np.sum(np.log(1.0 / np.sqrt(2.0 * np.pi * sigma_sq)) - 0.5 * (f_model - fdata) ** 2 / sigma_sq)
+        sigma_sq = lc.flux_errors**2 + extra_sigma_arr**2
+        logL = np.sum(
+            np.log(1.0 / np.sqrt(2.0 * np.pi * sigma_sq)) - 0.5 * (f_model - lc.fluxes) ** 2 / sigma_sq
+        )
         return logL
 
     st = time.time()  # pylint: disable=unused-variable
@@ -200,7 +195,7 @@ def run_mcmc(lc, prior=MultibandPriors.load_ztf_priors(), t0_lim=None, plot=Fals
     sampler.run_nested(maxiter=MAX_ITER, dlogz=DLOGZ, print_progress=False)
     res = sampler.results
 
-    red_chisq = res.logl / len(tdata)
+    red_chisq = res.logl / len(lc.times)
     samples = res.samples
     eq_wt_samples = res.samples_equal(rstate=rstate)
 
@@ -212,63 +207,51 @@ def run_mcmc(lc, prior=MultibandPriors.load_ztf_priors(), t0_lim=None, plot=Fals
     if plot:  # pragma: no cover
         if lc.name is None:
             raise ValueError("Missing file name for plotting files.")
-        plot_sampling_lc_fit(lc.name, FIT_PLOTS_FOLDER, tdata, fdata, ferrdata, bdata, eq_wt_samples)
+        plot_sampling_lc_fit(
+            lc.name, FIT_PLOTS_FOLDER, lc.times, lc.fluxes, lc.flux_errors, lc.bands, eq_wt_samples
+        )
 
     return eq_wt_samples
 
 
-def run_curve_fit(filename):
+def run_curve_fit(filename, output_dir, plot=True):
     """Run curve fit on data file.
 
     Parameters
     ----------
     filename : str
         Name of the data file.
+    output_dir : str
+        Directory to place plots, if generated.
+    plot : boolean
+        Whether or not to draw lightcurve fit plots.
 
     Returns
     -------
     tuple or None
-        Tuple containing the fitted parameters for the "g" and "r"
+        Tuple containing the fitted parameters for each
         bands, or None if the required data is missing.
     """
-    ref_band_idx = 1  # red band # pylint: disable=unused-variable
+    lightcurve = Lightcurve.from_file(filename)
 
-    prefix = filename.split("/")[-1][:-4]
+    tdata = lightcurve.times
+    fdata = lightcurve.fluxes
+    ferrdata = lightcurve.flux_errors
+    bdata = lightcurve.bands
 
-    print(prefix)
-    n_params = 14  # pylint: disable=unused-variable
+    mb_priors = MultibandPriors.load_ztf_priors()
+    ref_band = mb_priors.reference_band
 
-    tdata, fdata, ferrdata, bdata = read_single_lightcurve(filename)
+    ## Exit early if we don't some data points in each band.
+    for band in mb_priors.ordered_bands:
+        if (tdata[bdata == band] is None) or (len(tdata[bdata == band]) == 0):
+            return None
 
-    if (tdata[bdata == "r"] is None) or (len(tdata[bdata == "r"]) == 0):
-        return None
-    if (tdata[bdata == "g"] is None) or (len(tdata[bdata == "g"]) == 0):
-        return None
+    max_flux, max_flux_loc = lightcurve.find_max_flux(band="r")
 
-    max_flux = np.max(fdata[bdata == "r"] - np.abs(ferrdata[bdata == "r"]))
-
-    max_flux_loc = tdata[bdata == "r"][np.argmax(fdata[bdata == "r"] - np.abs(ferrdata[bdata == "r"]))]
-
-    # p0 = np.array([max_flux, 0.0052, 10.**1.1391, max_flux_loc, 10**0.5990, 10**1.4296])
     bounds = (
         [max_flux * 10 ** (-0.2), 0.0, -2.0, np.amin(tdata) - 50.0, -1.0, 0.5],
         [max_flux * 10 ** (1.2), 0.02, 2.5, np.amax(tdata) + 50.0, 3.0, 4.0],
-    )
-    p0 = np.array(
-        [
-            max_flux,
-            0.0052,
-            1.1391,
-            max_flux_loc,
-            0.5990,
-            1.4296,
-            1.0607,
-            1.0424,
-            np.log10(1.0075),
-            1.0006,
-            np.log10(0.9663),
-            np.log10(0.5488),
-        ]
     )
 
     def flux_model_smooth(t_data, A, beta, gamma, t0, tau_rise, tau_fall):
@@ -317,67 +300,87 @@ def run_curve_fit(filename):
 
         return f_model
 
-    popt_r, pcov = curve_fit(  # pylint: disable=unused-variable
+    opts = {}
+
+    ## Get parameters for the reference band.
+    priors = mb_priors.bands[ref_band]
+
+    prior_array = [
+        max_flux,
+        priors.beta.mean,
+        priors.gamma.mean,
+        max_flux_loc,
+        priors.tau_rise.mean,
+        priors.tau_fall.mean,
+    ]
+
+    ref_results, _ = curve_fit(  # pylint: disable=unbalanced-tuple-unpacking
         flux_model_smooth,
-        tdata[bdata == "r"],
-        fdata[bdata == "r"],
-        p0=p0[:6],
-        sigma=ferrdata[bdata == "r"],
+        tdata[bdata == ref_band],
+        fdata[bdata == ref_band],
+        p0=prior_array,
+        sigma=ferrdata[bdata == ref_band],
         bounds=bounds,
         maxfev=100000,
     )
 
-    p0_g = popt_r * p0[6:]
-    p0_g[2] = popt_r[2] + p0[8]
-    p0_g[5] = popt_r[5] + p0[-1]
-    p0_g[4] = popt_r[4] + p0[-2]
+    opts[ref_band] = ref_results
 
-    popt_g, pcov = curve_fit(
-        flux_model_smooth,
-        tdata[bdata == "g"],
-        fdata[bdata == "g"],
-        p0=p0_g,
-        sigma=ferrdata[bdata == "g"],
-        bounds=bounds,
-        maxfev=100000,
-    )
+    for band, priors in mb_priors.bands.items():
+        if band == ref_band:
+            continue
 
-    print(popt_g, popt_r)
+        aux_prior_array = [
+            priors.amp.mean,
+            priors.beta.mean,
+            np.log10(priors.gamma.mean),
+            priors.t_0.mean,
+            np.log10(priors.tau_rise.mean),
+            np.log10(priors.tau_fall.mean),
+        ]
+        aux_prior_array = aux_prior_array * ref_results
 
-    prefix = fn.split("/")[-1][:-4]
+        ## Gamma
+        aux_prior_array[2] = ref_results[2] + aux_prior_array[2]
+        ## Tau rise
+        aux_prior_array[4] = ref_results[4] + aux_prior_array[4]
+        ## Tau fall
+        aux_prior_array[5] = ref_results[5] + aux_prior_array[5]
 
-    plt.errorbar(
-        tdata[bdata == "g"],
-        fdata[bdata == "g"],
-        yerr=ferrdata[bdata == "g"],
-        c="g",
-        label="g",
-        fmt="o",
-    )
-    plt.errorbar(
-        tdata[bdata == "r"],
-        fdata[bdata == "r"],
-        yerr=ferrdata[bdata == "r"],
-        c="r",
-        label="r",
-        fmt="o",
-    )
+        popt, _ = curve_fit(  # pylint: disable=unbalanced-tuple-unpacking
+            flux_model_smooth,
+            tdata[bdata == band],
+            fdata[bdata == band],
+            p0=aux_prior_array,
+            sigma=ferrdata[bdata == band],
+            bounds=bounds,
+            maxfev=100000,
+        )
 
-    trange_fine = np.linspace(np.amin(tdata), np.amax(tdata), num=500)
+        ## Make results more easily comparable to other sampling techniques:
+        opts[band] = popt / ref_results
 
-    bdata = ["g"] * len(trange_fine)
-    plt.plot(trange_fine, flux_model_smooth(trange_fine, *popt_g), c="g", lw=1)
-    bdata = ["r"] * len(trange_fine)
-    plt.plot(trange_fine, flux_model_smooth(trange_fine, *popt_r), c="r", lw=1)
+    if plot:
+        trange_fine = np.linspace(np.amin(tdata), np.amax(tdata), num=500)
 
-    print(flux_model_smooth(1e20, *popt_r), flux_model_smooth(1e20, *popt_g))
-    plt.xlabel("MJD")
-    plt.ylabel("Flux")
-    plt.title(prefix)
+        for band in mb_priors.ordered_bands:
+            plt.errorbar(
+                tdata[bdata == band],
+                fdata[bdata == band],
+                yerr=ferrdata[bdata == band],
+                c=band,
+                label=band,
+                fmt="o",
+            )
+            plt.plot(trange_fine, flux_model_smooth(trange_fine, *opts[band]), c=band, lw=1)
 
-    plt.savefig("../figs/fits_curve_fit/" + prefix + ".png")
+        plt.xlabel("MJD")
+        plt.ylabel("Flux")
+        plt.title(lightcurve.name)
 
-    return popt_g, popt_r
+        plt.savefig(os.path.join(output_dir, f"{lightcurve.name}.png"))
+
+    return opts
 
 
 def dynesty_single_curve(lc, output_dir, skip_if_exists=True, rstate=None, priors=MultibandPriors.load_ztf_priors()):

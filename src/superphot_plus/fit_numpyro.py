@@ -422,7 +422,6 @@ def run_mcmc_batch(lcs, t0_lim=None, plot=False):
             Index values for the band. Defaults to None.
         """
         with numpyro.plate("components", N) as sn_index:  # pylint: disable=unused-variable
-
             all_priors = MultibandPriors.load_ztf_priors()
             r_priors = all_priors.bands["r"]
             A = max_flux * 10 ** numpyro.sample("logA", trunc_norm_fields(r_priors.amp))

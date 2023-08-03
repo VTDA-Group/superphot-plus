@@ -23,6 +23,7 @@ PRIOR_TAU_RISE_g = [0.5, 2.0, 0.9663, 0.0128]
 PRIOR_TAU_FALL_g = [0.1, 3.0, 0.5488, 0.0553]
 PRIOR_EXTRA_SIGMA_g = [0.2, 2.0, 0.8606, 0.0388]
 
+
 def trunc_gauss(quantile, clip_a, clip_b, mean, std):
     """Truncated Gaussian distribution.
 
@@ -47,6 +48,7 @@ def trunc_gauss(quantile, clip_a, clip_b, mean, std):
     """
     a, b = (clip_a - mean) / std, (clip_b - mean) / std
     return truncnorm.ppf(quantile, a, b, loc=mean, scale=std)
+
 
 def create_prior(cube):
     """Creates prior for dynesty, where each side of the "cube"

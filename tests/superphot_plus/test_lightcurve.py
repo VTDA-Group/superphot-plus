@@ -3,11 +3,10 @@ import os
 import numpy as np
 import pytest
 
-from superphot_plus.file_utils import read_single_lightcurve
 from superphot_plus.lightcurve import Lightcurve
 
 
-def test_create(tmp_path):
+def test_create():
     times = np.array(range(10))
     fluxes = np.array([100.1, 0.2, 0.3, 0.1, 0.2, 0.3, 0.1, 0.1, 0.1, 0.1])
     bands = np.array(["r", "r", "r", "r", "r", "r", "r", "r", "r", "g"])
@@ -32,6 +31,33 @@ def test_create(tmp_path):
         lc2 = Lightcurve(times2, fluxes, bands, errors)
 
 
+def test_max_flux():
+    times = np.array(range(11))
+    fluxes = np.array([1.1, 0.2, 0.3, 0.1, 100.2, 20.3, 0.1, 0.1, 1.1, 0.1, 1000.0])
+    bands = np.array(["r", "r", "r", "r", "g", "r", "r", "r", "g", "g", "b"])
+    errors = np.array([0.1] * 11)
+    lc = Lightcurve(times, fluxes, errors, bands)
+
+    # Test all bands with a standard adjustment (-1.0 * |error|)
+    all_max, all_max_t = lc.find_max_flux()
+    assert all_max == pytest.approx(999.9)
+    assert all_max_t == 10
+
+    # Test g band with a standard adjustment (-1.0 * |error|)
+    g_max, g_max_t = lc.find_max_flux(band="g")
+    assert g_max == pytest.approx(100.1)
+    assert g_max_t == 4
+
+    # Test r band with no adjustment
+    r_max, r_max_t = lc.find_max_flux(band="r", error_coeff=0.0)
+    assert r_max == pytest.approx(20.3)
+    assert r_max_t == 5
+
+    # Test y band gives an error
+    with pytest.raises(ValueError, match=r"ERROR: Light curve has no points. band=y"):
+        _, _ = lc.find_max_flux(band="y", error_coeff=0.0)
+
+
 def test_from_file(single_ztf_lightcurve_compressed):
     """Test that we can load a single light curve from pickled file."""
     lc = Lightcurve.from_file(single_ztf_lightcurve_compressed)
@@ -40,6 +66,10 @@ def test_from_file(single_ztf_lightcurve_compressed):
     assert len(lc.flux_errors) == 19
     assert len(lc.bands) == 19
     assert lc.name == "ZTF22abvdwik"
+
+    # Fail when file does not exist.
+    with pytest.raises(FileNotFoundError, match="ERROR: File does not exist file_does_not_exist.err"):
+        _ = Lightcurve.from_file("file_does_not_exist.err")
 
 
 def test_write_and_read_single_lightcurve(tmp_path):
@@ -56,10 +86,62 @@ def test_write_and_read_single_lightcurve(tmp_path):
     lc.save_to_file(filename, overwrite=True)
 
     # Re-read and check data.
-    t2, f2, e2, b2 = read_single_lightcurve(filename)
-    assert np.allclose(t2, times)
-    assert np.allclose(f2, fluxes)
-    assert np.allclose(e2, errors)
+    lc2 = Lightcurve.from_file(filename)
+    assert lc2.name == "my_test_file"
+    assert np.allclose(lc2.times, times)
+    assert np.allclose(lc2.fluxes, fluxes)
+    assert np.allclose(lc2.flux_errors, errors)
+    assert np.all(lc2.bands == bands)
+
+    # Read the data with a t0_lim of 5.0
+    lc3 = Lightcurve.from_file(filename, t0_lim=5.0)
+    assert np.all(lc3.times <= 5.0)
+    assert len(lc3.fluxes) == 6
+
+
+def test_write_and_read_single_lightcurve_no_shift(tmp_path):
+    # Create fake data. Note that the first point in the fluxes must be the brightest
+    # and the first time stamp must be zero, because of how read_single_lightcurve
+    # shifts the times to be zero at the peak.
+    times = np.array(range(10))
+    fluxes = np.array([0.1, 0.2, 0.3, 0.1, 100.2, 0.3, 0.1, 0.1, 0.1, 0.1])
+    bands = np.array(["r"] * 10)
+    errors = np.array([0.1] * 10)
+    lc = Lightcurve(times, fluxes, errors, bands, name="my_test_file2")
+
+    filename = os.path.join(tmp_path, "my_test_file2.npz")
+    lc.save_to_file(filename, overwrite=True)
+
+    # Re-read and check data.
+    lc2 = Lightcurve.from_file(filename, shift_time=False)
+    assert lc.name == "my_test_file2"
+    assert np.allclose(lc2.times, times)
+    assert np.allclose(lc2.fluxes, fluxes)
+    assert np.allclose(lc2.flux_errors, errors)
+    assert np.all(lc2.bands == bands)
+
+    # If we do shift, about half the times should be <= 0.
+    lc3 = Lightcurve.from_file(filename, shift_time=True)
+    assert np.allclose(lc3.times, range(-4, 6))
+
+
+def test_write_and_read_single_lightcurve_nans(tmp_path):
+    times = np.array(range(8))
+    fluxes = np.array([0.1, 0.2, 0.3, 0.1, 0.2, 0.3, 0.1, 0.0])
+    bands = np.array(["g"] * 8)
+    errors = np.array([0.1, 0.1, 0.1, 0.1, np.NAN, 0.1, np.NAN, 0.2])
+    lc = Lightcurve(times, fluxes, errors, bands, name="my_nan_test_file")
+
+    filename = os.path.join(tmp_path, "my_nan_test_file.npz")
+    lc.save_to_file(filename, overwrite=True)
+
+    # Re-read and check data.
+    lc2 = Lightcurve.from_file(filename)
+    assert lc2.name == "my_nan_test_file"
+    assert np.allclose(lc2.times, [0.0, 1.0, 2.0, 3.0, 5.0, 7.0])
+    assert np.allclose(lc2.fluxes, [0.1, 0.2, 0.3, 0.1, 0.3, 0.0])
+    assert np.allclose(lc2.flux_errors, [0.1, 0.1, 0.1, 0.1, 0.1, 0.2])
+    assert np.all(lc2.bands == ["g"] * 6)
 
 
 def test_sort():
