@@ -81,7 +81,7 @@ def import_lc(filename, telescope=Telescope.ZTF()):
     t, f, ferr, b = clip_lightcurve_end(t, f, ferr, b)
     snr = np.abs(f / ferr)
 
-    for band in ["g", "r"]:
+    for band in telescope.wavelengths:
         if len(snr[(snr > 3.0) & (b == band)]) < 5:  # not enough good datapoints
             return [
                 None,
@@ -115,7 +115,7 @@ def clip_lightcurve_end(times, fluxes, fluxerrs, bands):
     """
 
     t_clip, flux_clip, ferr_clip, b_clip = [], [], [], []
-    for b in ["g", "r"]:
+    for b in np.unique(bands):
         idx_b = bands == b
         t_b, f_b, ferr_b = times[idx_b], fluxes[idx_b], fluxerrs[idx_b]
         if len(f_b) == 0:
