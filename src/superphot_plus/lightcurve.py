@@ -1,7 +1,8 @@
 """A data class for storing information for a single light curve."""
 import numpy as np
+import os
 
-from superphot_plus.file_utils import read_single_lightcurve, save_single_lightcurve
+from superphot_plus.file_utils import read_single_lightcurve
 
 
 class Lightcurve:
@@ -189,10 +190,16 @@ class Lightcurve:
             The file name to use.
         overwrite : bool, optional
             Overwrite existing files.
+
+        Raises
+        ------
+        FileExistsError if the file exists and overwrite is False.
         """
-        save_single_lightcurve(
-            filename, self.times, self.fluxes, self.flux_errors, self.bands, overwrite=overwrite
-        )
+        if os.path.exists(filename) and not overwrite:
+            raise FileExistsError(f"ERROR: File already exists {filename}")
+
+        lcs = np.array([times, fluxes, errors, bands])
+        np.savez_compressed(filename, lcs)
 
     @classmethod
     def from_file(cls, filename, t0_lim=None):

@@ -87,6 +87,7 @@ def test_write_and_read_single_lightcurve(tmp_path):
     assert np.allclose(t2, times)
     assert np.allclose(f2, fluxes)
     assert np.allclose(e2, errors)
+    assert np.all(b2 == bands)
 
 
 def test_sort():

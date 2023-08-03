@@ -47,37 +47,6 @@ def read_single_lightcurve(filename, time_ceiling=None):
     return t, f, ferr, b
 
 
-def save_single_lightcurve(filename, times, fluxes, errors, bands, compressed=True, overwrite=False):
-    """
-    Write a single lightcurve data file.
-
-    Parameters
-    ----------
-    filename : str
-        Name of the data file including path.
-    times : array-like
-        The light curve time data.
-    fluxes : array-like
-        The light curve flux data.
-    errors : array-like
-        The light curve error data.
-    bands : array-like
-        The light curve band data.
-    compressed : bool, optional
-        Whether to save in compressed format.
-    overwrite : bool, optional
-        Whether to overwrite existing data.
-    """
-    if os.path.exists(filename) and not overwrite:
-        raise FileExistsError(f"ERROR: File already exists {filename}")
-
-    lcs = np.array([times, fluxes, errors, bands])
-    if compressed:
-        np.savez_compressed(filename, lcs)
-    else:
-        np.savez(filename, lcs)
-
-
 def get_posterior_filename(lc_name, fits_dir=None, sampler=None):
     """Get the file name for equal weight posterior samples from a lightcurve fit.
 
