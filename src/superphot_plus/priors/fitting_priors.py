@@ -86,9 +86,9 @@ class MultibandPriors:
         for band in self.band_order:
             if band in self.bands:
                 bands_ordered.append(band)
-        
+
         return np.array(bands_ordered)
-    
+
     def to_numpy(self):
         """Fields as a (7*bands)x4 numpy array"""
         priors = []

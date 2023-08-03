@@ -3,7 +3,6 @@ import os
 import numpy as np
 import pytest
 
-from superphot_plus.file_utils import read_single_lightcurve
 from superphot_plus.lightcurve import Lightcurve
 
 
@@ -55,7 +54,7 @@ def test_max_flux():
     assert r_max_t == 5
 
     # Test y band gives an error
-    with pytest.raises(ValueError, match=r"ERROR: Light curve has no points. band=y"):
+    with pytest.raises(ValueError, match="ERROR: Light curve has no points \(band=y\)"):
         _, _ = lc.find_max_flux(band="y", error_coeff=0.0)
 
 
@@ -71,6 +70,7 @@ def test_from_file(single_ztf_lightcurve_compressed):
     # Fail when file does not exist.
     with pytest.raises(FileNotFoundError, match="ERROR: File does not exist file_does_not_exist.err"):
         _ = Lightcurve.from_file("file_does_not_exist.err")
+
 
 def test_write_and_read_single_lightcurve(tmp_path):
     # Create fake data. Note that the first point in the fluxes must be the brightest
@@ -98,6 +98,7 @@ def test_write_and_read_single_lightcurve(tmp_path):
     assert np.all(lc3.times <= 5.0)
     assert len(lc3.fluxes) == 6
 
+
 def test_write_and_read_single_lightcurve_no_shift(tmp_path):
     # Create fake data. Note that the first point in the fluxes must be the brightest
     # and the first time stamp must be zero, because of how read_single_lightcurve
@@ -124,6 +125,7 @@ def test_write_and_read_single_lightcurve_no_shift(tmp_path):
     # If we do shift then hald the times should be < 0.
     lc3 = Lightcurve.from_file(filename, shift_time=True)
     assert np.allclose(lc3.times, range(-4, 6))
+
 
 def test_write_and_read_single_lightcurve_nans(tmp_path):
     times = np.array(range(8))
