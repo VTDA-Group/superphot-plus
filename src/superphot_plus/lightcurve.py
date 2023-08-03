@@ -36,6 +36,7 @@ class Lightcurve:
         self.bands = bands
         self.name = name
         self.sn_class = sn_class
+        
 
     def obs_count(self, band=None):
         """Return the count of observations (in a given band).

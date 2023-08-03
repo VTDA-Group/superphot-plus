@@ -27,6 +27,7 @@ from superphot_plus.plotting import (
     plot_sampling_trace_numpyro,
 )
 from superphot_plus.priors.fitting_priors import MultibandPriors, PriorFields
+from superphot_plus.telescopes import Telescope
 
 
 config.update("jax_enable_x64", True)
@@ -71,7 +72,7 @@ def trunc_norm_fields(fields: PriorFields):
     return dist.TruncatedNormal(loc=fields.mean, scale=fields.std, low=fields.clip_a, high=fields.clip_b)
 
 
-def run_mcmc(lc, sampler="NUTS", t0_lim=None, plot=False, telescope="ZTF"):
+def run_mcmc(lc, sampler="NUTS", priors=MultibandPriors.load_ztf_priors(), t0_lim=None, plot=False):
     """Runs dynesty importance nested sampling on data file to get set
     of equally weighted posteriors (sets of fit parameters).
 
@@ -88,8 +89,8 @@ def run_mcmc(lc, sampler="NUTS", t0_lim=None, plot=False, telescope="ZTF"):
     plot : bool, optional
         If True, associated plots will be generated and saved. Defaults
         to False.
-    telescope : str, optional
-        Determines band and prior information. Defaults to ZTF.
+    telescope : Telescope
+        Information about telescope used to collect LC data.
 
     Returns
     -------
@@ -102,15 +103,11 @@ def run_mcmc(lc, sampler="NUTS", t0_lim=None, plot=False, telescope="ZTF"):
     rng_key = random.PRNGKey(4)
     rng_key, rng_key_ = random.split(rng_key)  # pylint: disable=unused-variable
 
-    if telescope == "ZTF":
-        all_priors_cls = MultibandPriors.load_ztf_priors()
-        all_priors = all_priors_cls.to_numpy().T
-        ref_band = "r" # maybe define within MultibandPriors class
-    else:
-        raise ValueError("'telescope' must be one of: 'ZTF'")
+    all_priors = priors.to_numpy().T
+    ref_band = priors.reference_band
         
     n_params = len(all_priors.T)
-    unique_bands = all_priors_cls.ordered_bands
+    unique_bands = priors.ordered_bands
     ref_band_idx = np.argmax(unique_bands == ref_band)
 
     # Require data in both the g and r bands.
@@ -560,7 +557,7 @@ def main_loop_directory(test_filenames, output_dir=FITS_DIR):
     lcs = []
     for filename in test_filenames:
         lc = Lightcurve.from_file(filename)
-        lc.pad_bands(["g", "r"], PAD_SIZE)
+        lc.pad_bands(telescope., PAD_SIZE)
         lcs.append(lc)
 
     eq_samples = run_mcmc_batch(lcs, plot=True)
@@ -572,7 +569,7 @@ def main_loop_directory(test_filenames, output_dir=FITS_DIR):
     return None
 
 
-def numpyro_single_curve(lc, output_dir=FITS_DIR, sampler="svi"):
+def numpyro_single_curve(lc, output_dir=FITS_DIR, sampler="svi", priors=MultibandPriors.load_ztf_priors()):
     """Perform model fitting using dynesty on a single light curve.
 
     This function runs the dynesty importance nested sampling algorithm
@@ -587,6 +584,8 @@ def numpyro_single_curve(lc, output_dir=FITS_DIR, sampler="svi"):
         Directory to save outputs to. Defaults to FITS_DIR.
     sampler : str
         The MCMC sampler to use. Defaults to "svi".
+    telescope : Telescope
+        Information about telescope used to collect LC data.
 
     Returns
     -------
@@ -599,7 +598,7 @@ def numpyro_single_curve(lc, output_dir=FITS_DIR, sampler="svi"):
 
     os.makedirs(output_dir, exist_ok=True)
 
-    eq_samples = run_mcmc(lc, sampler=sampler, plot=False)
+    eq_samples = run_mcmc(lc, sampler=sampler, priors=priors, plot=False)
     if eq_samples is None:  # pragma: no cover
         return None
 
@@ -609,7 +608,7 @@ def numpyro_single_curve(lc, output_dir=FITS_DIR, sampler="svi"):
     return sample_mean
 
 
-def numpyro_single_file(test_filename, output_dir=FITS_DIR, sampler="svi"):
+def numpyro_single_file(test_filename, output_dir=FITS_DIR, sampler="svi", telescope=Telescope.ZTF()):
     """Runs MCMC on a single file.
 
     Parameters
@@ -620,7 +619,9 @@ def numpyro_single_file(test_filename, output_dir=FITS_DIR, sampler="svi"):
         Directory to save outputs to. Defaults to FITS_DIR.
     sampler : str
         The MCMC sampler to use. Defaults to "svi".
-
+    telescope : Telescope
+        Information about telescope used to collect LC data.
+        
     Returns
     -------
     sample_mean: numpy array
@@ -628,7 +629,7 @@ def numpyro_single_file(test_filename, output_dir=FITS_DIR, sampler="svi"):
         skipped or encounters an error.
     """
     lc = Lightcurve.from_file(test_filename)
-    lc.pad_bands(["g", "r"], PAD_SIZE)
+    lc.pad_bands(telescope.priors.ordered_bands, PAD_SIZE)
 
-    sample_mean = numpyro_single_curve(lc, output_dir, sampler)
+    sample_mean = numpyro_single_curve(lc, output_dir, sampler, telescope.priors)
     return sample_mean

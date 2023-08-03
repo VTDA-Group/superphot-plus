@@ -69,7 +69,7 @@ def params_valid(beta, gamma, tau_rise, tau_fall):
     return True
 
 
-def run_mcmc(lc, t0_lim=None, plot=False, rstate=None, telescope="ZTF"):
+def run_mcmc(lc, prior=MultibandPriors.load_ztf_priors(), t0_lim=None, plot=False, rstate=None):
     """Runs dynesty importance nested sampling on a single light curve; returns set
     of equally weighted posteriors (sets of fit parameters).
 
@@ -92,15 +92,11 @@ def run_mcmc(lc, t0_lim=None, plot=False, rstate=None, telescope="ZTF"):
         Numpy array containing the equally weighted posteriors, or None
         if the data is invalid.
     """
-    if telescope == "ZTF":
-        all_priors_cls = MultibandPriors.load_ztf_priors()
-        all_priors = all_priors_cls.to_numpy().T
-        ref_band = "r" # maybe define within MultibandPriors class
-    else:
-        raise ValueError("'telescope' must be one of: 'ZTF'")
+    all_priors = priors.to_numpy().T
+    ref_band = priors.reference_band
         
     n_params = len(all_priors.T)
-    unique_bands = all_priors_cls.ordered_bands
+    unique_bands = priors.ordered_bands
     ref_band_idx = np.argmax(unique_bands == ref_band)
 
     # Require data in both the g and r bands.
@@ -384,7 +380,7 @@ def run_curve_fit(filename):
     return popt_g, popt_r
 
 
-def dynesty_single_curve(lc, output_dir, skip_if_exists=True, rstate=None):
+def dynesty_single_curve(lc, output_dir, skip_if_exists=True, rstate=None, priors=MultibandPriors.load_ztf_priors()):
     """Perform model fitting using dynesty on a single light curve.
 
     This function runs the dynesty importance nested sampling algorithm
@@ -416,7 +412,7 @@ def dynesty_single_curve(lc, output_dir, skip_if_exists=True, rstate=None):
     if skip_if_exists and has_posterior_samples(lc_name=lc.name, fits_dir=output_dir, sampler="dynesty"):
         return None
 
-    eq_samples = run_mcmc(lc, plot=False, rstate=rstate)
+    eq_samples = run_mcmc(lc, priors=priors, plot=False, rstate=rstate)
     if eq_samples is None:
         return None
     sample_mean = np.mean(eq_samples, axis=0)
@@ -428,7 +424,7 @@ def dynesty_single_curve(lc, output_dir, skip_if_exists=True, rstate=None):
     return sample_mean
 
 
-def dynesty_single_file(test_fn, output_dir, skip_if_exists=True, rstate=None, t0_lim=None):
+def dynesty_single_file(test_fn, output_dir, skip_if_exists=True, rstate=None, t0_lim=None, priors=MultibandPriors.load_ztf_priors()):
     """Perform model fitting using dynesty on a single data file.
 
     This function runs the dynesty importance nested sampling algorithm
@@ -456,5 +452,5 @@ def dynesty_single_file(test_fn, output_dir, skip_if_exists=True, rstate=None, t
         skipped or encounters an error.
     """
     lc = Lightcurve.from_file(test_fn)
-    sample_mean = dynesty_single_curve(lc, output_dir, skip_if_exists, rstate)
+    sample_mean = dynesty_single_curve(lc, output_dir, skip_if_exists, rstate, priors=priors)
     return sample_mean
