@@ -556,7 +556,7 @@ def main_loop_directory(test_filenames, output_dir=FITS_DIR):
     lcs = []
     for filename in test_filenames:
         lc = Lightcurve.from_file(filename)
-        lc.pad_bands(telescope., PAD_SIZE)
+        lc.pad_bands(["r", "g"], PAD_SIZE)
         lcs.append(lc)
 
     eq_samples = run_mcmc_batch(lcs, plot=True)

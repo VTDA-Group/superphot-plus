@@ -57,7 +57,7 @@ def test_get_band_extinctions() -> None:
     """This is currently a change detection test where we are just confirming
     the function runs correctly returns the same value as it used to.
     """
-    ext_list = get_band_extinctions(0.0, 10.0)
+    ext_list = get_band_extinctions(0.0, 10.0, [4741.64, 6173.23])
     assert np.all(ext_list == pytest.approx([0.3133, 0.2202], 0.01))
 
 

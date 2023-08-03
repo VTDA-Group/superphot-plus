@@ -68,7 +68,7 @@ def params_valid(beta, gamma, tau_rise, tau_fall):
     return True
 
 
-def run_mcmc(lc, prior=MultibandPriors.load_ztf_priors(), t0_lim=None, plot=False, rstate=None):
+def run_mcmc(lc, priors=MultibandPriors.load_ztf_priors(), t0_lim=None, plot=False, rstate=None):
     """Runs dynesty importance nested sampling on a single light curve; returns set
     of equally weighted posteriors (sets of fit parameters).
 

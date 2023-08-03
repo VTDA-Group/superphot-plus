@@ -50,7 +50,7 @@ def import_lc(filename, telescope=Telescope.ZTF()):
                 ra = float(row[ra_idx])
                 dec = float(row[dec_idx])
                 try:
-                    ext_dict = get_band_extinctions(ra, dec, telescope)
+                    ext_dict = telescope.get_extinctions(ra, dec)
                 except:
                     return [
                         None,
