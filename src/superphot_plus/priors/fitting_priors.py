@@ -69,6 +69,8 @@ class MultibandPriors:
     """Per-band curve priors."""
     band_order: str = "ugrizy"
     """Ordering of bands."""
+    reference_band: str = "r"
+    """Reference band."""
 
     def __post_init__(self):
         """Additional logic to coerce string dictionaries into the appropriate

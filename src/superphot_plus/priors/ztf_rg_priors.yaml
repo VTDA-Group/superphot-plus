@@ -1,4 +1,5 @@
 band_order: rg
+reference_band: r
 bands:
   r:
     amp:
