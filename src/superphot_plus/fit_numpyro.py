@@ -124,7 +124,7 @@ def run_mcmc(lc, sampler="NUTS", priors=MultibandPriors.load_ztf_priors(), t0_li
         bdata[bdata == ub] = b_idx
     
     ref_padded_idx = ref_band_idx*PAD_SIZE
-    max_flux = np.max(fdata[ref_padded_idx:ref_padded_idx+PAD_SIZE] - np.abs(ferrdata[ref_padded_idx:ref_padded_idx+PAD_SIZE]))
+    max_flux, max_flux_time = lc.find_max_flux()
 
     def jax_model(t=None, obsflux=None, uncertainties=None, max_flux=None):
         """JAX model for MCMC.
@@ -142,7 +142,7 @@ def run_mcmc(lc, sampler="NUTS", priors=MultibandPriors.load_ztf_priors(), t0_li
         inc_band_ix : array-like, optional
             Index values for the band. Defaults to None.
         """
-        ref_priors = all_priors_cls.bands[ref_band]
+        ref_priors = priors.bands[ref_band]
         A = max_flux * 10 ** numpyro.sample("logA", trunc_norm_fields(ref_priors.amp))
         beta = numpyro.sample("beta", trunc_norm_fields(ref_priors.beta))
         gamma = 10 ** numpyro.sample("log_gamma", trunc_norm_fields(ref_priors.gamma))
@@ -166,7 +166,7 @@ def run_mcmc(lc, sampler="NUTS", priors=MultibandPriors.load_ztf_priors(), t0_li
             if uniq_b == ref_band:
                 continue
                 
-            b_priors = all_priors_cls.bands[uniq_b]
+            b_priors = priors.bands[uniq_b]
             A_ratio = numpyro.sample("A_"+uniq_b, trunc_norm_fields(b_priors.amp))
             beta_ratio = numpyro.sample("beta_"+uniq_b, trunc_norm_fields(b_priors.beta))
             gamma_ratio = numpyro.sample("gamma_"+uniq_b, trunc_norm_fields(b_priors.gamma))
@@ -236,7 +236,7 @@ def run_mcmc(lc, sampler="NUTS", priors=MultibandPriors.load_ztf_priors(), t0_li
             param_sigma = numpyro.param(f"{prefix}_sigma", param_constraint, constraint=constraints.positive)
             numpyro.sample(prefix, dist.Normal(param_mu, param_sigma))
 
-        ref_priors = all_priors_cls.bands[ref_band]
+        ref_priors = priors.bands[ref_band]
         numpyro_sample("logA", ref_priors.amp, 1e-3)
         numpyro_sample("beta", ref_priors.beta, 1e-5)
         numpyro_sample("log_gamma", ref_priors.gamma, 1e-3)
@@ -249,7 +249,7 @@ def run_mcmc(lc, sampler="NUTS", priors=MultibandPriors.load_ztf_priors(), t0_li
         for b_idx, uniq_b in enumerate(unique_bands):
             if uniq_b == ref_band:
                 continue
-            b_priors = all_priors_cls.bands[uniq_b]
+            b_priors = priors.bands[uniq_b]
             numpyro_sample("A_"+uniq_b, b_priors.amp, 1e-3)
             numpyro_sample("beta_"+uniq_b, b_priors.beta, 1e-3)
             numpyro_sample("gamma_"+uniq_b, b_priors.gamma, 1e-3)
