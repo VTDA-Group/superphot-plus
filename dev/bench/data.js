@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1691071285157,
+  "lastUpdate": 1691073619790,
   "repoUrl": "https://github.com/lincc-frameworks/superphot-plus",
   "entries": {
     "SUPERHOT-PLUS Benchmarking Monitor": [
@@ -1781,6 +1781,60 @@ window.BENCHMARK_DATA = {
           {
             "name": "test_fit::test_svi_single_file - Memory Used",
             "value": 866.453125,
+            "unit": "MB"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "104161096+jeremykubica@users.noreply.github.com",
+            "name": "Jeremy Kubica",
+            "username": "jeremykubica"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "578e80c3eb7a765f4d9e5268125e7fefa5f9c323",
+          "message": "Merge pull request #84 from lincc-frameworks/lc_files\n\nMove the lightcurve file functions into Lightcurve",
+          "timestamp": "2023-08-03T10:37:24-04:00",
+          "tree_id": "2ac46ba39026fe0ba683edb7c0a4108c5088d7ae",
+          "url": "https://github.com/lincc-frameworks/superphot-plus/commit/578e80c3eb7a765f4d9e5268125e7fefa5f9c323"
+        },
+        "date": 1691073619202,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "test_fit::test_dynesty_single_file - Runtime",
+            "value": 4.217737913131714,
+            "unit": "s"
+          },
+          {
+            "name": "test_fit::test_dynesty_single_file - Memory Used",
+            "value": 258.18359375,
+            "unit": "MB"
+          },
+          {
+            "name": "test_fit::test_nuts_single_file - Runtime",
+            "value": 14.939472436904907,
+            "unit": "s"
+          },
+          {
+            "name": "test_fit::test_nuts_single_file - Memory Used",
+            "value": 555.50390625,
+            "unit": "MB"
+          },
+          {
+            "name": "test_fit::test_svi_single_file - Runtime",
+            "value": 13.782259225845337,
+            "unit": "s"
+          },
+          {
+            "name": "test_fit::test_svi_single_file - Memory Used",
+            "value": 856.45703125,
             "unit": "MB"
           }
         ]
