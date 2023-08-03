@@ -165,7 +165,7 @@ class Lightcurve:
         Returns
         -------
         result : Lightcurve
-            The padded lightcurve. Returns self if in_place == True.
+            The filtered lightcurve. Returns self if in_place == True.
         """
         keep_row = np.isin(self.bands, keep_bands)
         return self._reindex(keep_row, in_place=in_place)
