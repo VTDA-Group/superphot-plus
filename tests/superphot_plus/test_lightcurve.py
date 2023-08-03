@@ -41,21 +41,21 @@ def test_max_flux():
 
     # Test all bands with a standard adjustment (-1.0 * |error|)
     all_max, all_max_t = lc.find_max_flux()
-    assert pytest.approx(999.9) == all_max
-    assert 10 == all_max_t
+    assert all_max == pytest.approx(999.9)
+    assert all_max_t == 10
 
     # Test g band with a standard adjustment (-1.0 * |error|)
     g_max, g_max_t = lc.find_max_flux(band="g")
-    assert pytest.approx(100.1) == g_max
-    assert 4 == g_max_t
+    assert g_max == pytest.approx(100.1)
+    assert g_max_t == 4
 
     # Test r band with no adjustment
     r_max, r_max_t = lc.find_max_flux(band="r", error_coeff=0.0)
-    assert pytest.approx(20.3) == r_max
-    assert 5 == r_max_t
+    assert r_max == pytest.approx(20.3)
+    assert r_max_t == 5
 
     # Test y band gives an error
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="ERROR: Light curve has no points \(band=y\)"):
         _, _ = lc.find_max_flux(band="y", error_coeff=0.0)
 
 
