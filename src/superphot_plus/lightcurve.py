@@ -188,7 +188,7 @@ class Lightcurve:
 
         Raises
         ------
-        ValueError is a band in the light curve is not included in ordered_bands
+        ValueError if a band in the light curve is not included in ordered_bands
         and fail_on_missing is True.
         """
         if not np.all(np.isin(self.bands, ordered_bands)) and fail_on_missing:
