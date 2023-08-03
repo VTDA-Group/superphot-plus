@@ -120,7 +120,7 @@ def test_write_and_read_single_lightcurve_no_shift(tmp_path):
     assert np.allclose(lc2.flux_errors, errors)
     assert np.all(lc2.bands == bands)
 
-    # If we do shift then hald the times should be < 0.
+    # If we do shift, about half the times should be <= 0.
     lc3 = Lightcurve.from_file(filename, shift_time=True)
     assert np.allclose(lc3.times, range(-4, 6))
 
