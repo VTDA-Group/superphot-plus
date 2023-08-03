@@ -54,7 +54,7 @@ def test_max_flux():
     assert r_max_t == 5
 
     # Test y band gives an error
-    with pytest.raises(ValueError, match="ERROR: Light curve has no points \(band=y\)"):
+    with pytest.raises(ValueError, match=r"ERROR: Light curve has no points. band=y"):
         _, _ = lc.find_max_flux(band="y", error_coeff=0.0)
 
 
