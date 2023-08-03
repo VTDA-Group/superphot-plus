@@ -385,7 +385,7 @@ def run_mcmc_batch(lcs, t0_lim=None, plot=False):
         tdata_stacked.append(lc.times)
         fdata_stacked.append(lc.fluxes)
         ferrdata_stacked.append(lc.flux_errors)
-        bdata_stacked.append(lc.band_as_int(["r", "g"]))  # change to integers
+        bdata_stacked.append(lc.band_as_int(["g", "r"]))  # change to integers
 
     tdata_stacked = np.array(tdata_stacked)
     fdata_stacked = np.array(fdata_stacked)

@@ -7,7 +7,7 @@ from superphot_plus.lightcurve import Lightcurve
 
 
 def test_create():
-    times = np.array(range(10))
+    times = np.arange(10)
     fluxes = np.array([100.1, 0.2, 0.3, 0.1, 0.2, 0.3, 0.1, 0.1, 0.1, 0.1])
     bands = np.array(["r", "r", "r", "r", "r", "r", "r", "r", "r", "g"])
     errors = np.array([0.1] * 10)
@@ -27,13 +27,13 @@ def test_create():
     assert lc.obs_count("b") == 0
 
     # Fail a creation
-    times2 = np.array(range(20))
+    times2 = np.arange(20)
     with pytest.raises(ValueError):
         lc2 = Lightcurve(times2, fluxes, bands, errors)
 
 
 def test_max_flux():
-    times = np.array(range(11))
+    times = np.arange(11)
     fluxes = np.array([1.1, 0.2, 0.3, 0.1, 100.2, 20.3, 0.1, 0.1, 1.1, 0.1, 1000.0])
     bands = np.array(["r", "r", "r", "r", "g", "r", "r", "r", "g", "g", "b"])
     errors = np.array([0.1] * 11)
@@ -77,7 +77,7 @@ def test_write_and_read_single_lightcurve(tmp_path):
     # Create fake data. Note that the first point in the fluxes must be the brightest
     # and the first time stamp must be zero, because of how read_single_lightcurve
     # shifts the times to be zero at the peak.
-    times = np.array(range(10))
+    times = np.arange(10)
     fluxes = np.array([100.1, 0.2, 0.3, 0.1, 0.2, 0.3, 0.1, 0.1, 0.1, 0.1])
     bands = np.array(["r"] * 10)
     errors = np.array([0.1] * 10)
@@ -127,7 +127,7 @@ def test_write_and_read_single_lightcurve_no_shift(tmp_path):
 
 
 def test_write_and_read_single_lightcurve_nans(tmp_path):
-    times = np.array(range(8))
+    times = np.arange(8)
     fluxes = np.array([0.1, 0.2, 0.3, 0.1, 0.2, 0.3, 0.1, 0.0])
     bands = np.array(["g"] * 8)
     errors = np.array([0.1, 0.1, 0.1, 0.1, np.NAN, 0.1, np.NAN, 0.2])
@@ -179,10 +179,10 @@ def test_sort_copy():
 
 
 def test_filter_bands():
-    times = np.array(range(9))
+    times = np.arange(9)
     fluxes = np.array(range(10, 19))
     bands = np.array(["r", "r", "g", "r", "g", "b", "g", "i", "r"])
-    errors = np.array(range(9)) / 10.0
+    errors = np.arange(9) / 10.0
     lc = Lightcurve(times, fluxes, errors, bands)
     assert np.all(lc.unique_bands() == np.array(["b", "g", "i", "r"]))
 
@@ -209,10 +209,10 @@ def test_filter_bands():
 
 
 def test_band_as_int():
-    times = np.array(range(9))
+    times = np.arange(9)
     fluxes = np.array(range(10, 19))
     bands = np.array(["r", "r", "g", "r", "g", "b", "g", "i", "r"])
-    errors = np.array(range(9)) / 10.0
+    errors = np.arange(9) / 10.0
     lc = Lightcurve(times, fluxes, errors, bands)
 
     res1 = lc.band_as_int(["r", "g", "i", "b"])
