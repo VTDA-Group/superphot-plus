@@ -106,7 +106,7 @@ def run_mcmc(lc, sampler="NUTS", t0_lim=None, plot=False):
     tdata = lc.times
     fdata = lc.fluxes
     ferrdata = lc.flux_errors
-    bdata = np.where(lc.bands == "r", ref_band_idx, 1 - ref_band_idx)  # change to integers
+    bdata = lc.band_as_int(["g", "r"])  # change to integers
 
     max_flux = np.max(fdata[PAD_SIZE:] - np.abs(ferrdata[PAD_SIZE:]))
     inc_band_ix = np.arange(0, PAD_SIZE)
@@ -385,7 +385,7 @@ def run_mcmc_batch(lcs, t0_lim=None, plot=False):
         tdata_stacked.append(lc.times)
         fdata_stacked.append(lc.fluxes)
         ferrdata_stacked.append(lc.flux_errors)
-        bdata_stacked.append(np.where(lc.bands == "r", ref_band_idx, 1 - ref_band_idx))  # change to integers
+        bdata_stacked.append(lc.band_as_int(["g", "r"]))  # change to integers
 
     tdata_stacked = np.array(tdata_stacked)
     fdata_stacked = np.array(fdata_stacked)

@@ -36,6 +36,41 @@ class Lightcurve:
         self.name = name
         self.sn_class = sn_class
 
+    def _reindex(self, indices, in_place=True):
+        """Rearrange or subset the values in each array to match
+        the ordering provided by indices.
+
+        Parameters
+        ----------
+        indices : array_like
+            This can either be an array-like of integer indices to keep
+            and the order in which to put them or an array-like of bools
+            that indicate whether to keep each entry.
+        in_place : bool
+            A Boolean indicating whether to modify the data in-place or
+            make a new copy of the light curve.
+
+        Returns
+        -------
+        result : Lightcurve
+            The resulting Lightcurve. Returns self if in_place == True.
+        """
+        if in_place:
+            self.times = self.times[indices]
+            self.fluxes = self.fluxes[indices]
+            self.flux_errors = self.flux_errors[indices]
+            self.bands = self.bands[indices]
+            return self
+        else:
+            return Lightcurve(
+                self.times[indices],
+                self.fluxes[indices],
+                self.flux_errors[indices],
+                self.bands[indices],
+                name=self.name,
+                sn_class=self.sn_class,
+            )
+
     def obs_count(self, band=None):
         """Return the count of observations (in a given band).
 
@@ -53,6 +88,16 @@ class Lightcurve:
             return len(self.times)
         else:
             return np.count_nonzero(self.bands == band)
+
+    def unique_bands(self):
+        """Return a list of unique bands in the data.
+
+        Returns
+        -------
+        result : numpy array
+            An array of the unique bands.
+        """
+        return np.unique(self.bands)
 
     def find_max_flux(self, error_coeff=-1.0, band=None):
         """Find the value and timestamp of the maximum flux in
@@ -105,20 +150,54 @@ class Lightcurve:
             The padded lightcurve. Returns self if in_place == True.
         """
         sort_idx = np.argsort(self.times)
-        if in_place:
-            self.times = self.times[sort_idx]
-            self.fluxes = self.fluxes[sort_idx]
-            self.flux_errors = self.flux_errors[sort_idx]
-            self.bands = self.bands[sort_idx]
-            return self
-        else:
-            return Lightcurve(
-                self.times[sort_idx],
-                self.fluxes[sort_idx],
-                self.flux_errors[sort_idx],
-                self.bands[sort_idx],
-                name=self.name,
-            )
+        return self._reindex(sort_idx, in_place=in_place)
+
+    def filter_by_band(self, keep_bands, in_place=True):
+        """Filter the light curve to keep only the specified bands.
+
+        Parameters
+        ----------
+        keep_bands : array-like
+            An array of bands to include in the final data.
+        in_place : bool
+            A Boolean indicating whether to modify the data in-place.
+
+        Returns
+        -------
+        result : Lightcurve
+            The filtered lightcurve. Returns self if in_place == True.
+        """
+        keep_row = np.isin(self.bands, keep_bands)
+        return self._reindex(keep_row, in_place=in_place)
+
+    def band_as_int(self, ordered_bands, fail_on_missing=True):
+        """Returns the band array as integers corresponding to the band's position in
+        ordered_bands.
+
+        Parameters
+        ----------
+        ordered_bands : array_like
+            The order in which to enumerate the bands.
+        fail_on_missing : bool
+            Raise an exception if one of the bands is not included in the ordering.
+
+        Returns
+        -------
+        result : array_like
+            The list of bands as integers. Uses -1 for unspecified bands.
+
+        Raises
+        ------
+        ValueError if a band in the light curve is not included in ordered_bands
+        and fail_on_missing is True.
+        """
+        if not np.all(np.isin(self.bands, ordered_bands)) and fail_on_missing:
+            raise ValueError("ERROR: Unmapped bands found in band_as_int.")
+
+        result = np.array([-1] * len(self.bands))
+        for idx, band in enumerate(ordered_bands):
+            result[self.bands == band] = idx
+        return result
 
     def pad_bands(self, bands, size, in_place=True):
         """Truncate or pad the bands so that each band has
@@ -237,16 +316,11 @@ class Lightcurve:
         fdata = arr[1][good_rows].astype(float)
         edata = arr[2][good_rows].astype(float)
         bdata = arr[3][good_rows]
+        lc = Lightcurve(tdata, fdata, edata, bdata, name=curve_name)
 
         # Enforce the time ceiling if there is one.
         if t0_lim is not None:
-            good_rows_time = tdata <= t0_lim
-            tdata = tdata[good_rows_time]
-            fdata = fdata[good_rows_time]
-            edata = edata[good_rows_time]
-            bdata = bdata[good_rows_time]
-
-        lc = Lightcurve(tdata, fdata, edata, bdata, name=curve_name)
+            lc = lc._reindex(tdata <= t0_lim)
 
         # Shift the time to align 0.0 with maximum flux.
         if lc.obs_count(band=ref_band) > 0 and shift_time:

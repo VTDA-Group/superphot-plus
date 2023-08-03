@@ -7,7 +7,7 @@ from superphot_plus.lightcurve import Lightcurve
 
 
 def test_create():
-    times = np.array(range(10))
+    times = np.arange(10)
     fluxes = np.array([100.1, 0.2, 0.3, 0.1, 0.2, 0.3, 0.1, 0.1, 0.1, 0.1])
     bands = np.array(["r", "r", "r", "r", "r", "r", "r", "r", "r", "g"])
     errors = np.array([0.1] * 10)
@@ -20,19 +20,20 @@ def test_create():
     assert lc.name is None
 
     # Check the per-band counts
+    assert np.all(lc.unique_bands() == np.array(["g", "r"]))
     assert lc.obs_count() == 10
     assert lc.obs_count("r") == 9
     assert lc.obs_count("g") == 1
     assert lc.obs_count("b") == 0
 
     # Fail a creation
-    times2 = np.array(range(20))
+    times2 = np.arange(20)
     with pytest.raises(ValueError):
         lc2 = Lightcurve(times2, fluxes, bands, errors)
 
 
 def test_max_flux():
-    times = np.array(range(11))
+    times = np.arange(11)
     fluxes = np.array([1.1, 0.2, 0.3, 0.1, 100.2, 20.3, 0.1, 0.1, 1.1, 0.1, 1000.0])
     bands = np.array(["r", "r", "r", "r", "g", "r", "r", "r", "g", "g", "b"])
     errors = np.array([0.1] * 11)
@@ -76,7 +77,7 @@ def test_write_and_read_single_lightcurve(tmp_path):
     # Create fake data. Note that the first point in the fluxes must be the brightest
     # and the first time stamp must be zero, because of how read_single_lightcurve
     # shifts the times to be zero at the peak.
-    times = np.array(range(10))
+    times = np.arange(10)
     fluxes = np.array([100.1, 0.2, 0.3, 0.1, 0.2, 0.3, 0.1, 0.1, 0.1, 0.1])
     bands = np.array(["r"] * 10)
     errors = np.array([0.1] * 10)
@@ -126,7 +127,7 @@ def test_write_and_read_single_lightcurve_no_shift(tmp_path):
 
 
 def test_write_and_read_single_lightcurve_nans(tmp_path):
-    times = np.array(range(8))
+    times = np.arange(8)
     fluxes = np.array([0.1, 0.2, 0.3, 0.1, 0.2, 0.3, 0.1, 0.0])
     bands = np.array(["g"] * 8)
     errors = np.array([0.1, 0.1, 0.1, 0.1, np.NAN, 0.1, np.NAN, 0.2])
@@ -177,6 +178,55 @@ def test_sort_copy():
     assert np.all(lc.bands == bands)
 
 
+def test_filter_bands():
+    times = np.arange(9)
+    fluxes = np.array(range(10, 19))
+    bands = np.array(["r", "r", "g", "r", "g", "b", "g", "i", "r"])
+    errors = np.arange(9) / 10.0
+    lc = Lightcurve(times, fluxes, errors, bands)
+    assert np.all(lc.unique_bands() == np.array(["b", "g", "i", "r"]))
+
+    lc2 = lc.filter_by_band(["r", "g"], in_place=False)
+
+    # New array is filtered.
+    assert np.all(lc2.times == np.array([0.0, 1.0, 2.0, 3.0, 4.0, 6.0, 8.0]))
+    assert np.all(lc2.fluxes == np.array([10.0, 11.0, 12.0, 13.0, 14.0, 16.0, 18.0]))
+    assert np.all(lc2.flux_errors == np.array([0.0, 0.1, 0.2, 0.3, 0.4, 0.6, 0.8]))
+    assert np.all(lc2.bands == np.array(["r", "r", "g", "r", "g", "g", "r"]))
+
+    # Original array is unchanged.
+    assert np.all(lc.times == times)
+    assert np.all(lc.fluxes == fluxes)
+    assert np.all(lc.flux_errors == errors)
+    assert np.all(lc.bands == bands)
+
+    # Do the filtering in place and check the original.
+    lc3 = lc.filter_by_band(["r", "g"], in_place=True)
+    assert np.all(lc.times == np.array([0.0, 1.0, 2.0, 3.0, 4.0, 6.0, 8.0]))
+    assert np.all(lc.fluxes == np.array([10.0, 11.0, 12.0, 13.0, 14.0, 16.0, 18.0]))
+    assert np.all(lc.flux_errors == np.array([0.0, 0.1, 0.2, 0.3, 0.4, 0.6, 0.8]))
+    assert np.all(lc.bands == np.array(["r", "r", "g", "r", "g", "g", "r"]))
+
+
+def test_band_as_int():
+    times = np.arange(9)
+    fluxes = np.array(range(10, 19))
+    bands = np.array(["r", "r", "g", "r", "g", "b", "g", "i", "r"])
+    errors = np.arange(9) / 10.0
+    lc = Lightcurve(times, fluxes, errors, bands)
+
+    res1 = lc.band_as_int(["r", "g", "i", "b"])
+    assert np.all(res1 == np.array([0, 0, 1, 0, 1, 3, 1, 2, 0]))
+
+    # Only a subset of the bands included.
+    res2 = lc.band_as_int(["r", "g"], fail_on_missing=False)
+    assert np.all(res2 == np.array([0, 0, 1, 0, 1, -1, 1, -1, 0]))
+
+    # A subset of bands with strict checking.
+    with pytest.raises(ValueError, match="ERROR: Unmapped bands found in band_as_int."):
+        _ = lc.band_as_int(["r", "g"])
+
+
 def test_padding():
     # Add 7 points in r, 3 in g, 1 in b.
     times = np.array([0.0, 1.5, 5.0, 1.0, 6.0, 2.0, 3.0, 4.0, 0.5, 2.5, 0.05])
@@ -184,6 +234,7 @@ def test_padding():
     bands = np.array(["r", "g", "r", "r", "r", "r", "r", "r", "g", "g", "b"])
     errors = np.array([0.1] * 11)
     lc = Lightcurve(times, fluxes, errors, bands)
+    assert np.all(lc.unique_bands() == np.array(["b", "g", "r"]))
 
     # Do the padding
     lc2 = lc.pad_bands(["r", "g"], 6, in_place=False)
@@ -191,6 +242,7 @@ def test_padding():
     assert lc2.obs_count("r") == 6
     assert lc2.obs_count("g") == 6
     assert lc2.obs_count("b") == 0
+    assert np.all(lc2.unique_bands() == np.array(["g", "r"]))
 
     # Check that lc2 is correctly padded and ordered by band.
     exp_times = np.array([0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 0.5, 1.5, 2.5, 5000.0, 5000.0, 5000.0])
