@@ -85,7 +85,7 @@ class Lightcurve:
         else:
             ref_band = self.bands == band
         if np.all(ref_band == False) or len(self.bands) == 0:
-            raise ValueError(f"ERROR: Light curve has no points (band={band})")
+            raise ValueError(f"ERROR: Light curve has no points. band={band}")
 
         adjusted_flux = self.fluxes[ref_band] + error_coeff * np.abs(self.flux_errors[ref_band])
         max_index = np.argmax(adjusted_flux)
