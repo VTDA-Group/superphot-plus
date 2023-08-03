@@ -220,7 +220,7 @@ def test_band_as_int():
 
     # Only a subset of the bands included.
     res2 = lc.band_as_int(["r", "g"], fail_on_missing=False)
-    assert np.all(res1 == np.array([0, 0, 1, 0, 1, -1, 1, -1, 0]))
+    assert np.all(res2 == np.array([0, 0, 1, 0, 1, -1, 1, -1, 0]))
 
     # A subset of bands with strict checking.
     with pytest.raises(ValueError, match="ERROR: Unmapped bands found in band_as_int."):
