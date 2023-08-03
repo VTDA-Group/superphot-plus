@@ -118,8 +118,6 @@ def test_write_and_read_single_lightcurve_no_shift(tmp_path):
     assert np.allclose(lc2.times, times)
     assert np.allclose(lc2.fluxes, fluxes)
     assert np.allclose(lc2.flux_errors, errors)
-    print(bands)
-    print(lc2.bands)
     assert np.all(lc2.bands == bands)
 
     # If we do shift then hald the times should be < 0.
