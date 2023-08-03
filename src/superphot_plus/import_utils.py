@@ -7,9 +7,10 @@ import os
 import numpy as np
 
 from superphot_plus.utils import convert_mags_to_flux, get_band_extinctions
+from superphot_plus.telescopes import Telescope
 
 
-def import_lc(filename):
+def import_lc(filename, telescope=Telescope.ZTF()):
     """Imports a single file, but only the points from a single
     telescope, in only g and r bands.
 
@@ -49,16 +50,16 @@ def import_lc(filename):
                 ra = float(row[ra_idx])
                 dec = float(row[dec_idx])
                 try:
-                    g_ext, r_ext = get_band_extinctions(ra, dec)
+                    ext_dict = get_band_extinctions(ra, dec, telescope)
                 except:
                     return [
                         None,
                     ] * 6
             if int(row[b_idx]) == 2:
-                flux.append(float(row[f_idx]) - r_ext)
+                flux.append(float(row[f_idx]) - ext_dict["r"])
                 bands.append("r")
             elif int(row[b_idx]) == 1:
-                flux.append(float(row[f_idx]) - g_ext)
+                flux.append(float(row[f_idx]) - ext_dict["g"])
                 bands.append("g")
             else:
                 continue

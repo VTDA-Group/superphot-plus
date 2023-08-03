@@ -9,9 +9,10 @@ from dustmaps.sfd import SFDQuery
 from superphot_plus.file_utils import get_posterior_samples
 from superphot_plus.lightcurve import Lightcurve
 from superphot_plus.sfd import dust_filepath
+from superphot_plus.telescopes import Telescope
 
 
-def get_band_extinctions(ra, dec):
+def get_band_extinctions(ra, dec, telescope=Telescope.ZTF()):
     """Get g- and r-band extinctions in magnitudes for a single
     supernova lightcurve based on right ascension (RA) and declination
     (DEC).
@@ -22,12 +23,14 @@ def get_band_extinctions(ra, dec):
         The right ascension of the object of interest, in degrees.
     dec : float
         The declination of the object of interest, in degrees.
+    telescope : Telescope, optional
+        Telescope to get filter wavelengths from. Defaults to ZTF.
+        
 
     Returns
     -------
-    ext_list : np.ndarray
-        A list of extinction magnitudes for the given coordinates, in
-        the g- and r-bands.
+    ext_dict : Dict
+        A dictionary mapping bands to extinction magnitudes for the given coordinates.
     """
     config["data_dir"] = dust_filepath
     sfd = SFDQuery()
@@ -36,13 +39,12 @@ def get_band_extinctions(ra, dec):
     coords = SkyCoord(ra, dec, frame="icrs", unit="deg")
     Av_sfd = 2.742 * sfd(coords)  # from https://dustmaps.readthedocs.io/en/latest/examples.html
 
-    # for gr, the was are:
-    band_wvs = 1.0 / (0.0001 * np.asarray([4741.64, 6173.23]))  # in inverse microns
+    band_wv_dict = {b: 1.0 / (0.0001 * telescope.wavelengths[b]) for b in telescope.wavelengths}  # in inverse microns
 
     # Now figure out how much the magnitude is affected by this dust
-    ext_list = extinction.fm07(band_wvs, Av_sfd, unit="invum")  # in magnitudes
+    ext_dict = {b: extinction.fm07(band_wv_dict[b], Av_sfd, unit="invum") for b in band_wv_dict}   # in magnitudes
 
-    return ext_list
+    return ext_dict
 
 
 def calc_accuracy(pred_classes, test_labels):

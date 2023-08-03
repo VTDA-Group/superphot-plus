@@ -67,11 +67,11 @@ def generate_files_from_antares(input_csv, output_folder, output_csv):
             try:
                 ra = np.mean(ra[~np.isnan(ra)])
                 dec = np.mean(dec[~np.isnan(dec)])
-                g_ext, r_ext = get_band_extinctions(ra, dec)
+                extinctions = get_band_extinctions(ra, dec, Telescope.ZTF())
             except:
                 continue
-            m[b == "r"] -= r_ext
-            m[b == "g"] -= g_ext
+            m[b == "r"] -= extinctions["r"]
+            m[b == "g"] -= extinctions["g"]
 
             valid_idx = ~np.isnan(merr) & ~np.isnan(zp)
             t = t[valid_idx]
