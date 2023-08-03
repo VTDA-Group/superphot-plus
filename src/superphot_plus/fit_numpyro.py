@@ -119,12 +119,9 @@ def run_mcmc(lc, sampler="NUTS", priors=MultibandPriors.load_ztf_priors(), t0_li
     fdata = lc.fluxes
     ferrdata = lc.flux_errors
     
-    bdata = lc.bands
-    for b_idx, ub in enumerate(unique_bands):
-        bdata[bdata == ub] = b_idx
-    
     ref_padded_idx = ref_band_idx*PAD_SIZE
     max_flux, max_flux_time = lc.find_max_flux()
+    bdata = lc.band_as_int(priors.ordered_bands)  # change to integers
 
     def jax_model(t=None, obsflux=None, uncertainties=None, max_flux=None):
         """JAX model for MCMC.
@@ -391,7 +388,7 @@ def run_mcmc_batch(lcs, t0_lim=None, plot=False):
         tdata_stacked.append(lc.times)
         fdata_stacked.append(lc.fluxes)
         ferrdata_stacked.append(lc.flux_errors)
-        bdata_stacked.append(np.where(lc.bands == "r", ref_band_idx, 1 - ref_band_idx))  # change to integers
+        bdata_stacked.append(lc.band_as_int(["g", "r"]))  # change to integers
 
     tdata_stacked = np.array(tdata_stacked)
     fdata_stacked = np.array(fdata_stacked)
