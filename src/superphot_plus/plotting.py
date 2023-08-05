@@ -57,7 +57,7 @@ def plot_high_confidence_confusion_matrix(probs_csv, filename, cutoff=0.7):
             row_np = np.array(row)
             if np.max(row_np[2:].astype(float)) < cutoff:
                 continue
-            true_classes.append(int(row_np[1][-2]))
+            true_classes.append(int(row_np[1]))
             pred_classes.append(np.argmax(row_np[2:].astype(float)))
     true_labels = [classes_to_labels[x] for x in true_classes]
     pred_labels = [classes_to_labels[x] for x in pred_classes]
