@@ -3,7 +3,7 @@ import os
 import numpy as np
 import pytest
 
-from superphot_plus.plotting import plot_posterior_hist, plot_sampling_trace_numpyro
+from superphot_plus.plotting import plot_posterior_hist, plot_sampling_trace_numpyro, plot_high_confidence_confusion_matrix
 
 
 def generate_dummy_posterior_sample_dict(batch=False):
@@ -68,3 +68,14 @@ def test_plot_sampling_trace_numpyro(tmp_path):
 
     filepath = os.path.join(tmp_path, "test_trace.png")
     assert os.path.exists(filepath)
+
+
+def test_plot_confusion_matrices(class_probs_csv, tmp_path):
+    """Test functions that plot confusion matrices.
+    """
+    test_filename_high_confidence = os.path.join(tmp_path, "test_cm_high_confidence")
+    plot_high_confidence_confusion_matrix(class_probs_csv, test_filename_high_confidence)
+    assert os.path.exists(test_filename_high_confidence + "_c.pdf")
+    assert os.path.exists(test_filename_high_confidence + "_p.pdf")
+    
+    
