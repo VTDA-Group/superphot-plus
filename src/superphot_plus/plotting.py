@@ -897,7 +897,7 @@ def plot_sampling_lc_fit(
             tdata[bdata == b],
             fdata[bdata == b],
             yerr=ferrdata[bdata == b],
-            c=b
+            c=b,
             label=b,
             fmt="o",
         )
