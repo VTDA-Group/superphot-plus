@@ -2,9 +2,25 @@ import os
 
 import numpy as np
 
-from superphot_plus.fit_numpyro import numpyro_single_file
+from superphot_plus.fit_numpyro import numpyro_single_file, trunc_norm
 
 
+def test_trunc_norm(jax_key):
+    """Test that the trunc_norm() function, which returns numpyro's
+    TruncatedNormal distribution, works as expected.
+    """
+    unit_untrunc = trunc_norm(loc=0.0, scale=1.0, low=None, high=None) # should default to a Normal dist
+    assert unit_untrunc.mean == 0.0
+    assert unit_untrunc.variance == 1.0
+    
+    unit_trunc = trunc_norm(loc=0.0, scale=1.0, low=-0.5, high=0.5)
+    
+    assert np.all(unit_trunc.log_prob(np.array([-0.4, 0.0, 0.4])) > -np.inf)
+    assert np.all(unit_trunc.log_prob(np.array([-0.6, 0.6, 10.])) == -np.inf)
+    
+    assert np.all(np.abs(unit_trunc.sample(jax_key, sample_shape=(10,10))) < 0.5)
+    
+    
 def test_numpyro_nuts(tmp_path, single_ztf_lightcurve_compressed):
     """Test that we generated a new file, that its samples that can be
     read, and the mean of samples generated is within a certain range of

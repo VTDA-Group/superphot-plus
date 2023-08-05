@@ -53,7 +53,7 @@ def trunc_norm(low, high, loc, scale):
     numpyro.distributions.TruncatedDistribution
         A truncated normal distribution.
     """
-    return dist.TruncatedNormal(loc=loc, scale=scale, low=low, high=high)
+    return dist.TruncatedNormal(loc=loc, scale=scale, low=low, high=high, validate_args=True)
 
 
 def trunc_norm_fields(fields: PriorFields):
