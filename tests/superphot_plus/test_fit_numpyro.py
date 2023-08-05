@@ -2,8 +2,8 @@ import os
 
 import numpy as np
 
-from superphot_plus.fit_numpyro import numpyro_single_file, trunc_norm
-
+from superphot_plus.fit_numpyro import numpyro_single_file, trunc_norm, run_mcmc
+from superphot_plus.lightcurve import Lightcurve
 
 def test_trunc_norm(jax_key):
     """Test that the trunc_norm() function, which returns numpyro's
@@ -20,6 +20,14 @@ def test_trunc_norm(jax_key):
     
     assert np.all(np.abs(unit_trunc.sample(jax_key, sample_shape=(10,10))) < 0.5)
     
+
+def test_numpyro_missing_band(single_ztf_lightcurve_compressed):
+    """Test that numpyro exists out with missing band data.
+    """
+    lc = Lightcurve.from_file(single_ztf_lightcurve_compressed)
+    lc.filter_by_band(["r",])
+    assert run_mcmc(lc) is None
+
     
 def test_numpyro_nuts(tmp_path, single_ztf_lightcurve_compressed):
     """Test that we generated a new file, that its samples that can be
