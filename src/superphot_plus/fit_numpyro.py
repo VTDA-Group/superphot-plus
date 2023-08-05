@@ -27,7 +27,7 @@ from superphot_plus.plotting import (
     plot_sampling_trace_numpyro,
 )
 from superphot_plus.priors.fitting_priors import MultibandPriors, PriorFields
-from superphot_plus.telescopes import Telescope
+from superphot_plus.surveys import Survey
 
 
 config.update("jax_enable_x64", True)
@@ -600,7 +600,7 @@ def numpyro_single_curve(lc, output_dir=FITS_DIR, sampler="svi", priors=Multiban
     return sample_mean
 
 
-def numpyro_single_file(test_filename, output_dir=FITS_DIR, sampler="svi", telescope=Telescope.ZTF()):
+def numpyro_single_file(test_filename, output_dir=FITS_DIR, sampler="svi", survey=Survey.ZTF()):
     """Runs MCMC on a single file.
 
     Parameters
@@ -611,8 +611,8 @@ def numpyro_single_file(test_filename, output_dir=FITS_DIR, sampler="svi", teles
         Directory to save outputs to. Defaults to FITS_DIR.
     sampler : str
         The MCMC sampler to use. Defaults to "svi".
-    telescope : Telescope
-        Information about telescope used to collect LC data.
+    survey : Survey
+        Information about survey used to collect LC data.
 
     Returns
     -------
@@ -621,7 +621,7 @@ def numpyro_single_file(test_filename, output_dir=FITS_DIR, sampler="svi", teles
         skipped or encounters an error.
     """
     lc = Lightcurve.from_file(test_filename)
-    lc.pad_bands(telescope.priors.ordered_bands, PAD_SIZE)
+    lc.pad_bands(survey.priors.ordered_bands, PAD_SIZE)
 
-    sample_mean = numpyro_single_curve(lc, output_dir, sampler, telescope.priors)
+    sample_mean = numpyro_single_curve(lc, output_dir, sampler, survey.priors)
     return sample_mean
