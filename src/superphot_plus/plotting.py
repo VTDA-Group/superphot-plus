@@ -878,40 +878,27 @@ def plot_sampling_lc_fit(
         Sampling method used for the fit. Default is "dynesty".
     """
 
-    plt.errorbar(
-        tdata[bdata == "g"],
-        fdata[bdata == "g"],
-        yerr=ferrdata[bdata == "g"],
-        c="g",
-        label="g",
-        fmt="o",
-    )
-    plt.errorbar(
-        tdata[bdata == "r"],
-        fdata[bdata == "r"],
-        yerr=ferrdata[bdata == "r"],
-        c="r",
-        label="r",
-        fmt="o",
-    )
-
     trange_fine = np.linspace(np.amin(tdata), np.amax(tdata), num=500)
+    
+    for b in np.unique(bdata): # TODO: handle case where band name isnt a valid color
+        plt.errorbar(
+            tdata[bdata == b],
+            fdata[bdata == b],
+            yerr=ferrdata[bdata == b],
+            c=b
+            label=b,
+            fmt="o",
+        )
 
-    for sample in eq_wt_samples[:30]:
-        plt.plot(
-            trange_fine,
-            flux_model(sample, trange_fine, ["g"] * len(trange_fine)),
-            c="g",
-            lw=1,
-            alpha=0.1,
-        )
-        plt.plot(
-            trange_fine,
-            flux_model(sample, trange_fine, ["r"] * len(trange_fine)),
-            c="r",
-            lw=1,
-            alpha=0.1,
-        )
+        for sample in eq_wt_samples[:30]:
+            plt.plot(
+                trange_fine,
+                flux_model(sample, trange_fine, [b] * len(trange_fine)),
+                c=b,
+                lw=1,
+                alpha=0.1,
+            )
+            
 
     plt.xlabel("MJD")
     plt.ylabel("Flux")
@@ -923,6 +910,12 @@ def plot_sampling_lc_fit(
 
 
 def flux_from_posteriors(t, params, max_flux):
+    
+    aux_bands = []
+    for k in params:
+        if k[:4] == "beta" and k != "beta":
+            aux_bands.append(k[5:])
+
     logA, beta, log_gamma = params["logA"], params["beta"], params["log_gamma"]
     t0, log_tau_rise, log_tau_fall, log_extra_sigma = (
         params["t0"],
@@ -936,14 +929,24 @@ def flux_from_posteriors(t, params, max_flux):
     tau_rise = 10**log_tau_rise
     tau_fall = 10**log_tau_fall
     extra_sigma = 10**log_extra_sigma  # pylint: disable=unused-variable
+    
+    cube = [A, beta, gamma, t0, tau_rise, tau_fall, extra_sigma]
 
-    A_g, beta_g, gamma_g = params["A_g"], params["beta_g"], params["gamma_g"]
-    t0_g, tau_rise_g, tau_fall_g, extra_sigma_g = (  # pylint: disable=unused-variable
-        params["t0_g"],
-        params["tau_rise_g"],
-        params["tau_fall_g"],
-        params["extra_sigma_g"],
-    )
+    for b in aux_bands:
+        cube.extend(
+            [
+                params[f"A_{b}"],
+                params[f"beta_{b}"], 
+                params[f"gamma_{b}"],
+                params[f"t0_{b}"],
+                params[f"tau_rise_{b}"],
+                params[f"tau_fall_{b}"],
+                params[f"extra_sigma_{b}"],
+            ]
+        )
+    
+    
+    return flux_model(cube, t_data, b_data, ordered_bands, ref_band)
 
     A_b = A * A_g  # pylint: disable=unused-variable
     beta_b = beta * beta_g
