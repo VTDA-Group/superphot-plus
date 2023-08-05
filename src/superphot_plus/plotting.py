@@ -87,7 +87,7 @@ def plot_snIa_confusion_matrix(probs_csv, filename, p07=False):
         for row in csvreader:
             if p07 and np.max(np.array(row[2:]).astype(float)) < 0.7:
                 continue
-            if int(row[1][-2]) == 0:
+            if int(row[1]) == 0:
                 true_classes.append(0)
             else:
                 true_classes.append(1)
