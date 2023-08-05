@@ -812,7 +812,15 @@ def plot_lightcurve_clipping(ztf_name, data_folder, save_dir):
     plt.close()
 
 
-def plot_lc_fit(ztf_name, data_dir, fit_dir, out_dir, sampling_method="dynesty"):
+def plot_lc_fit(
+    ztf_name,
+    ref_band,
+    ordered_bands,
+    data_dir,
+    fit_dir,
+    out_dir,
+    sampling_method="dynesty"
+):
     """Plot an existing light curve fit.
 
     Parameters
@@ -842,6 +850,8 @@ def plot_lc_fit(ztf_name, data_dir, fit_dir, out_dir, sampling_method="dynesty")
         lightcurve.flux_errors,
         lightcurve.bands,
         eq_wt_samples,
+        ordered_bands,
+        ref_band
     )
 
 
@@ -853,6 +863,8 @@ def plot_sampling_lc_fit(
     ferrdata,
     bdata,
     eq_wt_samples,
+    band_order,
+    ref_band,
     sampling_method="dynesty",
 ):
     """
@@ -893,7 +905,7 @@ def plot_sampling_lc_fit(
         for sample in eq_wt_samples[:30]:
             plt.plot(
                 trange_fine,
-                flux_model(sample, trange_fine, [b] * len(trange_fine)),
+                flux_model(sample, trange_fine, [b] * len(trange_fine), band_order, ref_band),
                 c=b,
                 lw=1,
                 alpha=0.1,
@@ -909,7 +921,7 @@ def plot_sampling_lc_fit(
     plt.close()
 
 
-def flux_from_posteriors(t, params, max_flux):
+def get_numpyro_cube(params, max_flux):
     
     aux_bands = []
     for k in params:
@@ -944,37 +956,8 @@ def flux_from_posteriors(t, params, max_flux):
                 params[f"extra_sigma_{b}"],
             ]
         )
-    
-    
-    return flux_model(cube, t_data, b_data, ordered_bands, ref_band)
+    return np.array(cube), np.array(aux_bands)
 
-    A_b = A * A_g  # pylint: disable=unused-variable
-    beta_b = beta * beta_g
-    gamma_b = gamma * gamma_g
-    t0_b = t0 * t0_g
-    tau_rise_b = tau_rise * tau_rise_g
-    tau_fall_b = tau_fall * tau_fall_g
-
-    phase = t - t0
-    flux_const = A / (1.0 + jnp.exp(-phase / tau_rise))
-    sigmoid = 1 / (1 + jnp.exp(10.0 * (gamma - phase)))
-
-    flux_r = flux_const * (
-        (1 - sigmoid) * (1 - beta * phase)
-        + sigmoid * (1 - beta * gamma) * jnp.exp(-(phase - gamma) / tau_fall)
-    )
-
-    # g band
-    phase_b = t - t0_b
-    flux_const_b = A / (1.0 + jnp.exp(-phase_b / tau_rise_b))
-    sigmoid_b = 1 / (1 + jnp.exp(10.0 * (gamma_b - phase_b)))
-
-    flux_g = flux_const_b * (
-        (1 - sigmoid_b) * (1 - beta_b * phase_b)
-        + sigmoid_b * (1 - beta_b * gamma_b) * jnp.exp(-(phase_b - gamma_b) / tau_fall_b)
-    )
-
-    return flux_g, flux_r
 
 
 def plot_posterior_hist(posterior_samples, parameter, output_dir=None):
@@ -1046,6 +1029,8 @@ def plot_sampling_lc_fit_numpyro(
     bdata,
     max_flux,
     lcs,
+    ref_band,
+    sampling_method="svi",
     t0_lim=None,
     output_folder=FIT_PLOTS_FOLDER,
 ):
@@ -1092,49 +1077,19 @@ def plot_sampling_lc_fit_numpyro(
                 for j in range(len(posterior_samples["log_tau_fall"]))
             ]
         )
-
-        plt.errorbar(
-            tdata[bdata == 0],
-            fdata[bdata == 0],
-            yerr=ferrdata[bdata == 0],
-            c="g",
-            label="g",
-            fmt="o",
+        
+        cubes = np.array([get_numpyro_cube(single_model, max_flux)[0] for single_model in model_i])
+        aux_bands = get_numpyro_cube(model_i[0], max_flux)[1]
+        
+        plot_sampling_lc_fit(
+            lcs[i],
+            output_folder,
+            tdata,
+            fdata,
+            ferrdata,
+            bdata,
+            cubes,
+            aux_bands,
+            ref_band,
+            sampling_method=sampling_method,
         )
-        plt.errorbar(
-            tdata[bdata == 1],
-            fdata[bdata == 1],
-            yerr=ferrdata[bdata == 1],
-            c="r",
-            label="r",
-            fmt="o",
-        )
-
-        trange_fine = np.linspace(np.amin(tdata), np.amax(tdata), num=500)
-
-        for sample in model_i[:30]:
-            plt.plot(
-                trange_fine,
-                flux_from_posteriors(trange_fine, sample, max_flux[i])[0],
-                c="g",
-                lw=1,
-                alpha=0.1,
-            )
-            plt.plot(
-                trange_fine,
-                flux_from_posteriors(trange_fine, sample, max_flux[i])[1],
-                c="r",
-                lw=1,
-                alpha=0.1,
-            )
-
-        plt.xlabel("MJD")
-        plt.ylabel("Flux")
-        plt.title(lcs[i].name)
-
-        if t0_lim is None:
-            plt.savefig(os.path.join(output_folder, "%s.pdf" % lcs[i].name))
-        else:
-            plt.savefig(os.path.join(output_folder, "%s_%.02f.pdf" % (lcs[i].name, t0_lim)))
-
-        plt.close()
