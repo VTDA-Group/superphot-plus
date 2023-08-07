@@ -35,7 +35,6 @@ from .mlp import (
 from .plotting import plot_confusion_matrix
 from .supernova_class import SupernovaClass as SnClass
 from .utils import calc_accuracy, calculate_neg_chi_squareds, f1_score
-from .ztf_transient_fit import run_mcmc
 
 
 def adjust_log_dists(features_orig):
@@ -417,11 +416,11 @@ def save_phase_versus_class_probs(probs_csv, data_dir):
                 if phase > 50.0:
                     return None
 
-                try:
-                    refit_posts = run_mcmc(os.path.join(data_dir, test_name + ".npz"), t)
-                except:
-                    print("skipping fitting")
-                    return None
+                # try:
+                #     # refit_posts = run_mcmc(os.path.join(data_dir, test_name + ".npz"), t)
+                # except:
+                #     print("skipping fitting")
+                #     return None
 
                 # normalize the log distributions
                 test_features = adjust_log_dists(test_features)
