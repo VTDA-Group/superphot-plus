@@ -5,6 +5,9 @@ from jax import random
 
 import pytest
 
+from superphot_plus.lightcurve import Lightcurve
+from superphot_plus.priors.fitting_priors import MultibandPriors
+
 TEST_DIR = os.path.dirname(__file__)
 
 DATA_DIR_NAME = "data"
@@ -28,6 +31,11 @@ def single_ztf_lightcurve_compressed(test_data_dir):
 
 
 @pytest.fixture
+def single_ztf_lightcurve_object(single_ztf_lightcurve_compressed):
+    return Lightcurve.from_file(single_ztf_lightcurve_compressed)
+
+
+@pytest.fixture
 def single_ztf_eqwt_compressed(test_data_dir):
     return os.path.join(test_data_dir, "ZTF22abvdwik_eqwt.npz")
 
@@ -46,3 +54,7 @@ def jax_key():
 def class_probs_csv(test_data_dir):
     return os.path.join(test_data_dir, "probs.csv")
 
+
+@pytest.fixture
+def ztf_priors():
+    return MultibandPriors.load_ztf_priors()

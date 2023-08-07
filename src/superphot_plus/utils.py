@@ -1,13 +1,9 @@
-import os
-
 import extinction
 import numpy as np
 from astropy.coordinates import SkyCoord
 from dustmaps.config import config
 from dustmaps.sfd import SFDQuery
 
-from superphot_plus.file_utils import get_posterior_samples
-from superphot_plus.lightcurve import Lightcurve
 from superphot_plus.sfd import dust_filepath
 
 
@@ -242,3 +238,34 @@ def calculate_neg_chi_squareds(cubes, t, f, ferr, b, ordered_bands=["r", "g"], r
     ) / len(t)
 
     return log_likelihoods
+
+
+def params_valid(beta, gamma, tau_rise, tau_fall):
+    """Check if parameters are valid given certain model constraints.
+
+    Parameters
+    ----------
+    beta : float
+        Parameter beta.
+    gamma : float
+        Parameter gamma.
+    tau_rise : float
+        Parameter tau_rise.
+    tau_fall : float
+        Parameter tau_fall.
+
+    Returns
+    -------
+    bool
+        True if parameters are valid, False otherwise.
+    """
+    if tau_fall > 1.0 / beta:
+        return False
+
+    if gamma > (1.0 - beta * tau_fall) / beta:
+        return False
+
+    if tau_rise * (1.0 + np.exp(gamma / tau_rise)) < tau_fall:
+        return False
+
+    return True
