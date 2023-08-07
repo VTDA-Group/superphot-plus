@@ -6,7 +6,6 @@ import os
 
 import arviz as az
 import corner
-import jax.numpy as jnp
 import matplotlib.pyplot as plt
 import numpy as np
 from alerce.core import Alerce
@@ -51,7 +50,7 @@ def plot_high_confidence_confusion_matrix(probs_csv, filename, cutoff=0.7):
     true_classes = []
     pred_classes = []
 
-    with open(probs_csv, "r") as csvfile:
+    with open(probs_csv, "r", encoding="utf-8") as csvfile:
         csvreader = csv.reader(csvfile)
         for row in csvreader:
             row_np = np.array(row)
@@ -82,7 +81,7 @@ def plot_snIa_confusion_matrix(probs_csv, filename, p07=False):
     classes_to_labels = {0: "SN Ia", 1: "SN CC"}
     true_classes = []
     pred_classes = []
-    with open(probs_csv, "r") as csvfile:
+    with open(probs_csv, "r", encoding="utf-8") as csvfile:
         csvreader = csv.reader(csvfile)
         for row in csvreader:
             if p07 and np.max(np.array(row[2:]).astype(float)) < 0.7:
@@ -148,7 +147,7 @@ def plot_alerce_confusion_matrix(probs_csv, filename, p07=False):
     _, classes_to_labels = SnClass.get_type_maps()
     true_classes = []
     pred_classes = []
-    with open(probs_csv, "r") as csvfile:
+    with open(probs_csv, "r", encoding="utf-8") as csvfile:
         csvreader = csv.reader(csvfile)
         for e, row in enumerate(csvreader):
             name = row[0]
@@ -200,7 +199,7 @@ def plot_agreement_matrix(probs_csv, filename):
     _, classes_to_labels = SnClass.get_type_maps()
     pred_classes = []
     alerce_preds = []
-    with open(probs_csv, "r") as csvfile:
+    with open(probs_csv, "r", encoding="utf-8") as csvfile:
         csvreader = csv.reader(csvfile)
         for e, row in enumerate(csvreader):
             name = row[0]
@@ -246,7 +245,7 @@ def plot_expected_agreement_matrix(probs_csv, filename, cmap=plt.cm.Purples):
     alerce_preds = []
 
     true_classes = []
-    with open(probs_csv, "r") as csvfile:
+    with open(probs_csv, "r", encoding="utf-8") as csvfile:
         csvreader = csv.reader(csvfile)
         for e, row in enumerate(csvreader):
             name = row[0]
@@ -380,7 +379,6 @@ def plot_agreement_matrix_from_arrs(our_labels, alerce_labels, filename, cmap=pl
     plt.setp(ax.get_xticklabels(), rotation=45, ha="right", rotation_mode="anchor")
 
     # Loop over data dimensions and create text annotations.
-    fmt = ".2f"  # pylint: disable=unused-variable
     thresh = cm.max() / 2.0
     for i in range(cm.shape[0]):
         for j in range(cm.shape[1]):
@@ -427,7 +425,7 @@ def save_class_fractions(spec_probs_csv, phot_probs_csv, save_fn):
     true_classes_alerce = []
 
     ct = 0
-    with open(spec_probs_csv, "r") as csvfile:
+    with open(spec_probs_csv, "r", encoding="utf-8") as csvfile:
         csvreader = csv.reader(csvfile)
         for row in csvreader:
             ct += 1
@@ -445,7 +443,7 @@ def save_class_fractions(spec_probs_csv, phot_probs_csv, save_fn):
                 true_classes_alerce.append(l)
             pred_classes_spec.append(np.argmax(np.array(row[2:])))
 
-    with open(phot_probs_csv, "r") as csvfile:
+    with open(phot_probs_csv, "r", encoding="utf-8") as csvfile:
         csvreader = csv.reader(csvfile)
         for e, row in enumerate(csvreader):
             print(e)
@@ -454,7 +452,6 @@ def save_class_fractions(spec_probs_csv, phot_probs_csv, save_fn):
                 continue
             try:
                 alerce_pred = labels_to_class[get_pred_class(name, reflect_style=True)]
-                # print(alerce_pred, e)
             except:
                 print(name, " skipped")
                 continue
@@ -520,7 +517,7 @@ def plot_class_fractions(saved_cf_file, fig_dir, filename):
     width = 0.6
 
     fracs = []
-    with open(saved_cf_file, "r") as sf:
+    with open(saved_cf_file, "r", encoding="utf-8") as sf:
         csvreader = csv.reader(sf)
         for row in csvreader:
             fracs.append([float(x) for x in row])
@@ -550,7 +547,7 @@ def plot_class_fractions(saved_cf_file, fig_dir, filename):
             alerce_fracs_corr,
         ]
     ).T
-    fig, ax = plt.subplots(figsize=(11, 16))  # pylint: disable=unused-variable
+    _, ax = plt.subplots(figsize=(11, 16)) 
     bar = ax.bar(labels, combined_fracs[0], width, label=classes_to_labels[0])
     for i in range(len(combined_fracs[0])):
         bari = bar.patches[i]
@@ -633,7 +630,7 @@ def plot_confusion_matrix(y_true, y_pred, filename, purity=False, cmap=plt.cm.Pu
     classes = unique_labels(y_true, y_pred)
 
     fig, ax = plt.subplots()
-    im = ax.imshow(
+    _ = ax.imshow(
         cm, interpolation="nearest", vmin=0.0, vmax=1.0, cmap=cmap
     )  # pylint: disable=unused-variable
 
@@ -652,7 +649,6 @@ def plot_confusion_matrix(y_true, y_pred, filename, purity=False, cmap=plt.cm.Pu
     plt.setp(ax.get_xticklabels(), rotation=45, ha="right", rotation_mode="anchor")
 
     # Loop over data dimensions and create text annotations.
-    fmt = ".2f"  # pylint: disable=unused-variable
     thresh = cm.max() / 2.0
 
     for i in range(cm.shape[0]):
@@ -812,15 +808,7 @@ def plot_lightcurve_clipping(ztf_name, data_folder, save_dir):
     plt.close()
 
 
-def plot_lc_fit(
-    ztf_name,
-    ref_band,
-    ordered_bands,
-    data_dir,
-    fit_dir,
-    out_dir,
-    sampling_method="dynesty"
-):
+def plot_lc_fit(ztf_name, ref_band, ordered_bands, data_dir, fit_dir, out_dir, sampling_method="dynesty"):
     """Plot an existing light curve fit.
 
     Parameters
@@ -852,7 +840,7 @@ def plot_lc_fit(
         eq_wt_samples,
         ordered_bands,
         ref_band,
-        sampling_method
+        sampling_method,
     )
 
 
@@ -892,8 +880,8 @@ def plot_sampling_lc_fit(
     """
 
     trange_fine = np.linspace(np.amin(tdata), np.amax(tdata), num=500)
-    
-    for b in np.unique(bdata): # TODO: handle case where band name isnt a valid color
+
+    for b in np.unique(bdata):  # TODO: handle case where band name isnt a valid color
         plt.errorbar(
             tdata[bdata == b],
             fdata[bdata == b],
@@ -911,7 +899,6 @@ def plot_sampling_lc_fit(
                 lw=1,
                 alpha=0.1,
             )
-            
 
     plt.xlabel("MJD")
     plt.ylabel("Flux")
@@ -923,7 +910,8 @@ def plot_sampling_lc_fit(
 
 
 def get_numpyro_cube(params, max_flux):
-    
+    """Create numpyro cube for primary and aux bands."""
+
     aux_bands = []
     for k in params:
         if k[:4] == "beta" and k != "beta":
@@ -941,24 +929,23 @@ def get_numpyro_cube(params, max_flux):
     gamma = 10**log_gamma
     tau_rise = 10**log_tau_rise
     tau_fall = 10**log_tau_fall
-    extra_sigma = 10**log_extra_sigma  # pylint: disable=unused-variable
-    
+    extra_sigma = 10**log_extra_sigma
+
     cube = [A, beta, gamma, t0, tau_rise, tau_fall, extra_sigma]
 
-    for b in aux_bands:
+    for band in aux_bands:
         cube.extend(
             [
-                params[f"A_{b}"],
-                params[f"beta_{b}"], 
-                params[f"gamma_{b}"],
-                params[f"t0_{b}"],
-                params[f"tau_rise_{b}"],
-                params[f"tau_fall_{b}"],
-                params[f"extra_sigma_{b}"],
+                params[f"A_{band}"],
+                params[f"beta_{band}"],
+                params[f"gamma_{band}"],
+                params[f"t0_{band}"],
+                params[f"tau_rise_{band}"],
+                params[f"tau_fall_{band}"],
+                params[f"extra_sigma_{band}"],
             ]
         )
     return np.array(cube), np.array(aux_bands)
-
 
 
 def plot_posterior_hist(posterior_samples, parameter, output_dir=None):
@@ -1032,7 +1019,6 @@ def plot_sampling_lc_fit_numpyro(
     lcs,
     ref_band,
     sampling_method="svi",
-    t0_lim=None,
     output_folder=FIT_PLOTS_FOLDER,
 ):
     """
@@ -1054,15 +1040,13 @@ def plot_sampling_lc_fit_numpyro(
         Max flux of data.
     lcs: array-like
         Light curve objects on which sampling was run.
-    t0_lim:  float or None, optional
-        Upper time limit for the data.
     output_folder : str or FITS_PLOTS_FOLDER, optional
         Directory where to store the light curve sampling fit.
     """
 
-    for i in range(len(tdata)):
-        ignore_idx = ferrdata[i] == 1e10  # pylint: ignore-superfluous parens
-        tdata = tdata[i][~ignore_idx]
+    for i, time in enumerate(tdata):
+        ignore_idx = ferrdata[i] == 1e10
+        tdata = time[~ignore_idx]
         fdata = fdata[i][~ignore_idx]
         ferrdata = ferrdata[i][~ignore_idx]
         bdata = bdata[i][~ignore_idx]
@@ -1078,10 +1062,10 @@ def plot_sampling_lc_fit_numpyro(
                 for j in range(len(posterior_samples["log_tau_fall"]))
             ]
         )
-        
+
         cubes = np.array([get_numpyro_cube(single_model, max_flux)[0] for single_model in model_i])
         aux_bands = get_numpyro_cube(model_i[0], max_flux)[1]
-        
+
         plot_sampling_lc_fit(
             lcs[i],
             output_folder,
