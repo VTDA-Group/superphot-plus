@@ -301,12 +301,12 @@ def classify_single_light_curve(model, obj_name, fits_dir):
 
     Parameters
     ----------
+    model : MLP
+        The classifier.
     obj_name : str
         Name of the supernova.
     fits_dir : str
         Where model fit information is stored.
-    data_dirs : np.ndarray
-        Where the object's datafile could be stored.
 
     Returns
     ----------
@@ -330,23 +330,22 @@ def classify_single_light_curve(model, obj_name, fits_dir):
     return probs_avg
 
 
-def return_new_classifications(test_csv, data_dirs, fit_dir, include_labels=False):
+def return_new_classifications(model, test_csv, fit_dir, include_labels=False):
     """Return new classifications based on model and save probabilities
     to a CSV file.
 
     Parameters
     ----------
+    model : MLP
+        The classifier.
     test_csv : str
         Path to the CSV file containing the test data.
-    data_dirs : list of str
-        List of paths to directories containing data.
     fit_dir : str
         Path to the directory containing the fit data.
     include_labels : bool, optional
         If True, labels from the test data are included in the
         probability saving process. Defaults to False.
     """
-    model = load_mlp(TRAINED_MODEL_FN, TRAINED_MODEL_PARAMS)
     with open(test_csv, "r") as tc:
         csv_reader = csv.reader(tc, delimiter=",")
         next(csv_reader)
@@ -360,7 +359,7 @@ def return_new_classifications(test_csv, data_dirs, fit_dir, include_labels=Fals
             if include_labels:
                 label = row[1]
 
-            probs_avg = classify_single_light_curve(test_name, fit_dir, data_dirs)
+            probs_avg = classify_single_light_curve(model, test_name, fit_dir)
 
             if include_labels:
                 save_test_probabilities(test_name, label, probs_avg)
