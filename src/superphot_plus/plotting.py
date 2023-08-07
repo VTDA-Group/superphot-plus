@@ -57,7 +57,7 @@ def plot_high_confidence_confusion_matrix(probs_csv, filename, cutoff=0.7):
             row_np = np.array(row)
             if np.max(row_np[2:].astype(float)) < cutoff:
                 continue
-            true_classes.append(int(row_np[1][-2]))
+            true_classes.append(int(row_np[1]))
             pred_classes.append(np.argmax(row_np[2:].astype(float)))
     true_labels = [classes_to_labels[x] for x in true_classes]
     pred_labels = [classes_to_labels[x] for x in pred_classes]
@@ -87,7 +87,7 @@ def plot_snIa_confusion_matrix(probs_csv, filename, p07=False):
         for row in csvreader:
             if p07 and np.max(np.array(row[2:]).astype(float)) < 0.7:
                 continue
-            if int(row[1][-2]) == 0:
+            if int(row[1]) == 0:
                 true_classes.append(0)
             else:
                 true_classes.append(1)
@@ -812,7 +812,15 @@ def plot_lightcurve_clipping(ztf_name, data_folder, save_dir):
     plt.close()
 
 
-def plot_lc_fit(ztf_name, data_dir, fit_dir, out_dir, sampling_method="dynesty"):
+def plot_lc_fit(
+    ztf_name,
+    ref_band,
+    ordered_bands,
+    data_dir,
+    fit_dir,
+    out_dir,
+    sampling_method="dynesty"
+):
     """Plot an existing light curve fit.
 
     Parameters
@@ -842,6 +850,9 @@ def plot_lc_fit(ztf_name, data_dir, fit_dir, out_dir, sampling_method="dynesty")
         lightcurve.flux_errors,
         lightcurve.bands,
         eq_wt_samples,
+        ordered_bands,
+        ref_band,
+        sampling_method
     )
 
 
@@ -853,6 +864,8 @@ def plot_sampling_lc_fit(
     ferrdata,
     bdata,
     eq_wt_samples,
+    band_order,
+    ref_band,
     sampling_method="dynesty",
 ):
     """
@@ -878,40 +891,27 @@ def plot_sampling_lc_fit(
         Sampling method used for the fit. Default is "dynesty".
     """
 
-    plt.errorbar(
-        tdata[bdata == "g"],
-        fdata[bdata == "g"],
-        yerr=ferrdata[bdata == "g"],
-        c="g",
-        label="g",
-        fmt="o",
-    )
-    plt.errorbar(
-        tdata[bdata == "r"],
-        fdata[bdata == "r"],
-        yerr=ferrdata[bdata == "r"],
-        c="r",
-        label="r",
-        fmt="o",
-    )
-
     trange_fine = np.linspace(np.amin(tdata), np.amax(tdata), num=500)
+    
+    for b in np.unique(bdata): # TODO: handle case where band name isnt a valid color
+        plt.errorbar(
+            tdata[bdata == b],
+            fdata[bdata == b],
+            yerr=ferrdata[bdata == b],
+            c=b,
+            label=b,
+            fmt="o",
+        )
 
-    for sample in eq_wt_samples[:30]:
-        plt.plot(
-            trange_fine,
-            flux_model(sample, trange_fine, ["g"] * len(trange_fine)),
-            c="g",
-            lw=1,
-            alpha=0.1,
-        )
-        plt.plot(
-            trange_fine,
-            flux_model(sample, trange_fine, ["r"] * len(trange_fine)),
-            c="r",
-            lw=1,
-            alpha=0.1,
-        )
+        for sample in eq_wt_samples[:30]:
+            plt.plot(
+                trange_fine,
+                flux_model(sample, trange_fine, [b] * len(trange_fine), band_order, ref_band),
+                c=b,
+                lw=1,
+                alpha=0.1,
+            )
+            
 
     plt.xlabel("MJD")
     plt.ylabel("Flux")
@@ -922,7 +922,13 @@ def plot_sampling_lc_fit(
     plt.close()
 
 
-def flux_from_posteriors(t, params, max_flux):
+def get_numpyro_cube(params, max_flux):
+    
+    aux_bands = []
+    for k in params:
+        if k[:4] == "beta" and k != "beta":
+            aux_bands.append(k[5:])
+
     logA, beta, log_gamma = params["logA"], params["beta"], params["log_gamma"]
     t0, log_tau_rise, log_tau_fall, log_extra_sigma = (
         params["t0"],
@@ -936,42 +942,23 @@ def flux_from_posteriors(t, params, max_flux):
     tau_rise = 10**log_tau_rise
     tau_fall = 10**log_tau_fall
     extra_sigma = 10**log_extra_sigma  # pylint: disable=unused-variable
+    
+    cube = [A, beta, gamma, t0, tau_rise, tau_fall, extra_sigma]
 
-    A_g, beta_g, gamma_g = params["A_g"], params["beta_g"], params["gamma_g"]
-    t0_g, tau_rise_g, tau_fall_g, extra_sigma_g = (  # pylint: disable=unused-variable
-        params["t0_g"],
-        params["tau_rise_g"],
-        params["tau_fall_g"],
-        params["extra_sigma_g"],
-    )
+    for b in aux_bands:
+        cube.extend(
+            [
+                params[f"A_{b}"],
+                params[f"beta_{b}"], 
+                params[f"gamma_{b}"],
+                params[f"t0_{b}"],
+                params[f"tau_rise_{b}"],
+                params[f"tau_fall_{b}"],
+                params[f"extra_sigma_{b}"],
+            ]
+        )
+    return np.array(cube), np.array(aux_bands)
 
-    A_b = A * A_g  # pylint: disable=unused-variable
-    beta_b = beta * beta_g
-    gamma_b = gamma * gamma_g
-    t0_b = t0 * t0_g
-    tau_rise_b = tau_rise * tau_rise_g
-    tau_fall_b = tau_fall * tau_fall_g
-
-    phase = t - t0
-    flux_const = A / (1.0 + jnp.exp(-phase / tau_rise))
-    sigmoid = 1 / (1 + jnp.exp(10.0 * (gamma - phase)))
-
-    flux_r = flux_const * (
-        (1 - sigmoid) * (1 - beta * phase)
-        + sigmoid * (1 - beta * gamma) * jnp.exp(-(phase - gamma) / tau_fall)
-    )
-
-    # g band
-    phase_b = t - t0_b
-    flux_const_b = A / (1.0 + jnp.exp(-phase_b / tau_rise_b))
-    sigmoid_b = 1 / (1 + jnp.exp(10.0 * (gamma_b - phase_b)))
-
-    flux_g = flux_const_b * (
-        (1 - sigmoid_b) * (1 - beta_b * phase_b)
-        + sigmoid_b * (1 - beta_b * gamma_b) * jnp.exp(-(phase_b - gamma_b) / tau_fall_b)
-    )
-
-    return flux_g, flux_r
 
 
 def plot_posterior_hist(posterior_samples, parameter, output_dir=None):
@@ -1043,6 +1030,8 @@ def plot_sampling_lc_fit_numpyro(
     bdata,
     max_flux,
     lcs,
+    ref_band,
+    sampling_method="svi",
     t0_lim=None,
     output_folder=FIT_PLOTS_FOLDER,
 ):
@@ -1089,49 +1078,19 @@ def plot_sampling_lc_fit_numpyro(
                 for j in range(len(posterior_samples["log_tau_fall"]))
             ]
         )
-
-        plt.errorbar(
-            tdata[bdata == 0],
-            fdata[bdata == 0],
-            yerr=ferrdata[bdata == 0],
-            c="g",
-            label="g",
-            fmt="o",
+        
+        cubes = np.array([get_numpyro_cube(single_model, max_flux)[0] for single_model in model_i])
+        aux_bands = get_numpyro_cube(model_i[0], max_flux)[1]
+        
+        plot_sampling_lc_fit(
+            lcs[i],
+            output_folder,
+            tdata,
+            fdata,
+            ferrdata,
+            bdata,
+            cubes,
+            aux_bands,
+            ref_band,
+            sampling_method=sampling_method,
         )
-        plt.errorbar(
-            tdata[bdata == 1],
-            fdata[bdata == 1],
-            yerr=ferrdata[bdata == 1],
-            c="r",
-            label="r",
-            fmt="o",
-        )
-
-        trange_fine = np.linspace(np.amin(tdata), np.amax(tdata), num=500)
-
-        for sample in model_i[:30]:
-            plt.plot(
-                trange_fine,
-                flux_from_posteriors(trange_fine, sample, max_flux[i])[0],
-                c="g",
-                lw=1,
-                alpha=0.1,
-            )
-            plt.plot(
-                trange_fine,
-                flux_from_posteriors(trange_fine, sample, max_flux[i])[1],
-                c="r",
-                lw=1,
-                alpha=0.1,
-            )
-
-        plt.xlabel("MJD")
-        plt.ylabel("Flux")
-        plt.title(lcs[i].name)
-
-        if t0_lim is None:
-            plt.savefig(os.path.join(output_folder, "%s.pdf" % lcs[i].name))
-        else:
-            plt.savefig(os.path.join(output_folder, "%s_%.02f.pdf" % (lcs[i].name, t0_lim)))
-
-        plt.close()

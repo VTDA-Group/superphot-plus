@@ -1,6 +1,8 @@
 import os
 import os.path
 
+from jax import random
+
 import pytest
 import torch
 
@@ -44,6 +46,16 @@ def single_ztf_eqwt_compressed(test_data_dir):
 @pytest.fixture
 def single_ztf_sn_id():
     return "ZTF22abvdwik"
+
+
+@pytest.fixture
+def jax_key():
+    return random.PRNGKey(4)
+
+
+@pytest.fixture
+def class_probs_csv(test_data_dir):
+    return os.path.join(test_data_dir, "probs.csv")
 
 
 @pytest.fixture

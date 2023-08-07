@@ -7,17 +7,19 @@ import os
 import numpy as np
 
 from superphot_plus.utils import convert_mags_to_flux, get_band_extinctions
-from superphot_plus.telescopes import Telescope
+from superphot_plus.surveys import Survey
 
 
-def import_lc(filename, telescope=Telescope.ZTF()):
+def import_lc(filename, survey=Survey.ZTF()):
     """Imports a single file, but only the points from a single
-    telescope, in only g and r bands.
+    survey.
 
     Parameters
     ----------
     filename : str
         Path to the input CSV file.
+    survey : Survey, optional
+        Assumes light curve data was taken by this survey. Defaults to ZTF.
 
     Returns
     -------
@@ -50,7 +52,7 @@ def import_lc(filename, telescope=Telescope.ZTF()):
                 ra = float(row[ra_idx])
                 dec = float(row[dec_idx])
                 try:
-                    ext_dict = telescope.get_extinctions(ra, dec)
+                    ext_dict = survey.get_extinctions(ra, dec)
                 except:
                     return [
                         None,
@@ -81,7 +83,7 @@ def import_lc(filename, telescope=Telescope.ZTF()):
     t, f, ferr, b = clip_lightcurve_end(t, f, ferr, b)
     snr = np.abs(f / ferr)
 
-    for band in telescope.wavelengths:
+    for band in survey.wavelengths:
         if len(snr[(snr > 3.0) & (b == band)]) < 5:  # not enough good datapoints
             return [
                 None,

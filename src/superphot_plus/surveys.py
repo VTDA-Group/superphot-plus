@@ -9,8 +9,8 @@ from superphot_plus.utils import get_band_extinctions
 
 
 @dataclass
-class Telescope:
-    """Holder for telescope-specific information."""
+class Survey:
+    """Holder for survey-specific information."""
 
     name: str = ""
     priors: MultibandPriors = field(default_factory=MultibandPriors)
@@ -63,8 +63,8 @@ class Telescope:
 
         Returns
         ----------
-        Telescope
-            Telescope object representing the Zwicky Transient Facility (ZTF).
+        Survey
+            Survey object representing the Zwicky Transient Facility (ZTF).
         """
         ztf_wvs = {"g": 4741.64, "r": 6173.23}
-        return Telescope("ZTF", MultibandPriors.load_ztf_priors(), ztf_wvs)
+        return Survey("ZTF", MultibandPriors.load_ztf_priors(), ztf_wvs)
