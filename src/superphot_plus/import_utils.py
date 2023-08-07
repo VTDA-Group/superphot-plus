@@ -12,7 +12,7 @@ from superphot_plus.surveys import Survey
 
 def import_lc(filename, survey=Survey.ZTF()):
     """Imports a single file, but only the points from a single
-    survey, in only g and r bands.
+    survey.
 
     Parameters
     ----------
