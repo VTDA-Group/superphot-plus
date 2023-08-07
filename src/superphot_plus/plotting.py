@@ -842,6 +842,7 @@ def plot_lc_fit(ztf_name, data_dir, fit_dir, out_dir, sampling_method="dynesty")
         lightcurve.flux_errors,
         lightcurve.bands,
         eq_wt_samples,
+        sampling_method,
     )
 
 
@@ -900,14 +901,14 @@ def plot_sampling_lc_fit(
     for sample in eq_wt_samples[:30]:
         plt.plot(
             trange_fine,
-            flux_model(sample, trange_fine, ["g"] * len(trange_fine)),
+            flux_model(sample, trange_fine, ["g"] * len(trange_fine), ["r", "g"], "r"),
             c="g",
             lw=1,
             alpha=0.1,
         )
         plt.plot(
             trange_fine,
-            flux_model(sample, trange_fine, ["r"] * len(trange_fine)),
+            flux_model(sample, trange_fine, ["r"] * len(trange_fine), ["r", "g"], "r"),
             c="r",
             lw=1,
             alpha=0.1,
