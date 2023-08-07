@@ -3,11 +3,11 @@ import os
 import numpy as np
 import pytest
 
-from superphot_plus.priors.fitting_priors import MultibandPriors
-from superphot_plus.surveys import Survey
+from superphot_plus.surveys.fitting_priors import MultibandPriors
+from superphot_plus.surveys.surveys import Survey
 
 
-def test_create():
+def test_create(ztf_priors):
     """Create some valid and invalid Survey objects."""
     # generate default Survey
     default_survey = Survey()
@@ -17,7 +17,6 @@ def test_create():
 
     # generate pre-filled Survey
     default_priors = MultibandPriors()
-    ztf_priors = MultibandPriors.load_ztf_priors()
     # test extra wavelengths defined = OK
     test_valid_survey = Survey("Test", default_priors, {"r": 5000.0})
     assert test_valid_survey.name == "Test"
@@ -26,7 +25,7 @@ def test_create():
 
     # test not enough wavelengths defined = NOT OK
     with pytest.raises(AssertionError):
-        test_invalid_survey = Survey("Test2", ztf_priors, {"r": 5000.0})
+        _ = Survey("Test2", ztf_priors, {"r": 5000.0})
 
 
 def test_ztf():
@@ -44,3 +43,15 @@ def test_ztf():
         assert np.array_equal(ztf_survey.get_ordered_wavelengths(), [4741.64, 6173.23])
     else:
         assert False
+
+    ## Confirm a single prior value (to ensure chained deserialization)
+    assert ztf_survey.priors.bands["r"].gamma.mean == 1.1391
+
+def test_write_to_file(tmp_path):
+    """Test that we can save survey data to a file, and fetch it later."""
+    default_priors = MultibandPriors()
+    default_survey = Survey("default", default_priors, {"r": 5000.0})
+
+    default_survey.write_to_file(os.path.join(tmp_path, "default_survey.yaml"))
+    read_values = Survey.from_file(os.path.join(tmp_path, "default_survey.yaml"))
+    assert read_values == default_survey

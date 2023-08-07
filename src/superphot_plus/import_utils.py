@@ -6,7 +6,7 @@ import os
 
 import numpy as np
 
-from superphot_plus.surveys import Survey
+from superphot_plus.surveys.surveys import Survey
 from superphot_plus.utils import convert_mags_to_flux, get_band_extinctions
 
 
