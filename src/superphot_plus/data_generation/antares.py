@@ -8,8 +8,8 @@ import numpy as np
 from antares_client.search import get_by_ztf_object_id
 
 from superphot_plus.import_utils import add_to_new_csv, clip_lightcurve_end, save_datafile
-from superphot_plus.utils import convert_mags_to_flux, get_band_extinctions
 from superphot_plus.surveys import Survey
+from superphot_plus.utils import convert_mags_to_flux, get_band_extinctions
 
 
 def generate_files_from_antares(input_csv, output_folder, output_csv):

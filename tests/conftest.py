@@ -1,13 +1,11 @@
 import os
 import os.path
 
-from jax import random
-
 import pytest
 import torch
+from jax import random
 
 from superphot_plus.classify_ztf import load_mlp
-
 from superphot_plus.lightcurve import Lightcurve
 from superphot_plus.priors.fitting_priors import MultibandPriors
 

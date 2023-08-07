@@ -16,7 +16,6 @@ from numpyro.distributions import constraints
 from numpyro.infer import MCMC, NUTS, SVI, Trace_ELBO
 from numpyro.infer.initialization import init_to_sample, init_to_uniform
 
-
 from superphot_plus.constants import PAD_SIZE
 from superphot_plus.file_paths import FITS_DIR
 from superphot_plus.file_utils import get_posterior_filename
@@ -29,14 +28,14 @@ from superphot_plus.plotting import (
 from superphot_plus.priors.fitting_priors import MultibandPriors, PriorFields
 from superphot_plus.surveys import Survey
 
-
 config.update("jax_enable_x64", True)
 numpyro.enable_x64()
+
 
 def prior_helper(priors, max_flux, aux_b=None):
     """Helper function to sample prior values. If aux_b is not None,
     appends aux_b to value names.
-    
+
     Parameters
     ----------
     priors : CurvePriors
@@ -55,7 +54,7 @@ def prior_helper(priors, max_flux, aux_b=None):
         tau_rise = 10 ** numpyro.sample("log_tau_rise", trunc_norm_fields(priors.tau_rise))
         tau_fall = 10 ** numpyro.sample("log_tau_fall", trunc_norm_fields(priors.tau_fall))
         extra_sigma = 10 ** numpyro.sample("log_extra_sigma", trunc_norm_fields(priors.extra_sigma))
-        
+
     else:
         suffix = "_" + str(aux_b)
         A = numpyro.sample(f"A{suffix}", trunc_norm_fields(priors.amp))
@@ -172,9 +171,9 @@ def run_mcmc(lc, sampler="NUTS", priors=MultibandPriors.load_ztf_priors(), t0_li
             Maximum flux value. Defaults to None.
         """
         ref_priors = priors.bands[ref_band]
-        
+
         A, beta, gamma, t0, tau_rise, tau_fall, extra_sigma = prior_helper(ref_priors, max_flux)
-        
+
         phase = t - t0
         flux_const = A / (1.0 + jnp.exp(-phase / tau_rise))
         sigmoid = 1 / (1 + jnp.exp(10.0 * (gamma - phase)))
@@ -191,8 +190,16 @@ def run_mcmc(lc, sampler="NUTS", priors=MultibandPriors.load_ztf_priors(), t0_li
                 continue
 
             b_priors = priors.bands[uniq_b]
-            
-            A_ratio, beta_ratio, gamma_ratio, t0_ratio, tau_rise_ratio, tau_fall_ratio, extra_sigma_ratio = prior_helper(b_priors, max_flux, uniq_b)
+
+            (
+                A_ratio,
+                beta_ratio,
+                gamma_ratio,
+                t0_ratio,
+                tau_rise_ratio,
+                tau_fall_ratio,
+                extra_sigma_ratio,
+            ) = prior_helper(b_priors, max_flux, uniq_b)
 
             A_b = A * A_ratio  # pylint: disable=unused-variable
             beta_b = beta * beta_ratio
@@ -324,7 +331,6 @@ def run_mcmc(lc, sampler="NUTS", priors=MultibandPriors.load_ztf_priors(), t0_li
     else:
         raise ValueError("'sampler' must be 'NUTS' or 'svi'")
 
-
     if plot:  # pragma: no cover
         plot_posterior_hist(posterior_samples, parameter="log_tau_fall")
         plot_sampling_lc_fit_numpyro(
@@ -421,7 +427,7 @@ def run_mcmc_batch(lcs, priors=MultibandPriors.load_ztf_priors(), t0_lim=None, p
 
     max_flux, max_flux_time = lc.find_max_flux(band=ref_band)
     bdata = lc.band_as_int(priors.ordered_bands)  # change to integers
-    
+
     N = len(tdata_stacked)
 
     def jax_model(t=None, obsflux=None, uncertainties=None, max_flux=None, inc_band_ix=None):
@@ -443,7 +449,7 @@ def run_mcmc_batch(lcs, priors=MultibandPriors.load_ztf_priors(), t0_lim=None, p
         ref_priors = all_priors.bands[ref_band]
         with numpyro.plate("ref_band", N) as sn_index:  # pylint: disable=unused-variable
             A, beta, gamma, t0, tau_rise, tau_fall, extra_sigma = prior_helper(ref_priors, max_flux)
-            
+
         phase = t - t0[:, np.newaxis]
         flux_const = A[:, np.newaxis] / (1.0 + jnp.exp(-phase / tau_rise[:, np.newaxis]))
         sigmoid = 1 / (1 + jnp.exp(10.0 * (gamma[:, np.newaxis] - phase)))
@@ -460,10 +466,18 @@ def run_mcmc_batch(lcs, priors=MultibandPriors.load_ztf_priors(), t0_lim=None, p
             if uniq_b == ref_band:
                 continue
             b_priors = priors.bands[uniq_b]
-            
+
             with numpyro.plate(f"aux_{uniq_b}", N) as sn_index:  # pylint: disable=unused-variable
                 # auxiliary bands
-                A_ratio, beta_ratio, gamma_ratio, t0_ratio, tau_rise_ratio, tau_fall_ratio, extra_sigma_ratio = prior_helper(b_priors, max_flux, uniq_b)
+                (
+                    A_ratio,
+                    beta_ratio,
+                    gamma_ratio,
+                    t0_ratio,
+                    tau_rise_ratio,
+                    tau_fall_ratio,
+                    extra_sigma_ratio,
+                ) = prior_helper(b_priors, max_flux, uniq_b)
 
             A_b = A * A_ratio  # pylint: disable=unused-variable
             beta_b = beta * beta_ratio
@@ -471,7 +485,7 @@ def run_mcmc_batch(lcs, priors=MultibandPriors.load_ztf_priors(), t0_lim=None, p
             t0_b = t0 * t0_ratio
             tau_rise_b = tau_rise * tau_rise_ratio
             tau_fall_b = tau_fall * tau_fall_ratio
-            
+
             # g band
             phase_b = (t - t0_b[:, np.newaxis])[:, inc_band_ix]
             flux_const_b = A[:, np.newaxis] / (1.0 + jnp.exp(-phase_b / tau_rise_b[:, np.newaxis]))
