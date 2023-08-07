@@ -851,7 +851,8 @@ def plot_lc_fit(
         lightcurve.bands,
         eq_wt_samples,
         ordered_bands,
-        ref_band
+        ref_band,
+        sampling_method
     )
 
 
