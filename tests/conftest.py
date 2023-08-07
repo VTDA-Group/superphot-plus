@@ -4,6 +4,9 @@ import os.path
 from jax import random
 
 import pytest
+import torch
+
+from superphot_plus.classify_ztf import load_mlp
 
 from superphot_plus.lightcurve import Lightcurve
 from superphot_plus.priors.fitting_priors import MultibandPriors
@@ -58,3 +61,10 @@ def class_probs_csv(test_data_dir):
 @pytest.fixture
 def ztf_priors():
     return MultibandPriors.load_ztf_priors()
+
+
+@pytest.fixture
+def classifier(test_data_dir):
+    mlp_filename = os.path.join(test_data_dir, "superphot-model-ZTF23aagkgnz.pt")
+    mlp_params = (13, 5, 128, 3)
+    return load_mlp(mlp_filename, mlp_params)
