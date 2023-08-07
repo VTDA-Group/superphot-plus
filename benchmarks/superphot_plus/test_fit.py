@@ -4,10 +4,10 @@ import os
 
 import numpy as np
 
-from superphot_plus.fit_numpyro import numpyro_single_file
 from superphot_plus.lightcurve import Lightcurve
 from superphot_plus.priors.fitting_priors import MultibandPriors
 from superphot_plus.samplers.dynesty_sampler import DynestySampler
+from superphot_plus.samplers.numpyro_sampler import NumpyroSampler
 
 OUTPUT_DIR = "benchmarks/data/"
 
@@ -26,9 +26,17 @@ def test_dynesty_single_file():
 
 def test_nuts_single_file():
     """Benchmarks the NUTS sampler"""
-    numpyro_single_file(fn_to_fit, OUTPUT_DIR, sampler="NUTS")
+    sampler = NumpyroSampler()
+    lightcurve = Lightcurve.from_file(fn_to_fit)
+    posteriors = sampler.run_single_curve(
+        lightcurve, priors=MultibandPriors.load_ztf_priors(), sampler="NUTS"
+    )
+    posteriors.save_to_file(OUTPUT_DIR)
 
 
 def test_svi_single_file():
     """Benchmarks the svi sampler"""
-    numpyro_single_file(fn_to_fit, OUTPUT_DIR, sampler="svi")
+    sampler = NumpyroSampler()
+    lightcurve = Lightcurve.from_file(fn_to_fit)
+    posteriors = sampler.run_single_curve(lightcurve, priors=MultibandPriors.load_ztf_priors(), sampler="svi")
+    posteriors.save_to_file(OUTPUT_DIR)

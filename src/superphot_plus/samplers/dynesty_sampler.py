@@ -15,7 +15,7 @@ from superphot_plus.utils import flux_model
 
 
 class DynestySampler(Sampler):
-    """Base class for sampling algorithms."""
+    """ "MCMC sampling using dynesty."""
 
     def __init__(self):
         pass
