@@ -1,9 +1,7 @@
 import numpy as np
 from scipy.stats import truncnorm
 
-from superphot_plus.utils import flux_model
-from superphot_plus.ztf_transient_fit import params_valid
-
+from superphot_plus.utils import flux_model, params_valid
 
 DEFAULT_MAX_FLUX = 1.0
 # Nested sampling priors
