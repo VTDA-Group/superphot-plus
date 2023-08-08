@@ -1,0 +1,80 @@
+name: ZTF
+wavelengths:
+  r: 6173.23
+  g: 4741.64
+priors:
+  band_order: rg
+  reference_band: r
+  bands:
+    r:
+      amp:
+        clip_a: -0.2
+        clip_b: 1.2
+        mean: 0
+        std: 0.5
+      beta:
+        clip_a: 0.0
+        clip_b: 0.2
+        mean: 0.0052
+        std: 0.000504
+      gamma:
+        clip_a: -2.0
+        clip_b: 2.5
+        mean: 1.1391
+        std: 0.25785
+      t_0:
+        clip_a: -100.0
+        clip_b: 200.0
+        mean: 0
+        std: 50
+      tau_rise:
+        clip_a: -1.0
+        clip_b: 3.0
+        mean: 0.599
+        std: 0.31095
+      tau_fall:
+        clip_a: 0.5
+        clip_b: 4.0
+        mean: 1.4296
+        std: 0.15045
+      extra_sigma:
+        clip_a: -5.0
+        clip_b: -0.5
+        mean: -1.5364
+        std: 0.2691
+    g:
+      amp:
+        clip_a: 0
+        clip_b: 5.0
+        mean: 1.0607
+        std: 0.2316
+      beta:
+        clip_a: 1.0
+        clip_b: 1.07
+        mean: 1.0424
+        std: 0.0026
+      gamma:
+        clip_a: 0.8
+        clip_b: 1.2
+        mean: 1.0075
+        std: 0.0139
+      t_0:
+        clip_a: 0.9994
+        clip_b: 1.0006
+        mean: 0.999989
+        std: 0.000067
+      tau_rise:
+        clip_a: 0.5
+        clip_b: 2.0
+        mean: 0.9663
+        std: 0.0128
+      tau_fall:
+        clip_a: 0.1
+        clip_b: 3.0
+        mean: 0.5488
+        std: 0.0553
+      extra_sigma:
+        clip_a: 0.2
+        clip_b: 2.0
+        mean: 0.8606
+        std: 0.0388
