@@ -812,15 +812,7 @@ def plot_lightcurve_clipping(ztf_name, data_folder, save_dir):
     plt.close()
 
 
-def plot_lc_fit(
-    ztf_name,
-    ref_band,
-    ordered_bands,
-    data_dir,
-    fit_dir,
-    out_dir,
-    sampling_method="dynesty"
-):
+def plot_lc_fit(ztf_name, ref_band, ordered_bands, data_dir, fit_dir, out_dir, sampling_method="dynesty"):
     """Plot an existing light curve fit.
 
     Parameters
@@ -852,7 +844,7 @@ def plot_lc_fit(
         eq_wt_samples,
         ordered_bands,
         ref_band,
-        sampling_method
+        sampling_method,
     )
 
 
@@ -892,8 +884,8 @@ def plot_sampling_lc_fit(
     """
 
     trange_fine = np.linspace(np.amin(tdata), np.amax(tdata), num=500)
-    
-    for b in np.unique(bdata): # TODO: handle case where band name isnt a valid color
+
+    for b in np.unique(bdata):  # TODO: handle case where band name isnt a valid color
         plt.errorbar(
             tdata[bdata == b],
             fdata[bdata == b],
@@ -911,7 +903,6 @@ def plot_sampling_lc_fit(
                 lw=1,
                 alpha=0.1,
             )
-            
 
     plt.xlabel("MJD")
     plt.ylabel("Flux")
@@ -923,7 +914,7 @@ def plot_sampling_lc_fit(
 
 
 def get_numpyro_cube(params, max_flux):
-    
+
     aux_bands = []
     for k in params:
         if k[:4] == "beta" and k != "beta":
@@ -942,14 +933,14 @@ def get_numpyro_cube(params, max_flux):
     tau_rise = 10**log_tau_rise
     tau_fall = 10**log_tau_fall
     extra_sigma = 10**log_extra_sigma  # pylint: disable=unused-variable
-    
+
     cube = [A, beta, gamma, t0, tau_rise, tau_fall, extra_sigma]
 
     for b in aux_bands:
         cube.extend(
             [
                 params[f"A_{b}"],
-                params[f"beta_{b}"], 
+                params[f"beta_{b}"],
                 params[f"gamma_{b}"],
                 params[f"t0_{b}"],
                 params[f"tau_rise_{b}"],
@@ -958,7 +949,6 @@ def get_numpyro_cube(params, max_flux):
             ]
         )
     return np.array(cube), np.array(aux_bands)
-
 
 
 def plot_posterior_hist(posterior_samples, parameter, output_dir=None):
@@ -1078,10 +1068,10 @@ def plot_sampling_lc_fit_numpyro(
                 for j in range(len(posterior_samples["log_tau_fall"]))
             ]
         )
-        
+
         cubes = np.array([get_numpyro_cube(single_model, max_flux)[0] for single_model in model_i])
         aux_bands = get_numpyro_cube(model_i[0], max_flux)[1]
-        
+
         plot_sampling_lc_fit(
             lcs[i],
             output_folder,

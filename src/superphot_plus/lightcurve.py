@@ -1,6 +1,7 @@
 """A data class for storing information for a single light curve."""
-import numpy as np
 import os
+
+import numpy as np
 
 
 class Lightcurve:
