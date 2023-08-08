@@ -71,7 +71,7 @@ def compare_result_files(goldens_file, new_results_file, delta=0.001):
     return files_equal
 
 
-def test_diffs():
+def test_diffs(tmp_path):
     """Make golden files if they do not yet exist; otherwise, make new
     results and compare with goldens.
     """
@@ -80,7 +80,7 @@ def test_diffs():
     lc_data_path = Path("tests", "data", f"{lc_name}.npz")
     goldens_dir = Path("tests", "data", "goldens")
     goldens_file = Path(goldens_dir, f"{lc_name}{suffix}")
-    temp_results_dir = Path("tests", "data", "temp_results")
+    temp_results_dir = Path(tmp_path)
     temp_results_file = Path(temp_results_dir, f"{lc_name}{suffix}")
 
     # Check that goldens dir exists and that the files we'll use are there:
@@ -94,16 +94,6 @@ def test_diffs():
     # If we're comparing to the goldens this time:
     else:
         print("Comparing...")
-
-        if not temp_results_dir.is_dir():
-            os.makedirs(temp_results_dir)
         numpyro_single_file(str(lc_data_path), temp_results_dir, sampler="svi")
 
         compare_result_files(goldens_file, temp_results_file, 5.0)
-
-        os.remove(temp_results_file)
-        os.rmdir(temp_results_dir)
-
-
-if __name__ == "__main__":
-    test_diffs()

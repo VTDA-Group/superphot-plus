@@ -18,7 +18,7 @@ from .constants import *  # star import used due to large quantity of items impo
 from .file_paths import METRICS_DIR, MODEL_DIR, PROBS_FILE, PROBS_FILE2
 
 
-def save_test_probabilities(output_filename, true_label, pred_probabilities):
+def save_test_probabilities(output_filename, true_label, pred_probabilities, output_dir=None):
     """Saves probabilities to a separate file for ROC curve generation.
 
     Parameters
@@ -30,14 +30,18 @@ def save_test_probabilities(output_filename, true_label, pred_probabilities):
     pred_probabilities : array-like
         The prediction probabilities.
     """
-    with open(PROBS_FILE, "a+") as pf:
+    if output_dir:
+        output_path = os.path.join(output_dir, PROBS_FILE)
+    else:
+        output_path = PROBS_FILE
+    with open(output_path, "a+", encoding="utf-8") as pf:
         pf.write("%s,%s" % (output_filename, str(true_label)))
         for p in pred_probabilities:
             pf.write(",%.04f" % p)
         pf.write("\n")
 
 
-def save_unclassified_test_probabilities(output_filename, pred_probabilities):
+def save_unclassified_test_probabilities(output_filename, pred_probabilities, output_dir=None):
     """Saves probabilities to a separate file for ROC curve generation.
 
     Parameters
@@ -47,7 +51,11 @@ def save_unclassified_test_probabilities(output_filename, pred_probabilities):
     pred_probabilities : array-like
         The prediction probabilities.
     """
-    with open(PROBS_FILE2, "a+") as pf:
+    if output_dir:
+        output_path = os.path.join(output_dir, PROBS_FILE2)
+    else:
+        output_path = PROBS_FILE2
+    with open(output_path, "a+", encoding="utf-8") as pf:
         pf.write("%s" % output_filename)
         for p in pred_probabilities:
             pf.write(",%.04f" % p)
