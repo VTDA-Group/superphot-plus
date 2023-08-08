@@ -217,63 +217,43 @@ def plot_lightcurve_clipping(ztf_name, data_folder, save_dir):
     f_clip = f[idx_clip]
     ferr_clip = ferr[idx_clip]
     b_clip = b[idx_clip]
+    
+    for b_name in np.unique(b):
+        
+        all_b_idx = (b == b_name)
+        clip_b_idx = (b_clip == b_name)
+        t_b = t[all_b_idx]
+        f_b = f[all_b_idx]
+        t_clip_b = t_clip[clip_b_idx]
+        f_clip_b = f_clip[clip_b_idx]
 
-    plt.errorbar(t[b == "r"], f[b == "r"], yerr=ferr[b == "r"], fmt="o", c="r")
-    plt.errorbar(t[b == "g"], f[b == "g"], yerr=ferr[b == "g"], fmt="o", c="g")
+        # TODO: have default band names to colors
+        plt.errorbar(t_b, f_b, yerr=ferr[all_b_idx], fmt="o", c=b_name)
 
-    # overlay clipped points
-    plt.errorbar(
-        t_clip[b_clip == "r"],
-        f_clip[b_clip == "r"],
-        yerr=ferr_clip[b_clip == "r"],
-        fmt="o",
-        c="orange",
-    )
-    plt.errorbar(
-        t_clip[b_clip == "g"],
-        f_clip[b_clip == "g"],
-        yerr=ferr_clip[b_clip == "g"],
-        fmt="o",
-        c="blue",
-    )
+        # overlay clipped points
+        plt.errorbar(
+            t_clip_b,
+            f_clip_b,
+            yerr=ferr_clip[clip_b_idx],
+            fmt="^",
+            c="b_name,
+        )
 
-    # plot lines from last to max flux point
-    t_r = t[b == "r"]
-    f_r = f[b == "r"]
-    t_g = t[b == "g"]
-    f_g = f[b == "g"]
+        # plot lines from last to max flux point
+        t_range_b = np.linspace(t_b[np.argmax(f_b)], np.max(t_b), num=10)
+        m_b = (f_b[np.argmax(t_b)] - np.max(f_b)) / (np.max(t_b) - t_b[np.argmax(f_b)])
+        y_b = f_b[np.argmax(t_b)] + m_b * (t_range_b - np.max(t_b))
 
-    t_range_r = np.linspace(t_r[np.argmax(f_r)], np.max(t_r), num=10)
-    m_r = (f_r[np.argmax(t_r)] - np.max(f_r)) / (np.max(t_r) - t_r[np.argmax(f_r)])
-    y_r = f_r[np.argmax(t_r)] + m_r * (t_range_r - np.max(t_r))
+        plt.plot(t_range_b, y_b, c=b_name, label=f"Max {b_name}-band slope", linewidth=1)
 
-    t_range_g = np.linspace(t_g[np.argmax(f_g)], np.max(t_g), num=10)
-    m_g = (f_g[np.argmax(t_g)] - np.max(f_g)) / (np.max(t_g) - t_g[np.argmax(f_g)])
-    y_g = f_g[np.argmax(t_g)] + m_g * (t_range_g - np.max(t_g))
+        # plot slope of clipped portion
+        t_range_b = np.linspace(t_clip_b[np.argmax(f_clip_b)], np.max(t_clip_b), num=10)
+        m_b = (f_clip_b[np.argmax(t_clip_b)] - np.max(f_clip_b)) / (
+            np.max(t_clip_b) - t_clip_b[np.argmax(f_clip_b)]
+        )
+        y_b = f_clip_b[np.argmax(t_clip_b)] + m_b * (t_range_b - np.max(t_clip_b))
 
-    plt.plot(t_range_r, y_r, c="r", label="Max r-band slope", linewidth=1)
-    plt.plot(t_range_g, y_g, c="g", label="Max g-band slope", linewidth=1)
-
-    # plot slope of clipped portion
-    t_clip_r = t_clip[b_clip == "r"]
-    f_clip_r = f_clip[b_clip == "r"]
-    t_clip_g = t_clip[b_clip == "g"]
-    f_clip_g = f_clip[b_clip == "g"]
-
-    t_range_r = np.linspace(t_clip_r[np.argmax(f_clip_r)], np.max(t_clip_r), num=10)
-    m_r = (f_clip_r[np.argmax(t_clip_r)] - np.max(f_clip_r)) / (
-        np.max(t_clip_r) - t_clip_r[np.argmax(f_clip_r)]
-    )
-    y_r = f_clip_r[np.argmax(t_clip_r)] + m_r * (t_range_r - np.max(t_clip_r))
-
-    t_range_g = np.linspace(t_clip_g[np.argmax(f_clip_g)], np.max(t_clip_g), num=10)
-    m_g = (f_clip_g[np.argmax(t_clip_g)] - np.max(f_clip_g)) / (
-        np.max(t_clip_g) - t_clip_g[np.argmax(f_clip_g)]
-    )
-    y_g = f_clip_g[np.argmax(t_clip_g)] + m_g * (t_range_g - np.max(t_clip_g))
-
-    plt.plot(t_range_r, y_r, c="orange", label="Clipped r-band slope", linewidth=1)
-    plt.plot(t_range_g, y_g, c="blue", label="Clipped g-band slope", linewidth=1)
+        plt.plot(t_range_b, y_b, c=b_name, linestyle="dashed", label=f"Clipped {b_name}-band slope", linewidth=1)
 
     plt.title(ztf_name, fontsize=20)
     plt.xlabel("MJD", fontsize=15)

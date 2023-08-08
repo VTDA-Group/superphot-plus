@@ -23,7 +23,7 @@ def corner_plot_all(input_csvs, save_file):
     save_file : str
         Path to save the combined corner plot.
     """
-    allowed_types = ["SN Ia", "SN II", "SN IIn", "SLSN-I", "SN Ibc"]
+    allowed_types = SnClass.all_classes()
     names, labels = import_labels_only(input_csvs, allowed_types)
 
     chis = np.ones(len(names))
