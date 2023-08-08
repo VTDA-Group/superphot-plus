@@ -1,10 +1,16 @@
+"""Data class for survey-specific configuration parameters."""
+
+import dataclasses
+import os
 from dataclasses import dataclass, field
 from typing import Dict
 
 import numpy as np
+import yaml
 from typing_extensions import Self
 
-from superphot_plus.priors.fitting_priors import MultibandPriors
+import superphot_plus
+from superphot_plus.surveys.fitting_priors import MultibandPriors
 from superphot_plus.utils import get_band_extinctions
 
 
@@ -17,9 +23,15 @@ class Survey:
     wavelengths: Dict[str, float] = field(default_factory=dict)
 
     def __post_init__(self):
-        """Check that priors and wavelengths are defined for all filters."""
-        for b in self.priors.bands:
-            assert b in self.wavelengths
+        """Check that priors and wavelengths are defined for all filters.
+        
+        Perform additional logic to coerce string dictionaries into the appropriate
+        data type.
+        """
+        if isinstance(self.priors, dict):
+            self.priors = MultibandPriors(**self.priors)
+        for band in self.priors.bands:
+            assert band in self.wavelengths
 
     def get_ordered_wavelengths(self):
         """Return wavelengths in order that matches priors'
@@ -31,8 +43,8 @@ class Survey:
             Bands' wavelengths in order matching priors.
         """
         ordered_wvs = []
-        for b in self.priors.ordered_bands:
-            ordered_wvs.append(self.wavelengths[b])
+        for band in self.priors.ordered_bands:
+            ordered_wvs.append(self.wavelengths[band])
         return np.array(ordered_wvs)
 
     def get_extinctions(self, ra, dec):
@@ -57,8 +69,22 @@ class Survey:
         ext_dict = {ordered_b[i]: ext_list[i] for i in range(len(ext_list))}
         return ext_dict
 
+    def write_to_file(self, file: str):
+        """Write per-band curve priors to a yaml file."""
+        args = dataclasses.asdict(self)
+        encoded_string = yaml.dump(args, sort_keys=False)
+        with open(file, "w", encoding="utf-8") as file_handle:
+            file_handle.write(encoded_string)
+
     @classmethod
-    def ZTF(cls) -> Self:
+    def from_file(cls, file: str) -> Self:
+        """Read per-band curve priors from a yaml file."""
+        with open(file, "r", encoding="utf-8") as file_handle:
+            metadata = yaml.safe_load(file_handle)
+            return cls(**metadata)
+
+    @classmethod
+    def ZTF(cls) -> Self:  # pylint: disable=invalid-name
         """Get ZTF priors and wavelengths.
 
         Returns
@@ -66,5 +92,6 @@ class Survey:
         Survey
             Survey object representing the Zwicky Transient Facility (ZTF).
         """
-        ztf_wvs = {"g": 4741.64, "r": 6173.23}
-        return Survey("ZTF", MultibandPriors.load_ztf_priors(), ztf_wvs)
+        package_filepath = os.path.dirname(superphot_plus.__file__)
+        yaml_file = os.path.join(package_filepath, "surveys", "ztf.yaml")
+        return cls.from_file(yaml_file)

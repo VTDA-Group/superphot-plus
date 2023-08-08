@@ -25,8 +25,8 @@ from superphot_plus.plotting import (
     plot_sampling_lc_fit_numpyro,
     plot_sampling_trace_numpyro,
 )
-from superphot_plus.priors.fitting_priors import MultibandPriors, PriorFields
-from superphot_plus.surveys import Survey
+from superphot_plus.surveys.fitting_priors import PriorFields
+from superphot_plus.surveys.surveys import Survey
 
 config.update("jax_enable_x64", True)
 numpyro.enable_x64()
@@ -106,7 +106,7 @@ def trunc_norm_fields(fields: PriorFields):
     return dist.TruncatedNormal(loc=fields.mean, scale=fields.std, low=fields.clip_a, high=fields.clip_b)
 
 
-def run_mcmc(lc, sampler="NUTS", priors=MultibandPriors.load_ztf_priors(), t0_lim=None, plot=False):
+def run_mcmc(lc, sampler="NUTS", priors=Survey.ZTF().priors, t0_lim=None, plot=False):
     """Runs dynesty importance nested sampling on data file to get set
     of equally weighted posteriors (sets of fit parameters).
 
@@ -374,7 +374,7 @@ def run_mcmc(lc, sampler="NUTS", priors=MultibandPriors.load_ztf_priors(), t0_li
     return np.array(post_reformatted_for_save).T
 
 
-def run_mcmc_batch(lcs, priors=MultibandPriors.load_ztf_priors(), t0_lim=None, plot=False):
+def run_mcmc_batch(lcs, priors=Survey.ZTF().priors, t0_lim=None, plot=False):
     """Runs numpyro's NUTS sampler on data file to get a set of equally
     weighted posteriors (sets of fit parameters).
 
@@ -589,14 +589,14 @@ def main_loop_directory(test_filenames, output_dir=FITS_DIR, survey=Survey.ZTF()
         lc.pad_bands(survey.priors.ordered_bands, PAD_SIZE)
         lcs.append(lc)
 
-    eq_samples = run_mcmc_batch(lcs, priors, plot=plot)
+    eq_samples = run_mcmc_batch(lcs, survey.priors, plot=plot)
     if eq_samples is None:
         return None
 
     return None
 
 
-def numpyro_single_curve(lc, output_dir=FITS_DIR, sampler="svi", priors=MultibandPriors.load_ztf_priors()):
+def numpyro_single_curve(lc, output_dir=FITS_DIR, sampler="svi", priors=Survey.ZTF().priors):
     """Perform model fitting using dynesty on a single light curve.
 
     This function runs the dynesty importance nested sampling algorithm

@@ -9,8 +9,9 @@ from scipy.stats import truncnorm
 from superphot_plus.constants import DLOGZ, MAX_ITER, NLIVE
 from superphot_plus.lightcurve import Lightcurve
 from superphot_plus.posterior_samples import PosteriorSamples
-from superphot_plus.priors.fitting_priors import MultibandPriors
 from superphot_plus.samplers.sampler import Sampler
+from superphot_plus.surveys.fitting_priors import MultibandPriors
+from superphot_plus.surveys.surveys import Survey
 from superphot_plus.utils import flux_model
 
 
@@ -52,7 +53,7 @@ class DynestySampler(Sampler):
         raise NotImplementedError
 
 
-def run_mcmc(lightcurve, priors=MultibandPriors.load_ztf_priors(), rstate=None):
+def run_mcmc(lightcurve, priors=Survey.ZTF().priors, rstate=None):
     """Runs dynesty importance nested sampling on a single light curve; returns set
     of equally weighted posteriors (sets of fit parameters).
 
@@ -60,14 +61,10 @@ def run_mcmc(lightcurve, priors=MultibandPriors.load_ztf_priors(), rstate=None):
     ----------
     lightcurve : Lightcurve object
         The lightcurve of interest
-    t0_lim : float, optional
-        Upper limit for t0. Defaults to None.
-    plot : bool, optional
-        Flag to enable/disable plotting. Defaults to False.
+    priors : str, optional
+        Prior information. Defaults to ZTF.
     rstate : int, optional
         Random state that is seeded. if none, use machine entropy.
-    telescope : str, optional
-        Determines band and prior information. Defaults to ZTF.
 
     Returns
     -------
