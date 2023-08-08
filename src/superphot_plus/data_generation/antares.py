@@ -9,7 +9,7 @@ from antares_client.search import get_by_ztf_object_id
 
 from superphot_plus.format_data_ztf import tally_each_class
 from superphot_plus.import_utils import add_to_new_csv, clip_lightcurve_end, save_datafile
-from superphot_plus.surveys import Survey
+from superphot_plus.surveys.surveys import Survey
 from superphot_plus.utils import convert_mags_to_flux
 
 

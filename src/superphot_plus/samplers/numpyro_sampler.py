@@ -15,7 +15,8 @@ from numpyro.infer.initialization import init_to_uniform
 from superphot_plus.constants import PAD_SIZE
 from superphot_plus.lightcurve import Lightcurve
 from superphot_plus.posterior_samples import PosteriorSamples
-from superphot_plus.priors.fitting_priors import MultibandPriors, PriorFields
+from superphot_plus.surveys.fitting_priors import MultibandPriors, PriorFields
+from superphot_plus.surveys.surveys import Survey
 from superphot_plus.samplers.sampler import Sampler
 
 config.update("jax_enable_x64", True)
@@ -23,7 +24,7 @@ numpyro.enable_x64()
 
 
 class NumpyroSampler(Sampler):
-    """ "MCMC sampling using numpyro."""
+    """MCMC sampling using numpyro."""
 
     def __init__(self):
         pass
@@ -98,7 +99,7 @@ def trunc_norm(fields: PriorFields):
     )
 
 
-def run_mcmc(lc, sampler="NUTS", priors=MultibandPriors.load_ztf_priors()):
+def run_mcmc(lc, sampler="NUTS", priors=Survey.ZTF().priors):
     """Runs MCMC using numpyro on the lightcurve to get set
     of equally weighted posteriors (sets of fit parameters).
 

@@ -19,7 +19,7 @@ from pathlib import Path
 import numpy as np
 
 from superphot_plus.lightcurve import Lightcurve
-from superphot_plus.priors.fitting_priors import MultibandPriors
+from superphot_plus.surveys.surveys import Survey
 from superphot_plus.samplers.numpyro_sampler import NumpyroSampler
 
 
@@ -77,7 +77,7 @@ def run_svi_sampler(lc_data_path, temp_results_dir):
     """Run the SVI sampler, loading lightcurve and writing out posterior sample file."""
     sampler = NumpyroSampler()
     lightcurve = Lightcurve.from_file(lc_data_path)
-    posteriors = sampler.run_single_curve(lightcurve, priors=MultibandPriors.load_ztf_priors(), sampler="svi")
+    posteriors = sampler.run_single_curve(lightcurve, priors=Survey.ZTF().priors, sampler="svi")
     posteriors.save_to_file(temp_results_dir)
 
 

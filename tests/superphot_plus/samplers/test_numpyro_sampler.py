@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from superphot_plus.priors.fitting_priors import PriorFields
+from superphot_plus.surveys.fitting_priors import PriorFields
 from superphot_plus.samplers.numpyro_sampler import NumpyroSampler, run_mcmc, trunc_norm
 
 
