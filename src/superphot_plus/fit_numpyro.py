@@ -21,7 +21,7 @@ from superphot_plus.file_paths import FITS_DIR
 from superphot_plus.file_utils import get_posterior_filename
 from superphot_plus.lightcurve import Lightcurve
 from superphot_plus.plotting import (
-    plot_posterior_hist,
+    plot_posterior_hist_numpyro_dict,
     plot_sampling_lc_fit_numpyro,
     plot_sampling_trace_numpyro,
 )
@@ -332,7 +332,7 @@ def run_mcmc(lc, sampler="NUTS", priors=Survey.ZTF().priors, t0_lim=None, plot=F
         raise ValueError("'sampler' must be 'NUTS' or 'svi'")
 
     if plot:  # pragma: no cover
-        plot_posterior_hist(posterior_samples, parameter="log_tau_fall")
+        plot_posterior_hist_numpyro_dict(posterior_samples, parameter="log_tau_fall")
         plot_sampling_lc_fit_numpyro(
             posterior_samples,
             tdata=[tdata],
@@ -549,7 +549,7 @@ def run_mcmc_batch(lcs, priors=Survey.ZTF().priors, t0_lim=None, plot=False):
     """
 
     if plot:  # pragma: no cover
-        plot_posterior_hist(posterior_samples, parameter="log_tau_fall")
+        plot_posterior_hist_numpyro_dict(posterior_samples, parameter="log_tau_fall")
 
         plot_sampling_lc_fit_numpyro(
             posterior_samples,
