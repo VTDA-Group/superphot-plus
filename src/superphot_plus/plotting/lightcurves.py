@@ -260,5 +260,5 @@ def plot_lightcurve_clipping(ztf_name, data_folder, save_dir):
     plt.ylabel("Flux (arbitrary scaling)", fontsize=15)
     plt.legend()
 
-    plt.savefig(os.path.join(save_dir, "lc_clip_demo.pdf"))
+    plt.savefig(os.path.join(save_dir, f"lc_clip_demo_{ztf_name}.pdf"))
     plt.close()
