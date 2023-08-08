@@ -5,6 +5,7 @@ import numpy as np
 
 
 class Lightcurve:
+    """A class for storing and manipulating a light curve."""
     def __init__(self, times, fluxes, flux_errors, bands, name=None, sn_class=None):
         """A class for storing and manipulating a light curve.
 
@@ -62,15 +63,14 @@ class Lightcurve:
             self.flux_errors = self.flux_errors[indices]
             self.bands = self.bands[indices]
             return self
-        else:
-            return Lightcurve(
-                self.times[indices],
-                self.fluxes[indices],
-                self.flux_errors[indices],
-                self.bands[indices],
-                name=self.name,
-                sn_class=self.sn_class,
-            )
+        return Lightcurve(
+            self.times[indices],
+            self.fluxes[indices],
+            self.flux_errors[indices],
+            self.bands[indices],
+            name=self.name,
+            sn_class=self.sn_class,
+        )
 
     def obs_count(self, band=None):
         """Return the count of observations (in a given band).
@@ -87,8 +87,7 @@ class Lightcurve:
         """
         if band is None:
             return len(self.times)
-        else:
-            return np.count_nonzero(self.bands == band)
+        return np.count_nonzero(self.bands == band)
 
     def unique_bands(self):
         """Return a list of unique bands in the data.

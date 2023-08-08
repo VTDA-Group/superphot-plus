@@ -2,17 +2,12 @@
 manipulating data related to ZTF lightcurves."""
 
 import csv
-import os
 
 import numpy as np
 from sklearn.model_selection import StratifiedKFold
 
 from superphot_plus.file_paths import FITS_DIR
-from superphot_plus.file_utils import (
-    get_multiple_posterior_samples,
-    get_posterior_samples,
-    has_posterior_samples,
-)
+from superphot_plus.file_utils import get_multiple_posterior_samples, has_posterior_samples
 from superphot_plus.supernova_class import SupernovaClass as SnClass
 
 
@@ -106,8 +101,8 @@ def tally_each_class(labels):
             tally_dict[label] = 1
         else:
             tally_dict[label] += 1
-    for tally_label in tally_dict:
-        print(tally_label, ": ", str(tally_dict[tally_label]))
+    for tally_label, count in tally_dict.items():
+        print(f"{tally_label}: {count}")
     print()
 
 

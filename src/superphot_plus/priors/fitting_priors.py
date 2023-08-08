@@ -1,7 +1,7 @@
 import dataclasses
 import os
 from dataclasses import dataclass, field
-from typing import Dict, List
+from typing import Dict
 
 import numpy as np
 import yaml
@@ -104,14 +104,14 @@ class MultibandPriors:
         """Write per-band curve priors to a yaml file."""
         args = dataclasses.asdict(self)
         encoded_string = yaml.dump(args, sort_keys=False)
-        with open(file, "w", encoding="utf-8") as file:
-            file.write(encoded_string)
+        with open(file, "w", encoding="utf-8") as file_handle:
+            file_handle.write(encoded_string)
 
     @classmethod
     def from_file(cls, file: str) -> Self:
         """Read per-band curve priors from a yaml file."""
-        with open(file, "r", encoding="utf-8") as file:
-            metadata = yaml.safe_load(file)
+        with open(file, "r", encoding="utf-8") as file_handle:
+            metadata = yaml.safe_load(file_handle)
             return cls(**metadata)
 
     @classmethod
