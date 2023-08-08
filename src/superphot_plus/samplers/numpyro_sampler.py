@@ -15,9 +15,9 @@ from numpyro.infer.initialization import init_to_uniform
 from superphot_plus.constants import PAD_SIZE
 from superphot_plus.lightcurve import Lightcurve
 from superphot_plus.posterior_samples import PosteriorSamples
+from superphot_plus.samplers.sampler import Sampler
 from superphot_plus.surveys.fitting_priors import MultibandPriors, PriorFields
 from superphot_plus.surveys.surveys import Survey
-from superphot_plus.samplers.sampler import Sampler
 
 config.update("jax_enable_x64", True)
 numpyro.enable_x64()
@@ -140,10 +140,10 @@ def run_mcmc(lc, sampler="NUTS", priors=Survey.ZTF().priors):
         """
         ref_priors = priors.bands[priors.reference_band]
 
-        A, beta, gamma, t0, tau_rise, tau_fall, extra_sigma = prior_helper(ref_priors, max_flux)
+        amp, beta, gamma, t_0, tau_rise, tau_fall, extra_sigma = prior_helper(ref_priors, max_flux)
 
-        phase = t - t0
-        flux_const = A / (1.0 + jnp.exp(-phase / tau_rise))
+        phase = t - t_0
+        flux_const = amp / (1.0 + jnp.exp(-phase / tau_rise))
         sigmoid = 1 / (1 + jnp.exp(10.0 * (gamma - phase)))
 
         flux = flux_const * (
@@ -157,7 +157,7 @@ def run_mcmc(lc, sampler="NUTS", priors=Survey.ZTF().priors):
             b_priors = priors.bands[uniq_b]
 
             (
-                _,
+                amp_ratio,
                 beta_ratio,
                 gamma_ratio,
                 t0_ratio,
@@ -166,16 +166,17 @@ def run_mcmc(lc, sampler="NUTS", priors=Survey.ZTF().priors):
                 extra_sigma_ratio,
             ) = prior_helper(b_priors, max_flux, uniq_b)
 
+            amp_b = amp * amp_ratio
             beta_b = beta * beta_ratio
             gamma_b = gamma * gamma_ratio
-            t0_b = t0 * t0_ratio
+            t0_b = t_0 * t0_ratio
             tau_rise_b = tau_rise * tau_rise_ratio
             tau_fall_b = tau_fall * tau_fall_ratio
 
             inc_band_ix = np.arange(b_idx * PAD_SIZE, (b_idx + 1) * PAD_SIZE)
 
             phase_b = (t - t0_b)[inc_band_ix]
-            flux_const_b = A / (1.0 + jnp.exp(-phase_b / tau_rise_b))
+            flux_const_b = amp_b / (1.0 + jnp.exp(-phase_b / tau_rise_b))
             sigmoid_b = 1 / (1 + jnp.exp(10.0 * (gamma_b - phase_b)))
 
             flux = flux.at[inc_band_ix].set(
