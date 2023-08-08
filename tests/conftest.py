@@ -1,15 +1,13 @@
 import os
 import os.path
 
-from jax import random
-
 import pytest
 import torch
+from jax import random
 
 from superphot_plus.classify_ztf import load_mlp
-
 from superphot_plus.lightcurve import Lightcurve
-from superphot_plus.priors.fitting_priors import MultibandPriors
+from superphot_plus.surveys.surveys import Survey
 
 TEST_DIR = os.path.dirname(__file__)
 
@@ -60,7 +58,7 @@ def class_probs_csv(test_data_dir):
 
 @pytest.fixture
 def ztf_priors():
-    return MultibandPriors.load_ztf_priors()
+    return Survey.ZTF().priors
 
 
 @pytest.fixture

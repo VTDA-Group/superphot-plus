@@ -34,7 +34,7 @@ from .mlp import (
 )
 from .plotting import plot_confusion_matrix
 from .supernova_class import SupernovaClass as SnClass
-from .utils import calc_accuracy, calculate_neg_chi_squareds, f1_score
+from .utils import calc_accuracy, f1_score
 
 
 def adjust_log_dists(features_orig):
@@ -118,11 +118,9 @@ def classify(goal_per_class, num_epochs, neurons_per_layer, num_layers, fits_plo
         val_classes = SnClass.get_classes_from_labels(val_labels)
         test_classes = SnClass.get_classes_from_labels(test_labels)
 
-        # train_chis = calculate_neg_chi_squareds(train_names, FITS_DIR, DATA_DIRS)
         train_features, train_classes = oversample_using_posteriors(
             train_names, train_classes, goal_per_class
         )
-        # val_chis = calculate_neg_chi_squareds(val_names, FITS_DIR, DATA_DIRS)
         val_features, val_classes = oversample_using_posteriors(
             val_names, val_classes, round(0.1 * goal_per_class)
         )
