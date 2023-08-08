@@ -208,7 +208,7 @@ def classify(goal_per_class, num_epochs, neurons_per_layer, num_layers, fits_plo
                 os.path.join(WRONGLY_CLASSIFIED_FOLDER, wc_type + "/" + fn_new),
             )
 
-    with open(CLASSIFY_LOG_FILE, "a+") as the_file:
+    with open(CLASSIFY_LOG_FILE, "a+", encoding="utf-8") as the_file:
         the_file.write(str(goal_per_class) + " samples per class\n")
         the_file.write(str(neurons_per_layer) + " neurons per each of " + str(num_layers) + " layers\n")
         the_file.write(str(num_epochs) + " epochs\n")
@@ -327,7 +327,7 @@ def classify_single_light_curve(model, obj_name, fits_dir):
     return probs_avg
 
 
-def return_new_classifications(model, test_csv, fit_dir, include_labels=False):
+def return_new_classifications(model, test_csv, fit_dir, include_labels=False, output_dir=None):
     """Return new classifications based on model and save probabilities
     to a CSV file.
 
@@ -343,7 +343,7 @@ def return_new_classifications(model, test_csv, fit_dir, include_labels=False):
         If True, labels from the test data are included in the
         probability saving process. Defaults to False.
     """
-    with open(test_csv, "r") as tc:
+    with open(test_csv, "r", encoding="utf-8") as tc:
         csv_reader = csv.reader(tc, delimiter=",")
         next(csv_reader)
         for _, row in enumerate(csv_reader):
@@ -359,9 +359,9 @@ def return_new_classifications(model, test_csv, fit_dir, include_labels=False):
             probs_avg = classify_single_light_curve(model, test_name, fit_dir)
 
             if include_labels:
-                save_test_probabilities(test_name, label, probs_avg)
+                save_test_probabilities(test_name, label, probs_avg, output_dir)
             else:
-                save_unclassified_test_probabilities(test_name, probs_avg)
+                save_unclassified_test_probabilities(test_name, probs_avg, output_dir)
 
 
 def save_phase_versus_class_probs(probs_csv, data_dir):
