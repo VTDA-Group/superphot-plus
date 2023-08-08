@@ -25,8 +25,8 @@ def get_pred_class(ztf_name, reflect_style=False):
     label = o_transient[o_transient["ranking"] == 1]["class_name"].iat[0]
     return SnClass.get_reflect_style(label) if reflect_style else label
 
-def gaussian(x, A, mu, sigma, C):
-    return A * np.exp( - ( x - mu )**2 / sigma**2 / 2.) + C
+def gaussian(x, A, mu, sigma):
+    return A * np.exp( - ( x - mu )**2 / sigma**2 / 2.)
 
 def histedges_equalN(x, nbin):
     npt = len(x)
