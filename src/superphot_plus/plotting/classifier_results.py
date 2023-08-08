@@ -15,7 +15,7 @@ def read_probs_csv(probs_fn):
     df = pd.from_csv(probs_fn)
     names = spec_df.name.to_numpy()
     labels = spec_df.label.to_numpy()
-    probs = spec_df.iloc[2:]
+    probs = spec_df.iloc[2:7]
     pred_classes = np.argmax(probs, axis=1)
     
     return names, labels, probs, pred_classes
@@ -320,7 +320,7 @@ def plot_combined_posterior_space(fits_dir, save_dir):
             leg = plt.legend()
             for lh in leg.legendHandles: 
                 lh.set_alpha(1)
-            plt.savefig(os.path.join(save_dir, "combined_2d_posteriors", f"{param_1}_vs_{param_2}.pdf")
+            plt.savefig(os.path.join(save_dir, "combined_2d_posteriors", f"{param_1}_vs_{param_2}.pdf"))
             plt.close()
         
 
@@ -376,35 +376,25 @@ def plot_param_distributions(fit_folder, save_dir, overlay_gaussians=True):
         plt.close()
 
                     
-def plot_phase_vs_accuracy(phased_probs_csv):
-    """
-    Plot classification accuracy as a function of phase.
+def plot_phase_vs_accuracy(phased_probs_csv, save_dir):
+    """Plot classification accuracy as a function of phase.
+    
+    Parameters
+    ----------
+    phased_probs_csv : str
+        Where classification probabilities and LC truncated phases are saved.
+    save_dir : str
+        Where to save the output figures.
     """
     fig, axes = plt.subplots(2, 1, sharex=True, figsize=(8, 10), gridspec_kw={'hspace': 0})
     ax, ax2 = axes
     _, classes_to_labels = SnClass.get_type_maps()
     allowed_types = np.arange(len(classes_to_labels))
     
-    correct_class = [] # 1 if yes, 0 if no
-    true_type = []
-    phase = []
-    pred_type = []
-    
-    with open(phased_probs_csv, "r") as csvfile:
-        csvreader = csv.reader(csvfile)
-        for row in csvreader:
-            correct = (int(row[0]) == np.argmax([float(row[i]) for i in range(2,7)]))
-            correct_class.append(float(correct))
-            phase.append(float(row[1]))
-            true_type.append(int(row[0]))
-            pred_type.append(np.argmax([float(row[i]) for i in range(2,7)]))
-    
-    correct_class = np.array(correct_class)
-    true_type = np.array(true_type)
-    phase = np.array(phase)
-    pred_type = np.array(pred_type)
+    true_type, phase, _, pred_type = read_probs_csv(phased_probs_csv)
+    correct_class = (true_type == pred_type).astype(int)
         
-    leg_lines = []
+    legend_lines = []
     for at in allowed_types:
         correct_t = correct_class[true_type == at]
         phase_t = phase[true_type == at]
@@ -417,7 +407,7 @@ def plot_phase_vs_accuracy(phased_probs_csv):
         acc_hist_t = correct_hist / all_hist
         #acc_hist_comb += acc_hist_t
         l, = ax.step(bins, np.append(acc_hist_t, acc_hist_t[-1]), where='post', label=at)
-        leg_lines.append(l)
+        legend_lines.append(l)
     
     #acc_hist = acc_hist_comb / 3
     #l, = ax.step(bins, np.append(acc_hist, acc_hist[-1]), where='post', color="k", label="Average")
@@ -428,7 +418,7 @@ def plot_phase_vs_accuracy(phased_probs_csv):
     ax.set_xlim((-18., 48.))
  
     # also plot the over/under-classification fraction of each type compared to final classification
-    leg_lines = []
+    legend_lines = []
     #bins_eq=histedges_equalN(phase[phase > -30.], 20) # all points
     bins_eq = np.arange(-16, 52, 4)
     all_hist,_,_ = binned_statistic(phase, np.ones(len(true_type)), statistic='sum', bins=bins_eq)
@@ -461,39 +451,38 @@ def plot_phase_vs_accuracy(phased_probs_csv):
         pred_frac = eff_num / all_hist
         pred_frac_normed = pred_frac / pred_frac[-1]
         l, = ax2.step(bins_eq, np.append(pred_frac_normed, pred_frac_normed[-1]), where='post', label=at)
-        leg_lines.append(l)
+        legend_lines.append(l)
         
     ax2.axhline(y=1.0, color="k", xmin=-30, xmax=50, linestyle="--")
     ax2.axvline(x=0.0, color="grey", linestyle="dotted")
     ax2.set_xlabel(r"Phase (days)")
     ax2.set_ylabel("Overprediction Fraction")
     ax2.set_xlim((-18., 48.))
-    fig.legend(leg_lines, ["SN Ia", "SN II", "SN IIn", "SLSN-I", "SN Ibc"], loc='lower center', ncol=3)
-    plt.savefig("../figs/phase_vs_accuracy_5_9.pdf", bbox_inches="tight")
+    fig.legend(leg_lines, [classes_to_labels[x] for x in allowed_types], loc='lower center', ncol=3)
+    plt.savefig(os.path.join(save_dir, "phase_vs_accuracy.pdf"), bbox_inches="tight")
     plt.close()
         
     
 
-def plot_redshifts_abs_mags(probs_csv):
+def plot_redshifts_abs_mags(probs_snr_csv, save_dir):
     """
     Plot redshift and absolute magnitude distributions used in the
     redshift-inclusive classifier.
+    
+    Parameters
+    ----------
+    probs_snr_csv : str
+        Where probabilities + SNRs are stored.
+    save_dir : str
+        Where to save figures.
     """
-    #labels_to_classes = {"tensor(0)": "SN Ia", "tensor(1)": "SN II", "tensor(2)": "SN IIn", "tensor(3)": "SLSN-I", "tensor(4)": "SN Ibc"}
-    allowed_types = ["SN Ia", "SN II", "SN IIn", "SLSN-I", "SN Ibc"]
-    names, labels, redshifts = import_labels_only([probs_csv,], allowed_types, redshift=True)
-    goal_per_class = 4000
-    goal_per_name = int(np.round(goal_per_class / len(names)))
-
-    feature_means = []
+    labels_to_classes, classes_to_labels = SnClass.get_type_maps()
+    allowed_types = list(labels_to_classes.keys())
     
-    for i, name in enumerate(names):
-        features_single, labels_single, chis_single = oversample_using_posteriors(names[i:i+1], labels[i:i+1], np.ones(1), goal_per_name)
-        feature_means.append(np.mean(features_single, axis=0))
-        
-    feature_means = np.array(feature_means)
-    amplitudes = feature_means[:,0]
+    names, labels, redshifts = import_labels_only([probs_snr_csv,], allowed_types, redshift=True)
     
+    df = pd.from_csv(probs_snr_csv)
+    amplitudes = df.iloc[:,-5].to_numpy()
     app_mags = -2.5 * np.log10(amplitudes) + 26.3
 
     k_correction = 2.5 * np.log10(1.+redshifts)
@@ -504,12 +493,12 @@ def plot_redshifts_abs_mags(probs_csv):
     z_ax = axes[0]
     mag_ax = axes[1]
 
-    mag_hist,bin_edges = np.histogram(-abs_mags, bins=40, density=True, range=(15,25))
+    mag_hist, bin_edges = np.histogram(-abs_mags, bins=40, density=True, range=(15,25))
     bin_width = bin_edges[1] - bin_edges[0]
     mag_cumsum = np.cumsum(mag_hist) * bin_width
     bin_centers = (bin_edges[1:] + bin_edges[:-1]) / 2
 
-    leg_lines = []
+    legend_lines = []
     
     for at in allowed_types:
         a = at
@@ -517,7 +506,7 @@ def plot_redshifts_abs_mags(probs_csv):
         feature_hist,bin_edges = np.histogram(features_1_t, bins=bin_edges, density=True)
         cumsum = np.cumsum(feature_hist) * bin_width
         l, = mag_ax.step(-bin_centers, cumsum, where='mid', label=a)
-        leg_lines.append(l)
+        legend_lines.append(l)
 
     #l, = mag_ax.step(bin_centers, mag_cumsum, where='mid', c="k", label="Combined", linewidth=2)
     #leg_lines.append(l)
@@ -548,43 +537,36 @@ def plot_redshifts_abs_mags(probs_csv):
         ratio = 1.0
         x_left, x_right = ax.get_xlim()
         y_low, y_high = ax.get_ylim()
-
         ax.set_aspect(abs((x_right-x_left)/(y_low-y_high))*ratio)
-
         
-    fig.legend(leg_lines, ["SN Ia", "SN II", "SN IIn", "SLSN-I", "SN Ibc", "Combined"], loc='lower center', ncol=3)
-    plt.savefig("../figs/abs_mag_hist.pdf", bbox_inches="tight")
+    fig.legend(legend_lines, [*allowed_types, "Combined"], loc='lower center', ncol=3)
+    plt.savefig(os.path.join(save_dir, "abs_mag_hist.pdf"), bbox_inches="tight")
     plt.close()
 
     
     
-def plot_snr_trends(probs_snr_csv, specific_class=None):
+def plot_snr_npoints_vs_accuracy(probs_snr_csv, save_dir):
     """
     Generate plots of number of SNR > 5 points versus
     accuracy, and top 10% SNR versus accuracy.
+    
+    TODO: add functionality for only one type.
+    
+    Parameters
+    ----------
+    probs_snr_csv : str
+        Where probabilities + SNRs are stored.
+    save_dir : str
+        Where to save figures.
     """
 
-    classes_to_labels = {0: "SN Ia", 1: "SN II", 2: "SN IIn", 3: "SLSN-I", 4: "SN Ibc"}
-    correct_class = [] # 1 if yes, 0 if no
-    snr = []
-    true_type = []
-    n_high_snr = []
-    with open(probs_snr_csv, "r") as csvfile:
-        csvreader = csv.reader(csvfile)
-        for row in csvreader:
-            if specific_class is not None and int(row[1]) != specific_class:
-                continue
-            correct = (int(row[1][-2]) == np.argmax([float(row[i]) for i in range(2,7)]))
-            #print(int(row[1]), np.argmax([float(row[i]) for i in range(2,7)]))
-            correct_class.append(float(correct))
-            snr.append(float(row[-4]))
-            n_high_snr.append(int(row[-3]))
-            true_type.append(int(row[1][-2]))
-            
-    true_type = np.array(true_type)
-    snr = np.array(snr)
-    correct_class = np.array(correct_class)
-    n_high_snr = np.array(n_high_snr)
+    labels_to_classes, classes_to_labels = SnClass
+    
+    names, true_type, _, pred_classes = read_probs_csv(probs_snr_csv)
+    correct_class = np.where(true_classes == pred_classes, 1, 0)
+    
+    df = pd.from_csv(probs_snr_csv)
+    snr, n_high_snr = df.iloc[:,-4:-2]
     
     for t in np.unique(true_type):
         snr_t = snr[true_type == t]
@@ -592,8 +574,6 @@ def plot_snr_trends(probs_snr_csv, specific_class=None):
         
         snr_vs_accuracy, snr_bin_edges, _ = binned_statistic(snr_t, correct_t, 'mean', bins=histedges_equalN(snr_t, 8))
         cts_per_bin, _, _ = binned_statistic(snr_t, np.ones(len(correct_t)), 'sum', bins=snr_bin_edges)
-        
-        print(cts_per_bin)
 
         snr_vs_accuracy[np.isnan(snr_vs_accuracy)] = 1.
 
@@ -604,12 +584,10 @@ def plot_snr_trends(probs_snr_csv, specific_class=None):
     plt.xlabel("90th Percentile SNR")
     plt.ylabel("Classification Accuracy")
     plt.legend()
-    if specific_class is not None:
-        plt.savefig("../figs/snr_vs_accuracy_5_9_%d.pdf" % specific_class)
-    else:
-        plt.savefig("../figs/snr_vs_accuracy_5_9.pdf")
+    plt.savefig(os.path.join(save_dir, "snr_vs_accuracy.pdf"))
     plt.close()
     
+    # second plot
     for t in np.unique(true_type):
         correct_t = correct_class[true_type == t]
         n_high_t = n_high_snr[true_type == t]
@@ -624,54 +602,33 @@ def plot_snr_trends(probs_snr_csv, specific_class=None):
     plt.xlabel(r"Number of $\geq 3\sigma$ Datapoints")
     plt.ylabel("Classification Accuracy")
     plt.legend(loc="lower right")
-    if specific_class is not None:
-        plt.savefig("../figs/n_vs_accuracy_ztf_5_9_%d.pdf" % specific_class)
-    else:
-        plt.savefig("../figs/n_vs_accuracy_ztf_5_9_.pdf")
+    plt.savefig(os.path.join(save_dir, "n_vs_accuracy.pdf"))
     plt.close()
-    
-    """
-    plt.hist(snr, bins=20)
-    if specific_class is not None:
-        plt.savefig("../figs/snr_dist_elasticc_%d.png" % specific_class)
-    else:
-        plt.savefig("../figs/snr_dist_elasticc.png")
-    plt.close()
-    """
 
-def plot_snr_trends2(probs_snr_csv, filename_prefix):
+
+def plot_snr_hist(probs_snr_csv, save_dir):
     """
     Replicates SNR plots needed for publication.
+    
+    Parameters
+    ----------
+    probs_snr_csv : str
+        Where probability + SNR info is stored.
+    save_dir : str
+        Where to save figure.
     """
-    snr = []
-    n_snr_3 = []
-    n_snr_5 = []
-    n_snr_10 = []
-    max_r_flux = []
-    exclude_ct = 0
-    with open(probs_snr_csv, "r") as csvfile:
-        csvreader = csv.reader(csvfile)
-        for row in csvreader:
-            snr.append(float(row[-4]))
-            n_snr_3.append(int(row[-3]))
-            n_snr_5.append(int(row[-2]))
-            n_snr_10.append(int(row[-1]))
-            mf = -2.5*np.log10(float(row[-5]))+26.3
-            if mf < 11.:
-                exclude_ct += 1
-                continue
-            else:
-                max_r_flux.append(mf)
-    print(exclude_ct, len(n_snr_3))
+    df = pd.from_csv(probs_snr_csv)
+    snr, n_snr_3, n_snr_5, n_snr_10 = df.iloc[:,-4:].to_numpy().T
+    skip_mask = (df.iloc[:,1] == "SKIP").to_numpy()
 
-    plt.hist(n_snr_3, histtype='step', label=r'$3\sigma$', bins=np.arange(0, 603, 3))
-    plt.hist(n_snr_5, histtype='step', label=r'$5\sigma$', bins=np.arange(0, 603, 3))
-    plt.hist(n_snr_10, histtype='step', label=r'$10\sigma$', bins=np.arange(0, 603, 3))
+    plt.hist(n_snr_3[~skip_mask], histtype='step', label=r'$3\sigma$', bins=np.arange(0, 603, 3))
+    plt.hist(n_snr_5[~skip_mask], histtype='step', label=r'$5\sigma$', bins=np.arange(0, 603, 3))
+    plt.hist(n_snr_10[~skip_mask], histtype='step', label=r'$10\sigma$', bins=np.arange(0, 603, 3))
     plt.loglog()
     plt.xlabel("Number of Datapoints at Given SNR")
     plt.ylabel("Number of Lightcurves")
     plt.legend()
-    plt.savefig("../figs/"+filename_prefix+"_snr_hist.pdf")
+    plt.savefig(os.path.join(save_dir, "snr_hist.pdf"))
     plt.close()
 
     
@@ -691,28 +648,17 @@ def compare_mag_distributions(probs_classified, probs_unclassified, save_dir, ze
     zeropoint : float, optional
         Zeropoint used when converting mags to fluxes. Defaults to 26.3.
     """
-    max_r_classified = []
-    max_r_unclassified = []
-    max_r_skipped = []
-    exclude_ct = 0
+    classified_df = pd.from_csv(probs_classified)
+    max_flux = classified_df.iloc[:,-5].to_numpy()
+    max_r_classified = -2.5*np.log10(max_flux) + zeropoint
     
-    with open(probs_classified, "r") as csvfile:
-        csvreader = csv.reader(csvfile)
-        for row in csvreader:
-            mf = -2.5*np.log10(float(row[-5])) + zeropoint
-            max_r_classified.append(mf)
-                
-    with open(probs_unclassified, "r") as csvfile:
-        csvreader = csv.reader(csvfile)
-        for row in csvreader:
-            mf = -2.5*np.log10(float(row[-5])) + zeropoint
-                
-            if row[1] == "SKIP":
-                max_r_skipped.append(mf)
-                
-            else:
-                max_r_unclassified.append(mf)
-                
+    unclassified_df = pd.from_csv(probs_classified)
+    max_flux = unclassified_df.iloc[:,-5].to_numpy()
+    max_r_unclassified_all = -2.5*np.log10(max_flux) + zeropoint
+        
+    mask_high_chisquared = (unclassified_df.iloc[:,1] == "SKIP").to_numpy()
+    max_r_unclassified = max_r_unclassified_all[~mask_high_chisquared]
+    max_r_skipped = max_r_unclassified_all[mask_high_chisquared]
                 
     plt.hist(max_r_classified, histtype='stepfilled', bins=np.arange(5., 21., 0.5), alpha = 0.5, label="Classified", density=True)
     plt.hist(max_r_unclassified, histtype='stepfilled', bins=np.arange(5., 21., 0.5), alpha = 0.5, label="Unclassified (included)", density=True)
@@ -740,33 +686,12 @@ def plot_chisquared_vs_accuracy(pred_spec_fn, pred_phot_fn, save_dir):
     save_dir : str
         Where to save figure.
     """
-    sn_names = []
-    true_classes = []
-    pred_classes = []
-    
-    with open(pred_spec_fn, "r") as orig:
-        csv_reader = csv.reader(orig, delimiter=",")
-        for row in csv_reader:
-            if row[0] in sn_names: # skips repeats
-                continue
-            sn_names.append(row[0])
-            true_classes.append(classes_to_labels[row[1]])
-            pred_classes.append(np.argmax([float(x) for x in row[2:7]]))
-            
-    true_classes = np.array(true_classes)
-    pred_classes = np.array(pred_classes)
+    sn_names, true_classes, _, pred_classes = read_probs_csv(pred_spec_fn)
     
     correctly_classified = np.where(true_classes == pred_classes, 1, 0)
     train_chis = -1*calculate_neg_chi_squareds(sn_names, FITS_DIR, DATA_DIRS)
     
-    sn_names = []
-    with open(pred_phot_fn, "r") as orig:
-        csv_reader = csv.reader(orig, delimiter=",")
-        for row in csv_reader:
-            if row[0] in sn_names: # skips repeats
-                continue
-            sn_names.append(row[0])
-            
+    sn_names, _, _, _ = read_probs_csv(pred_phot_fn)
     train_chis_phot = -1*calculate_neg_chi_squareds(sn_names, FITS_DIR, DATA_DIRS)
     
     # plot
