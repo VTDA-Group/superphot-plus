@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1691518004716,
+  "lastUpdate": 1691526315074,
   "repoUrl": "https://github.com/lincc-frameworks/superphot-plus",
   "entries": {
     "SUPERHOT-PLUS Benchmarking Monitor": [
@@ -2375,6 +2375,60 @@ window.BENCHMARK_DATA = {
           {
             "name": "test_fit::test_svi_single_file - Memory Used",
             "value": 860.66796875,
+            "unit": "MB"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "kdesoto@g.harvard.edu",
+            "name": "Kaylee de Soto",
+            "username": "kdesoto-astro"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "805b2dd4b0fbd8566c2d585b11cc7c058552b4b9",
+          "message": "Merge pull request #98 from lincc-frameworks/issue/81/temp\n\nUse tmp_path fixture",
+          "timestamp": "2023-08-08T16:19:35-04:00",
+          "tree_id": "d3bc7995c2268d9bb7df3e785a884a4584da87c5",
+          "url": "https://github.com/lincc-frameworks/superphot-plus/commit/805b2dd4b0fbd8566c2d585b11cc7c058552b4b9"
+        },
+        "date": 1691526314162,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "test_fit::test_dynesty_single_file - Runtime",
+            "value": 5.535473585128784,
+            "unit": "s"
+          },
+          {
+            "name": "test_fit::test_dynesty_single_file - Memory Used",
+            "value": 257.61328125,
+            "unit": "MB"
+          },
+          {
+            "name": "test_fit::test_nuts_single_file - Runtime",
+            "value": 19.44719672203064,
+            "unit": "s"
+          },
+          {
+            "name": "test_fit::test_nuts_single_file - Memory Used",
+            "value": 556.015625,
+            "unit": "MB"
+          },
+          {
+            "name": "test_fit::test_svi_single_file - Runtime",
+            "value": 19.956573724746704,
+            "unit": "s"
+          },
+          {
+            "name": "test_fit::test_svi_single_file - Memory Used",
+            "value": 861.16796875,
             "unit": "MB"
           }
         ]
