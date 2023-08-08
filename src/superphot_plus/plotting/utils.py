@@ -1,7 +1,22 @@
 import numpy as np
 from alerce.core import Alerce
+import pandas as pd
 
 alerce = Alerce()
+
+
+def read_probs_csv(probs_fn):
+    """Helper function to read in a probability csv file
+    and return the columns as numpy arrays.
+    """
+    df = pd.read_csv(probs_fn)
+    names = df.Name.to_numpy()
+    labels = df.Label.to_numpy()
+    probs = df.iloc[:,2:7].astype(float).to_numpy()
+    pred_classes = np.argmax(probs, axis=1)
+    
+    return names, labels, probs, pred_classes
+
 
 def get_pred_class(ztf_name, reflect_style=False):
     """Get alerce probabilities corresponding to the four (no SN IIn)
@@ -25,14 +40,17 @@ def get_pred_class(ztf_name, reflect_style=False):
     label = o_transient[o_transient["ranking"] == 1]["class_name"].iat[0]
     return SnClass.get_reflect_style(label) if reflect_style else label
 
+
 def gaussian(x, A, mu, sigma):
     return A * np.exp( - ( x - mu )**2 / sigma**2 / 2.)
+
 
 def histedges_equalN(x, nbin):
     npt = len(x)
     return np.interp(np.linspace(0, npt, nbin + 1),
                      np.arange(npt),
                      np.sort(x))
+
 
 def get_numpyro_cube(params, max_flux):
     

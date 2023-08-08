@@ -6,8 +6,9 @@ import arviz as az
 import corner
 
 from superphot_plus.format_data_ztf import oversample_using_posteriors, import_labels_only
+from superphot_plus.supernova_class import SupernovaClass as SnClass
+from superphot_plus.surveys.surveys import Survey
 from superphot_plus.plotting.utils import get_numpyro_cube
-
 from superphot_plus.plotting.format_params import *
 
 
@@ -110,7 +111,7 @@ def plot_sampling_trace_numpyro(posterior_samples, output_dir=None):
     plt.close()
 
 
-def compare_oversampling(input_csv, allowed_types=SnClass.allowed_classes()):
+def compare_oversampling(input_csv, allowed_types=SnClass.all_classes()):
     """
     Compare plots of various oversampling methods.
     

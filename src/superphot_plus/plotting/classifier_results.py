@@ -6,19 +6,7 @@ import pandas as pd
 from superphot_plus.supernova_class import SupernovaClass as SnClass
 
 from superphot_plus.plotting.format_params import *
-
-
-def read_probs_csv(probs_fn):
-    """Helper function to read in a probability csv file
-    and return the columns as numpy arrays.
-    """
-    df = pd.from_csv(probs_fn)
-    names = spec_df.name.to_numpy()
-    labels = spec_df.label.to_numpy()
-    probs = spec_df.iloc[2:7]
-    pred_classes = np.argmax(probs, axis=1)
-    
-    return names, labels, probs, pred_classes
+from superphot_plus.plotting.utils import read_probs_csv
     
     
 def save_class_fractions(spec_probs_csv, phot_probs_csv, save_path):

@@ -1,5 +1,5 @@
 import matplotlib.pyplot as plt
-from superphot.constants import BIGGER_SIZE, MEDIUM_SIZE, SMALL_SIZE
+from superphot_plus.constants import BIGGER_SIZE, MEDIUM_SIZE, SMALL_SIZE
 
 plt.rc("font", size=SMALL_SIZE)  # controls default text sizes
 plt.rc("axes", titlesize=BIGGER_SIZE)  # fontsize of the axes title
@@ -40,10 +40,10 @@ def param_labels(aux_bands=None):
                 fr"$A_{b}$",
                 fr"$\beta_{b}$",
                 fr"$\gamma_{b}$",
-                fr"$t_\mathrm{"0, "+b}$",
-                fr"$\tau_\mathrm{"rise, "+b}$",
-                fr"$\tau_\mathrm{"fall, "+b}$",
-                fr"$\sigma_\mathrm{"extra, "+b}$",
+                fr"$t_\mathrm{{0, {b}}}$",
+                fr"$\tau_\mathrm{{rise, {b}}}$",
+                fr"$\tau_\mathrm{{fall, {b}}}$",
+                fr"$\sigma_\mathrm{{extra, {b}}}$",
             ]
         )
         

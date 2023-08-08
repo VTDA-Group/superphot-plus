@@ -3,11 +3,9 @@ import os
 import numpy as np
 import pytest
 
-from superphot_plus.plotting import (
-    plot_high_confidence_confusion_matrix,
-    plot_posterior_hist,
+from superphot_plus.plotting.sampling_results import (
+    plot_posterior_hist_numpyro_dict,
     plot_sampling_trace_numpyro,
-    plot_snIa_confusion_matrix,
 )
 
 
@@ -34,36 +32,35 @@ def generate_dummy_posterior_sample_dict(batch=False):
     }
 
 
-def test_plot_posterior_hist(tmp_path):
+def test_plot_posterior_hist_numpyro_dict(tmp_path):
     """Test that we can plot a posterior samples histogram."""
     samples = generate_dummy_posterior_sample_dict()
 
     # Check that plot is created for a valid parameter.
     parameter = "log_tau_fall"
 
-    plot_posterior_hist(samples, parameter, tmp_path)
+    plot_posterior_hist_numpyro_dict(samples, parameter, tmp_path)
 
-    filepath = os.path.join(tmp_path, f"test_hist_{parameter}.png")
+    filepath = os.path.join(tmp_path, f"test_hist_{parameter}.pdf")
     assert os.path.exists(filepath)
 
     # Check that plot throws an error if parameter is not valid.
     with pytest.raises(ValueError):
-        plot_posterior_hist(samples, "test", tmp_path)
-        plot_posterior_hist(samples, None, tmp_path)
+        plot_posterior_hist_numpyro_dict(samples, "test", tmp_path)
+        plot_posterior_hist_numpyro_dict(samples, None, tmp_path)
 
 
-def test_plot_posterior_hist_batch(tmp_path):
+def test_plot_posterior_hist_numpyro_batch(tmp_path):
     """Test that we can plot a histogram for a batch of posterior samples."""
     samples = generate_dummy_posterior_sample_dict(batch=True)
 
     # Check that plot is created for a valid parameter.
     parameter = "log_tau_fall"
 
-    plot_posterior_hist(samples, parameter, tmp_path)
+    plot_posterior_hist_numpyro_dict(samples, parameter, tmp_path)
 
-    filepath = os.path.join(tmp_path, f"test_hist_{parameter}.png")
+    filepath = os.path.join(tmp_path, f"test_hist_{parameter}.pdf")
     assert os.path.exists(filepath)
-
 
 def test_plot_sampling_trace_numpyro(tmp_path):
     """Test that we can plot the trace of posterior samples."""
@@ -71,18 +68,5 @@ def test_plot_sampling_trace_numpyro(tmp_path):
 
     plot_sampling_trace_numpyro(samples, tmp_path)
 
-    filepath = os.path.join(tmp_path, "test_trace.png")
+    filepath = os.path.join(tmp_path, "test_trace.pdf")
     assert os.path.exists(filepath)
-
-
-def test_plot_confusion_matrices(class_probs_csv, tmp_path):
-    """Test functions that plot confusion matrices."""
-    test_filename_high_confidence = os.path.join(tmp_path, "test_cm_high_confidence")
-    plot_high_confidence_confusion_matrix(class_probs_csv, test_filename_high_confidence)
-    assert os.path.exists(test_filename_high_confidence + "_c.pdf")
-    assert os.path.exists(test_filename_high_confidence + "_p.pdf")
-
-    test_filename_binary = os.path.join(tmp_path, "test_cm_binary")
-    plot_snIa_confusion_matrix(class_probs_csv, test_filename_binary)
-    assert os.path.exists(test_filename_binary + "_c.pdf")
-    assert os.path.exists(test_filename_binary + "_p.pdf")

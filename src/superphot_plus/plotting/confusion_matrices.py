@@ -14,6 +14,7 @@ from superphot_plus.supernova_class import SupernovaClass as SnClass
 from superphot_plus.utils import calc_accuracy, f1_score
 
 from superphot_plus.plotting.format_params import *
+from superphot_plus.plotting.utils import read_probs_csv
 
 def plot_high_confidence_confusion_matrix(probs_csv, filename, cutoff=0.7):
     """Plot confusion matrices for high-confidence predictions.
@@ -29,19 +30,13 @@ def plot_high_confidence_confusion_matrix(probs_csv, filename, cutoff=0.7):
         Default is 0.7.
     """
     _, classes_to_labels = SnClass.get_type_maps()
-    true_classes = []
-    pred_classes = []
+    
+    names, true_classes, probs, pred_classes, = read_probs_csv(probs_csv)
+    high_conf_mask = (np.max(probs, axis=1) > cutoff)
 
-    with open(probs_csv, "r") as csvfile:
-        csvreader = csv.reader(csvfile)
-        for row in csvreader:
-            row_np = np.array(row)
-            if np.max(row_np[2:].astype(float)) < cutoff:
-                continue
-            true_classes.append(int(row_np[1]))
-            pred_classes.append(np.argmax(row_np[2:].astype(float)))
-    true_labels = [classes_to_labels[x] for x in true_classes]
-    pred_labels = [classes_to_labels[x] for x in pred_classes]
+    true_labels = [classes_to_labels[x] for x in true_classes[high_conf_mask]]
+    pred_labels = [classes_to_labels[x] for x in pred_classes[high_conf_mask]]
+    
     plot_confusion_matrix(true_labels, pred_labels, filename + "_c.pdf", purity=False)
     plot_confusion_matrix(true_labels, pred_labels, filename + "_p.pdf", purity=True)
 
@@ -60,31 +55,12 @@ def plot_snIa_confusion_matrix(probs_csv, filename, p07=False):
         If True, only include predictions with a probability >= 0.7.
         Default is False.
     """
-    classes_to_labels = {0: "SN Ia", 1: "SN CC"}
-    true_classes = []
-    pred_classes = []
-    with open(probs_csv, "r") as csvfile:
-        csvreader = csv.reader(csvfile)
-        for row in csvreader:
-            if p07 and np.max(np.array(row[2:]).astype(float)) < 0.7:
-                continue
-            if int(row[1]) == 0:
-                true_classes.append(0)
-            else:
-                true_classes.append(1)
-            snIa_prob = float(row[2])
-            sncc_prob = (
-                float(row[3]) + float(row[4]) + float(row[5]) + float(row[6])
-            )  # pylint: disable=unused-variable
-            if snIa_prob > 0.5:
-                pred_classes.append(0)
-            else:
-                pred_classes.append(1)
+    names, true_classes, probs, pred_classes, = read_probs_csv(probs_csv)
+    pred_binary = np.where(probs[:,0] > 0.5, "SN Ia", "SN CC")
+    true_binary = np.where(true_classes == 0, "SN Ia", "SN CC")
 
-    true_labels = [classes_to_labels[x] for x in true_classes]
-    pred_labels = [classes_to_labels[x] for x in pred_classes]
-    plot_confusion_matrix(true_labels, pred_labels, filename + "_c.pdf", purity=False)
-    plot_confusion_matrix(true_labels, pred_labels, filename + "_p.pdf", purity=True)
+    plot_confusion_matrix(true_binary, pred_binary, filename + "_c.pdf", purity=False)
+    plot_confusion_matrix(true_binary, pred_binary, filename + "_p.pdf", purity=True)
 
 
 def plot_alerce_confusion_matrix(probs_csv, filename, p07=False):
@@ -433,7 +409,7 @@ def plot_confusion_matrix(y_true, y_pred, filename, purity=False, cmap=plt.cm.Pu
     fig.tight_layout()
     plt.xlim(-0.5, len(classes) - 0.5)
     plt.ylim(len(classes) - 0.5, -0.5)
-    plt.savefig(os.path.join(CM_FOLDER, filename))
+    plt.savefig(filename)
     plt.close()
 
 

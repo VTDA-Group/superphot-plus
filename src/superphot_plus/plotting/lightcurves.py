@@ -236,7 +236,7 @@ def plot_lightcurve_clipping(ztf_name, data_folder, save_dir):
             f_clip_b,
             yerr=ferr_clip[clip_b_idx],
             fmt="^",
-            c="b_name,
+            c=b_name,
         )
 
         # plot lines from last to max flux point
