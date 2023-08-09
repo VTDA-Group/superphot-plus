@@ -129,6 +129,8 @@ def oversample_using_posteriors(lc_names, labels, goal_per_class, fits_dir):
     oversampled_labels = []
     oversampled_features = []
     labels_unique = np.unique(labels)
+    
+    labels = np.array(labels)
 
     posterior_samples = get_multiple_posterior_samples(lc_names, fits_dir)
 

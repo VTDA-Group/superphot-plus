@@ -12,25 +12,32 @@ from superphot_plus.plotting.utils import get_numpyro_cube
 from superphot_plus.plotting.format_params import *
 
 
-def corner_plot_all(input_csvs, save_dir, aux_bands=["g",]):
+def plot_corner_plot_all(names, labels, fits_dir, save_dir, aux_bands=["g",]):
     """Plot combined corner plot of all training set samples, excluding
     the overall scaling A.
 
     Parameters
     ----------
-    input_csvs : list
-        List of input CSV file paths containing probability predictions.
+    names : array-like
+        List of object names.
+    labels : array-like
+        Class labels associated the objects in names.
+    fits_dir : str
+        Where object model fits are stored.
     save_dir : str
         Path to save the combined corner plot.
+    aux_bands : array-like, optional
+        The auxiliary bands of the fits (for plotting lables). Defaults to "g".
     """
-    allowed_types = SnClass.all_classes()
-    names, labels = import_labels_only(input_csvs, allowed_types)
-
-    features, labels = oversample_using_posteriors(names, labels, 4000)
+    #allowed_types = SnClass.all_classes()
+    
+    features, labels = oversample_using_posteriors(names, labels, 4000, fits_dir)
     plotting_labels = param_labels(aux_bands)
     
+    print(plotting_labels)
+    
     # remove A, t0, and chisquared
-    plotting_labels = [x for i, x in enumerate(plotting_labels) if i not in [0,3,len(plotting_labels-1)]]
+    plotting_labels = [x for i, x in enumerate(plotting_labels) if i not in [0,3,len(plotting_labels)-1]]
 
     figure = corner.corner(
         np.delete(features[:,:-1], [0, 3], axis=1),

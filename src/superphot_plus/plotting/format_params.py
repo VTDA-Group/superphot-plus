@@ -1,4 +1,5 @@
 import matplotlib.pyplot as plt
+import numpy as np
 from superphot_plus.constants import BIGGER_SIZE, MEDIUM_SIZE, SMALL_SIZE
 
 plt.rc("font", size=SMALL_SIZE)  # controls default text sizes
@@ -34,7 +35,7 @@ def param_labels(aux_bands=None):
         r"$\log_{10}\sigma_\mathrm{extra}$",
     ]
     
-    for b in aux_band:
+    for b in aux_bands:
         plot_labels.extend(
             [
                 fr"$A_{b}$",
@@ -49,4 +50,4 @@ def param_labels(aux_bands=None):
         
     plot_labels.append(r"$\chi^2$")
     
-    return plot_labels
+    return np.array(plot_labels)

@@ -6,6 +6,11 @@ import pytest
 from superphot_plus.plotting.sampling_results import (
     plot_posterior_hist_numpyro_dict,
     plot_sampling_trace_numpyro,
+    plot_corner_plot_all,
+    compare_oversampling,
+    plot_combined_posterior_space,
+    plot_param_distributions,
+    plot_oversampling_1d,
 )
 
 
@@ -62,6 +67,7 @@ def test_plot_posterior_hist_numpyro_batch(tmp_path):
     filepath = os.path.join(tmp_path, f"test_hist_{parameter}.pdf")
     assert os.path.exists(filepath)
 
+    
 def test_plot_sampling_trace_numpyro(tmp_path):
     """Test that we can plot the trace of posterior samples."""
     samples = generate_dummy_posterior_sample_dict(batch=True)
@@ -69,4 +75,14 @@ def test_plot_sampling_trace_numpyro(tmp_path):
     plot_sampling_trace_numpyro(samples, tmp_path)
 
     filepath = os.path.join(tmp_path, "test_trace.pdf")
+    assert os.path.exists(filepath)
+    
+    
+def test_corner_plot_all(single_ztf_sn_id, test_data_dir, ztf_priors, tmp_path):
+    """Test that we can generate corner plots for combined LCs.
+    """
+    aux_bands = ztf_priors.aux_bands
+    plot_corner_plot_all([single_ztf_sn_id,], ["SN Ia",], test_data_dir, tmp_path, aux_bands)
+    
+    filepath = os.path.join(tmp_path, "corner_all.pdf")
     assert os.path.exists(filepath)
