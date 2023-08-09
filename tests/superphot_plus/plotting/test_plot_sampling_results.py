@@ -120,3 +120,13 @@ def test_plot_param_distributions(single_ztf_sn_id, test_data_dir, tmp_path):
     
     filepath = os.path.join(tmp_path, "posterior_hists", "beta.pdf")
     assert os.path.exists(filepath)
+    
+    
+def test_plot_oversampling_1d(single_ztf_sn_id, test_data_dir, tmp_path):
+    """Test plot_oversampling_1d(), which essentially does the same as
+    plot_param_distributions but all in one paper-quality plot.
+    """
+    plot_oversampling_1d([single_ztf_sn_id,], ["SN Ia",], test_data_dir, tmp_path)
+    
+    filepath = os.path.join(tmp_path, "all_1d_hists.pdf")
+    assert os.path.exists(filepath)

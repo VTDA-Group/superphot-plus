@@ -208,28 +208,30 @@ def compare_oversampling(names, labels, fits_dir, allowed_types=SnClass.all_clas
             plt.close()
 
             
-def plot_oversampling_1d(input_csv, priors=Survey.ZTF().priors):
+def plot_oversampling_1d(names, labels, fits_dir, save_dir, priors=Survey.ZTF().priors):
     """
     Save all 1d oversampled histograms for each parameter, in one plot.
     Overlays prior distributions.
     
     Parameters
     ----------
-    input_csv : str
-        CSV listing all supernovae to include.
-    priors : MultibandPriors
-        Prior object to overlay prior distributions.
+    names : array-like
+        List of all object names.
+    labels : array-like
+        List of all labels associated with 'names'.
+    fits_dir : str
+        Directory where model fits are stored.
+    save_dir : str
+        Where to save figure.
+    priors : MultibandPriors, optional
+        Prior object to overlay prior distributions. Defaults to ZTF's priors.
     """
-    allowed_types = SnClass.allowed_classes()
-    labels_to_classes, classes_to_labels = SnClass.get_type_maps()
-
-    names, classes = import_labels_only(input_csv, allowed_types)
-    labels = np.array([classes_to_labels[c] for c in classes])
+    allowed_types = SnClass.all_classes()
     
     goal_per_class = 4000
-    features_gaussian, labels_gaussian = oversample_using_posteriors(names, labels, goal_per_class)
+    features_gaussian, labels_gaussian = oversample_using_posteriors(names, labels, goal_per_class, fits_dir)
 
-    params = param_labels(["g",])
+    params, _ = param_labels(["g",])
 
     fig, axes = plt.subplots(3, 4, figsize=(8, 9))
     axes = axes.ravel()
@@ -238,7 +240,7 @@ def plot_oversampling_1d(input_csv, priors=Survey.ZTF().priors):
     prior_stddevs = priors.to_numpy()[:,3]
     
     ax_num = 0
-    for i in range(1, len(params)):
+    for i in range(1, len(params)-1):
         leg_lines = []
         param_1 = params[i]
         features_1_gauss = features_gaussian[:,i]
@@ -268,8 +270,8 @@ def plot_oversampling_1d(input_csv, priors=Survey.ZTF().priors):
         feature_hist_all = feature_hist
         bin_centers = (bin_edges[1:] + bin_edges[:-1]) / 2
         
-        for at in allowed_types:
-            a = labels_to_classes[at]
+        for a in allowed_types:
+            #a = labels_to_classes[at]
             features_1_t = features_1_gauss[labels_gaussian == a]
             
             if log_scale:
@@ -293,7 +295,7 @@ def plot_oversampling_1d(input_csv, priors=Survey.ZTF().priors):
             bins_fine = 10**bins_fine
         else:
             bins_fine = np.linspace(bin_centers[0], bin_centers[-1], num=100)
-            prior_dist = gaussian(bins_fine, prior_means[i], prior_stddevs[i])
+            prior_dist = gaussian(bins_fine, 1.0, prior_means[i], prior_stddevs[i])
             
         l, = ax.plot(bins_fine, prior_dist, linestyle='dashed', label='Prior', linewidth=2, c='magenta')
         leg_lines.append(l)
