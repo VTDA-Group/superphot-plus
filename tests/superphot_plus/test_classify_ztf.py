@@ -40,9 +40,9 @@ def test_return_new_classifications(classifier, test_data_dir, tmp_path):
         csv_writer.writerow(["ZTF22abytwjj", SnClass.SUPERNOVA_IBC])
 
     # Save test file with labels
-    return_new_classifications(classifier, csv_file, test_data_dir, include_labels=True)
-    assert os.path.exists(PROBS_FILE)
+    return_new_classifications(classifier, csv_file, test_data_dir, include_labels=True, output_dir=tmp_path)
+    assert os.path.exists(os.path.join(tmp_path, PROBS_FILE))
 
     # Save test file without labels
-    return_new_classifications(classifier, csv_file, test_data_dir, include_labels=False)
-    assert os.path.exists(PROBS_FILE2)
+    return_new_classifications(classifier, csv_file, test_data_dir, include_labels=False, output_dir=tmp_path)
+    assert os.path.exists(os.path.join(tmp_path, PROBS_FILE2))
