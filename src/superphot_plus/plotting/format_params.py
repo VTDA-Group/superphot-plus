@@ -34,6 +34,15 @@ def param_labels(aux_bands=None):
         r"$\log_{10}\tau_\mathrm{fall}$",
         r"$\log_{10}\sigma_\mathrm{extra}$",
     ]
+    save_labels=[
+        "logA",
+        "beta",
+        "loggamma",
+        "t0",
+        "logtaurise",
+        "logtaufall",
+        "sigmaextra",
+    ]
     
     for b in aux_bands:
         plot_labels.extend(
@@ -47,7 +56,19 @@ def param_labels(aux_bands=None):
                 fr"$\sigma_\mathrm{{extra, {b}}}$",
             ]
         )
+        save_labels.extend(
+            [
+                f"A_{b}",
+                f"beta_{b}",
+                f"gamma_{b}",
+                f"t0_{b}",
+                f"taurise_{b}",
+                f"taufall_{b}",
+                f"extrasigma_{b}",
+            ]
+        )
         
     plot_labels.append(r"$\chi^2$")
+    save_labels.append("chisquared")
     
-    return np.array(plot_labels)
+    return np.array(plot_labels), np.array(save_labels)

@@ -32,7 +32,7 @@ def plot_corner_plot_all(names, labels, fits_dir, save_dir, aux_bands=["g",]):
     #allowed_types = SnClass.all_classes()
     
     features, labels = oversample_using_posteriors(names, labels, 4000, fits_dir)
-    plotting_labels = param_labels(aux_bands)
+    plotting_labels, _ = param_labels(aux_bands)
     
     print(plotting_labels)
     
@@ -118,7 +118,7 @@ def plot_sampling_trace_numpyro(posterior_samples, output_dir=None):
     plt.close()
 
 
-def compare_oversampling(input_csv, allowed_types=SnClass.all_classes()):
+def compare_oversampling(names, labels, fits_dir, allowed_types=SnClass.all_classes(), sampler=None):
     """
     Compare plots of various oversampling methods.
     
@@ -129,10 +129,10 @@ def compare_oversampling(input_csv, allowed_types=SnClass.all_classes()):
     allowed_types : array-like
         Types to include in plot.
     """
-    names, labels = import_labels_only(input_csv, allowed_types)
+    #names, labels = import_labels_only(input_csv, allowed_types)
     
     goal_per_class = 4000
-    features_gaussian, labels_gaussian = oversample_using_posteriors(names, labels, goal_per_class)
+    features_gaussian, labels_gaussian = oversample_using_posteriors(names, labels, goal_per_class, fits_dir, sampler)
     
     feature_means = []
     labels_ordered = []
@@ -160,7 +160,7 @@ def compare_oversampling(input_csv, allowed_types=SnClass.all_classes()):
     features_smote = features_smote_comb[labels_smote_comb == allowed_types[0]]
     labels_smote = labels_smote_comb[labels_smote_comb == allowed_types[0]]
 
-    params = param_labels(["g",])
+    params, save_labels = param_labels(["g",])
    
     fig, axes = plt.subplots(2, 1, sharex=True, figsize=(8, 10), gridspec_kw={'hspace': 0})
     smote_ax = axes[0]
@@ -204,7 +204,7 @@ def compare_oversampling(input_csv, allowed_types=SnClass.all_classes()):
             gauss_ax.ylabel(param_2)
             smote_ax.ylabel(param_2)
             #plt.legend()
-            plt.savefig(os.path.join(save_dir, "oversample_compare", "%s_vs_%s.pdf" % (param_1, param_2)), bbox_inches="tight")
+            plt.savefig(os.path.join(save_dir, "oversample_compare", "%s_vs_%s.pdf" % (save_labels[i], save_labels[j])), bbox_inches="tight")
             plt.close()
 
             
@@ -319,7 +319,7 @@ def plot_oversampling_1d(input_csv, priors=Survey.ZTF().priors):
     plt.close()
         
 
-def plot_combined_posterior_space(fits_dir, save_dir):
+def plot_combined_posterior_space(names, labels, fits_dir, save_dir):
     """
     Plot 2D scatterplots for each pair
     of fit parameters, to identify clustering
@@ -334,23 +334,19 @@ def plot_combined_posterior_space(fits_dir, save_dir):
     save_dir : str
         Where to save figure
     """
+    os.makedirs(os.path.join(save_dir, "combined_2d_posteriors"), exist_ok=True)
     labels_to_class, classes_to_labels = SnClass.get_type_maps()
-    pt_colors = ["r", "c", "k", "m", "g"]
+    #pt_colors = ["r", "c", "k", "m", "g"] # keep for TODO
     
-    param_labels = param_labels(["g",])
-
-    for post_fn in glob.glob(os.path.join(fit_folder,"*.npz")):
-        new_posts = np.load(post_fn)["arr_0"]
-        try:
-            features = np.vstack((features, new_posts[:50]))
-        except:
-            features = new_posts
+    features, labels = oversample_using_posteriors(names, labels, 4000, fits_dir)
+    
+    params, save_labels = param_labels(["g",])
     
     #color_arr = [labels_to_vals[l] for l in labels]
-    for i in range(1,len(param_labels)-1):
-        for j in range(i):
-            param_1 = param_labels[i]
-            param_2 = param_labels[j]
+    for j in range(1,len(params)-1):
+        for i in range(j):
+            param_1 = params[i]
+            param_2 = params[j]
             features_1 = features[:,i]
             features_2 = features[:,j]
             
@@ -369,10 +365,10 @@ def plot_combined_posterior_space(fits_dir, save_dir):
             """
             plt.xlabel(param_1)
             plt.ylabel(param_2)
-            leg = plt.legend()
-            for lh in leg.legendHandles: 
-                lh.set_alpha(1)
-            plt.savefig(os.path.join(save_dir, "combined_2d_posteriors", f"{param_1}_vs_{param_2}.pdf"))
+            #leg = plt.legend()
+            #for lh in leg.legendHandles: 
+            #    lh.set_alpha(1)
+            plt.savefig(os.path.join(save_dir, "combined_2d_posteriors", f"{save_labels[i]}_vs_{save_labels[j]}.pdf"))
             plt.close()
         
 

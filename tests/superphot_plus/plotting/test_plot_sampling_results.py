@@ -1,4 +1,4 @@
-import os
+import os, glob
 
 import numpy as np
 import pytest
@@ -85,4 +85,30 @@ def test_corner_plot_all(single_ztf_sn_id, test_data_dir, ztf_priors, tmp_path):
     plot_corner_plot_all([single_ztf_sn_id,], ["SN Ia",], test_data_dir, tmp_path, aux_bands)
     
     filepath = os.path.join(tmp_path, "corner_all.pdf")
+    assert os.path.exists(filepath)
+    
+    
+def test_compare_oversampling(test_data_dir, tmp_path):
+    """Test plots that compare SMOTE and multifit oversampling.
+    """
+    """
+    names = ["ZTF22aarqrxf", "ZTF22abcesfo", "ZTF22abvdwik"] # TODO: de-hardcode this
+    compare_oversampling(names, len(names) * ["SN Ia",], test_data_dir, ["SN Ia",], "dynesty")
+    
+    filepath = os.path.join(tmp_path, "oversample_compare", "logA_vs_beta.pdf")
+    os.path.exists(filepath)
+    
+    fp2 = os.path.join(tmp_path, "oversample_compare", "A_g_vs_beta_g.pdf")
+    os.path.exists(fp2)
+    """
+    # READD WHEN OVERSAMPLE_MINORITY_CLASSES REIMPLEMENTED
+    
+    
+def test_combined_parameter_space(single_ztf_sn_id, test_data_dir, tmp_path):
+    """Test plotting 2d parameter spaces of all LCs.
+    """
+    plot_combined_posterior_space([single_ztf_sn_id,], ["SN Ia",], test_data_dir, tmp_path)
+    
+    filepath = os.path.join(tmp_path, "combined_2d_posteriors", "logA_vs_beta.pdf")
+    print(glob.glob(os.path.join(tmp_path, "combined_2d_posteriors", "*.pdf")))
     assert os.path.exists(filepath)

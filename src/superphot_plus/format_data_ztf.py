@@ -106,7 +106,7 @@ def tally_each_class(labels):
     print()
 
 
-def oversample_using_posteriors(lc_names, labels, goal_per_class, fits_dir):
+def oversample_using_posteriors(lc_names, labels, goal_per_class, fits_dir, sampler=None):
     """Oversamples, drawing from posteriors of a certain fit.
 
     Parameters
@@ -132,7 +132,7 @@ def oversample_using_posteriors(lc_names, labels, goal_per_class, fits_dir):
     
     labels = np.array(labels)
 
-    posterior_samples = get_multiple_posterior_samples(lc_names, fits_dir)
+    posterior_samples = get_multiple_posterior_samples(lc_names, fits_dir, sampler)
 
     for l in labels_unique:
         idxs_in_class = np.asarray(labels == l).nonzero()[0]
