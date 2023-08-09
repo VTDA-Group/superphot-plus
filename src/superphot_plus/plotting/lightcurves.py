@@ -255,12 +255,16 @@ def plot_lightcurve_clipping(ztf_name, data_folder, save_dir):
 
         plt.plot(t_range_b, y_b, c=b_name, label=f"Max {b_name}-band slope", linewidth=1)
 
-        # plot slope of clipped portion
-        t_range_b = np.linspace(t_clip_b[np.argmax(f_clip_b)], np.max(t_clip_b), num=10)
-        m_b = (f_clip_b[np.argmax(t_clip_b)] - np.max(f_clip_b)) / (
-            np.max(t_clip_b) - t_clip_b[np.argmax(f_clip_b)]
-        )
-        y_b = f_clip_b[np.argmax(t_clip_b)] + m_b * (t_range_b - np.max(t_clip_b))
+        if len(t_clip_b) == 0:
+            t_range_b = []
+            y_b = []
+        else:
+            # plot slope of clipped portion
+            t_range_b = np.linspace(t_clip_b[np.argmax(f_clip_b)], np.max(t_clip_b), num=10)
+            m_b = (f_clip_b[np.argmax(t_clip_b)] - np.max(f_clip_b)) / (
+                np.max(t_clip_b) - t_clip_b[np.argmax(f_clip_b)]
+            )
+            y_b = f_clip_b[np.argmax(t_clip_b)] + m_b * (t_range_b - np.max(t_clip_b))
 
         plt.plot(t_range_b, y_b, c=b_name, linestyle="dashed", label=f"Clipped {b_name}-band slope", linewidth=1)
 
