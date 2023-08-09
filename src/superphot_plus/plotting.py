@@ -6,7 +6,6 @@ import os
 
 import arviz as az
 import corner
-import jax.numpy as jnp
 import matplotlib.pyplot as plt
 import numpy as np
 from alerce.core import Alerce
@@ -51,13 +50,13 @@ def plot_high_confidence_confusion_matrix(probs_csv, filename, cutoff=0.7):
     true_classes = []
     pred_classes = []
 
-    with open(probs_csv, "r") as csvfile:
+    with open(probs_csv, "r", encoding="utf-8") as csvfile:
         csvreader = csv.reader(csvfile)
         for row in csvreader:
             row_np = np.array(row)
             if np.max(row_np[2:].astype(float)) < cutoff:
                 continue
-            true_classes.append(int(row_np[1][-2]))
+            true_classes.append(int(row_np[1]))
             pred_classes.append(np.argmax(row_np[2:].astype(float)))
     true_labels = [classes_to_labels[x] for x in true_classes]
     pred_labels = [classes_to_labels[x] for x in pred_classes]
@@ -82,12 +81,12 @@ def plot_snIa_confusion_matrix(probs_csv, filename, p07=False):
     classes_to_labels = {0: "SN Ia", 1: "SN CC"}
     true_classes = []
     pred_classes = []
-    with open(probs_csv, "r") as csvfile:
+    with open(probs_csv, "r", encoding="utf-8") as csvfile:
         csvreader = csv.reader(csvfile)
         for row in csvreader:
             if p07 and np.max(np.array(row[2:]).astype(float)) < 0.7:
                 continue
-            if int(row[1][-2]) == 0:
+            if int(row[1]) == 0:
                 true_classes.append(0)
             else:
                 true_classes.append(1)
@@ -148,7 +147,7 @@ def plot_alerce_confusion_matrix(probs_csv, filename, p07=False):
     _, classes_to_labels = SnClass.get_type_maps()
     true_classes = []
     pred_classes = []
-    with open(probs_csv, "r") as csvfile:
+    with open(probs_csv, "r", encoding="utf-8") as csvfile:
         csvreader = csv.reader(csvfile)
         for e, row in enumerate(csvreader):
             name = row[0]
@@ -200,7 +199,7 @@ def plot_agreement_matrix(probs_csv, filename):
     _, classes_to_labels = SnClass.get_type_maps()
     pred_classes = []
     alerce_preds = []
-    with open(probs_csv, "r") as csvfile:
+    with open(probs_csv, "r", encoding="utf-8") as csvfile:
         csvreader = csv.reader(csvfile)
         for e, row in enumerate(csvreader):
             name = row[0]
@@ -246,7 +245,7 @@ def plot_expected_agreement_matrix(probs_csv, filename, cmap=plt.cm.Purples):
     alerce_preds = []
 
     true_classes = []
-    with open(probs_csv, "r") as csvfile:
+    with open(probs_csv, "r", encoding="utf-8") as csvfile:
         csvreader = csv.reader(csvfile)
         for e, row in enumerate(csvreader):
             name = row[0]
@@ -380,7 +379,6 @@ def plot_agreement_matrix_from_arrs(our_labels, alerce_labels, filename, cmap=pl
     plt.setp(ax.get_xticklabels(), rotation=45, ha="right", rotation_mode="anchor")
 
     # Loop over data dimensions and create text annotations.
-    fmt = ".2f"  # pylint: disable=unused-variable
     thresh = cm.max() / 2.0
     for i in range(cm.shape[0]):
         for j in range(cm.shape[1]):
@@ -427,7 +425,7 @@ def save_class_fractions(spec_probs_csv, phot_probs_csv, save_fn):
     true_classes_alerce = []
 
     ct = 0
-    with open(spec_probs_csv, "r") as csvfile:
+    with open(spec_probs_csv, "r", encoding="utf-8") as csvfile:
         csvreader = csv.reader(csvfile)
         for row in csvreader:
             ct += 1
@@ -445,7 +443,7 @@ def save_class_fractions(spec_probs_csv, phot_probs_csv, save_fn):
                 true_classes_alerce.append(l)
             pred_classes_spec.append(np.argmax(np.array(row[2:])))
 
-    with open(phot_probs_csv, "r") as csvfile:
+    with open(phot_probs_csv, "r", encoding="utf-8") as csvfile:
         csvreader = csv.reader(csvfile)
         for e, row in enumerate(csvreader):
             print(e)
@@ -454,7 +452,6 @@ def save_class_fractions(spec_probs_csv, phot_probs_csv, save_fn):
                 continue
             try:
                 alerce_pred = labels_to_class[get_pred_class(name, reflect_style=True)]
-                # print(alerce_pred, e)
             except:
                 print(name, " skipped")
                 continue
@@ -520,7 +517,7 @@ def plot_class_fractions(saved_cf_file, fig_dir, filename):
     width = 0.6
 
     fracs = []
-    with open(saved_cf_file, "r") as sf:
+    with open(saved_cf_file, "r", encoding="utf-8") as sf:
         csvreader = csv.reader(sf)
         for row in csvreader:
             fracs.append([float(x) for x in row])
@@ -550,7 +547,7 @@ def plot_class_fractions(saved_cf_file, fig_dir, filename):
             alerce_fracs_corr,
         ]
     ).T
-    fig, ax = plt.subplots(figsize=(11, 16))  # pylint: disable=unused-variable
+    _, ax = plt.subplots(figsize=(11, 16))
     bar = ax.bar(labels, combined_fracs[0], width, label=classes_to_labels[0])
     for i in range(len(combined_fracs[0])):
         bari = bar.patches[i]
@@ -633,7 +630,7 @@ def plot_confusion_matrix(y_true, y_pred, filename, purity=False, cmap=plt.cm.Pu
     classes = unique_labels(y_true, y_pred)
 
     fig, ax = plt.subplots()
-    im = ax.imshow(
+    _ = ax.imshow(
         cm, interpolation="nearest", vmin=0.0, vmax=1.0, cmap=cmap
     )  # pylint: disable=unused-variable
 
@@ -652,7 +649,6 @@ def plot_confusion_matrix(y_true, y_pred, filename, purity=False, cmap=plt.cm.Pu
     plt.setp(ax.get_xticklabels(), rotation=45, ha="right", rotation_mode="anchor")
 
     # Loop over data dimensions and create text annotations.
-    fmt = ".2f"  # pylint: disable=unused-variable
     thresh = cm.max() / 2.0
 
     for i in range(cm.shape[0]):
@@ -812,7 +808,7 @@ def plot_lightcurve_clipping(ztf_name, data_folder, save_dir):
     plt.close()
 
 
-def plot_lc_fit(ztf_name, data_dir, fit_dir, out_dir, sampling_method="dynesty"):
+def plot_lc_fit(ztf_name, ref_band, ordered_bands, data_dir, fit_dir, out_dir, sampling_method="dynesty"):
     """Plot an existing light curve fit.
 
     Parameters
@@ -842,6 +838,8 @@ def plot_lc_fit(ztf_name, data_dir, fit_dir, out_dir, sampling_method="dynesty")
         lightcurve.flux_errors,
         lightcurve.bands,
         eq_wt_samples,
+        ordered_bands,
+        ref_band,
         sampling_method,
     )
 
@@ -854,6 +852,8 @@ def plot_sampling_lc_fit(
     ferrdata,
     bdata,
     eq_wt_samples,
+    band_order,
+    ref_band,
     sampling_method="dynesty",
 ):
     """
@@ -879,40 +879,26 @@ def plot_sampling_lc_fit(
         Sampling method used for the fit. Default is "dynesty".
     """
 
-    plt.errorbar(
-        tdata[bdata == "g"],
-        fdata[bdata == "g"],
-        yerr=ferrdata[bdata == "g"],
-        c="g",
-        label="g",
-        fmt="o",
-    )
-    plt.errorbar(
-        tdata[bdata == "r"],
-        fdata[bdata == "r"],
-        yerr=ferrdata[bdata == "r"],
-        c="r",
-        label="r",
-        fmt="o",
-    )
-
     trange_fine = np.linspace(np.amin(tdata), np.amax(tdata), num=500)
 
-    for sample in eq_wt_samples[:30]:
-        plt.plot(
-            trange_fine,
-            flux_model(sample, trange_fine, ["g"] * len(trange_fine), ["r", "g"], "r"),
-            c="g",
-            lw=1,
-            alpha=0.1,
+    for b in np.unique(bdata):  # TODO: handle case where band name isnt a valid color
+        plt.errorbar(
+            tdata[bdata == b],
+            fdata[bdata == b],
+            yerr=ferrdata[bdata == b],
+            c=b,
+            label=b,
+            fmt="o",
         )
-        plt.plot(
-            trange_fine,
-            flux_model(sample, trange_fine, ["r"] * len(trange_fine), ["r", "g"], "r"),
-            c="r",
-            lw=1,
-            alpha=0.1,
-        )
+
+        for sample in eq_wt_samples[:30]:
+            plt.plot(
+                trange_fine,
+                flux_model(sample, trange_fine, [b] * len(trange_fine), band_order, ref_band),
+                c=b,
+                lw=1,
+                alpha=0.1,
+            )
 
     plt.xlabel("MJD")
     plt.ylabel("Flux")
@@ -923,7 +909,14 @@ def plot_sampling_lc_fit(
     plt.close()
 
 
-def flux_from_posteriors(t, params, max_flux):
+def get_numpyro_cube(params, max_flux):
+    """Create numpyro cube for primary and aux bands."""
+
+    aux_bands = []
+    for k in params:
+        if k[:4] == "beta" and k != "beta":
+            aux_bands.append(k[5:])
+
     logA, beta, log_gamma = params["logA"], params["beta"], params["log_gamma"]
     t0, log_tau_rise, log_tau_fall, log_extra_sigma = (
         params["t0"],
@@ -936,43 +929,23 @@ def flux_from_posteriors(t, params, max_flux):
     gamma = 10**log_gamma
     tau_rise = 10**log_tau_rise
     tau_fall = 10**log_tau_fall
-    extra_sigma = 10**log_extra_sigma  # pylint: disable=unused-variable
+    extra_sigma = 10**log_extra_sigma
 
-    A_g, beta_g, gamma_g = params["A_g"], params["beta_g"], params["gamma_g"]
-    t0_g, tau_rise_g, tau_fall_g, extra_sigma_g = (  # pylint: disable=unused-variable
-        params["t0_g"],
-        params["tau_rise_g"],
-        params["tau_fall_g"],
-        params["extra_sigma_g"],
-    )
+    cube = [A, beta, gamma, t0, tau_rise, tau_fall, extra_sigma]
 
-    A_b = A * A_g  # pylint: disable=unused-variable
-    beta_b = beta * beta_g
-    gamma_b = gamma * gamma_g
-    t0_b = t0 * t0_g
-    tau_rise_b = tau_rise * tau_rise_g
-    tau_fall_b = tau_fall * tau_fall_g
-
-    phase = t - t0
-    flux_const = A / (1.0 + jnp.exp(-phase / tau_rise))
-    sigmoid = 1 / (1 + jnp.exp(10.0 * (gamma - phase)))
-
-    flux_r = flux_const * (
-        (1 - sigmoid) * (1 - beta * phase)
-        + sigmoid * (1 - beta * gamma) * jnp.exp(-(phase - gamma) / tau_fall)
-    )
-
-    # g band
-    phase_b = t - t0_b
-    flux_const_b = A / (1.0 + jnp.exp(-phase_b / tau_rise_b))
-    sigmoid_b = 1 / (1 + jnp.exp(10.0 * (gamma_b - phase_b)))
-
-    flux_g = flux_const_b * (
-        (1 - sigmoid_b) * (1 - beta_b * phase_b)
-        + sigmoid_b * (1 - beta_b * gamma_b) * jnp.exp(-(phase_b - gamma_b) / tau_fall_b)
-    )
-
-    return flux_g, flux_r
+    for band in aux_bands:
+        cube.extend(
+            [
+                params[f"A_{band}"],
+                params[f"beta_{band}"],
+                params[f"gamma_{band}"],
+                params[f"t0_{band}"],
+                params[f"tau_rise_{band}"],
+                params[f"tau_fall_{band}"],
+                params[f"extra_sigma_{band}"],
+            ]
+        )
+    return np.array(cube), np.array(aux_bands)
 
 
 def plot_posterior_hist(posterior_samples, parameter, output_dir=None):
@@ -1044,7 +1017,8 @@ def plot_sampling_lc_fit_numpyro(
     bdata,
     max_flux,
     lcs,
-    t0_lim=None,
+    ref_band,
+    sampling_method="svi",
     output_folder=FIT_PLOTS_FOLDER,
 ):
     """
@@ -1066,15 +1040,13 @@ def plot_sampling_lc_fit_numpyro(
         Max flux of data.
     lcs: array-like
         Light curve objects on which sampling was run.
-    t0_lim:  float or None, optional
-        Upper time limit for the data.
     output_folder : str or FITS_PLOTS_FOLDER, optional
         Directory where to store the light curve sampling fit.
     """
 
-    for i in range(len(tdata)):
-        ignore_idx = ferrdata[i] == 1e10  # pylint: ignore-superfluous parens
-        tdata = tdata[i][~ignore_idx]
+    for i, time in enumerate(tdata):
+        ignore_idx = ferrdata[i] == 1e10
+        tdata = time[~ignore_idx]
         fdata = fdata[i][~ignore_idx]
         ferrdata = ferrdata[i][~ignore_idx]
         bdata = bdata[i][~ignore_idx]
@@ -1091,48 +1063,18 @@ def plot_sampling_lc_fit_numpyro(
             ]
         )
 
-        plt.errorbar(
-            tdata[bdata == 0],
-            fdata[bdata == 0],
-            yerr=ferrdata[bdata == 0],
-            c="g",
-            label="g",
-            fmt="o",
+        cubes = np.array([get_numpyro_cube(single_model, max_flux)[0] for single_model in model_i])
+        aux_bands = get_numpyro_cube(model_i[0], max_flux)[1]
+
+        plot_sampling_lc_fit(
+            lcs[i],
+            output_folder,
+            tdata,
+            fdata,
+            ferrdata,
+            bdata,
+            cubes,
+            aux_bands,
+            ref_band,
+            sampling_method=sampling_method,
         )
-        plt.errorbar(
-            tdata[bdata == 1],
-            fdata[bdata == 1],
-            yerr=ferrdata[bdata == 1],
-            c="r",
-            label="r",
-            fmt="o",
-        )
-
-        trange_fine = np.linspace(np.amin(tdata), np.amax(tdata), num=500)
-
-        for sample in model_i[:30]:
-            plt.plot(
-                trange_fine,
-                flux_from_posteriors(trange_fine, sample, max_flux[i])[0],
-                c="g",
-                lw=1,
-                alpha=0.1,
-            )
-            plt.plot(
-                trange_fine,
-                flux_from_posteriors(trange_fine, sample, max_flux[i])[1],
-                c="r",
-                lw=1,
-                alpha=0.1,
-            )
-
-        plt.xlabel("MJD")
-        plt.ylabel("Flux")
-        plt.title(lcs[i].name)
-
-        if t0_lim is None:
-            plt.savefig(os.path.join(output_folder, "%s.pdf" % lcs[i].name))
-        else:
-            plt.savefig(os.path.join(output_folder, "%s_%.02f.pdf" % (lcs[i].name, t0_lim)))
-
-        plt.close()

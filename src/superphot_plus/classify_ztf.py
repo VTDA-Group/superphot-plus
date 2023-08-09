@@ -34,8 +34,7 @@ from .mlp import (
 )
 from .plotting import plot_confusion_matrix
 from .supernova_class import SupernovaClass as SnClass
-from .utils import calc_accuracy, calculate_neg_chi_squareds, f1_score
-from .ztf_transient_fit import run_mcmc
+from .utils import calc_accuracy, f1_score
 
 
 def adjust_log_dists(features_orig):
@@ -119,11 +118,9 @@ def classify(goal_per_class, num_epochs, neurons_per_layer, num_layers, fits_plo
         val_classes = SnClass.get_classes_from_labels(val_labels)
         test_classes = SnClass.get_classes_from_labels(test_labels)
 
-        # train_chis = calculate_neg_chi_squareds(train_names, FITS_DIR, DATA_DIRS)
         train_features, train_classes = oversample_using_posteriors(
             train_names, train_classes, goal_per_class
         )
-        # val_chis = calculate_neg_chi_squareds(val_names, FITS_DIR, DATA_DIRS)
         val_features, val_classes = oversample_using_posteriors(
             val_names, val_classes, round(0.1 * goal_per_class)
         )
@@ -211,7 +208,7 @@ def classify(goal_per_class, num_epochs, neurons_per_layer, num_layers, fits_plo
                 os.path.join(WRONGLY_CLASSIFIED_FOLDER, wc_type + "/" + fn_new),
             )
 
-    with open(CLASSIFY_LOG_FILE, "a+") as the_file:
+    with open(CLASSIFY_LOG_FILE, "a+", encoding="utf-8") as the_file:
         the_file.write(str(goal_per_class) + " samples per class\n")
         the_file.write(str(neurons_per_layer) + " neurons per each of " + str(num_layers) + " layers\n")
         the_file.write(str(num_epochs) + " epochs\n")
@@ -301,12 +298,12 @@ def classify_single_light_curve(model, obj_name, fits_dir):
 
     Parameters
     ----------
+    model : MLP
+        The classifier.
     obj_name : str
         Name of the supernova.
     fits_dir : str
         Where model fit information is stored.
-    data_dirs : np.ndarray
-        Where the object's datafile could be stored.
 
     Returns
     ----------
@@ -330,28 +327,26 @@ def classify_single_light_curve(model, obj_name, fits_dir):
     return probs_avg
 
 
-def return_new_classifications(test_csv, data_dirs, fit_dir, include_labels=False):
+def return_new_classifications(model, test_csv, fit_dir, include_labels=False, output_dir=None):
     """Return new classifications based on model and save probabilities
     to a CSV file.
 
     Parameters
     ----------
+    model : MLP
+        The classifier.
     test_csv : str
         Path to the CSV file containing the test data.
-    data_dirs : list of str
-        List of paths to directories containing data.
     fit_dir : str
         Path to the directory containing the fit data.
     include_labels : bool, optional
         If True, labels from the test data are included in the
         probability saving process. Defaults to False.
     """
-    model = load_mlp(TRAINED_MODEL_FN, TRAINED_MODEL_PARAMS)
-    with open(test_csv, "r") as tc:
+    with open(test_csv, "r", encoding="utf-8") as tc:
         csv_reader = csv.reader(tc, delimiter=",")
         next(csv_reader)
         for _, row in enumerate(csv_reader):
-
             try:
                 test_name = row[0]
             except:
@@ -361,12 +356,12 @@ def return_new_classifications(test_csv, data_dirs, fit_dir, include_labels=Fals
             if include_labels:
                 label = row[1]
 
-            probs_avg = classify_single_light_curve(test_name, fit_dir, data_dirs)
+            probs_avg = classify_single_light_curve(model, test_name, fit_dir)
 
             if include_labels:
-                save_test_probabilities(test_name, label, probs_avg)
+                save_test_probabilities(test_name, label, probs_avg, output_dir)
             else:
-                save_unclassified_test_probabilities(test_name, probs_avg)
+                save_unclassified_test_probabilities(test_name, probs_avg, output_dir)
 
 
 def save_phase_versus_class_probs(probs_csv, data_dir):
@@ -419,11 +414,11 @@ def save_phase_versus_class_probs(probs_csv, data_dir):
                 if phase > 50.0:
                     return None
 
-                try:
-                    refit_posts = run_mcmc(os.path.join(data_dir, test_name + ".npz"), t)
-                except:
-                    print("skipping fitting")
-                    return None
+                # try:
+                #     # refit_posts = run_mcmc(os.path.join(data_dir, test_name + ".npz"), t)
+                # except:
+                #     print("skipping fitting")
+                #     return None
 
                 # normalize the log distributions
                 test_features = adjust_log_dists(test_features)

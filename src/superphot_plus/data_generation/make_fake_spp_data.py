@@ -1,9 +1,7 @@
 import numpy as np
 from scipy.stats import truncnorm
 
-from superphot_plus.utils import flux_model
-from superphot_plus.ztf_transient_fit import params_valid
-
+from superphot_plus.utils import flux_model, params_valid
 
 DEFAULT_MAX_FLUX = 1.0
 # Nested sampling priors
@@ -22,6 +20,7 @@ PRIOR_T0_g = [1.0 - 0.0006, 1.0006, 0.9999 + 8.9289e-5, 1.5 * 4.5055e-05]
 PRIOR_TAU_RISE_g = [0.5, 2.0, 0.9663, 0.0128]
 PRIOR_TAU_FALL_g = [0.1, 3.0, 0.5488, 0.0553]
 PRIOR_EXTRA_SIGMA_g = [0.2, 2.0, 0.8606, 0.0388]
+
 
 def trunc_gauss(quantile, clip_a, clip_b, mean, std):
     """Truncated Gaussian distribution.
@@ -47,6 +46,7 @@ def trunc_gauss(quantile, clip_a, clip_b, mean, std):
     """
     a, b = (clip_a - mean) / std, (clip_b - mean) / std
     return truncnorm.ppf(quantile, a, b, loc=mean, scale=std)
+
 
 def create_prior(cube):
     """Creates prior for dynesty, where each side of the "cube"

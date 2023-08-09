@@ -7,8 +7,10 @@ import os
 import numpy as np
 from antares_client.search import get_by_ztf_object_id
 
+from superphot_plus.format_data_ztf import tally_each_class
 from superphot_plus.import_utils import add_to_new_csv, clip_lightcurve_end, save_datafile
-from superphot_plus.utils import convert_mags_to_flux, get_band_extinctions
+from superphot_plus.surveys.surveys import Survey
+from superphot_plus.utils import convert_mags_to_flux
 
 
 def generate_files_from_antares(input_csv, output_folder, output_csv):
@@ -67,11 +69,11 @@ def generate_files_from_antares(input_csv, output_folder, output_csv):
             try:
                 ra = np.mean(ra[~np.isnan(ra)])
                 dec = np.mean(dec[~np.isnan(dec)])
-                g_ext, r_ext = get_band_extinctions(ra, dec)
+                extinctions = Survey.ZTF().get_extinctions(ra, dec)
             except:
                 continue
-            m[b == "r"] -= r_ext
-            m[b == "g"] -= g_ext
+            m[b == "r"] -= extinctions["r"]
+            m[b == "g"] -= extinctions["g"]
 
             valid_idx = ~np.isnan(merr) & ~np.isnan(zp)
             t = t[valid_idx]
@@ -98,10 +100,5 @@ def generate_files_from_antares(input_csv, output_folder, output_csv):
 
             save_datafile(ztf_name, t, f, ferr, b, output_folder)
             add_to_new_csv(ztf_name, label, redshift, output_csv)
-            if label in label_dict:
-                label_dict[label] += 1
-            else:
-                label_dict[label] = 1
 
-    for label, counts in label_dict.items():
-        print(label, counts)
+    tally_each_class(label_dict)

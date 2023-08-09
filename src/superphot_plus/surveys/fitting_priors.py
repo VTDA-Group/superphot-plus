@@ -1,13 +1,9 @@
-import dataclasses
-import os
+"""Data class for per-band curve priors"""
+
 from dataclasses import dataclass, field
-from typing import Dict, List
+from typing import Dict
 
 import numpy as np
-import yaml
-from typing_extensions import Self
-
-import superphot_plus
 
 
 @dataclass
@@ -69,14 +65,14 @@ class MultibandPriors:
     """Per-band curve priors."""
     band_order: str = "ugrizy"
     """Ordering of bands."""
+    reference_band: str = "r"
+    """Reference band."""
 
     def __post_init__(self):
         """Additional logic to coerce string dictionaries into the appropriate
         data type."""
         for band, curve_priors in self.bands.items():
-            if isinstance(curve_priors, CurvePriors):
-                pass
-            elif isinstance(curve_priors, dict):
+            if isinstance(curve_priors, dict):
                 self.bands[band] = CurvePriors(**curve_priors)
 
     @property
@@ -86,9 +82,9 @@ class MultibandPriors:
         for band in self.band_order:
             if band in self.bands:
                 bands_ordered.append(band)
-        
+
         return np.array(bands_ordered)
-    
+
     def to_numpy(self):
         """Fields as a (7*bands)x4 numpy array"""
         priors = []
@@ -97,24 +93,3 @@ class MultibandPriors:
                 priors.append(self.bands[band].to_numpy())
 
         return np.concatenate(priors)
-
-    def write_to_file(self, file: str):
-        """Write per-band curve priors to a yaml file."""
-        args = dataclasses.asdict(self)
-        encoded_string = yaml.dump(args, sort_keys=False)
-        with open(file, "w", encoding="utf-8") as file:
-            file.write(encoded_string)
-
-    @classmethod
-    def from_file(cls, file: str) -> Self:
-        """Read per-band curve priors from a yaml file."""
-        with open(file, "r", encoding="utf-8") as file:
-            metadata = yaml.safe_load(file)
-            return cls(**metadata)
-
-    @classmethod
-    def load_ztf_priors(cls) -> Self:
-        """Read ZTF priors from neighboring file."""
-        package_filepath = os.path.dirname(superphot_plus.__file__)
-        ztf_path = os.path.join(package_filepath, "priors", "ztf_rg_priors.yaml")
-        return cls.from_file(ztf_path)
