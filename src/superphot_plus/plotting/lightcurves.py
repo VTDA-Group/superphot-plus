@@ -8,6 +8,7 @@ from superphot_plus.file_paths import FIT_PLOTS_FOLDER
 from superphot_plus.import_utils import clip_lightcurve_end, import_lc
 from superphot_plus.utils import flux_model
 
+from superphot_plus.plotting.utils import get_numpyro_cube
 from superphot_plus.plotting.format_params import *
 
 
@@ -116,7 +117,7 @@ def plot_sampling_lc_fit(
     plt.ylabel("Flux")
     plt.title(ztf_name + ": " + sampling_method)
 
-    plt.savefig(os.path.join(out_dir, ztf_name + "_" + sampling_method + ".png"))
+    plt.savefig(os.path.join(out_dir, ztf_name + "_" + sampling_method + ".pdf"))
 
     plt.close()
     
@@ -158,15 +159,23 @@ def plot_sampling_lc_fit_numpyro(
     output_folder : str or FITS_PLOTS_FOLDER, optional
         Directory where to store the light curve sampling fit.
     """
+    lcs = np.atleast_1d(lcs)
+    tdata = np.atleast_2d(tdata)
+    fdata = np.atleast_2d(fdata)
+    ferrdata = np.atleast_2d(ferrdata)
+    bdata = np.atleast_2d(bdata)
+    max_flux = np.atleast_1d(max_flux)
+    
 
     for i in range(len(tdata)):
+        
         ignore_idx = ferrdata[i] == 1e10  # pylint: ignore-superfluous parens
-        tdata = tdata[i][~ignore_idx]
-        fdata = fdata[i][~ignore_idx]
-        ferrdata = ferrdata[i][~ignore_idx]
-        bdata = bdata[i][~ignore_idx]
+        tdata_i = tdata[i][~ignore_idx]
+        fdata_i = fdata[i][~ignore_idx]
+        ferrdata_i = ferrdata[i][~ignore_idx]
+        bdata_i = bdata[i][~ignore_idx]
 
-        model_i = np.array(
+        models = np.array(
             [
                 {
                     k: posterior_samples[k][j, i]
@@ -178,16 +187,16 @@ def plot_sampling_lc_fit_numpyro(
             ]
         )
         
-        cubes = np.array([get_numpyro_cube(single_model, max_flux)[0] for single_model in model_i])
-        aux_bands = get_numpyro_cube(model_i[0], max_flux)[1]
+        cubes = np.array([get_numpyro_cube(single_model, max_flux[i])[0] for single_model in models])
+        aux_bands = get_numpyro_cube(models[0], max_flux[i])[1]
         
         plot_sampling_lc_fit(
             lcs[i],
             output_folder,
-            tdata,
-            fdata,
-            ferrdata,
-            bdata,
+            tdata_i,
+            fdata_i,
+            ferrdata_i,
+            bdata_i,
             cubes,
             aux_bands,
             ref_band,
