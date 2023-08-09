@@ -101,7 +101,7 @@ def test_compare_oversampling(test_data_dir, tmp_path):
     fp2 = os.path.join(tmp_path, "oversample_compare", "A_g_vs_beta_g.pdf")
     os.path.exists(fp2)
     """
-    # READD WHEN OVERSAMPLE_MINORITY_CLASSES REIMPLEMENTED
+    # RE-ADD WHEN OVERSAMPLE_MINORITY_CLASSES REIMPLEMENTED
     
     
 def test_combined_parameter_space(single_ztf_sn_id, test_data_dir, tmp_path):
@@ -110,5 +110,13 @@ def test_combined_parameter_space(single_ztf_sn_id, test_data_dir, tmp_path):
     plot_combined_posterior_space([single_ztf_sn_id,], ["SN Ia",], test_data_dir, tmp_path)
     
     filepath = os.path.join(tmp_path, "combined_2d_posteriors", "logA_vs_beta.pdf")
-    print(glob.glob(os.path.join(tmp_path, "combined_2d_posteriors", "*.pdf")))
+    assert os.path.exists(filepath)
+    
+    
+def test_plot_param_distributions(single_ztf_sn_id, test_data_dir, tmp_path):
+    """Test plot_param_distributions() with Gaussian overlays.
+    """
+    plot_param_distributions([single_ztf_sn_id,], ["SN Ia",], test_data_dir, tmp_path)
+    
+    filepath = os.path.join(tmp_path, "posterior_hists", "beta.pdf")
     assert os.path.exists(filepath)

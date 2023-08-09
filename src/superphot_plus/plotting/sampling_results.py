@@ -8,7 +8,7 @@ import corner
 from superphot_plus.format_data_ztf import oversample_using_posteriors, import_labels_only
 from superphot_plus.supernova_class import SupernovaClass as SnClass
 from superphot_plus.surveys.surveys import Survey
-from superphot_plus.plotting.utils import get_numpyro_cube
+from superphot_plus.plotting.utils import get_numpyro_cube, gaussian
 from superphot_plus.plotting.format_params import *
 
 
@@ -372,7 +372,7 @@ def plot_combined_posterior_space(names, labels, fits_dir, save_dir):
             plt.close()
         
 
-def plot_param_distributions(fit_folder, save_dir, overlay_gaussians=True):
+def plot_param_distributions(names, labels, fit_folder, save_dir, overlay_gaussians=True):
     """
     Plot the parameter distributions to get better priors for fitting.
     
@@ -385,20 +385,17 @@ def plot_param_distributions(fit_folder, save_dir, overlay_gaussians=True):
     overlay_gaussians : boolean, optional
         Whether to overlay Gaussian estimate of distribution. Defaults to True.
     """
-    for post_fn in glob.glob(os.path.join(fit_folder,"*.npz")):
-        new_posts = np.load(post_fn)["arr_0"]
-        try:
-            posteriors = np.vstack((posteriors, new_posts[:50]))
-        except:
-            posteriors = new_posts
+    os.makedirs(os.path.join(save_dir, "posterior_hists"), exist_ok=True)
+    posteriors, labels = oversample_using_posteriors(names, labels, 4000, fit_folder)
 
-    num_params = posteriors.shape[1]
-    for i in range(1,num_params):
+    params, save_labels = param_labels(["g",])
+    
+    for i in range(1,len(params)-1):
             
         feat_i = posteriors[:,i]
         
         if i in [2, 4, 5, 6]:
-            feat = np.log10(feat)
+            feat_i = np.log10(feat_i)
 
         n, bins, patches = plt.hist(feat_i, bins=100)
         bin_centers = (bins[1:] + bins[:-1]) / 2.
@@ -416,9 +413,9 @@ def plot_param_distributions(fit_folder, save_dir, overlay_gaussians=True):
             """
             popt, pcov = curve_fit(gaussian, bin_centers, n, p0=[5000., 1., 0.00005, 0.], sigma=s, bounds=([50., 0., 0., -50.], [100000., 1e20, 1e20, 200.]), maxfev=1e5, ftol=1e-10)
             """
-            plt.plot(bin_centers, gaussian(bin_centers, [amp_est, mean_est, stddev_est]), lw=2)
+            plt.plot(bin_centers, gaussian(bin_centers, amp_est, mean_est, stddev_est), lw=2)
         
-        plt.xlabel(i)
+        plt.xlabel(params[i])
         plt.ylabel("Count")
-        plt.savefig(os.path.join(save_dir, "posterior_hists", "%d.pdf" % i))
+        plt.savefig(os.path.join(save_dir, "posterior_hists", f"{save_labels[i]}.pdf"))
         plt.close()
