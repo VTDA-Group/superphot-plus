@@ -6,6 +6,7 @@ import numpy as np
 
 class Lightcurve:
     """A class for storing and manipulating a light curve."""
+
     def __init__(self, times, fluxes, flux_errors, bands, name=None, sn_class=None):
         """A class for storing and manipulating a light curve.
 

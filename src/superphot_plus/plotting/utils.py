@@ -12,9 +12,9 @@ def read_probs_csv(probs_fn):
     df = pd.read_csv(probs_fn)
     names = df.Name.to_numpy()
     labels = df.Label.to_numpy()
-    probs = df.iloc[:,2:7].astype(float).to_numpy()
+    probs = df.iloc[:, 2:7].astype(float).to_numpy()
     pred_classes = np.argmax(probs, axis=1)
-    
+
     return names, labels, probs, pred_classes
 
 
@@ -42,18 +42,15 @@ def get_pred_class(ztf_name, reflect_style=False):
 
 
 def gaussian(x, A, mu, sigma):
-    return A * np.exp( - ( x - mu )**2 / sigma**2 / 2.)
+    return A * np.exp(-((x - mu) ** 2) / sigma**2 / 2.0)
 
 
 def histedges_equalN(x, nbin):
     npt = len(x)
-    return np.interp(np.linspace(0, npt, nbin + 1),
-                     np.arange(npt),
-                     np.sort(x))
+    return np.interp(np.linspace(0, npt, nbin + 1), np.arange(npt), np.sort(x))
 
 
 def get_numpyro_cube(params, max_flux):
-    
     aux_bands = []
     for k in params:
         if k[:4] == "beta" and k != "beta":
@@ -72,14 +69,14 @@ def get_numpyro_cube(params, max_flux):
     tau_rise = 10**log_tau_rise
     tau_fall = 10**log_tau_fall
     extra_sigma = 10**log_extra_sigma  # pylint: disable=unused-variable
-    
+
     cube = [A, beta, gamma, t0, tau_rise, tau_fall, extra_sigma]
 
     for b in aux_bands:
         cube.extend(
             [
                 params[f"A_{b}"],
-                params[f"beta_{b}"], 
+                params[f"beta_{b}"],
                 params[f"gamma_{b}"],
                 params[f"t0_{b}"],
                 params[f"tau_rise_{b}"],
@@ -97,21 +94,21 @@ def add_snr_to_prob_csv(probs_csv, new_csv):
     """
     all_rows = []
     with open(probs_csv, "r") as csvfile:
-        with open(new_csv, 'w+') as csvoutput:
+        with open(new_csv, "w+") as csvoutput:
             csvreader = csv.reader(csvfile)
             csvwriter = csv.writer(csvoutput)
             for row in csvreader:
                 name = row[0]
                 for data_dir in DATA_DIRS:
                     try:
-                        #data_fn = glob.glob(data_dir + "/*/" + name + ".npz")[0]
+                        # data_fn = glob.glob(data_dir + "/*/" + name + ".npz")[0]
                         data_fn = data_dir + "/" + name + ".npz"
                         npy_array = np.load(data_fn)
-                        #print(npy_array)
+                        # print(npy_array)
                     except:
                         pass
-                    
-                arr = npy_array['arr_0']
+
+                arr = npy_array["arr_0"]
 
                 ferr = arr[2]
                 f = arr[1][ferr != "nan"].astype(float)
@@ -119,9 +116,9 @@ def add_snr_to_prob_csv(probs_csv, new_csv):
                 ferr = ferr[ferr != "nan"].astype(float)
                 snr = np.abs(f / ferr)
 
-                n_snr_3 = len(snr[(snr > 3.)])
-                n_snr_5 = len(snr[(snr > 5.)])
-                n_snr_10 = len(snr[(snr > 10.)])
+                n_snr_3 = len(snr[(snr > 3.0)])
+                n_snr_5 = len(snr[(snr > 5.0)])
+                n_snr_10 = len(snr[(snr > 10.0)])
                 snr_ten_percent = np.quantile(snr, 0.9)
                 max_r_flux = np.max(f[b == "r"])
                 row.append(max_r_flux)

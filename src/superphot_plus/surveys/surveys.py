@@ -24,7 +24,7 @@ class Survey:
 
     def __post_init__(self):
         """Check that priors and wavelengths are defined for all filters.
-        
+
         Perform additional logic to coerce string dictionaries into the appropriate
         data type.
         """

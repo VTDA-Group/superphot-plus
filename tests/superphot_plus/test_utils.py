@@ -59,4 +59,3 @@ def test_get_band_extinctions() -> None:
     """
     ext_list = get_band_extinctions(0.0, 10.0, [4741.64, 6173.23])
     assert np.all(ext_list == pytest.approx([0.3133, 0.2202], 0.01))
-

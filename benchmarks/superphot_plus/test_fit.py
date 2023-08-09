@@ -28,9 +28,7 @@ def test_nuts_single_file():
     """Benchmarks the NUTS sampler"""
     sampler = NumpyroSampler()
     lightcurve = Lightcurve.from_file(fn_to_fit)
-    posteriors = sampler.run_single_curve(
-        lightcurve, priors=Survey.ZTF().priors, sampler="NUTS"
-    )
+    posteriors = sampler.run_single_curve(lightcurve, priors=Survey.ZTF().priors, sampler="NUTS")
     posteriors.save_to_file(OUTPUT_DIR)
 
 

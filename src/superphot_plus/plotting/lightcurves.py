@@ -12,15 +12,7 @@ from superphot_plus.plotting.utils import get_numpyro_cube
 from superphot_plus.plotting.format_params import *
 
 
-def plot_lc_fit(
-    ztf_name,
-    ref_band,
-    ordered_bands,
-    data_dir,
-    fit_dir,
-    out_dir,
-    sampling_method="dynesty"
-):
+def plot_lc_fit(ztf_name, ref_band, ordered_bands, data_dir, fit_dir, out_dir, sampling_method="dynesty"):
     """Plot an existing light curve fit.
 
     Parameters
@@ -52,7 +44,7 @@ def plot_lc_fit(
         eq_wt_samples,
         ordered_bands,
         ref_band,
-        sampling_method
+        sampling_method,
     )
 
 
@@ -92,8 +84,8 @@ def plot_sampling_lc_fit(
     """
 
     trange_fine = np.linspace(np.amin(tdata), np.amax(tdata), num=500)
-    
-    for b in np.unique(bdata): # TODO: handle case where band name isnt a valid color
+
+    for b in np.unique(bdata):  # TODO: handle case where band name isnt a valid color
         plt.errorbar(
             tdata[bdata == b],
             fdata[bdata == b],
@@ -111,7 +103,6 @@ def plot_sampling_lc_fit(
                 lw=1,
                 alpha=0.1,
             )
-            
 
     plt.xlabel("MJD")
     plt.ylabel("Flux")
@@ -120,7 +111,7 @@ def plot_sampling_lc_fit(
     plt.savefig(os.path.join(out_dir, ztf_name + "_" + sampling_method + ".pdf"))
 
     plt.close()
-    
+
 
 def plot_sampling_lc_fit_numpyro(
     posterior_samples,
@@ -165,10 +156,8 @@ def plot_sampling_lc_fit_numpyro(
     ferrdata = np.atleast_2d(ferrdata)
     bdata = np.atleast_2d(bdata)
     max_flux = np.atleast_1d(max_flux)
-    
 
     for i in range(len(tdata)):
-        
         ignore_idx = ferrdata[i] == 1e10  # pylint: ignore-superfluous parens
         tdata_i = tdata[i][~ignore_idx]
         fdata_i = fdata[i][~ignore_idx]
@@ -186,10 +175,10 @@ def plot_sampling_lc_fit_numpyro(
                 for j in range(len(posterior_samples["log_tau_fall"]))
             ]
         )
-        
+
         cubes = np.array([get_numpyro_cube(single_model, max_flux[i])[0] for single_model in models])
         aux_bands = get_numpyro_cube(models[0], max_flux[i])[1]
-        
+
         plot_sampling_lc_fit(
             lcs[i],
             output_folder,
@@ -202,8 +191,8 @@ def plot_sampling_lc_fit_numpyro(
             ref_band,
             sampling_method=sampling_method,
         )
-        
-        
+
+
 def plot_lightcurve_clipping(ztf_name, data_folder, save_dir):
     """Plot the lightcurve WITH clipped points and lines demonstrating
     how those points are clipped.
@@ -226,11 +215,10 @@ def plot_lightcurve_clipping(ztf_name, data_folder, save_dir):
     f_clip = f[idx_clip]
     ferr_clip = ferr[idx_clip]
     b_clip = b[idx_clip]
-    
+
     for b_name in np.unique(b):
-        
-        all_b_idx = (b == b_name)
-        clip_b_idx = (b_clip == b_name)
+        all_b_idx = b == b_name
+        clip_b_idx = b_clip == b_name
         t_b = t[all_b_idx]
         f_b = f[all_b_idx]
         t_clip_b = t_clip[clip_b_idx]
@@ -266,7 +254,9 @@ def plot_lightcurve_clipping(ztf_name, data_folder, save_dir):
             )
             y_b = f_clip_b[np.argmax(t_clip_b)] + m_b * (t_range_b - np.max(t_clip_b))
 
-        plt.plot(t_range_b, y_b, c=b_name, linestyle="dashed", label=f"Clipped {b_name}-band slope", linewidth=1)
+        plt.plot(
+            t_range_b, y_b, c=b_name, linestyle="dashed", label=f"Clipped {b_name}-band slope", linewidth=1
+        )
 
     plt.title(ztf_name, fontsize=20)
     plt.xlabel("MJD", fontsize=15)
