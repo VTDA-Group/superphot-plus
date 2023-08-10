@@ -64,10 +64,8 @@ build-backend = "setuptools.build_meta"
 write_to = "src/superphot_plus/_version.py"
 
 [tool.pytest.ini_options]
-addopts = ["--nbval-lax", "--nbval-current-env"] # Run notebooks and fail on errors, do not validate cell outputs
 testpaths = [
     "tests",
-    "docs/notebooks/*.ipynb",
 ]
 
 [tool.black]

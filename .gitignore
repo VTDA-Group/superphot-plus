@@ -148,3 +148,6 @@ src/examples/outputs/*
 
 # PyCharm
 .idea/
+
+# Pytest monitor output
+.pymon

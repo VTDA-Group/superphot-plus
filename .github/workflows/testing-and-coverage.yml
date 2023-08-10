@@ -32,6 +32,9 @@ jobs:
         if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
     - name: Run unit tests with pytest
       run: |
-        python -m pytest --no-monitor --cov=superphot_plus --cov-report=xml
+        python -m pytest tests docs/notebooks/*.ipynb \
+          --nbval-lax --nbval-current-env \
+          --cov=superphot_plus --cov-report=xml \
+          --no-monitor
     - name: Upload coverage report to codecov
       uses: codecov/codecov-action@v3
