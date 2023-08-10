@@ -386,6 +386,8 @@ def run_mlp(
     num_layers,
     num_epochs=EPOCHS,
     plot_metrics=False,
+    model_dir=MODEL_DIR,
+    metrics_dir=METRICS_DIR,
 ):
     """
     Run the MLP initialization and training.
@@ -417,6 +419,10 @@ def run_mlp(
         The number of epochs. Defaults to EPOCHS.
     plot_metrics : bool, optional
         Whether to plot metrics. Defaults to False.
+    model_dir : str, optional
+        Where to store models.
+    metrics_dir : str, optional
+        Where to store metrics.
 
     Returns
     -------
@@ -430,10 +436,9 @@ def run_mlp(
     torch.cuda.manual_seed(SEED)
     torch.backends.cudnn.deterministic = True
 
-    input_dim = train_data.shape[1]
+    input_dim = train_data[0][0].shape[0]
 
     train_iterator = data.DataLoader(train_data, shuffle=True, batch_size=BATCH_SIZE)
-
     valid_iterator = data.DataLoader(valid_data, batch_size=BATCH_SIZE)
 
     # Create model
@@ -452,6 +457,7 @@ def run_mlp(
     train_loss_arr = []
     val_acc_arr = []
     val_loss_arr = []
+
     for epoch in np.arange(0, num_epochs):
         start_time = time.monotonic()
 
@@ -464,7 +470,7 @@ def run_mlp(
             best_valid_loss = valid_loss
             torch.save(
                 model.state_dict(),
-                os.path.join(MODEL_DIR, "superphot-model-%s.pt" % test_sample_names[0]),
+                os.path.join(model_dir, "superphot-model-%s.pt" % test_sample_names[0]),
             )
 
         end_time = time.monotonic()
@@ -482,7 +488,7 @@ def run_mlp(
         val_loss_arr.append(valid_loss)
         val_acc_arr.append(valid_acc)
 
-    model.load_state_dict(torch.load(os.path.join(MODEL_DIR, "superphot-model-%s.pt" % test_sample_names[0])))
+    model.load_state_dict(torch.load(os.path.join(model_dir, "superphot-model-%s.pt" % test_sample_names[0])))
 
     labels, pred_labels, max_probs, names = [], [], [], []
 
@@ -498,6 +504,7 @@ def run_mlp(
             model, test_iterator, device
         )  # pylint: disable=unused-variable
         probs_avg = np.mean(probs.numpy(), axis=0)
+
         save_test_probabilities(
             test_sample_names[indx_indiv.numpy().astype(int)[0]], labels_indiv[0], probs_avg
         )
@@ -509,21 +516,21 @@ def run_mlp(
 
     if plot_metrics:
         # plotting of accuracy and loss for one epoch
-        plt.plot(np.arange(0, EPOCHS), train_acc_arr, label="Training")
-        plt.plot(np.arange(0, EPOCHS), val_acc_arr, label="Validation")
+        plt.plot(np.arange(0, num_epochs), train_acc_arr, label="Training")
+        plt.plot(np.arange(0, num_epochs), val_acc_arr, label="Validation")
         plt.xlabel("Epoch")
         plt.ylabel("Accuracy")
         plt.legend()
-        plt.savefig(os.path.join(METRICS_DIR, "accuracy_%s.png" % test_sample_names[0]))
+        plt.savefig(os.path.join(metrics_dir, "accuracy_%s.png" % test_sample_names[0]))
         plt.close()
 
-        plt.plot(np.arange(0, EPOCHS), train_loss_arr, label="Training")
-        plt.plot(np.arange(0, EPOCHS), val_loss_arr, label="Validation")
+        plt.plot(np.arange(0, num_epochs), train_loss_arr, label="Training")
+        plt.plot(np.arange(0, num_epochs), val_loss_arr, label="Validation")
         plt.xlabel("Epoch")
         plt.ylabel("Loss")
         plt.yscale("log")
         plt.legend()
-        plt.savefig(os.path.join(METRICS_DIR, "loss_%s.png" % test_sample_names[0]))
+        plt.savefig(os.path.join(metrics_dir, "loss_%s.png" % test_sample_names[0]))
         plt.close()
 
     return (
