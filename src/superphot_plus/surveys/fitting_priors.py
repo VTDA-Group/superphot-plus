@@ -85,6 +85,16 @@ class MultibandPriors:
 
         return np.array(bands_ordered)
 
+    @property
+    def aux_bands(self):
+        """Returns auxilliary (non-reference) bands in band_order."""
+        bands_ordered = []
+        for band in self.band_order:
+            if band in self.bands and band != self.reference_band:
+                bands_ordered.append(band)
+
+        return np.array(bands_ordered)
+
     def to_numpy(self):
         """Fields as a (7*bands)x4 numpy array"""
         priors = []
