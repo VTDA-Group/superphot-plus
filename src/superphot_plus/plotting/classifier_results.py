@@ -124,7 +124,7 @@ def plot_class_fractions(saved_cf_file, fig_dir, filename):
             alerce_fracs_corr,
         ]
     ).T
-    fig, ax = plt.subplots(figsize=(11, 16))  # pylint: disable=unused-variable
+    _, ax = plt.subplots(figsize=(11, 16)) 
     bar = ax.bar(labels, combined_fracs[0], width, label=classes_to_labels[0])
     for i in range(len(combined_fracs[0])):
         bari = bar.patches[i]
