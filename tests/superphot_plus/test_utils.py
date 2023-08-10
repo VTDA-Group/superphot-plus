@@ -3,7 +3,7 @@ import pytest
 
 from superphot_plus.file_utils import get_posterior_samples
 from superphot_plus.lightcurve import Lightcurve
-from superphot_plus.utils import calc_accuracy, f1_score, get_band_extinctions, get_numpyro_cube
+from superphot_plus.utils import calc_accuracy, f1_score, get_band_extinctions, get_numpyro_cube, calc_neg_chi_squareds
 
 
 def generate_dummy_posterior_sample_dict(batch=False):
@@ -93,7 +93,7 @@ def test_get_numpyro_cube():
 
     assert cube.shape == (20, 14)
     assert len(aux_bands) == 1
-    assert np.mean(cube[:, 0]) == np.mean(dummy_param_dict["logA"])
+    assert np.mean(cube[:, 1]) == np.mean(dummy_param_dict["beta"])
 
 
 def test_neg_chi_squareds(single_ztf_lightcurve_compressed, test_data_dir, single_ztf_sn_id):
