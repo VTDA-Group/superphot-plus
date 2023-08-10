@@ -1,3 +1,4 @@
+import matplotlib.pyplot as plt
 import numpy as np
 from scipy.stats import truncnorm
 
@@ -85,8 +86,9 @@ def create_prior(cube):
     return cube
 
 
-def ztf_noise_model(mag, band, snr_range_g=[1, 10], snr_range_r=[1, 10]):
-    """A very, very simple noise model which assumes the dimmest magnitude is at SNR = 1, and the brightest mad is at SNR = 10.
+def ztf_noise_model(mag, band, snr_range_g=None, snr_range_r=None):
+    """A very, very simple noise model which assumes the dimmest magnitude is at SNR = 1,
+    and the brightest mag is at SNR = 10.
 
     Parameters
     ----------
@@ -95,15 +97,19 @@ def ztf_noise_model(mag, band, snr_range_g=[1, 10], snr_range_r=[1, 10]):
     band : np.ndarray
         Observed bands (g or r).
     snr_range_g : tuple
-        Range of signal-to-noise ratios desired in g-band.
+        Range of signal-to-noise ratios desired in g-band. Defaults to [1, 10]
     snr_range_r : tuple
-        Range of signal-to-noise ratios desired in r-band.
+        Range of signal-to-noise ratios desired in r-band. Defaults to [1, 10]
 
     Returns
     ----------
     snr : np.ndarray
         Signal-to-noise ratios (SNR) of the observations.
     """
+    if not snr_range_g:
+        snr_range_g = [1, 10]
+    if not snr_range_r:
+        snr_range_r = [1, 10]
 
     snr = mag * 0  # set up a dummy array for the snr
     gind_g = np.where(band == "g")  # let's do g-band first
@@ -198,7 +204,7 @@ def create_ztf_model(plot=False):
 
     # Now re-attempts to regenerate until it gets a "good" model
     while not found_valid and num_tried < 100:
-        cube = create_prior(cube, tdata)
+        cube = create_prior(cube)
         A, beta, gamma, t0, tau_rise, tau_fall, es = cube[:7]  # pylint: disable=unused-variable
         found_valid = params_valid(beta, gamma, tau_rise, tau_fall)
         num_tried += 1
@@ -206,7 +212,7 @@ def create_ztf_model(plot=False):
     if not found_valid:
         return "Failure"
 
-    f_model = flux_model(cube, tdata, filter_data)
+    f_model = flux_model(cube, tdata, filter_data, ["g", "r"], "r")
     snr = ztf_noise_model(f_model, filter_data)
 
     gind = np.where(snr > 3)  # any points with SNR < 3 are ignored
@@ -224,7 +230,7 @@ def create_ztf_model(plot=False):
         plt.xlabel("Time (days)")
         plt.ylabel("Flux (arbitrary units)")
         plt.show()
-    return cube[:, 7], tdata, filter_data, dirty_model, sigmas
+    return cube[:7], tdata, filter_data, dirty_model, sigmas
 
 
 # Can run this with create_model(plot=True)

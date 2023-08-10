@@ -128,7 +128,7 @@ class Lightcurve:
             ref_band = [True] * len(self.bands)
         else:
             ref_band = self.bands == band
-        if np.all(ref_band == False) or len(self.bands) == 0:
+        if np.all(ref_band == False) or len(self.bands) == 0:  # pylint: disable=singleton-comparison
             raise ValueError(f"ERROR: Light curve has no points. band={band}")
 
         adjusted_flux = self.fluxes[ref_band] + error_coeff * np.abs(self.flux_errors[ref_band])

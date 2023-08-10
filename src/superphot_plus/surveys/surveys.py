@@ -29,7 +29,7 @@ class Survey:
         data type.
         """
         if isinstance(self.priors, dict):
-            self.priors = MultibandPriors(**self.priors)
+            self.priors = MultibandPriors(**self.priors)  # pylint: disable=not-a-mapping
         for band in self.priors.bands:
             assert band in self.wavelengths
 
