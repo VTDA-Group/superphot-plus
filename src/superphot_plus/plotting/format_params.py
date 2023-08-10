@@ -45,12 +45,15 @@ def param_labels(aux_bands=None):
         "sigmaextra",
     ]
 
+    if aux_bands is None:
+        aux_bands = []
+        
     for b in aux_bands:
         plot_labels.extend(
             [
-                rf"$A_{b}$",
-                rf"$\beta_{b}$",
-                rf"$\gamma_{b}$",
+                rf"$A_{{{b}}}$",
+                rf"$\beta_{{{b}}}$",
+                rf"$\gamma_{{{b}}}$",
                 rf"$t_\mathrm{{0, {b}}}$",
                 rf"$\tau_\mathrm{{rise, {b}}}$",
                 rf"$\tau_\mathrm{{fall, {b}}}$",
