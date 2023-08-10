@@ -4,6 +4,7 @@ import os.path
 import pytest
 import torch
 from jax import random
+import numpy as np
 
 from superphot_plus.classify_ztf import load_mlp
 from superphot_plus.lightcurve import Lightcurve
