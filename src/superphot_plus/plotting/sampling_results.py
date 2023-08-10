@@ -14,6 +14,7 @@ from superphot_plus.plotting.format_params import *
 
 OVERSAMPLE_SIZE = 4000
 
+
 def plot_corner_plot_all(
     names,
     labels,
@@ -378,7 +379,7 @@ def plot_combined_posterior_space(names, labels, fits_dir, save_dir):
             param_2 = params[j]
             features_1 = features[:, i]
             features_2 = features[:, j]
-            
+
             if i in [2, 4, 5, 6]:
                 features_1 = np.log10(features_1)
             if j in [2, 4, 5, 6]:

@@ -53,7 +53,7 @@ def test_combined_parameter_space(single_ztf_sn_id, test_data_dir, tmp_path):
 
     filepath = os.path.join(tmp_path, "combined_2d_posteriors", "logA_vs_beta.pdf")
     assert os.path.exists(filepath)
-    
+
 
 def test_plot_posterior_hist_numpyro_dict(tmp_path):
     """Test that we can plot a posterior samples histogram."""

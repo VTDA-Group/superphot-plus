@@ -43,7 +43,7 @@ def import_labels_only(input_csvs, allowed_types, fits_dir=None, needs_posterior
     repeat_ct = 0
     names = []
     redshifts = []
-    
+
     for input_csv in input_csvs:
         with open(input_csv, newline="", encoding="utf-8") as csvfile:
             csvreader = csv.reader(csvfile)
@@ -57,7 +57,7 @@ def import_labels_only(input_csvs, allowed_types, fits_dir=None, needs_posterior
 
                 if row_label not in allowed_types:
                     continue
-                
+
                 if name not in names:
                     names.append(name)
                     labels.append(row_label)
@@ -69,7 +69,7 @@ def import_labels_only(input_csvs, allowed_types, fits_dir=None, needs_posterior
 
     tally_each_class(labels_orig)
     print(repeat_ct)
-    
+
     if redshift:
         return np.array(names), np.array(labels), np.array(redshifts)
     return np.array(names), np.array(labels)

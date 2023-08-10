@@ -237,7 +237,7 @@ def get_numpyro_cube(params, max_flux, aux_bands=None):
     """
     Convert output param dict from numpyro sampler to match that
     of dynesty.
-    
+
     Parameters
     ----------
     params : dict
@@ -247,7 +247,7 @@ def get_numpyro_cube(params, max_flux, aux_bands=None):
     aux_bands : array-like, optional
         The names of auxiliary bands, in order. If None or excluded,
         attempts to infer them from the dictionary.
-        
+
     Returns
     ----------
     cube : np.ndarray
@@ -290,7 +290,6 @@ def get_numpyro_cube(params, max_flux, aux_bands=None):
             ]
         )
     return np.array(cube).T, np.array(aux_bands)
-
 
 
 def calculate_neg_chi_squareds(cubes, t, f, ferr, b, ordered_bands=["r", "g"], ref_band="r"):

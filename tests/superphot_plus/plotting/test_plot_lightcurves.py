@@ -85,7 +85,7 @@ def test_plot_sampling_lc_fit_numpyro(single_ztf_sn_id, ztf_priors, single_ztf_l
 
 def test_plot_lightcurve_clipping(single_ztf_sn_id, test_data_dir, tmp_path):
     """Test plot_lightcurve_clipping()."""
-    
+
     # tests case with no points clipped
     plot_lightcurve_clipping(single_ztf_sn_id, test_data_dir, tmp_path)
     out_fn = os.path.join(tmp_path, f"lc_clip_demo_{single_ztf_sn_id}.pdf")

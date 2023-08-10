@@ -83,19 +83,19 @@ def test_get_band_extinctions() -> None:
     ext_list = get_band_extinctions(0.0, 10.0, [4741.64, 6173.23])
     assert np.all(ext_list == pytest.approx([0.3133, 0.2202], 0.01))
 
-    
+
 def test_get_numpyro_cube():
     """Test converting numpyro param dict to an array of all
     sampled parameter vectors.
     """
     dummy_param_dict = generate_dummy_posterior_sample_dict(batch=False)
     cube, aux_bands = get_numpyro_cube(dummy_param_dict, 1e3)
-    
+
     assert cube.shape == (20, 14)
     assert len(aux_bands) == 1
-    assert np.mean(cube[:,0]) == np.mean(dummy_param_dict['logA'])
-    
-    
+    assert np.mean(cube[:, 0]) == np.mean(dummy_param_dict["logA"])
+
+
 def test_neg_chi_squareds(single_ztf_lightcurve_compressed, test_data_dir, single_ztf_sn_id):
     """This is currently a change detection test where we are just confirming
     the function runs correctly returns the same value as it used to.

@@ -202,7 +202,7 @@ def generate_roc_curve(probs_csv, save_dir):
     legend_lines = []
     fpr = []
     tpr = []
-    
+
     for ref_label in range(len(classes_to_labels)):
         names, true_labels, probs, preds = read_probs_csv(probs_csv)
         y_true = np.where(true_labels == ref_label, 1, 0)
@@ -464,7 +464,7 @@ def plot_snr_npoints_vs_accuracy(probs_snr_csv, save_dir):
                 break
             except:
                 nbins /= 2
-                
+
         if nbins < 1:
             continue
 
@@ -499,10 +499,10 @@ def plot_snr_npoints_vs_accuracy(probs_snr_csv, save_dir):
                 break
             except:
                 nbins /= 2
-        
+
         if nbins < 1:
             continue
-        
+
         n_vs_accuracy[np.isnan(n_vs_accuracy)] = 1.0
 
         plt.step(
@@ -609,7 +609,7 @@ def plot_chisquared_vs_accuracy(pred_spec_fn, pred_phot_fn, fits_dir, save_dir):
     """
     Plot chi-squared value histograms for both the spectroscopic and photometric
     datasets, and plot spec chi-squared as a function of classification accuracy.
-    
+
     TODO: IN PROGRESS
 
     Parameters
