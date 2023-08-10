@@ -204,7 +204,7 @@ def plot_lightcurve_clipping(ztf_name, data_folder, save_dir):
     save_dir: str
         Directory path where to store the plot figure.
     """
-    data_fn = f"{data_folder}/{ztf_name}.csv"
+    data_fn = os.path.join(data_folder, f"{ztf_name}.csv")
     t, f, ferr, b, ra, dec = import_lc(data_fn)  # pylint: disable=unused-variable
     t_clip, f_clip, ferr_clip, b_clip = clip_lightcurve_end(t, f, ferr, b)
 

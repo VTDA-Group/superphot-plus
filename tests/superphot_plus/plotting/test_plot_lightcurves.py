@@ -36,7 +36,7 @@ def generate_dummy_posterior_sample_dict(batch=False):
 
 
 def test_plot_lc_fit(single_ztf_sn_id, ztf_priors, test_data_dir, tmp_path):
-    """Tests plot_lc_fit() and my extension, plot_sampling_lc_fit()."""
+    """Tests plot_lc_fit() and by extension, plot_sampling_lc_fit()."""
     ref_band = ztf_priors.reference_band
     ordered_bands = ztf_priors.ordered_bands
     data_dir = test_data_dir
