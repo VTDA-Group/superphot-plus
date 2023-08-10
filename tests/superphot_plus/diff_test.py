@@ -19,8 +19,8 @@ from pathlib import Path
 import numpy as np
 
 from superphot_plus.lightcurve import Lightcurve
-from superphot_plus.surveys.surveys import Survey
 from superphot_plus.samplers.numpyro_sampler import NumpyroSampler
+from superphot_plus.surveys.surveys import Survey
 
 
 def compare_result_files(goldens_file, new_results_file, delta=0.001):

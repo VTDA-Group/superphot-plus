@@ -9,6 +9,8 @@ from alerce.core import Alerce
 alerce = Alerce()
 MIN_PER_FILTER = 5
 
+# pylint: disable=global-variable-not-assigned
+
 
 def add_stamp_column(input_filename, output_filename):
     """Checks whether stamp classifier categorizes each lightcurve in
@@ -133,7 +135,7 @@ def generate_flux_files(master_csv, save_folder):
     """
     global alerce
     os.makedirs(save_folder, exist_ok=True)
-    with open(master_csv, "r") as mc:
+    with open(master_csv, "r", encoding="utf-8") as mc:
         csvreader = csv.reader(mc, delimiter=",", skipinitialspace=True)
         for row in csvreader:
             try:
