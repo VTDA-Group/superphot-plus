@@ -57,6 +57,11 @@ def class_probs_csv(test_data_dir):
 
 
 @pytest.fixture
+def class_probs_snr_csv(test_data_dir):
+    return os.path.join(test_data_dir, "probs_snr.csv")
+
+
+@pytest.fixture
 def ztf_priors():
     return Survey.ZTF().priors
 

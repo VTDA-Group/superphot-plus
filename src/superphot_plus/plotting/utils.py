@@ -1,11 +1,12 @@
 import numpy as np
 from alerce.core import Alerce
 import pandas as pd
+import os
 
-alerce = Alerce()
+from superphot_plus.supernova_class import SupernovaClass as SnClass
+from superphot_plus.lightcurve import Lightcurve
 
-
-def read_probs_csv(probs_fn):
+def read_probs_csv(probs_fn, return_dataframe=False):
     """Helper function to read in a probability csv file
     and return the columns as numpy arrays.
     """
@@ -15,10 +16,13 @@ def read_probs_csv(probs_fn):
     probs = df.iloc[:, 2:7].astype(float).to_numpy()
     pred_classes = np.argmax(probs, axis=1)
 
+    if return_dataframe:
+        return names, labels, probs, pred_classes, df
+    
     return names, labels, probs, pred_classes
 
 
-def get_pred_class(ztf_name, reflect_style=False):
+def get_alerce_pred_class(ztf_name, superphot_style=False):
     """Get alerce probabilities corresponding to the four (no SN IIn)
     classes in our ZTF classifier.
 
@@ -26,7 +30,7 @@ def get_pred_class(ztf_name, reflect_style=False):
     ----------
     ztf_name : str
         ZTF name of the object.
-    reflect_style : bool, optional
+    superphot_style : bool, optional
         If True, change format of output labels. Default is False.
 
     Returns
@@ -34,14 +38,34 @@ def get_pred_class(ztf_name, reflect_style=False):
     str
         Predicted class label.
     """
-    global alerce
+    alerce = Alerce()
     o = alerce.query_probabilities(oid=ztf_name, format="pandas")
     o_transient = o[o["classifier_name"] == "lc_classifier_transient"]
     label = o_transient[o_transient["ranking"] == 1]["class_name"].iat[0]
-    return SnClass.get_reflect_style(label) if reflect_style else label
+    return SnClass.from_alerce_to_superphot_format(label) if superphot_style else label
 
 
 def gaussian(x, A, mu, sigma):
+    """Evaluate a gaussian with params A at the values in x.
+    
+    Parameters
+    ----------
+    x : array-like or float
+        Value(s) to evaluate gaussian at
+    A : float
+        Amplitude of the Gaussian.
+    mu : float
+        Mean of Gaussian
+    sigma : float
+        Standard deviation of Gaussian
+        
+    Returns
+    ----------
+    array-like or float:
+        Gaussian values evaluated at x
+    """
+    if ~np.isscalar(x):
+        x = np.array(x)
     return A * np.exp(-((x - mu) ** 2) / sigma**2 / 2.0)
 
 
@@ -50,81 +74,47 @@ def histedges_equalN(x, nbin):
     return np.interp(np.linspace(0, npt, nbin + 1), np.arange(npt), np.sort(x))
 
 
-def get_numpyro_cube(params, max_flux):
-    aux_bands = []
-    for k in params:
-        if k[:4] == "beta" and k != "beta":
-            aux_bands.append(k[5:])
-
-    logA, beta, log_gamma = params["logA"], params["beta"], params["log_gamma"]
-    t0, log_tau_rise, log_tau_fall, log_extra_sigma = (
-        params["t0"],
-        params["log_tau_rise"],
-        params["log_tau_fall"],
-        params["log_extra_sigma"],
-    )
-
-    A = max_flux * 10**logA
-    gamma = 10**log_gamma
-    tau_rise = 10**log_tau_rise
-    tau_fall = 10**log_tau_fall
-    extra_sigma = 10**log_extra_sigma  # pylint: disable=unused-variable
-
-    cube = [A, beta, gamma, t0, tau_rise, tau_fall, extra_sigma]
-
-    for b in aux_bands:
-        cube.extend(
-            [
-                params[f"A_{b}"],
-                params[f"beta_{b}"],
-                params[f"gamma_{b}"],
-                params[f"t0_{b}"],
-                params[f"tau_rise_{b}"],
-                params[f"tau_fall_{b}"],
-                params[f"extra_sigma_{b}"],
-            ]
-        )
-    return np.array(cube), np.array(aux_bands)
-
-
-def add_snr_to_prob_csv(probs_csv, new_csv):
+def add_snr_to_prob_csv(probs_csv, data_dir, new_csv):
     """
     Adds 10% SNR and num of SNR > 5 points columns
     to probability CSV. Useful for plots.
     """
-    all_rows = []
-    with open(probs_csv, "r") as csvfile:
-        with open(new_csv, "w+") as csvoutput:
-            csvreader = csv.reader(csvfile)
-            csvwriter = csv.writer(csvoutput)
-            for row in csvreader:
-                name = row[0]
-                for data_dir in DATA_DIRS:
-                    try:
-                        # data_fn = glob.glob(data_dir + "/*/" + name + ".npz")[0]
-                        data_fn = data_dir + "/" + name + ".npz"
-                        npy_array = np.load(data_fn)
-                        # print(npy_array)
-                    except:
-                        pass
+    names, labels, probs, pred_classes, df = read_probs_csv(probs_csv, return_dataframe=True)
+    
+    extended_df = df.copy()
+    
+    n_snr_3 = []
+    n_snr_5 = []
+    n_snr_10 = []
+    snr_ten_percent = []
+    max_flux = []
+    
+    for name in names:
+        try:
+            fn = os.path.join(data_dir, name + ".npz")
+            lc = Lightcurve.from_file(fn)
+            snr = np.abs(lc.fluxes / lc.flux_errors)
+            n_snr_3.append(len(snr[(snr > 3.0)]))
+            n_snr_5.append(len(snr[(snr > 5.0)]))
+            n_snr_10.append((snr[(snr > 10.0)]))
+            snr_ten_percent.append(np.quantile(snr, 0.9))
+            max_flux.append(lc.find_max_flux(band="r"))
+        except:
+            n_snr_3.append(-1)
+            n_snr_5.append(-1)
+            n_snr_10.append(-1)
+            snr_ten_percent.append(-1)
+            max_flux.append(-1)
+        
+    extended_df['Fmax'] = np.array(max_flux)
+    extended_df['SNR90'] = np.array(snr_ten_percent)
+    extended_df['nSNR3'] = np.array(n_snr_3)
+    extended_df['nSNR5'] = np.array(n_snr_5)
+    extended_df['nSNR10'] = np.array(n_snr_10)
+    
+    extended_df.to_csv(new_csv, index=False)
+    
+        
+        
+        
 
-                arr = npy_array["arr_0"]
-
-                ferr = arr[2]
-                f = arr[1][ferr != "nan"].astype(float)
-                b = arr[3][ferr != "nan"]
-                ferr = ferr[ferr != "nan"].astype(float)
-                snr = np.abs(f / ferr)
-
-                n_snr_3 = len(snr[(snr > 3.0)])
-                n_snr_5 = len(snr[(snr > 5.0)])
-                n_snr_10 = len(snr[(snr > 10.0)])
-                snr_ten_percent = np.quantile(snr, 0.9)
-                max_r_flux = np.max(f[b == "r"])
-                row.append(max_r_flux)
-                row.append(snr_ten_percent)
-                row.append(n_snr_3)
-                row.append(n_snr_5)
-                row.append(n_snr_10)
-                all_rows.append(row)
-            csvwriter.writerows(all_rows)

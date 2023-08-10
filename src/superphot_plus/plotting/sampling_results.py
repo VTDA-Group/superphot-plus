@@ -6,11 +6,13 @@ import arviz as az
 import corner
 
 from superphot_plus.format_data_ztf import oversample_using_posteriors, import_labels_only
+from superphot_plus.utils import get_numpyro_cube
 from superphot_plus.supernova_class import SupernovaClass as SnClass
 from superphot_plus.surveys.surveys import Survey
-from superphot_plus.plotting.utils import get_numpyro_cube, gaussian
+from superphot_plus.plotting.utils import gaussian
 from superphot_plus.plotting.format_params import *
 
+OVERSAMPLE_SIZE = 4000
 
 def plot_corner_plot_all(
     names,
@@ -39,10 +41,8 @@ def plot_corner_plot_all(
     """
     # allowed_types = SnClass.all_classes()
 
-    features, labels = oversample_using_posteriors(names, labels, 4000, fits_dir)
+    features, labels = oversample_using_posteriors(names, labels, OVERSAMPLE_SIZE, fits_dir)
     plotting_labels, _ = param_labels(aux_bands)
-
-    print(plotting_labels)
 
     # remove A, t0, and chisquared
     plotting_labels = [x for i, x in enumerate(plotting_labels) if i not in [0, 3, len(plotting_labels) - 1]]
@@ -63,6 +63,7 @@ def plot_corner_plot_all(
         ax.set_xlabel(ax.get_xlabel(), fontsize=20)
 
     figure.savefig(os.path.join(save_dir, "corner_all.pdf"))
+    plt.close()
 
 
 def plot_posterior_hist_numpyro_dict(posterior_samples, parameter, output_dir=None):
@@ -139,9 +140,8 @@ def compare_oversampling(names, labels, fits_dir, allowed_types=SnClass.all_clas
     """
     # names, labels = import_labels_only(input_csv, allowed_types)
 
-    goal_per_class = 4000
     features_gaussian, labels_gaussian = oversample_using_posteriors(
-        names, labels, goal_per_class, fits_dir, sampler
+        names, labels, OVERSAMPLE_SIZE, fits_dir, sampler
     )
 
     feature_means = []
@@ -245,7 +245,7 @@ def plot_oversampling_1d(names, labels, fits_dir, save_dir, priors=Survey.ZTF().
     """
     allowed_types = SnClass.all_classes()
 
-    goal_per_class = 4000
+    goal_per_class = OVERSAMPLE_SIZE
     features_gaussian, labels_gaussian = oversample_using_posteriors(names, labels, goal_per_class, fits_dir)
 
     params, _ = param_labels(
@@ -357,12 +357,14 @@ def plot_combined_posterior_space(names, labels, fits_dir, save_dir):
     save_dir : str
         Where to save figure
     """
+    print(save_dir)
     os.makedirs(os.path.join(save_dir, "combined_2d_posteriors"), exist_ok=True)
     labels_to_class, classes_to_labels = SnClass.get_type_maps()
     # pt_colors = ["r", "c", "k", "m", "g"] # keep for TODO
 
-    features, labels = oversample_using_posteriors(names, labels, 4000, fits_dir)
+    features, labels = oversample_using_posteriors(names, labels, OVERSAMPLE_SIZE, fits_dir)
 
+    print(names)
     params, save_labels = param_labels(
         [
             "g",
@@ -376,7 +378,7 @@ def plot_combined_posterior_space(names, labels, fits_dir, save_dir):
             param_2 = params[j]
             features_1 = features[:, i]
             features_2 = features[:, j]
-
+            
             if i in [2, 4, 5, 6]:
                 features_1 = np.log10(features_1)
             if j in [2, 4, 5, 6]:
@@ -415,7 +417,7 @@ def plot_param_distributions(names, labels, fit_folder, save_dir, overlay_gaussi
         Whether to overlay Gaussian estimate of distribution. Defaults to True.
     """
     os.makedirs(os.path.join(save_dir, "posterior_hists"), exist_ok=True)
-    posteriors, labels = oversample_using_posteriors(names, labels, 4000, fit_folder)
+    posteriors, labels = oversample_using_posteriors(names, labels, OVERSAMPLE_SIZE, fit_folder)
 
     params, save_labels = param_labels(
         [

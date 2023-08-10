@@ -32,7 +32,7 @@ def save_class_fractions(spec_probs_csv, phot_probs_csv, save_path):
     true_class_alerce = labels_true
     true_class_alerce[true_class_alerce == 2] = 1
     pred_class_spec_alerce = np.array(
-        [labels_to_class[x] for x in get_pred_class(names_spec, reflect_style=True)]
+        [labels_to_class[x] for x in get_alerce_pred_class(names_spec, reflect_style=True)]
     )
 
     # import phot dataframe

@@ -37,6 +37,24 @@ def generate_dummy_posterior_sample_dict(batch=False):
     }
 
 
+def test_combined_parameter_space(single_ztf_sn_id, test_data_dir, tmp_path):
+    """Test plotting 2d parameter spaces of all LCs."""
+    print(tmp_path)
+    plot_combined_posterior_space(
+        [
+            single_ztf_sn_id,
+        ],
+        [
+            "SN Ia",
+        ],
+        test_data_dir,
+        tmp_path,
+    )
+
+    filepath = os.path.join(tmp_path, "combined_2d_posteriors", "logA_vs_beta.pdf")
+    assert os.path.exists(filepath)
+    
+
 def test_plot_posterior_hist_numpyro_dict(tmp_path):
     """Test that we can plot a posterior samples histogram."""
     samples = generate_dummy_posterior_sample_dict()
@@ -56,6 +74,7 @@ def test_plot_posterior_hist_numpyro_dict(tmp_path):
 
 
 def test_plot_posterior_hist_numpyro_batch(tmp_path):
+    print(tmp_path)
     """Test that we can plot a histogram for a batch of posterior samples."""
     samples = generate_dummy_posterior_sample_dict(batch=True)
 
@@ -110,23 +129,6 @@ def test_compare_oversampling(test_data_dir, tmp_path):
     os.path.exists(fp2)
     """
     # RE-ADD WHEN OVERSAMPLE_MINORITY_CLASSES REIMPLEMENTED
-
-
-def test_combined_parameter_space(single_ztf_sn_id, test_data_dir, tmp_path):
-    """Test plotting 2d parameter spaces of all LCs."""
-    plot_combined_posterior_space(
-        [
-            single_ztf_sn_id,
-        ],
-        [
-            "SN Ia",
-        ],
-        test_data_dir,
-        tmp_path,
-    )
-
-    filepath = os.path.join(tmp_path, "combined_2d_posteriors", "logA_vs_beta.pdf")
-    assert os.path.exists(filepath)
 
 
 def test_plot_param_distributions(single_ztf_sn_id, test_data_dir, tmp_path):

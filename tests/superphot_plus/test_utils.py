@@ -6,6 +6,29 @@ from superphot_plus.lightcurve import Lightcurve
 from superphot_plus.utils import calc_accuracy, f1_score, get_band_extinctions
 
 
+def generate_dummy_posterior_sample_dict(batch=False):
+    """Create a posterior sample dictionary for r and g bands with random values"""
+    param_list = [
+        "logA",
+        "beta",
+        "log_gamma",
+        "t0",
+        "log_tau_rise",
+        "log_tau_fall",
+        "log_extra_sigma",
+        "A_g",
+        "beta_g",
+        "gamma_g",
+        "t0_g",
+        "tau_rise_g",
+        "tau_fall_g",
+        "extra_sigma_g",
+    ]
+    return {
+        param: np.random.rand(3, 20) if batch else np.random.rand(1, 20).flatten() for param in param_list
+    }
+
+
 def test_calc_accuracy() -> None:
     truth = np.array([1, 1, 0, 0, 2])
 
@@ -59,3 +82,16 @@ def test_get_band_extinctions() -> None:
     """
     ext_list = get_band_extinctions(0.0, 10.0, [4741.64, 6173.23])
     assert np.all(ext_list == pytest.approx([0.3133, 0.2202], 0.01))
+
+    
+def test_get_numpyro_cube():
+    """Test converting numpyro param dict to an array of all
+    sampled parameter vectors.
+    """
+    dummy_param_dict = generate_dummy_posterior_sample_dict(batch=False)
+    cube, aux_bands = get_numpyro_cube(dummy_param_dict, 1e3)
+    
+    assert cube.shape == (20, 14)
+    assert len(aux_bands) == 1
+    assert np.mean(cube[:,0]) == np.mean(dummy_param_dict['logA'])
+    

@@ -99,7 +99,7 @@ def plot_alerce_confusion_matrix(probs_csv, filename, p07=False):
             name = row[0]
             try:
                 pass
-                # pred_class = get_pred_class(name, reflect_style=True)
+                # pred_class = get_alerce_pred_class(name, reflect_style=True)
             except:
                 print(name, " skipped")
                 continue
@@ -150,7 +150,7 @@ def plot_agreement_matrix(probs_csv, filename):
         for e, row in enumerate(csvreader):
             name = row[0]
             try:
-                alerce_pred = get_pred_class(name, reflect_style=True)
+                alerce_pred = get_alerce_pred_class(name, reflect_style=True)
                 print(alerce_pred, e)
             except:
                 print(name, " skipped")
@@ -196,7 +196,7 @@ def plot_expected_agreement_matrix(probs_csv, filename, cmap=plt.cm.Purples):
         for e, row in enumerate(csvreader):
             name = row[0]
             try:
-                alerce_pred = get_pred_class(name, reflect_style=True)
+                alerce_pred = get_alerce_pred_class(name, reflect_style=True)
                 print(alerce_pred, e)
             except:
                 print(name, " skipped")

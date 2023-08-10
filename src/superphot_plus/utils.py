@@ -231,3 +231,62 @@ def params_valid(beta, gamma, tau_rise, tau_fall):
         return False
 
     return True
+
+
+def get_numpyro_cube(params, max_flux, aux_bands=None):
+    """
+    Convert output param dict from numpyro sampler to match that
+    of dynesty.
+    
+    Parameters
+    ----------
+    params : dict
+        Parameter dictionary
+    max_flux : float
+        Max flux of light curve
+    aux_bands : array-like, optional
+        The names of auxiliary bands, in order. If None or excluded,
+        attempts to infer them from the dictionary.
+        
+    Returns
+    ----------
+    cube : np.ndarray
+        Array of all equal-weight parameter draws
+    aux_bands : np.ndarray
+        Auxiliary bands, including those inferred if input arg was None.
+    """
+    if aux_bands is None:
+        aux_bands = []
+        for k in params:
+            if k[:4] == "beta" and k != "beta":
+                aux_bands.append(k[5:])
+
+    logA, beta, log_gamma = params["logA"], params["beta"], params["log_gamma"]
+    t0, log_tau_rise, log_tau_fall, log_extra_sigma = (
+        params["t0"],
+        params["log_tau_rise"],
+        params["log_tau_fall"],
+        params["log_extra_sigma"],
+    )
+
+    A = max_flux * 10**logA
+    gamma = 10**log_gamma
+    tau_rise = 10**log_tau_rise
+    tau_fall = 10**log_tau_fall
+    extra_sigma = 10**log_extra_sigma  # pylint: disable=unused-variable
+
+    cube = [A, beta, gamma, t0, tau_rise, tau_fall, extra_sigma]
+
+    for b in aux_bands:
+        cube.extend(
+            [
+                params[f"A_{b}"],
+                params[f"beta_{b}"],
+                params[f"gamma_{b}"],
+                params[f"t0_{b}"],
+                params[f"tau_rise_{b}"],
+                params[f"tau_fall_{b}"],
+                params[f"extra_sigma_{b}"],
+            ]
+        )
+    return np.array(cube).T, np.array(aux_bands)

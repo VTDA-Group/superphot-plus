@@ -120,8 +120,8 @@ class SupernovaClass(str, Enum):
         return label
 
     @classmethod
-    def get_reflect_style(cls, label):
-        """Returns a supernova class label in reflect style.
+    def from_alerce_to_superphot_format(cls, label):
+        """Converts label from ALeRCE's to Superphot+'s formatting.
 
         Parameters
         ----------
@@ -129,7 +129,7 @@ class SupernovaClass(str, Enum):
             The SupernovaClass class.
         label : str
             The predicted supernova class label, provided by the
-            ZTF classifier, for which the reflected style is requested.
+            ZTF classifier, but in ALeRCE format.
 
         Returns
         -------

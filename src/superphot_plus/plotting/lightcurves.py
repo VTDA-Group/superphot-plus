@@ -6,9 +6,7 @@ from superphot_plus.file_utils import get_posterior_samples
 from superphot_plus.lightcurve import Lightcurve
 from superphot_plus.file_paths import FIT_PLOTS_FOLDER
 from superphot_plus.import_utils import clip_lightcurve_end, import_lc
-from superphot_plus.utils import flux_model
-
-from superphot_plus.plotting.utils import get_numpyro_cube
+from superphot_plus.utils import flux_model, get_numpyro_cube
 from superphot_plus.plotting.format_params import *
 
 
