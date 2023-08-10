@@ -3,7 +3,7 @@ import pytest
 
 from superphot_plus.file_utils import get_posterior_samples
 from superphot_plus.lightcurve import Lightcurve
-from superphot_plus.utils import calc_accuracy, f1_score, get_band_extinctions
+from superphot_plus.utils import calc_accuracy, f1_score, get_band_extinctions, get_numpyro_cube
 
 
 def generate_dummy_posterior_sample_dict(batch=False):
