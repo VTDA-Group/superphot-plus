@@ -99,6 +99,119 @@ def trunc_norm(fields: PriorFields):
     )
 
 
+def create_jax_model(
+    priors, t=None, obsflux=None, uncertainties=None, max_flux=None
+):  # pylint: disable=too-many-locals
+    """Create a JAX model for MCMC.
+
+    Parameters
+    ----------
+    t : array-like, optional
+        Time values. Defaults to None.
+    obsflux : array-like, optional
+        Observed flux values. Defaults to None.
+    uncertainties : array-like, optional
+        Flux uncertainties. Defaults to None.
+    max_flux : float, optional
+        Maximum flux value. Defaults to None.
+    priors : MultibandPriors
+        priors for all bands in lightcurves
+    """
+    ref_priors = priors.bands[priors.reference_band]
+
+    amp, beta, gamma, t_0, tau_rise, tau_fall, extra_sigma = prior_helper(ref_priors, max_flux)
+
+    phase = t - t_0
+    flux_const = amp / (1.0 + jnp.exp(-phase / tau_rise))
+    sigmoid = 1 / (1 + jnp.exp(10.0 * (gamma - phase)))
+
+    flux = flux_const * (
+        (1 - sigmoid) * (1 - beta * phase)
+        + sigmoid * (1 - beta * gamma) * jnp.exp(-(phase - gamma) / tau_fall)
+    )
+    sigma_tot = jnp.sqrt(uncertainties**2 + extra_sigma**2)
+
+    # auxiliary bands
+    for b_idx, uniq_b in enumerate(priors.aux_bands):
+        b_priors = priors.bands[uniq_b]
+
+        (
+            amp_ratio,
+            beta_ratio,
+            gamma_ratio,
+            t0_ratio,
+            tau_rise_ratio,
+            tau_fall_ratio,
+            extra_sigma_ratio,
+        ) = prior_helper(b_priors, max_flux, uniq_b)
+
+        amp_b = amp * amp_ratio
+        beta_b = beta * beta_ratio
+        gamma_b = gamma * gamma_ratio
+        t0_b = t_0 * t0_ratio
+        tau_rise_b = tau_rise * tau_rise_ratio
+        tau_fall_b = tau_fall * tau_fall_ratio
+
+        inc_band_ix = np.arange(b_idx * PAD_SIZE, (b_idx + 1) * PAD_SIZE)
+
+        phase_b = (t - t0_b)[inc_band_ix]
+        flux_const_b = amp_b / (1.0 + jnp.exp(-phase_b / tau_rise_b))
+        sigmoid_b = 1 / (1 + jnp.exp(10.0 * (gamma_b - phase_b)))
+
+        flux = flux.at[inc_band_ix].set(
+            flux_const_b
+            * (
+                (1 - sigmoid_b) * (1 - beta_b * phase_b)
+                + sigmoid_b * (1 - beta_b * gamma_b) * jnp.exp(-(phase_b - gamma_b) / tau_fall_b)
+            )
+        )
+
+        sigma_tot = sigma_tot.at[inc_band_ix].set(
+            jnp.sqrt(uncertainties[inc_band_ix] ** 2 + extra_sigma_ratio**2 * extra_sigma**2)
+        )
+
+    _ = numpyro.sample("obs", dist.Normal(flux, sigma_tot), obs=obsflux)
+
+
+def create_jax_guide(priors):
+    """JAX guide function for MCMC.
+
+    Parameters
+    ----------
+    priors : MultibandPriors
+        priors for all bands in lightcurves
+    """
+
+    def numpyro_sample(prefix: str, fields: PriorFields, param_constraint: float):
+        param_mu = numpyro.param(
+            f"{prefix}_mu",
+            fields.mean,
+            constraint=constraints.interval(fields.clip_a, fields.clip_b),
+        )
+        param_sigma = numpyro.param(f"{prefix}_sigma", param_constraint, constraint=constraints.positive)
+        numpyro.sample(prefix, dist.Normal(param_mu, param_sigma))
+
+    ref_priors = priors.bands[priors.reference_band]
+    numpyro_sample("logA", ref_priors.amp, 1e-3)
+    numpyro_sample("beta", ref_priors.beta, 1e-5)
+    numpyro_sample("log_gamma", ref_priors.gamma, 1e-3)
+    numpyro_sample("t0", ref_priors.t_0, 1e-3)
+    numpyro_sample("log_tau_rise", ref_priors.tau_rise, 1e-3)
+    numpyro_sample("log_tau_fall", ref_priors.tau_fall, 1e-3)
+    numpyro_sample("log_extra_sigma", ref_priors.extra_sigma, 1e-3)
+
+    # aux bands
+    for uniq_b in priors.aux_bands:
+        b_priors = priors.bands[uniq_b]
+        numpyro_sample("A_" + uniq_b, b_priors.amp, 1e-3)
+        numpyro_sample("beta_" + uniq_b, b_priors.beta, 1e-3)
+        numpyro_sample("gamma_" + uniq_b, b_priors.gamma, 1e-3)
+        numpyro_sample("t0_" + uniq_b, b_priors.t_0, 1e-3)
+        numpyro_sample("tau_rise_" + uniq_b, b_priors.tau_rise, 1e-3)
+        numpyro_sample("tau_fall_" + uniq_b, b_priors.tau_fall, 1e-3)
+        numpyro_sample("extra_sigma_" + uniq_b, b_priors.extra_sigma, 1e-3)
+
+
 def run_mcmc(lc, sampler="NUTS", priors=Survey.ZTF().priors):
     """Runs MCMC using numpyro on the lightcurve to get set
     of equally weighted posteriors (sets of fit parameters).
@@ -125,122 +238,10 @@ def run_mcmc(lc, sampler="NUTS", priors=Survey.ZTF().priors):
             return None
 
     def jax_model(t=None, obsflux=None, uncertainties=None, max_flux=None):
-        """JAX model for MCMC.
+        create_jax_model(priors, t, obsflux, uncertainties, max_flux)
 
-        Parameters
-        ----------
-        t : array-like, optional
-            Time values. Defaults to None.
-        obsflux : array-like, optional
-            Observed flux values. Defaults to None.
-        uncertainties : array-like, optional
-            Flux uncertainties. Defaults to None.
-        max_flux : float, optional
-            Maximum flux value. Defaults to None.
-        """
-        ref_priors = priors.bands[priors.reference_band]
-
-        amp, beta, gamma, t_0, tau_rise, tau_fall, extra_sigma = prior_helper(ref_priors, max_flux)
-
-        phase = t - t_0
-        flux_const = amp / (1.0 + jnp.exp(-phase / tau_rise))
-        sigmoid = 1 / (1 + jnp.exp(10.0 * (gamma - phase)))
-
-        flux = flux_const * (
-            (1 - sigmoid) * (1 - beta * phase)
-            + sigmoid * (1 - beta * gamma) * jnp.exp(-(phase - gamma) / tau_fall)
-        )
-        sigma_tot = jnp.sqrt(uncertainties**2 + extra_sigma**2)
-
-        # auxiliary bands
-        for b_idx, uniq_b in enumerate(priors.aux_bands):
-            b_priors = priors.bands[uniq_b]
-
-            (
-                amp_ratio,
-                beta_ratio,
-                gamma_ratio,
-                t0_ratio,
-                tau_rise_ratio,
-                tau_fall_ratio,
-                extra_sigma_ratio,
-            ) = prior_helper(b_priors, max_flux, uniq_b)
-
-            amp_b = amp * amp_ratio
-            beta_b = beta * beta_ratio
-            gamma_b = gamma * gamma_ratio
-            t0_b = t_0 * t0_ratio
-            tau_rise_b = tau_rise * tau_rise_ratio
-            tau_fall_b = tau_fall * tau_fall_ratio
-
-            inc_band_ix = np.arange(b_idx * PAD_SIZE, (b_idx + 1) * PAD_SIZE)
-
-            phase_b = (t - t0_b)[inc_band_ix]
-            flux_const_b = amp_b / (1.0 + jnp.exp(-phase_b / tau_rise_b))
-            sigmoid_b = 1 / (1 + jnp.exp(10.0 * (gamma_b - phase_b)))
-
-            flux = flux.at[inc_band_ix].set(
-                flux_const_b
-                * (
-                    (1 - sigmoid_b) * (1 - beta_b * phase_b)
-                    + sigmoid_b * (1 - beta_b * gamma_b) * jnp.exp(-(phase_b - gamma_b) / tau_fall_b)
-                )
-            )
-
-            sigma_tot = sigma_tot.at[inc_band_ix].set(
-                jnp.sqrt(uncertainties[inc_band_ix] ** 2 + extra_sigma_ratio**2 * extra_sigma**2)
-            )
-
-        _ = numpyro.sample("obs", dist.Normal(flux, sigma_tot), obs=obsflux)
-
-    def jax_guide(
-        t=None,
-        obsflux=None,
-        uncertainties=None,
-        max_flux=None,
-    ):
-        """JAX guide function for MCMC.
-
-        Parameters
-        ----------
-        t : array-like, optional
-            Time values. Defaults to None.
-        obsflux : array-like, optional
-            Observed flux values. Defaults to None.
-        uncertainties : array-like, optional
-            Flux uncertainties. Defaults to None.
-        max_flux : float, optional
-            Maximum flux value. Defaults to None.
-        """
-
-        def numpyro_sample(prefix: str, fields: PriorFields, param_constraint: float):
-            param_mu = numpyro.param(
-                f"{prefix}_mu",
-                fields.mean,
-                constraint=constraints.interval(fields.clip_a, fields.clip_b),
-            )
-            param_sigma = numpyro.param(f"{prefix}_sigma", param_constraint, constraint=constraints.positive)
-            numpyro.sample(prefix, dist.Normal(param_mu, param_sigma))
-
-        ref_priors = priors.bands[priors.reference_band]
-        numpyro_sample("logA", ref_priors.amp, 1e-3)
-        numpyro_sample("beta", ref_priors.beta, 1e-5)
-        numpyro_sample("log_gamma", ref_priors.gamma, 1e-3)
-        numpyro_sample("t0", ref_priors.t_0, 1e-3)
-        numpyro_sample("log_tau_rise", ref_priors.tau_rise, 1e-3)
-        numpyro_sample("log_tau_fall", ref_priors.tau_fall, 1e-3)
-        numpyro_sample("log_extra_sigma", ref_priors.extra_sigma, 1e-3)
-
-        # aux bands
-        for uniq_b in priors.aux_bands:
-            b_priors = priors.bands[uniq_b]
-            numpyro_sample("A_" + uniq_b, b_priors.amp, 1e-3)
-            numpyro_sample("beta_" + uniq_b, b_priors.beta, 1e-3)
-            numpyro_sample("gamma_" + uniq_b, b_priors.gamma, 1e-3)
-            numpyro_sample("t0_" + uniq_b, b_priors.t_0, 1e-3)
-            numpyro_sample("tau_rise_" + uniq_b, b_priors.tau_rise, 1e-3)
-            numpyro_sample("tau_fall_" + uniq_b, b_priors.tau_fall, 1e-3)
-            numpyro_sample("extra_sigma_" + uniq_b, b_priors.extra_sigma, 1e-3)
+    def jax_guide(**kwargs):  # pylint: disable=unused-argument
+        create_jax_guide(priors)
 
     max_flux, _ = lc.find_max_flux(band=priors.reference_band)
 
