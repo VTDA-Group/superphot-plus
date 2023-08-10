@@ -7,6 +7,19 @@ from superphot_plus.supernova_class import SupernovaClass as SnClass
 from superphot_plus.lightcurve import Lightcurve
 
 
+def get_survey_fracs():
+    """Return catalog with supernova fractions from existing
+    catalogue datasets. referenced in papers.
+    """
+    yse_counts = np.array([314, 107, 15, 2, 32])
+    yse_fracs = yse_counts / np.sum(yse_counts)
+
+    psmds_counts = np.array([404, 94, 24, 17, 19])
+    psmds_fracs = psmds_counts / np.sum(psmds_counts)
+    
+    return {'YSE': yse_fracs, 'PS-MDS': psmds_fracs}
+
+
 def read_probs_csv(probs_fn, return_dataframe=False):
     """Helper function to read in a probability csv file
     and return the columns as numpy arrays.

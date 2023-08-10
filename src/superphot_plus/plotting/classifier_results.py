@@ -33,7 +33,9 @@ def save_class_fractions(spec_probs_csv, phot_probs_csv, save_path):
     labels_to_class, _ = SnClass.get_type_maps()
 
     # import spec dataframe
-    names_spec, true_class_spec, _, pred_class_spec = read_probs_csv(spec_probs_csv)
+    names_spec, true_class_spec, probs_spec, pred_class_spec = read_probs_csv(spec_probs_csv)
+    
+    num_classes = probs_spec.shape[1]
 
     true_class_alerce = labels_true
     true_class_alerce[true_class_alerce == 2] = 1
@@ -48,10 +50,10 @@ def save_class_fractions(spec_probs_csv, phot_probs_csv, save_path):
     cm_p = confusion_matrix(true_class_spec, pred_class_spec, normalize="pred")
     cm_p_alerce = confusion_matrix(true_class_alerce, pred_class_spec_alerce, normalize="pred")
 
-    true_fracs = np.array([len(true_classes[true_class_spec == i]) / len(true_class_spec) for i in range(5)])
-    pred_fracs = np.array([len(pred_classes[pred_class_phot == i]) / len(pred_class_phot) for i in range(5)])
+    true_fracs = np.array([len(true_classes[true_class_spec == i]) / len(true_class_spec) for i in range(num_classes)])
+    pred_fracs = np.array([len(pred_classes[pred_class_phot == i]) / len(pred_class_phot) for i in range(num_classes)])
     alerce_fracs = np.array(
-        [len(alerce_preds[pred_class_phot_alerce == i]) / len(pred_class_phot_alerce) for i in range(5)]
+        [len(alerce_preds[pred_class_phot_alerce == i]) / len(pred_class_phot_alerce) for i in range(num_classes)]
     )
 
     pred_fracs_corr = []
@@ -108,13 +110,8 @@ def plot_class_fractions(saved_cf_file, fig_dir, filename):
 
     true_fracs, pred_fracs, pred_fracs_corr, alerce_fracs, alerce_fracs_corr = frac_df.to_numpy().T
 
-    # Plot YSE class fractions too
-    yse_counts = np.array([314, 107, 15, 2, 32])
-    yse_fracs = yse_counts / np.sum(yse_counts)
-
-    # Plot PS-MDS
-    psmds_counts = np.array([404, 94, 24, 17, 19])
-    psmds_fracs = psmds_counts / np.sum(psmds_counts)
+    survey_sn_fracs = get_survey_fracs()
+    yse_fracs, psmds_fracs = survey_sn_fracs['YSE'], survey_sn_fracs['PS-MDS']
 
     combined_fracs = np.array(
         [

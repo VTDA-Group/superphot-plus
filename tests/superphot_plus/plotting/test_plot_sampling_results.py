@@ -14,32 +14,8 @@ from superphot_plus.plotting.sampling_results import (
 )
 
 
-def generate_dummy_posterior_sample_dict(batch=False):
-    """Create a posterior sample dictionary for r and g bands with random values"""
-    param_list = [
-        "logA",
-        "beta",
-        "log_gamma",
-        "t0",
-        "log_tau_rise",
-        "log_tau_fall",
-        "log_extra_sigma",
-        "A_g",
-        "beta_g",
-        "gamma_g",
-        "t0_g",
-        "tau_rise_g",
-        "tau_fall_g",
-        "extra_sigma_g",
-    ]
-    return {
-        param: np.random.rand(3, 20) if batch else np.random.rand(1, 20).flatten() for param in param_list
-    }
-
-
 def test_combined_parameter_space(single_ztf_sn_id, test_data_dir, tmp_path):
     """Test plotting 2d parameter spaces of all LCs."""
-    print(tmp_path)
     plot_combined_posterior_space(
         [
             single_ztf_sn_id,
@@ -55,9 +31,9 @@ def test_combined_parameter_space(single_ztf_sn_id, test_data_dir, tmp_path):
     assert os.path.exists(filepath)
 
 
-def test_plot_posterior_hist_numpyro_dict(tmp_path):
+def test_plot_posterior_hist_numpyro_dict(tmp_path, dummy_posterior_sample_dict):
     """Test that we can plot a posterior samples histogram."""
-    samples = generate_dummy_posterior_sample_dict()
+    samples = dummy_posterior_sample_dict
 
     # Check that plot is created for a valid parameter.
     parameter = "log_tau_fall"
@@ -73,10 +49,10 @@ def test_plot_posterior_hist_numpyro_dict(tmp_path):
         plot_posterior_hist_numpyro_dict(samples, None, tmp_path)
 
 
-def test_plot_posterior_hist_numpyro_batch(tmp_path):
+def test_plot_posterior_hist_numpyro_batch(dummy_posterior_sample_dict_batch, tmp_path):
     print(tmp_path)
     """Test that we can plot a histogram for a batch of posterior samples."""
-    samples = generate_dummy_posterior_sample_dict(batch=True)
+    samples = dummy_posterior_sample_dict_batch
 
     # Check that plot is created for a valid parameter.
     parameter = "log_tau_fall"
@@ -87,9 +63,9 @@ def test_plot_posterior_hist_numpyro_batch(tmp_path):
     assert os.path.exists(filepath)
 
 
-def test_plot_sampling_trace_numpyro(tmp_path):
+def test_plot_sampling_trace_numpyro(tmp_path, dummy_posterior_sample_dict_batch):
     """Test that we can plot the trace of posterior samples."""
-    samples = generate_dummy_posterior_sample_dict(batch=True)
+    samples = dummy_posterior_sample_dict_batch
 
     plot_sampling_trace_numpyro(samples, tmp_path)
 

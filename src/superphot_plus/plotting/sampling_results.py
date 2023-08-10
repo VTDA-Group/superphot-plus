@@ -20,9 +20,7 @@ def plot_corner_plot_all(
     labels,
     fits_dir,
     save_dir,
-    aux_bands=[
-        "g",
-    ],
+    aux_bands=Survey.ZTF().priors.aux_bands,
 ):
     """Plot combined corner plot of all training set samples, excluding
     the overall scaling A.
@@ -38,7 +36,7 @@ def plot_corner_plot_all(
     save_dir : str
         Path to save the combined corner plot.
     aux_bands : array-like, optional
-        The auxiliary bands of the fits (for plotting lables). Defaults to "g".
+        The auxiliary bands of the fits (for plotting lables). Defaults to ZTF's aux bands.
     """
     # allowed_types = SnClass.all_classes()
 
@@ -128,7 +126,7 @@ def plot_sampling_trace_numpyro(posterior_samples, output_dir=None):
     plt.close()
 
 
-def compare_oversampling(names, labels, fits_dir, allowed_types=SnClass.all_classes(), sampler=None):
+def compare_oversampling(names, labels, fits_dir, allowed_types=SnClass.all_classes(), aux_bands=Survey.ZTF().priors.aux_bands, sampler=None):
     """
     Compare plots of various oversampling methods.
 
@@ -171,9 +169,7 @@ def compare_oversampling(names, labels, fits_dir, allowed_types=SnClass.all_clas
     labels_smote = labels_smote_comb[labels_smote_comb == allowed_types[0]]
 
     params, save_labels = param_labels(
-        [
-            "g",
-        ]
+        aux_bands
     )
 
     fig, axes = plt.subplots(2, 1, sharex=True, figsize=(8, 10), gridspec_kw={"hspace": 0})
@@ -250,9 +246,7 @@ def plot_oversampling_1d(names, labels, fits_dir, save_dir, priors=Survey.ZTF().
     features_gaussian, labels_gaussian = oversample_using_posteriors(names, labels, goal_per_class, fits_dir)
 
     params, _ = param_labels(
-        [
-            "g",
-        ]
+        priors.aux_bands
     )
 
     fig, axes = plt.subplots(3, 4, figsize=(8, 9))
@@ -343,7 +337,7 @@ def plot_oversampling_1d(names, labels, fits_dir, save_dir, priors=Survey.ZTF().
     plt.close()
 
 
-def plot_combined_posterior_space(names, labels, fits_dir, save_dir):
+def plot_combined_posterior_space(names, labels, fits_dir, save_dir, aux_bands=Survey.ZTF().priors.aux_bands):
     """
     Plot 2D scatterplots for each pair
     of fit parameters, to identify clustering
@@ -358,18 +352,14 @@ def plot_combined_posterior_space(names, labels, fits_dir, save_dir):
     save_dir : str
         Where to save figure
     """
-    print(save_dir)
     os.makedirs(os.path.join(save_dir, "combined_2d_posteriors"), exist_ok=True)
     labels_to_class, classes_to_labels = SnClass.get_type_maps()
     # pt_colors = ["r", "c", "k", "m", "g"] # keep for TODO
 
     features, labels = oversample_using_posteriors(names, labels, OVERSAMPLE_SIZE, fits_dir)
 
-    print(names)
     params, save_labels = param_labels(
-        [
-            "g",
-        ]
+        aux_bands
     )
 
     # color_arr = [labels_to_vals[l] for l in labels]
@@ -404,7 +394,7 @@ def plot_combined_posterior_space(names, labels, fits_dir, save_dir):
             plt.close()
 
 
-def plot_param_distributions(names, labels, fit_folder, save_dir, overlay_gaussians=True):
+def plot_param_distributions(names, labels, fit_folder, save_dir, overlay_gaussians=True, aux_bands=Survey.ZTF().priors.aux_bands):
     """
     Plot the parameter distributions to get better priors for fitting.
 
@@ -421,9 +411,7 @@ def plot_param_distributions(names, labels, fit_folder, save_dir, overlay_gaussi
     posteriors, labels = oversample_using_posteriors(names, labels, OVERSAMPLE_SIZE, fit_folder)
 
     params, save_labels = param_labels(
-        [
-            "g",
-        ]
+        aux_bands
     )
 
     for i in range(1, len(params) - 1):
