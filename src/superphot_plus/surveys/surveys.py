@@ -24,12 +24,12 @@ class Survey:
 
     def __post_init__(self):
         """Check that priors and wavelengths are defined for all filters.
-        
+
         Perform additional logic to coerce string dictionaries into the appropriate
         data type.
         """
         if isinstance(self.priors, dict):
-            self.priors = MultibandPriors(**self.priors)
+            self.priors = MultibandPriors(**self.priors)  # pylint: disable=not-a-mapping
         for band in self.priors.bands:
             assert band in self.wavelengths
 

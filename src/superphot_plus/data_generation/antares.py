@@ -13,7 +13,7 @@ from superphot_plus.surveys.surveys import Survey
 from superphot_plus.utils import convert_mags_to_flux
 
 
-def generate_files_from_antares(input_csv, output_folder, output_csv):
+def generate_files_from_antares(input_csv, output_folder, output_csv):  # pylint: disable=too-many-statements
     """Generates flux files for all ZTF samples in the master CSV file,
     using ANTARES' API.
 
