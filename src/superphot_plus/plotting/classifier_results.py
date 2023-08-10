@@ -2,11 +2,17 @@ import matplotlib.pyplot as plt
 import numpy as np
 import os
 import pandas as pd
+from sklearn.metrics import roc_curve
+from matplotlib.ticker import AutoMinorLocator
+from astropy.cosmology import Planck13 as cosmo
+from scipy.stats import binned_statistic
 
 from superphot_plus.supernova_class import SupernovaClass as SnClass
+from superphot_plus.format_data_ztf import import_labels_only
+from superphot_plus.utils import calculate_neg_chi_squareds
 
 from superphot_plus.plotting.format_params import *
-from superphot_plus.plotting.utils import read_probs_csv
+from superphot_plus.plotting.utils import read_probs_csv, histedges_equalN
 
 
 def save_class_fractions(spec_probs_csv, phot_probs_csv, save_path):
@@ -98,7 +104,7 @@ def plot_class_fractions(saved_cf_file, fig_dir, filename):
     ]
     width = 0.6
 
-    frac_df = pd.from_csv(saved_cf_file)
+    frac_df = pd.read_csv(saved_cf_file)
 
     true_fracs, pred_fracs, pred_fracs_corr, alerce_fracs, alerce_fracs_corr = frac_df.to_numpy().T
 
@@ -180,7 +186,7 @@ def generate_roc_curve(probs_csv, save_dir):
     save_dir : str
         Where to save the figure.
     """
-    labels_to_class, classes_to_labels = SnClass.get_type_maps()
+    labels_to_classes, classes_to_labels = SnClass.get_type_maps()
 
     colors = [plt.cm.Set1(i) for i in range(10)]
     fig, ax = plt.subplots(1, 2, figsize=(8, 7))
@@ -194,6 +200,9 @@ def generate_roc_curve(probs_csv, save_dir):
     plt.locator_params(axis="x", nbins=3)
 
     legend_lines = []
+    fpr = []
+    tpr = []
+    
     for ref_label in range(len(classes_to_labels)):
         names, true_labels, probs, preds = read_probs_csv(probs_csv)
         y_true = np.where(true_labels == ref_label, 1, 0)
@@ -236,7 +245,7 @@ def generate_roc_curve(probs_csv, save_dir):
 
     legend_lines.append(l)
 
-    fig.legend(leg_lines, [*list(labels_to_classes.keys()), "Combined"], loc="lower center", ncol=3)
+    fig.legend(legend_lines, [*list(labels_to_classes.keys()), "Combined"], loc="lower center", ncol=3)
     plt.savefig(os.path.join(save_dir, "roc_all.pdf"), bbox_inches="tight")
     plt.close()
 
@@ -344,16 +353,19 @@ def plot_redshifts_abs_mags(probs_snr_csv, save_dir):
     """
     labels_to_classes, classes_to_labels = SnClass.get_type_maps()
     allowed_types = list(labels_to_classes.keys())
+    allowed_classes = [str(x) for x in list(labels_to_classes.values())]
 
-    names, labels, redshifts = import_labels_only(
+    names, classes, redshifts = import_labels_only(
         [
             probs_snr_csv,
         ],
-        allowed_types,
+        allowed_classes,
+        needs_posteriors=False,
         redshift=True,
     )
 
-    df = pd.from_csv(probs_snr_csv)
+    labels = np.array([classes_to_labels[int(x)] for x in classes])
+    df = pd.read_csv(probs_snr_csv)
     amplitudes = df.iloc[:, -5].to_numpy()
     app_mags = -2.5 * np.log10(amplitudes) + 26.3
 
@@ -431,22 +443,30 @@ def plot_snr_npoints_vs_accuracy(probs_snr_csv, save_dir):
         Where to save figures.
     """
 
-    labels_to_classes, classes_to_labels = SnClass
+    labels_to_classes, classes_to_labels = SnClass.get_type_maps()
 
     names, true_type, _, pred_classes = read_probs_csv(probs_snr_csv)
-    correct_class = np.where(true_classes == pred_classes, 1, 0)
+    correct_class = np.where(true_type == pred_classes, 1, 0)
 
-    df = pd.from_csv(probs_snr_csv)
-    snr, n_high_snr = df.iloc[:, -4:-2]
+    df = pd.read_csv(probs_snr_csv)
+    snr, n_high_snr = df.SNR90, df.nSNR3
 
     for t in np.unique(true_type):
         snr_t = snr[true_type == t]
         correct_t = correct_class[true_type == t]
 
-        snr_vs_accuracy, snr_bin_edges, _ = binned_statistic(
-            snr_t, correct_t, "mean", bins=histedges_equalN(snr_t, 8)
-        )
-        cts_per_bin, _, _ = binned_statistic(snr_t, np.ones(len(correct_t)), "sum", bins=snr_bin_edges)
+        nbins = 8
+        while nbins >= 1:
+            try:
+                snr_vs_accuracy, snr_bin_edges, _ = binned_statistic(
+                    snr_t, correct_t, "mean", bins=histedges_equalN(snr_t, nbins)
+                )
+                break
+            except:
+                nbins /= 2
+                
+        if nbins < 1:
+            continue
 
         snr_vs_accuracy[np.isnan(snr_vs_accuracy)] = 1.0
 
@@ -470,9 +490,19 @@ def plot_snr_npoints_vs_accuracy(probs_snr_csv, save_dir):
         correct_t = correct_class[true_type == t]
         n_high_t = n_high_snr[true_type == t]
 
-        n_vs_accuracy, n_bin_edges, _ = binned_statistic(
-            n_high_t, correct_t, "mean", bins=histedges_equalN(n_high_t, 8)
-        )
+        nbins = 8
+        while nbins >= 1:
+            try:
+                n_vs_accuracy, n_bin_edges, _ = binned_statistic(
+                    n_high_t, correct_t, "mean", bins=histedges_equalN(n_high_t, nbins)
+                )
+                break
+            except:
+                nbins /= 2
+        
+        if nbins < 1:
+            continue
+        
         n_vs_accuracy[np.isnan(n_vs_accuracy)] = 1.0
 
         plt.step(
@@ -499,7 +529,7 @@ def plot_snr_hist(probs_snr_csv, save_dir):
     save_dir : str
         Where to save figure.
     """
-    df = pd.from_csv(probs_snr_csv)
+    df = pd.read_csv(probs_snr_csv)
     snr, n_snr_3, n_snr_5, n_snr_10 = df.iloc[:, -4:].to_numpy().T
     skip_mask = (df.iloc[:, 1] == "SKIP").to_numpy()
 
@@ -530,11 +560,11 @@ def compare_mag_distributions(probs_classified, probs_unclassified, save_dir, ze
     zeropoint : float, optional
         Zeropoint used when converting mags to fluxes. Defaults to 26.3.
     """
-    classified_df = pd.from_csv(probs_classified)
+    classified_df = pd.read_csv(probs_classified)
     max_flux = classified_df.iloc[:, -5].to_numpy()
     max_r_classified = -2.5 * np.log10(max_flux) + zeropoint
 
-    unclassified_df = pd.from_csv(probs_classified)
+    unclassified_df = pd.read_csv(probs_classified)
     max_flux = unclassified_df.iloc[:, -5].to_numpy()
     max_r_unclassified_all = -2.5 * np.log10(max_flux) + zeropoint
 
@@ -575,10 +605,12 @@ def compare_mag_distributions(probs_classified, probs_unclassified, save_dir, ze
     plt.close()
 
 
-def plot_chisquared_vs_accuracy(pred_spec_fn, pred_phot_fn, save_dir):
+def plot_chisquared_vs_accuracy(pred_spec_fn, pred_phot_fn, fits_dir, save_dir):
     """
     Plot chi-squared value histograms for both the spectroscopic and photometric
     datasets, and plot spec chi-squared as a function of classification accuracy.
+    
+    TODO: IN PROGRESS
 
     Parameters
     ----------
@@ -592,7 +624,8 @@ def plot_chisquared_vs_accuracy(pred_spec_fn, pred_phot_fn, save_dir):
     sn_names, true_classes, _, pred_classes = read_probs_csv(pred_spec_fn)
 
     correctly_classified = np.where(true_classes == pred_classes, 1, 0)
-    train_chis = -1 * calculate_neg_chi_squareds(sn_names, FITS_DIR, DATA_DIRS)
+    spec_cubes = get_multiple_posterior_samples(sn_names, fits_dir)
+    train_chis = -1 * calculate_neg_chi_squareds(speccubes, t, f, ferr, b)
 
     sn_names, _, _, _ = read_probs_csv(pred_phot_fn)
     train_chis_phot = -1 * calculate_neg_chi_squareds(sn_names, FITS_DIR, DATA_DIRS)

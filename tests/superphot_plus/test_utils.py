@@ -95,3 +95,14 @@ def test_get_numpyro_cube():
     assert len(aux_bands) == 1
     assert np.mean(cube[:,0]) == np.mean(dummy_param_dict['logA'])
     
+    
+def test_neg_chi_squareds(single_ztf_lightcurve_compressed, test_data_dir, single_ztf_sn_id):
+    """This is currently a change detection test where we are just confirming
+    the function runs correctly returns the same value as it used to.
+    """
+    posts = get_posterior_samples(single_ztf_sn_id, fits_dir=test_data_dir, sampler="dynesty")
+    lc = Lightcurve.from_file(single_ztf_lightcurve_compressed)
+
+    sn_data = [lc.times, lc.fluxes, lc.flux_errors, lc.bands]
+    result = calculate_neg_chi_squareds(posts, *sn_data)
+    assert np.isclose(np.mean(result), -5.43, rtol=0.1)

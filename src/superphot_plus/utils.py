@@ -290,3 +290,38 @@ def get_numpyro_cube(params, max_flux, aux_bands=None):
             ]
         )
     return np.array(cube).T, np.array(aux_bands)
+
+
+
+def calculate_neg_chi_squareds(cubes, t, f, ferr, b, ordered_bands=["r", "g"], ref_band="r"):
+    """Gets the negative chi-squared of posterior fits from the model
+    parameters and original data files.
+    Parameters
+    ----------
+    names : list of str
+        The names of the objects.
+    fit_dir : str
+        The directory where the fit files are located.
+    data_dirs : list of str
+        The directories where the data files are located.
+    ordered_bands : list of str
+        Bands in order they appear in cubes. Defaults to ZTF band order.
+    ref_band : str
+        Base/reference band. Defaults to 'r'.
+    Returns
+    -------
+    log_likelihoods : np.ndarray
+        The log likelihoods for each object.
+    """
+    model_f = np.array(
+        [flux_model(cube, t, b, ordered_bands, ref_band) for cube in cubes]
+    )  # in future, maybe vectorize flux_model
+    extra_sigma_arr = np.ones((len(cubes), len(t))) * np.max(f[b == "r"]) * cubes[:, 6][:, np.newaxis]
+    extra_sigma_arr[:, b == "g"] *= cubes[:, -2][:, np.newaxis]
+    sigma_sq = extra_sigma_arr**2 + ferr**2
+
+    log_likelihoods = np.sum(
+        np.log(1.0 / np.sqrt(2.0 * np.pi * sigma_sq)) - 0.5 * (f - model_f) ** 2 / sigma_sq, axis=1
+    ) / len(t)
+
+    return log_likelihoods
