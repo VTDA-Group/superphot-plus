@@ -24,7 +24,7 @@ from superphot_plus.format_data_ztf import (
 )
 from superphot_plus.lightcurve import Lightcurve
 from superphot_plus.mlp import MLP, ModelConfig, ModelData
-from superphot_plus.plotting import plot_confusion_matrix
+from superphot_plus.plotting.confusion_matrices import plot_confusion_matrix
 from superphot_plus.supernova_class import SupernovaClass as SnClass
 from superphot_plus.utils import calc_accuracy, create_dataset, f1_score, save_test_probabilities
 

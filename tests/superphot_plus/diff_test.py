@@ -18,7 +18,9 @@ from pathlib import Path
 
 import numpy as np
 
-from superphot_plus.fit_numpyro import numpyro_single_file
+from superphot_plus.lightcurve import Lightcurve
+from superphot_plus.samplers.numpyro_sampler import NumpyroSampler
+from superphot_plus.surveys.surveys import Survey
 
 
 def compare_result_files(goldens_file, new_results_file, delta=0.001):
@@ -71,6 +73,14 @@ def compare_result_files(goldens_file, new_results_file, delta=0.001):
     return files_equal
 
 
+def run_svi_sampler(lc_data_path, temp_results_dir):
+    """Run the SVI sampler, loading lightcurve and writing out posterior sample file."""
+    sampler = NumpyroSampler()
+    lightcurve = Lightcurve.from_file(lc_data_path)
+    posteriors = sampler.run_single_curve(lightcurve, priors=Survey.ZTF().priors, sampler="svi")
+    posteriors.save_to_file(temp_results_dir)
+
+
 def test_diffs(tmp_path):
     """Make golden files if they do not yet exist; otherwise, make new
     results and compare with goldens.
@@ -88,12 +98,11 @@ def test_diffs(tmp_path):
         print("Creating goldens...")
         if not goldens_dir.is_dir():
             os.makedirs(goldens_dir)
-        numpyro_single_file(str(lc_data_path), goldens_dir, sampler="svi")
+        run_svi_sampler(str(lc_data_path), goldens_dir)
         print(f"Created goldens: {goldens_file}")
 
     # If we're comparing to the goldens this time:
     else:
         print("Comparing...")
-        numpyro_single_file(str(lc_data_path), temp_results_dir, sampler="svi")
-
+        run_svi_sampler(str(lc_data_path), temp_results_dir)
         compare_result_files(goldens_file, temp_results_file, 5.0)

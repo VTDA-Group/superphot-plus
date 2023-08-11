@@ -11,7 +11,7 @@ from superphot_plus.file_utils import get_multiple_posterior_samples, has_poster
 from superphot_plus.supernova_class import SupernovaClass as SnClass
 
 
-def import_labels_only(input_csvs, allowed_types, fits_dir=None):
+def import_labels_only(input_csvs, allowed_types, fits_dir=None, needs_posteriors=True, redshift=False):
     """Filters CSVs for rows where label is in allowed_types and returns
     names, labels.
 
@@ -23,11 +23,13 @@ def import_labels_only(input_csvs, allowed_types, fits_dir=None):
         List of allowed types for labels.
     fits_dir : str, optional
         Directory path for FITS files. Defaults to None.
+    redshift : bool, optional
+        Whether to also return redshift values, if known.
 
     Returns
     -------
     tuple of np.ndarray
-        Tuple of names and labels
+        Tuple of names and labels (and maybe redshifts)
 
     Notes
     -----
@@ -40,26 +42,36 @@ def import_labels_only(input_csvs, allowed_types, fits_dir=None):
     labels_orig = []
     repeat_ct = 0
     names = []
+    redshifts = []
+
     for input_csv in input_csvs:
         with open(input_csv, newline="", encoding="utf-8") as csvfile:
             csvreader = csv.reader(csvfile)
+            next(csvreader)
             for row in csvreader:
                 name = row[0]
-                if not has_posterior_samples(lc_name=name, fits_dir=fits_dir):
+                if needs_posteriors and not has_posterior_samples(lc_name=name, fits_dir=fits_dir):
                     continue
                 label_orig = row[1]
                 row_label = SnClass.canonicalize(label_orig)
+
                 if row_label not in allowed_types:
                     continue
+
                 if name not in names:
                     names.append(name)
                     labels.append(row_label)
                     labels_orig.append(label_orig)
+                    if redshift:
+                        redshifts.append(float(row[2]))
                 else:
                     repeat_ct += 1
 
     tally_each_class(labels_orig)
     print(repeat_ct)
+
+    if redshift:
+        return np.array(names), np.array(labels), np.array(redshifts)
     return np.array(names), np.array(labels)
 
 
@@ -106,7 +118,7 @@ def tally_each_class(labels):
     print()
 
 
-def oversample_using_posteriors(lc_names, labels, goal_per_class, fits_dir=None):
+def oversample_using_posteriors(lc_names, labels, goal_per_class, fits_dir, sampler=None):
     """Oversamples, drawing from posteriors of a certain fit.
 
     Parameters
@@ -119,6 +131,8 @@ def oversample_using_posteriors(lc_names, labels, goal_per_class, fits_dir=None)
         Number of samples per class.
     fits_dir : str
         Where fit parameters are stored.
+    sampler: str
+        The name of the sampler to use.
 
     Returns
     -------
@@ -130,7 +144,9 @@ def oversample_using_posteriors(lc_names, labels, goal_per_class, fits_dir=None)
     oversampled_features = []
     labels_unique = np.unique(labels)
 
-    posterior_samples = get_multiple_posterior_samples(lc_names, fits_dir)
+    labels = np.array(labels)
+
+    posterior_samples = get_multiple_posterior_samples(lc_names, fits_dir, sampler)
 
     for l in labels_unique:
         idxs_in_class = np.asarray(labels == l).nonzero()[0]

@@ -55,7 +55,7 @@ def get_posterior_samples(lc_name, fits_dir=None, sampler=None):
     return np.load(posterior_filename)["arr_0"]
 
 
-def get_multiple_posterior_samples(lc_names, fits_dir):
+def get_multiple_posterior_samples(lc_names, fits_dir, sampler=None):
     """Reads all EQUAL WEIGHT posterior samples for a set of lightcurve fits.
 
     Parameters
@@ -74,7 +74,7 @@ def get_multiple_posterior_samples(lc_names, fits_dir):
     """
     posterior_samples = {}
     for lc_name in np.unique(lc_names):
-        posterior_samples[lc_name] = get_posterior_samples(lc_name, fits_dir)
+        posterior_samples[lc_name] = get_posterior_samples(lc_name, fits_dir, sampler)
     return posterior_samples
 
 

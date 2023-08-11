@@ -24,7 +24,7 @@ from superphot_plus.constants import (
 )
 from superphot_plus.file_paths import METRICS_DIR, MODELS_DIR
 from superphot_plus.format_data_ztf import normalize_features
-from superphot_plus.plotting import plot_model_metrics
+from superphot_plus.plotting.classifier_results import plot_model_metrics
 from superphot_plus.utils import calculate_accuracy, create_dataset, epoch_time, save_test_probabilities
 
 

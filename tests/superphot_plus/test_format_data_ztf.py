@@ -14,6 +14,7 @@ def test_import_labels_only(tmp_path):
     csv_file = os.path.join(tmp_path, "labels.csv")
     with open(csv_file, "w+", encoding="utf-8") as new_csv:
         csv_writer = csv.writer(new_csv, delimiter=",")
+        csv_writer.writerow(["Name", "Label", "Redshift"])
         csv_writer.writerow(["ZTF_SN_1234", "SN Ic", 4.5])
         csv_writer.writerow(["ZTF_SN_1234", "SN IIn", 4.5])
         csv_writer.writerow(["ZTF_SN_4567", "SN Ib-Ca-rich", 5.6])
