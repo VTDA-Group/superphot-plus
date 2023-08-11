@@ -10,7 +10,7 @@ from superphot_plus.surveys.surveys import Survey
 from superphot_plus.utils import convert_mags_to_flux
 
 
-def import_lc(filename, survey=Survey.ZTF()):
+def import_lc(filename, survey=Survey.ZTF(), clip_lightcurve=True):
     """Imports a single file, but only the points from a single
     survey.
 
@@ -80,7 +80,9 @@ def import_lc(filename, survey=Survey.ZTF()):
     merr = merr[merr != np.nan]
 
     f, ferr = convert_mags_to_flux(m, merr, 26.3)
-    t, f, ferr, b = clip_lightcurve_end(t, f, ferr, b)
+    
+    if clip_lightcurve:
+        t, f, ferr, b = clip_lightcurve_end(t, f, ferr, b)
     snr = np.abs(f / ferr)
 
     for band in survey.wavelengths:
@@ -124,6 +126,13 @@ def clip_lightcurve_end(times, fluxes, fluxerrs, bands):
             continue
         end_i = len(t_b) - np.argmax(f_b)
         num_to_cut = 0
+        
+        if np.argmax(f_b) == len(f_b) - 1:
+            t_clip.extend(t_b)
+            flux_clip.extend(f_b)
+            ferr_clip.extend(ferr_b)
+            b_clip.extend([b] * len(f_b))
+            continue
 
         m_cutoff = 0.2 * np.abs((f_b[-1] - np.amax(f_b)) / (t_b[-1] - t_b[np.argmax(f_b)]))
 
@@ -135,7 +144,7 @@ def clip_lightcurve_end(times, fluxes, fluxerrs, bands):
                 num_to_cut = i
 
         if num_to_cut > 0:
-            print("LC SNIPPED")
+            #print("LC SNIPPED")
             t_clip.extend(t_b[:-num_to_cut])
             flux_clip.extend(f_b[:-num_to_cut])
             ferr_clip.extend(ferr_b[:-num_to_cut])
@@ -168,7 +177,6 @@ def save_datafile(name, times, fluxes, fluxerrs, bands, save_dir):
         Path to the output folder.
     """
     arr = np.array([times, fluxes, fluxerrs, bands])
-    print(arr[:, 0])
     np.savez_compressed(save_dir + str(name) + ".npz", arr)
 
 
@@ -186,7 +194,6 @@ def add_to_new_csv(name, label, redshift, output_csv):
     output_csv : str
         The output CSV file path.
     """
-    print(name, label, redshift)
     with open(output_csv, "a", encoding="utf-8") as csv_file:
         writer = csv.writer(csv_file, delimiter=",")
         writer.writerow([name, label, redshift])

@@ -205,7 +205,7 @@ def plot_lightcurve_clipping(ztf_name, data_folder, save_dir):
         Directory path where to store the plot figure.
     """
     data_fn = os.path.join(data_folder, f"{ztf_name}.csv")
-    t, f, ferr, b, ra, dec = import_lc(data_fn)  # pylint: disable=unused-variable
+    t, f, ferr, b, ra, dec = import_lc(data_fn, clip_lightcurve=False)  # pylint: disable=unused-variable
     t_clip, f_clip, ferr_clip, b_clip = clip_lightcurve_end(t, f, ferr, b)
 
     idx_clip = ~np.isin(t, t_clip)
@@ -213,17 +213,26 @@ def plot_lightcurve_clipping(ztf_name, data_folder, save_dir):
     f_clip = f[idx_clip]
     ferr_clip = ferr[idx_clip]
     b_clip = b[idx_clip]
+    
+    t_notclip = t[~idx_clip]
+    f_notclip = f[~idx_clip]
+    ferr_notclip = ferr[~idx_clip]
+    b_notclip = b[~idx_clip]
 
     for b_name in np.unique(b):
         all_b_idx = b == b_name
         clip_b_idx = b_clip == b_name
+        notclip_b_idx = b_notclip == b_name
         t_b = t[all_b_idx]
         f_b = f[all_b_idx]
         t_clip_b = t_clip[clip_b_idx]
         f_clip_b = f_clip[clip_b_idx]
+        t_notclip_b = t_notclip[notclip_b_idx]
+        f_notclip_b = f_notclip[notclip_b_idx]
+        ferr_notclip_b = ferr_notclip[notclip_b_idx]
 
         # TODO: have default band names to colors
-        plt.errorbar(t_b, f_b, yerr=ferr[all_b_idx], fmt="o", c=b_name)
+        plt.errorbar(t_notclip_b, f_notclip_b, yerr=ferr_notclip_b, fmt="o", c=b_name)
 
         # overlay clipped points
         plt.errorbar(

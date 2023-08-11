@@ -18,7 +18,7 @@ from .constants import *  # star import used due to large quantity of items impo
 from .file_paths import METRICS_DIR, MODEL_DIR, PROBS_FILE, PROBS_FILE2
 
 
-def save_test_probabilities(output_filename, true_label, pred_probabilities, output_dir=None):
+def save_test_probabilities(output_filename, true_label, pred_probabilities, output_dir=None, save_file=PROBS_FILE):
     """Saves probabilities to a separate file for ROC curve generation.
 
     Parameters
@@ -31,17 +31,21 @@ def save_test_probabilities(output_filename, true_label, pred_probabilities, out
         The prediction probabilities.
     """
     if output_dir:
-        output_path = os.path.join(output_dir, PROBS_FILE)
+        output_path = os.path.join(output_dir, save_file)
     else:
-        output_path = PROBS_FILE
+        output_path = save_file
+        
+    true_label = str(true_label)
+    if true_label[:6] == 'tensor':
+        true_label = true_label[-2]
     with open(output_path, "a+", encoding="utf-8") as pf:
-        pf.write("%s,%s" % (output_filename, str(true_label)))
+        pf.write("%s,%s" % (output_filename, true_label))
         for p in pred_probabilities:
             pf.write(",%.04f" % p)
         pf.write("\n")
 
 
-def save_unclassified_test_probabilities(output_filename, pred_probabilities, output_dir=None):
+def save_unclassified_test_probabilities(output_filename, pred_probabilities, output_dir=None, save_file=PROBS_FILE2):
     """Saves probabilities to a separate file for ROC curve generation.
 
     Parameters
@@ -52,9 +56,9 @@ def save_unclassified_test_probabilities(output_filename, pred_probabilities, ou
         The prediction probabilities.
     """
     if output_dir:
-        output_path = os.path.join(output_dir, PROBS_FILE2)
+        output_path = os.path.join(output_dir, save_file)
     else:
-        output_path = PROBS_FILE2
+        output_path = save_file
     with open(output_path, "a+", encoding="utf-8") as pf:
         pf.write("%s" % output_filename)
         for p in pred_probabilities:
@@ -381,6 +385,7 @@ def run_mlp(
     test_sample_classes,
     test_sample_names,
     test_group_idxs,
+    input_dim,
     output_dim,
     neurons_per_layer,
     num_layers,
@@ -429,8 +434,6 @@ def run_mlp(
     torch.manual_seed(SEED)
     torch.cuda.manual_seed(SEED)
     torch.backends.cudnn.deterministic = True
-
-    input_dim = train_data.shape[1]
 
     train_iterator = data.DataLoader(train_data, shuffle=True, batch_size=BATCH_SIZE)
 

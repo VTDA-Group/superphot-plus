@@ -104,9 +104,17 @@ def f1_score(pred_classes, true_classes, class_average=False):
     f1_sum = 0.0
     for true_class, count in samples_per_class.items():
         true_positive = len(pred_classes[(pred_classes == true_class) & (true_classes == true_class)])
-        purity = true_positive / len(pred_classes[pred_classes == true_class])
-        completeness = true_positive / len(true_classes[true_classes == true_class])
-        f_1 = 2.0 * purity * completeness / (purity + completeness)
+        if len(pred_classes[pred_classes == true_class]) == 0:
+            f_1 = 0.0
+        else:
+            purity = true_positive / len(pred_classes[pred_classes == true_class])
+            completeness = true_positive / len(true_classes[true_classes == true_class])
+            
+            if purity + completeness == 0:
+                f_1 = 0.0
+            else:
+                f_1 = 2.0 * purity * completeness / (purity + completeness)
+            
         if class_average:
             f1_sum += f_1
         else:
