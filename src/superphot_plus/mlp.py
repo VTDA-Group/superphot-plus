@@ -4,16 +4,12 @@ classification."""
 import os
 import random
 import time
+from dataclasses import dataclass
 
 import numpy as np
 import torch
-
-from dataclasses import dataclass
-from superphot_plus.format_data_ztf import normalize_features
-from torch import nn
-from torch import optim
 import torch.nn.functional as F
-
+from torch import nn, optim
 from torch.utils.data import DataLoader, TensorDataset
 
 from superphot_plus.constants import (
@@ -22,18 +18,14 @@ from superphot_plus.constants import (
     HIDDEN_DROPOUT_FRAC,
     INPUT_DROPOUT_FRAC,
     LEARNING_RATE,
-    SEED,
     MEANS_TRAINED_MODEL,
+    SEED,
     STDDEVS_TRAINED_MODEL,
 )
 from superphot_plus.file_paths import METRICS_DIR, MODELS_DIR
-from superphot_plus.utils import (
-    calculate_accuracy,
-    create_dataset,
-    epoch_time,
-    save_test_probabilities,
-)
+from superphot_plus.format_data_ztf import normalize_features
 from superphot_plus.plotting import plot_model_metrics
+from superphot_plus.utils import calculate_accuracy, create_dataset, epoch_time, save_test_probabilities
 
 
 @dataclass
@@ -57,9 +49,9 @@ class ModelData:
 
     train_data: TensorDataset
     valid_data: TensorDataset
-    test_sample_features: np.ndarray
-    test_sample_classes: np.ndarray
-    test_sample_names: np.ndarray
+    test_features: np.ndarray
+    test_classes: np.ndarray
+    test_names: np.ndarray
     test_group_idxs: list[int]
 
     def __iter__(self):
@@ -67,34 +59,76 @@ class ModelData:
             (
                 self.train_data,
                 self.valid_data,
-                self.test_sample_features,
-                self.test_sample_classes,
-                self.test_sample_names,
+                self.test_features,
+                self.test_classes,
+                self.test_names,
                 self.test_group_idxs,
             )
         )
 
 
-@dataclass
 class ModelMetrics:
-    """Class containing the training results."""
+    """Class containing the metrics for one epoch."""
 
-    train_acc: list
-    val_acc: list
-    train_loss: list
-    val_loss: list
-    num_epochs: int
+    train_acc: list[float] = []
+    val_acc: list[float] = []
+    train_loss: list[float] = []
+    val_loss: list[float] = []
 
-    def __iter__(self):
-        return iter(
-            (
-                self.train_acc,
-                self.val_acc,
-                self.train_loss,
-                self.val_loss,
-                self.num_epochs,
-            )
+    epoch_mins: list[int] = []
+    epoch_secs: list[int] = []
+    curr_epoch: int = 0
+
+    def append(self, train_loss, train_acc, val_loss, val_acc, epoch_mins, epoch_secs):
+        """Appends training information for an epoch.
+
+        Parameters
+        ----------
+        train_loss: float
+            The epoch training loss.
+        train_acc: float
+            The epoch training accuracy.
+        val_loss: float
+            The epoch validation loss.
+        val_acc: float
+            The epoch validation accuracy.
+        epoch_mins: int
+            The number of minutes spent by the epoch.
+        epoch_secs: int
+            The number of seconds spent by the epoch.
+        """
+        self.curr_epoch += 1
+        self.train_loss.append(train_loss)
+        self.train_acc.append(train_acc)
+        self.val_loss.append(val_loss)
+        self.val_acc.append(val_acc)
+        self.epoch_mins.append(epoch_mins)
+        self.epoch_secs.append(epoch_secs)
+
+    def get_values(self):
+        """Returns the training and validation accuracies and losses.
+
+        Returns
+        -------
+        tuple
+            A tuple containing the training accuracy and loss, and
+            validation accuracy and loss, respectively.
+        """
+        return self.train_acc, self.train_loss, self.val_acc, self.val_loss
+
+    def print_last(self):
+        """Prints the metrics for the last epoch."""
+        epoch_mins, epoch_secs, train_loss, train_acc, val_loss, val_acc = (
+            self.epoch_mins[-1],
+            self.epoch_secs[-1],
+            self.train_loss[-1],
+            self.train_acc[-1],
+            self.val_loss[-1],
+            self.val_acc[-1],
         )
+        print(f"Epoch: {self.curr_epoch:02} | Epoch Time: {epoch_mins}m {epoch_secs}s")
+        print(f"\tTrain Loss: {train_loss:.3f} | Train Acc: {train_acc*100:.2f}%")
+        print(f"\t Val. Loss: {val_loss:.3f} |  Val. Acc: {val_acc*100:.2f}%")
 
 
 class MLP(nn.Module):
@@ -210,67 +244,52 @@ class MLP(nn.Module):
         (
             train_data,
             valid_data,
-            test_sample_features,
-            test_sample_classes,
-            test_sample_names,
+            test_features,
+            test_classes,
+            test_names,
             test_group_idxs,
         ) = self.data
+
+        model_path = os.path.join(models_dir, f"superphot-model-{test_names[0]}.pt")
 
         train_iterator = DataLoader(train_data, shuffle=True, batch_size=BATCH_SIZE)
         valid_iterator = DataLoader(valid_data, batch_size=BATCH_SIZE)
 
         best_valid_loss = float("inf")
 
-        train_acc_arr = []
-        train_loss_arr = []
-        val_acc_arr = []
-        val_loss_arr = []
+        metrics = ModelMetrics()
 
         for epoch in np.arange(0, num_epochs):
             start_time = time.monotonic()
 
             train_loss, train_acc = self.train_epoch(train_iterator)
-            valid_loss, valid_acc = self.evaluate_epoch(valid_iterator)
+            val_loss, val_acc = self.evaluate_epoch(valid_iterator)
 
-            if valid_loss < best_valid_loss:
-                best_valid_loss = valid_loss
-                torch.save(
-                    self.state_dict(),
-                    os.path.join(models_dir, f"superphot-model-{test_sample_names[0]}.pt"),
-                )
+            if val_loss < best_valid_loss:
+                best_valid_loss = val_loss
+                torch.save(self.state_dict(), model_path)
 
             end_time = time.monotonic()
 
             epoch_mins, epoch_secs = epoch_time(start_time, end_time)
 
+            # Store metrics for the current epoch
+            metrics.append(train_loss, train_acc, val_loss, val_acc, epoch_mins, epoch_secs)
+
             if epoch % 5 == 0:
-                print(f"Epoch: {epoch+1:02} | Epoch Time: {epoch_mins}m {epoch_secs}s")
-                print(f"\tTrain Loss: {train_loss:.3f} | Train Acc: {train_acc*100:.2f}%")
-                print(f"\t Val. Loss: {valid_loss:.3f} |  Val. Acc: {valid_acc*100:.2f}%")
+                metrics.print_last()
 
-            train_loss_arr.append(train_loss)
-            train_acc_arr.append(train_acc)
-            val_loss_arr.append(valid_loss)
-            val_acc_arr.append(valid_acc)
-
-        self.load_state_dict(
-            torch.load(os.path.join(models_dir, f"superphot-model-{test_sample_names[0]}.pt"))
-        )
+        self.load_state_dict(torch.load(model_path))
 
         labels, names, pred_labels, max_probs = self.test(
-            test_sample_features, test_sample_classes, test_sample_names, test_group_idxs
+            test_features, test_classes, test_names, test_group_idxs
         )
 
         if plot_metrics:
             plot_model_metrics(
-                metrics=ModelMetrics(
-                    train_acc=train_acc_arr,
-                    val_acc=val_acc_arr,
-                    train_loss=train_loss_arr,
-                    val_loss=val_loss_arr,
-                    num_epochs=num_epochs,
-                ),
-                plot_name=test_sample_names[0],
+                metrics=metrics.get_values(),
+                num_epochs=num_epochs,
+                plot_name=test_names[0],
                 metrics_dir=metrics_dir,
             )
 
@@ -449,8 +468,6 @@ class MLP(nn.Module):
 
         Parameters
         ----------
-        model : mlp.MLP
-            The trained model.
         iterator : torch.utils.DataLoader
             The data iterator.
 
@@ -481,11 +498,9 @@ class MLP(nn.Module):
         return images, probs
 
     def classify_from_fit_params(self, fit_params):
-        """Classify one or multiple light curves
-        solely from the fit parameters used in the
-        classifier. Excludes t0 and, for redshift-
-        exclusive classifier, A. Includes chi-squared
-        value.
+        """Classify one or multiple light curves solely from the fit parameters
+        used in the classifier. Excludes t0 and, for redshift-exclusive
+        classifier, A. Includes chi-squared value.
 
         Parameters
         ----------
@@ -495,12 +510,13 @@ class MLP(nn.Module):
         Returns
         ----------
         np.ndarray
-            Probability of each light curve being each SN type. Sums to 1 along each row.
+            Probability of each light curve being each SN type.
+            Sums to 1 along each row.
         """
         fit_params_2d = np.atleast_2d(fit_params)  # cast to 2D if only 1 light curve
         test_features, _, _ = normalize_features(fit_params_2d, MEANS_TRAINED_MODEL, STDDEVS_TRAINED_MODEL)
-        test_data = torch.utils.data.TensorDataset(torch.Tensor(test_features))
-        test_iterator = torch.utils.data.DataLoader(test_data, batch_size=32)
+        test_data = TensorDataset(torch.Tensor(test_features))
+        test_iterator = DataLoader(test_data, batch_size=32)
         _, probs = self.get_predictions_from_fit_params(test_iterator)
         return probs.numpy()
 

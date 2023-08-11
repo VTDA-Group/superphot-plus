@@ -23,9 +23,10 @@ from superphot_plus.format_data_ztf import (
     tally_each_class,
 )
 from superphot_plus.lightcurve import Lightcurve
+from superphot_plus.mlp import MLP, ModelConfig, ModelData
 from superphot_plus.plotting import plot_confusion_matrix
 from superphot_plus.supernova_class import SupernovaClass as SnClass
-from superphot_plus.utils import calc_accuracy, f1_score, create_dataset, save_test_probabilities
+from superphot_plus.utils import calc_accuracy, create_dataset, f1_score, save_test_probabilities
 
 
 def adjust_log_dists(features_orig):
@@ -152,19 +153,18 @@ def classify(goal_per_class, num_epochs, neurons_per_layer, num_layers, fits_plo
         val_data = create_dataset(val_features, val_classes)
         # test_data = create_dataset(test_features, test_classes)
 
-        # Train and evaluate multi-layer perceptron
-        test_classes, test_names, pred_classes, pred_probs, valid_loss = run_mlp(
-            train_data,
-            val_data,
-            test_features,
-            test_classes,
-            test_names,
-            test_group_idxs,
-            output_dim,
-            neurons_per_layer,
-            num_layers,
-            num_epochs,
+        model = MLP(
+            ModelConfig(
+                input_dim=train_data.shape[1],
+                output_dim=output_dim,
+                neurons_per_layer=neurons_per_layer,
+                num_hidden_layers=num_layers,
+            ),
+            ModelData(train_data, val_data, test_features, test_classes, test_names, test_group_idxs),
         )
+
+        # Train and evaluate multi-layer perceptron
+        test_classes, test_names, pred_classes, pred_probs, valid_loss = model.run(num_epochs)
 
         return pred_classes, pred_probs > 0.7, test_classes, test_names, valid_loss
 

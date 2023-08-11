@@ -1080,9 +1080,21 @@ def plot_sampling_lc_fit_numpyro(
         )
 
 
-def plot_model_metrics(metrics, plot_name, metrics_dir):
-    """Plots training and validation results and exports them to files."""
-    train_acc, val_acc, train_loss, val_loss, num_epochs = metrics
+def plot_model_metrics(metrics, num_epochs, plot_name, metrics_dir):
+    """Plots training and validation results and exports them to files.
+
+    Parameters
+    ----------
+    metrics: tuple
+        Train and validation accuracies and losses.
+    num_epochs: int
+        The total number of epochs.
+    plot_name: str
+        The name for the plot figure files.
+    metrics_dir: str
+        Where to store the plot figures.
+    """
+    train_acc, train_loss, val_acc, val_loss = metrics
 
     # Plot accuracy
     plt.plot(np.arange(0, num_epochs), train_acc, label="Training")
