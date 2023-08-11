@@ -5,6 +5,7 @@ import os
 import random
 import time
 from dataclasses import dataclass
+from typing import List
 
 import numpy as np
 import torch
@@ -52,7 +53,7 @@ class ModelData:
     test_features: np.ndarray
     test_classes: np.ndarray
     test_names: np.ndarray
-    test_group_idxs: list[int]
+    test_group_idxs: List[int]
 
     def __iter__(self):
         return iter(
@@ -70,13 +71,13 @@ class ModelData:
 class ModelMetrics:
     """Class containing the training and validation metrics."""
 
-    train_acc: list[float] = []
-    val_acc: list[float] = []
-    train_loss: list[float] = []
-    val_loss: list[float] = []
+    train_acc: List[float] = []
+    val_acc: List[float] = []
+    train_loss: List[float] = []
+    val_loss: List[float] = []
 
-    epoch_mins: list[int] = []
-    epoch_secs: list[int] = []
+    epoch_mins: List[int] = []
+    epoch_secs: List[int] = []
     curr_epoch: int = 0
 
     def append(self, train_loss, train_acc, val_loss, val_acc, epoch_mins, epoch_secs):
