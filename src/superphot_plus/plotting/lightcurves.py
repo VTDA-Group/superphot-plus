@@ -10,7 +10,7 @@ from superphot_plus.utils import flux_model, get_numpyro_cube
 from superphot_plus.plotting.format_params import *
 
 
-def plot_lc_fit(ztf_name, ref_band, ordered_bands, data_dir, fit_dir, out_dir, sampling_method="dynesty"):
+def plot_lc_fit(ztf_name, ref_band, ordered_bands, data_dir, fit_dir, out_dir, sampling_method="dynesty", file_type="pdf"):
     """Plot an existing light curve fit.
 
     Parameters
@@ -25,6 +25,8 @@ def plot_lc_fit(ztf_name, ref_band, ordered_bands, data_dir, fit_dir, out_dir, s
         Directory for saving the plot.
     sampling_method : str, optional
         Sampling method used for the fit. Default is "dynesty".
+    file_type : str, optional
+        Type of file to output the resulting image to (e.g. png, pdf). Default is pdf.
     """
     data_fn = os.path.join(data_dir, ztf_name + ".npz")
 
@@ -43,6 +45,7 @@ def plot_lc_fit(ztf_name, ref_band, ordered_bands, data_dir, fit_dir, out_dir, s
         ordered_bands,
         ref_band,
         sampling_method,
+        file_type,
     )
 
 
@@ -57,6 +60,7 @@ def plot_sampling_lc_fit(
     band_order,
     ref_band,
     sampling_method="dynesty",
+    file_type="pdf",
 ):
     """
     Plot lightcurve sampling fit using in-memory samples.
@@ -106,7 +110,7 @@ def plot_sampling_lc_fit(
     plt.ylabel("Flux")
     plt.title(ztf_name + ": " + sampling_method)
 
-    plt.savefig(os.path.join(out_dir, ztf_name + "_" + sampling_method + ".pdf"))
+    plt.savefig(os.path.join(out_dir, ztf_name + "_" + sampling_method + "." + file_type))
 
     plt.close()
 
