@@ -9,8 +9,6 @@ from dustmaps.sfd import SFDQuery
 from superphot_plus.sfd import dust_filepath
 
 from torch.utils.data import TensorDataset
-
-import matplotlib.pyplot as plt
 from superphot_plus.file_paths import PROBS_FILE, PROBS_FILE2
 
 

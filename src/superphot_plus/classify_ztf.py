@@ -9,11 +9,10 @@ import os
 import shutil
 
 import numpy as np
-import torch
 from joblib import Parallel, delayed
 from sklearn.model_selection import train_test_split
 
-from superphot_plus.constants import MEANS_TRAINED_MODEL, NUM_FOLDS, PAD_SIZE, STDDEVS_TRAINED_MODEL
+from superphot_plus.constants import NUM_FOLDS, PAD_SIZE
 from superphot_plus.file_paths import *  # pylint: disable=wildcard-import
 from superphot_plus.file_utils import get_posterior_samples
 from superphot_plus.format_data_ztf import (
@@ -24,7 +23,6 @@ from superphot_plus.format_data_ztf import (
     tally_each_class,
 )
 from superphot_plus.lightcurve import Lightcurve
-from superphot_plus.mlp import MLP
 from superphot_plus.plotting import plot_confusion_matrix
 from superphot_plus.supernova_class import SupernovaClass as SnClass
 from superphot_plus.utils import calc_accuracy, f1_score, create_dataset, save_test_probabilities
@@ -237,54 +235,6 @@ def classify(goal_per_class, num_epochs, neurons_per_layer, num_layers, fits_plo
     )
 
 
-def load_mlp(mlp_filename, mlp_config):
-    """Load a trained MLP for subsequent classification of new objects.
-
-    Parameters
-    ----------
-    mlp_filename : str
-        Where the trained MLP is stored.
-    mlp_config : ModelConfig
-        Includes (in order): input_size, output_size, n_neurons, n_hidden.
-
-    Returns
-    ----------
-    torch.nn.Module
-        The pre-trained MLP object.
-    """
-    model = MLP.create(mlp_config)  # set up empty multi-layer perceptron
-    model.load_state_dict(torch.load(mlp_filename))  # load trained state dict to the MLP
-    return model
-
-
-def classify_from_fit_params(model, fit_params):
-    """Classify one or multiple light curves
-    solely from the fit parameters used in the
-    classifier. Excludes t0 and, for redshift-
-    exclusive classifier, A. Includes chi-squared
-    value.
-
-    Parameters
-    ----------
-    fit_params : np.ndarray
-        Set of model fit parameters.
-
-    Returns
-    ----------
-    np.ndarray
-        Probability of each light curve being each SN type. Sums to 1 along each row.
-    """
-    fit_params_2d = np.atleast_2d(fit_params)  # cast to 2D if only 1 light curve
-
-    test_features, means, stds = normalize_features(  # pylint: disable=unused-variable
-        fit_params_2d, MEANS_TRAINED_MODEL, STDDEVS_TRAINED_MODEL
-    )
-    test_data = torch.utils.data.TensorDataset(torch.Tensor(test_features))
-    test_iterator = torch.utils.data.DataLoader(test_data, batch_size=32)
-    images, probs = get_predictions_new(model, test_iterator, "cpu")  # pylint: disable=unused-variable
-    return probs.numpy()
-
-
 def classify_single_light_curve(model, obj_name, fits_dir):
     """Given an object name, return classification probabilities
     based on the model fit and data.
@@ -303,11 +253,7 @@ def classify_single_light_curve(model, obj_name, fits_dir):
     np.ndarray
         The average probability for each SN type across all equally-weighted sets of fit parameters.
     """
-    # try:
     post_features = get_posterior_samples(obj_name, fits_dir, "dynesty")
-    # except:
-    #    print("no posts")
-    #    return
 
     chisq = np.mean(post_features[:, -1])
     if np.abs(chisq) > 10:  # probably not a SN
@@ -315,7 +261,7 @@ def classify_single_light_curve(model, obj_name, fits_dir):
 
     # normalize the log distributions
     post_features = adjust_log_dists(post_features)
-    probs = classify_from_fit_params(model, post_features)
+    probs = model.classify_from_fit_params(post_features)
     probs_avg = np.mean(probs, axis=0)
     return probs_avg
 
@@ -356,7 +302,7 @@ def return_new_classifications(model, test_csv, fit_dir, include_labels=False, o
             save_test_probabilities(test_name, probs_avg, label, output_dir)
 
 
-def save_phase_versus_class_probs(probs_csv, data_dir):
+def save_phase_versus_class_probs(model, probs_csv, data_dir):
     """Apply classifier to dataset over different phases. Plot overall
     trends of phase vs confidence, phase vs F1 score, phase vs each
     class accuracy.
@@ -413,7 +359,7 @@ def save_phase_versus_class_probs(probs_csv, data_dir):
 
                 # normalize the log distributions
                 test_features = adjust_log_dists(test_features)
-                probs = classify_from_fit_params(test_features)
+                probs = model.classify_from_fit_params(test_features)
                 probs_avg = np.mean(probs.numpy(), axis=0)
                 # idx_random = np.random.choice(np.arange(len(probs)))
                 save_test_probabilities(str(label), round(phase, 2), probs_avg)

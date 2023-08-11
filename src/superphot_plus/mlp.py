@@ -1,13 +1,15 @@
 """This module implements the Multi-Layer Perceptron (MLP) model for
 classification."""
 
-from dataclasses import dataclass
 import os
 import random
 import time
 
 import numpy as np
 import torch
+
+from dataclasses import dataclass
+from superphot_plus.format_data_ztf import normalize_features
 from torch import nn
 from torch import optim
 import torch.nn.functional as F
@@ -21,6 +23,8 @@ from superphot_plus.constants import (
     INPUT_DROPOUT_FRAC,
     LEARNING_RATE,
     SEED,
+    MEANS_TRAINED_MODEL,
+    STDDEVS_TRAINED_MODEL,
 )
 from superphot_plus.file_paths import METRICS_DIR, MODELS_DIR
 from superphot_plus.utils import (
@@ -306,6 +310,7 @@ class MLP(nn.Module):
                 test_classes[group_idx_set],
                 group_idx_set,
             )
+
             test_iterator = DataLoader(test_data, batch_size=BATCH_SIZE)
 
             _, labels_indiv, indx_indiv, probs = self.get_predictions(test_iterator)
@@ -438,7 +443,7 @@ class MLP(nn.Module):
 
         return epoch_loss / len(iterator), epoch_acc / len(iterator)
 
-    def get_predictions_new(self, iterator):
+    def get_predictions_from_fit_params(self, iterator):
         """Given a trained model, returns the test images, test labels, and
         prediction probabilities across all the test labels.
 
@@ -446,6 +451,8 @@ class MLP(nn.Module):
         ----------
         model : mlp.MLP
             The trained model.
+        iterator : torch.utils.DataLoader
+            The data iterator.
 
         Returns
         -------
@@ -473,10 +480,69 @@ class MLP(nn.Module):
 
         return images, probs
 
+    def classify_from_fit_params(self, fit_params):
+        """Classify one or multiple light curves
+        solely from the fit parameters used in the
+        classifier. Excludes t0 and, for redshift-
+        exclusive classifier, A. Includes chi-squared
+        value.
+
+        Parameters
+        ----------
+        fit_params : np.ndarray
+            Set of model fit parameters.
+
+        Returns
+        ----------
+        np.ndarray
+            Probability of each light curve being each SN type. Sums to 1 along each row.
+        """
+        fit_params_2d = np.atleast_2d(fit_params)  # cast to 2D if only 1 light curve
+        test_features, _, _ = normalize_features(fit_params_2d, MEANS_TRAINED_MODEL, STDDEVS_TRAINED_MODEL)
+        test_data = torch.utils.data.TensorDataset(torch.Tensor(test_features))
+        test_iterator = torch.utils.data.DataLoader(test_data, batch_size=32)
+        _, probs = self.get_predictions_from_fit_params(test_iterator)
+        return probs.numpy()
+
     @classmethod
     def create(cls, config, data=None):
-        """Creates an MLP instance, optimizer and respective criterion."""
+        """Creates an MLP instance, optimizer and respective criterion.
+
+        Parameters
+        ----------
+        config : ModelConfig
+            Includes (in order): input_size, output_size, n_neurons, n_hidden.
+        data : ModelData
+            Training, testing and validation data.
+
+        Returns
+        ----------
+        torch.nn.Module
+            The MLP object.
+        """
         model = cls(config, data)
         model.criterion = model.criterion.to(config.device)
         model = model.to(config.device)
+        return model
+
+    @classmethod
+    def load(cls, filename, config, data=None):
+        """Load a trained MLP for subsequent classification of new objects.
+
+        Parameters
+        ----------
+        filename : str
+            Where the trained MLP is stored.
+        config : ModelConfig
+            Includes (in order): input_size, output_size, n_neurons, n_hidden.
+        data : ModelData
+            Training, testing and validation data.
+
+        Returns
+        ----------
+        torch.nn.Module
+            The pre-trained MLP object.
+        """
+        model = MLP.create(config, data)  # set up empty multi-layer perceptron
+        model.load_state_dict(torch.load(filename))  # load trained state dict to the MLP
         return model

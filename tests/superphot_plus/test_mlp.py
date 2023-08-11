@@ -38,7 +38,7 @@ def test_run_mlp(test_data_dir):
         num_epochs=num_epochs,
         plot_metrics=True,
         metrics_dir=test_data_dir,
-        model_dir=test_data_dir,
+        models_dir=test_data_dir,
     )
 
     # Check that accuracy and loss plots exist
