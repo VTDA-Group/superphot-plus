@@ -68,7 +68,7 @@ class ModelData:
 
 
 class ModelMetrics:
-    """Class containing the metrics for one epoch."""
+    """Class containing the training and validation metrics."""
 
     train_acc: list[float] = []
     val_acc: list[float] = []
@@ -132,8 +132,7 @@ class ModelMetrics:
 
 
 class MLP(nn.Module):
-    """The Multi-Layer Perceptron. Sets the number of layers and nodes
-    per layer.
+    """The Multi-Layer Perceptron.
 
     Parameters
     ----------
@@ -301,95 +300,6 @@ class MLP(nn.Module):
             best_valid_loss,
         )
 
-    def test(self, test_features, test_classes, test_names, test_group_idxs):
-        """Runs model over a group of test samples
-
-        Parameters
-        ----------
-        test_features : np.ndarray
-            The features array.
-        test_classes : np.ndarray
-            The classes array.
-        test_names : np.ndarray
-            The names array.
-        test_group_idxs : np.ndarray
-            The indices for each test set.
-
-        Returns
-        -------
-        tuple
-            A tuple containing the labels, names, predicted labels, maximum
-            probabilities, and best validation loss.
-        """
-        labels, pred_labels, max_probs, names = [], [], [], []
-
-        for group_idx_set in test_group_idxs:
-            test_data = create_dataset(
-                test_features[group_idx_set],
-                test_classes[group_idx_set],
-                group_idx_set,
-            )
-
-            test_iterator = DataLoader(test_data, batch_size=BATCH_SIZE)
-
-            _, labels_indiv, indx_indiv, probs = self.get_predictions(test_iterator)
-            probs_avg = np.mean(probs.numpy(), axis=0)
-
-            save_test_probabilities(
-                test_names[indx_indiv.numpy().astype(int)[0]],
-                probs_avg,
-                labels_indiv[0],
-            )
-
-            pred_labels.append(np.argmax(probs_avg))
-            max_probs.append(np.amax(probs_avg))
-            labels.append(labels_indiv[0])
-            names.append(test_names[indx_indiv.numpy().astype(int)[0]])
-
-        return labels, names, pred_labels, max_probs
-
-    def get_predictions(self, iterator):
-        """Given a trained model, returns the test images, test labels, and
-        prediction probabilities across all the test labels.
-
-        Parameters
-        ----------
-        iterator : torch.utils.DataLoader
-            The data iterator.
-
-        Returns
-        -------
-        tuple
-            A tuple containing the test images, test labels, sample indices,
-            and prediction probabilities.
-        """
-        self.eval()
-
-        images = []
-        labels = []
-        probs = []
-        sample_idxs = []
-
-        with torch.no_grad():
-            for x, y, z in iterator:
-                x = x.to(self.config.device)
-
-                y_pred, _ = self(x)
-
-                y_prob = F.softmax(y_pred, dim=-1)
-
-                images.append(x.cpu())
-                labels.append(y.cpu())
-                sample_idxs.append(z.cpu())
-                probs.append(y_prob.cpu())
-
-        images = torch.cat(images, dim=0)
-        labels = torch.cat(labels, dim=0)
-        probs = torch.cat(probs, dim=0)
-        sample_idxs = torch.cat(sample_idxs, dim=0)
-
-        return images, labels, sample_idxs, probs
-
     def train_epoch(self, iterator):
         """Does one epoch of training for a given torch model.
 
@@ -461,6 +371,95 @@ class MLP(nn.Module):
                 epoch_acc += acc.item()
 
         return epoch_loss / len(iterator), epoch_acc / len(iterator)
+
+    def test(self, test_features, test_classes, test_names, test_group_idxs):
+        """Runs model over a group of test samples
+
+        Parameters
+        ----------
+        test_features : np.ndarray
+            The features array.
+        test_classes : np.ndarray
+            The classes array.
+        test_names : np.ndarray
+            The names array.
+        test_group_idxs : np.ndarray
+            The indices for each test set.
+
+        Returns
+        -------
+        tuple
+            A tuple containing the labels, names, predicted labels
+            and maximum probabilities.
+        """
+        labels, pred_labels, max_probs, names = [], [], [], []
+
+        for group_idx_set in test_group_idxs:
+            test_data = create_dataset(
+                test_features[group_idx_set],
+                test_classes[group_idx_set],
+                group_idx_set,
+            )
+
+            test_iterator = DataLoader(test_data, batch_size=BATCH_SIZE)
+
+            _, labels_indiv, indx_indiv, probs = self.get_predictions(test_iterator)
+            probs_avg = np.mean(probs.numpy(), axis=0)
+
+            save_test_probabilities(
+                test_names[indx_indiv.numpy().astype(int)[0]],
+                probs_avg,
+                labels_indiv[0],
+            )
+
+            pred_labels.append(np.argmax(probs_avg))
+            max_probs.append(np.amax(probs_avg))
+            labels.append(labels_indiv[0])
+            names.append(test_names[indx_indiv.numpy().astype(int)[0]])
+
+        return labels, names, pred_labels, max_probs
+
+    def get_predictions(self, iterator):
+        """Given a trained model, returns the test images, test labels, and
+        prediction probabilities across all the test labels.
+
+        Parameters
+        ----------
+        iterator : torch.utils.DataLoader
+            The data iterator.
+
+        Returns
+        -------
+        tuple
+            A tuple containing the test images, test labels, sample indices,
+            and prediction probabilities.
+        """
+        self.eval()
+
+        images = []
+        labels = []
+        probs = []
+        sample_idxs = []
+
+        with torch.no_grad():
+            for x, y, z in iterator:
+                x = x.to(self.config.device)
+
+                y_pred, _ = self(x)
+
+                y_prob = F.softmax(y_pred, dim=-1)
+
+                images.append(x.cpu())
+                labels.append(y.cpu())
+                sample_idxs.append(z.cpu())
+                probs.append(y_prob.cpu())
+
+        images = torch.cat(images, dim=0)
+        labels = torch.cat(labels, dim=0)
+        probs = torch.cat(probs, dim=0)
+        sample_idxs = torch.cat(sample_idxs, dim=0)
+
+        return images, labels, sample_idxs, probs
 
     def get_predictions_from_fit_params(self, iterator):
         """Given a trained model, returns the test images, test labels, and
