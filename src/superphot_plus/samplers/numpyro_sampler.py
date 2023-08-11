@@ -18,6 +18,7 @@ from superphot_plus.posterior_samples import PosteriorSamples
 from superphot_plus.samplers.sampler import Sampler
 from superphot_plus.surveys.fitting_priors import MultibandPriors, PriorFields
 from superphot_plus.surveys.surveys import Survey
+from superphot_plus.utils import get_numpyro_cube
 
 config.update("jax_enable_x64", True)
 numpyro.enable_x64()
@@ -297,35 +298,5 @@ def run_mcmc(lc, sampler="NUTS", priors=Survey.ZTF().priors):
     else:
         raise ValueError("'sampler' must be 'NUTS' or 'svi'")
 
-    param_list = [
-        "logA",
-        "beta",
-        "log_gamma",
-        "t0",
-        "log_tau_rise",
-        "log_tau_fall",
-        "log_extra_sigma",
-    ]
-    for band in priors.aux_bands:
-        param_list.extend(
-            [
-                f"A_{band}",
-                f"beta_{band}",
-                f"gamma_{band}",
-                f"t0_{band}",
-                f"tau_rise_{band}",
-                f"tau_fall_{band}",
-                f"extra_sigma_{band}",
-            ]
-        )
-
-    post_reformatted_for_save = []
-    for p in param_list:
-        if p == "logA":
-            post_reformatted_for_save.append(max_flux * 10 ** posterior_samples["logA"])
-        elif p[:3] == "log":
-            post_reformatted_for_save.append(10 ** posterior_samples[p])
-        else:
-            post_reformatted_for_save.append(posterior_samples[p])
-
-    return np.array(post_reformatted_for_save).T
+    posterior_cube, aux_bands = get_numpyro_cube(posterior_samples, max_flux, priors.aux_bands)
+    return posterior_cube

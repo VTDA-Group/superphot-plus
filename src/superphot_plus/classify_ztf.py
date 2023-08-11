@@ -32,9 +32,9 @@ from .mlp import (
     save_test_probabilities,
     save_unclassified_test_probabilities,
 )
-from .plotting import plot_confusion_matrix
-from .supernova_class import SupernovaClass as SnClass
-from .utils import calc_accuracy, f1_score
+from superphot_plus.plotting.confusion_matrices import plot_confusion_matrix
+from superphot_plus.supernova_class import SupernovaClass as SnClass
+from superphot_plus.utils import calc_accuracy, f1_score
 
 
 def adjust_log_dists(features_orig):

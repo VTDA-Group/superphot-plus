@@ -47,6 +47,7 @@ def test_ztf():
     ## Confirm a single prior value (to ensure chained deserialization)
     assert ztf_survey.priors.bands["r"].gamma.mean == 1.1391
 
+
 def test_write_to_file(tmp_path):
     """Test that we can save survey data to a file, and fetch it later."""
     default_priors = MultibandPriors()

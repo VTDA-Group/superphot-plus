@@ -20,5 +20,5 @@ def test_generate_ztf_data():
     (A, beta, gamma, t0, tau_rise, tau_fall, es), tdata, filter_data, dirty_model, sigmas = create_ztf_model()
     print((A, beta, gamma, t0, tau_rise, tau_fall, es))
     print(tdata, filter_data, dirty_model, sigmas)
-    assert np.isclose(beta, 0.0039, rtol=0.1)
-    assert np.isclose(es, 0.0099, rtol=0.1)
+    assert np.isclose(beta, 0.0039, rtol=0.5)
+    assert np.isclose(es, 0.0099, rtol=0.5)

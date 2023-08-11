@@ -82,12 +82,12 @@ def test_canonicalize():
     assert canon == "nonsense"
 
 
-def test_reflect_style():
-    """Test that we get the reflect style naming for each supernova class."""
-    assert SnClass.get_reflect_style("SNII") == SnClass.SUPERNOVA_II.value
-    assert SnClass.get_reflect_style("SNIa") == SnClass.SUPERNOVA_IA.value
-    assert SnClass.get_reflect_style("SLSN") == SnClass.SUPERLUMINOUS_SUPERNOVA_I.value
-    assert SnClass.get_reflect_style("SNIbc") == SnClass.SUPERNOVA_IBC.value
+def test_alerce_to_superphot():
+    """Test that we convert from ALeRCE to Superphot+ naming for each supernova class."""
+    assert SnClass.from_alerce_to_superphot_format("SNII") == SnClass.SUPERNOVA_II.value
+    assert SnClass.from_alerce_to_superphot_format("SNIa") == SnClass.SUPERNOVA_IA.value
+    assert SnClass.from_alerce_to_superphot_format("SLSN") == SnClass.SUPERLUMINOUS_SUPERNOVA_I.value
+    assert SnClass.from_alerce_to_superphot_format("SNIbc") == SnClass.SUPERNOVA_IBC.value
 
 
 def test_get_classes_from_labels():
