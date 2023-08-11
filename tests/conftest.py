@@ -6,7 +6,9 @@ import torch
 from jax import random
 
 from superphot_plus.classify_ztf import load_mlp
+from superphot_plus.constants import TRAINED_MODEL_PARAMS
 from superphot_plus.lightcurve import Lightcurve
+from superphot_plus.mlp import ModelConfig
 from superphot_plus.surveys.surveys import Survey
 
 TEST_DIR = os.path.dirname(__file__)
@@ -64,5 +66,5 @@ def ztf_priors():
 @pytest.fixture
 def classifier(test_data_dir):
     mlp_filename = os.path.join(test_data_dir, "superphot-model-ZTF23aagkgnz.pt")
-    mlp_params = (13, 5, 128, 3)
-    return load_mlp(mlp_filename, mlp_params)
+    mlp_config = ModelConfig(**TRAINED_MODEL_PARAMS)
+    return load_mlp(mlp_filename, mlp_config)

@@ -547,7 +547,7 @@ def plot_class_fractions(saved_cf_file, fig_dir, filename):
             alerce_fracs_corr,
         ]
     ).T
-    _, ax = plt.subplots(figsize=(11, 16)) 
+    _, ax = plt.subplots(figsize=(11, 16))
     bar = ax.bar(labels, combined_fracs[0], width, label=classes_to_labels[0])
     for i in range(len(combined_fracs[0])):
         bari = bar.patches[i]
@@ -1078,3 +1078,27 @@ def plot_sampling_lc_fit_numpyro(
             ref_band,
             sampling_method=sampling_method,
         )
+
+
+def plot_model_metrics(metrics, plot_name, metrics_dir):
+    """Plots training and validation results and exports them to files."""
+    train_acc, val_acc, train_loss, val_loss, num_epochs = metrics
+
+    # Plot accuracy
+    plt.plot(np.arange(0, num_epochs), train_acc, label="Training")
+    plt.plot(np.arange(0, num_epochs), val_acc, label="Validation")
+    plt.xlabel("Epoch")
+    plt.ylabel("Accuracy")
+    plt.legend()
+    plt.savefig(os.path.join(metrics_dir, f"accuracy_{plot_name}.png"))
+    plt.close()
+
+    # Plot loss
+    plt.plot(np.arange(0, num_epochs), train_loss, label="Training")
+    plt.plot(np.arange(0, num_epochs), val_loss, label="Validation")
+    plt.xlabel("Epoch")
+    plt.ylabel("Loss")
+    plt.yscale("log")
+    plt.legend()
+    plt.savefig(os.path.join(metrics_dir, f"loss_{plot_name}.png"))
+    plt.close()

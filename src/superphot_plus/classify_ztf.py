@@ -13,28 +13,21 @@ import torch
 from joblib import Parallel, delayed
 from sklearn.model_selection import train_test_split
 
-from .constants import MEANS_TRAINED_MODEL, NUM_FOLDS, PAD_SIZE, STDDEVS_TRAINED_MODEL
-from .file_paths import *  # pylint: disable=wildcard-import
-from .file_utils import get_posterior_samples
-from .format_data_ztf import (
+from superphot_plus.constants import MEANS_TRAINED_MODEL, NUM_FOLDS, PAD_SIZE, STDDEVS_TRAINED_MODEL
+from superphot_plus.file_paths import *  # pylint: disable=wildcard-import
+from superphot_plus.file_utils import get_posterior_samples
+from superphot_plus.format_data_ztf import (
     generate_K_fold,
     import_labels_only,
     normalize_features,
     oversample_using_posteriors,
     tally_each_class,
 )
-from .lightcurve import Lightcurve
-from .mlp import (
-    MLP,
-    create_dataset,
-    get_predictions_new,
-    run_mlp,
-    save_test_probabilities,
-    save_unclassified_test_probabilities,
-)
-from .plotting import plot_confusion_matrix
-from .supernova_class import SupernovaClass as SnClass
-from .utils import calc_accuracy, f1_score
+from superphot_plus.lightcurve import Lightcurve
+from superphot_plus.mlp import MLP
+from superphot_plus.plotting import plot_confusion_matrix
+from superphot_plus.supernova_class import SupernovaClass as SnClass
+from superphot_plus.utils import calc_accuracy, f1_score, create_dataset, save_test_probabilities
 
 
 def adjust_log_dists(features_orig):
@@ -244,14 +237,14 @@ def classify(goal_per_class, num_epochs, neurons_per_layer, num_layers, fits_plo
     )
 
 
-def load_mlp(mlp_filename, mlp_params):
+def load_mlp(mlp_filename, mlp_config):
     """Load a trained MLP for subsequent classification of new objects.
 
     Parameters
     ----------
     mlp_filename : str
         Where the trained MLP is stored.
-    mlp_params : tuple or array
+    mlp_config : ModelConfig
         Includes (in order): input_size, output_size, n_neurons, n_hidden.
 
     Returns
@@ -259,7 +252,7 @@ def load_mlp(mlp_filename, mlp_params):
     torch.nn.Module
         The pre-trained MLP object.
     """
-    model = MLP(*mlp_params)  # set up empty multi-layer perceptron
+    model = MLP.create(mlp_config)  # set up empty multi-layer perceptron
     model.load_state_dict(torch.load(mlp_filename))  # load trained state dict to the MLP
     return model
 
@@ -353,15 +346,14 @@ def return_new_classifications(model, test_csv, fit_dir, include_labels=False, o
                 print(row, "skipped")
                 continue
 
+            label = None
+
             if include_labels:
                 label = row[1]
 
             probs_avg = classify_single_light_curve(model, test_name, fit_dir)
 
-            if include_labels:
-                save_test_probabilities(test_name, label, probs_avg, output_dir)
-            else:
-                save_unclassified_test_probabilities(test_name, probs_avg, output_dir)
+            save_test_probabilities(test_name, probs_avg, label, output_dir)
 
 
 def save_phase_versus_class_probs(probs_csv, data_dir):
@@ -379,7 +371,6 @@ def save_phase_versus_class_probs(probs_csv, data_dir):
     data_dir : str
         Path to the directory containing the data.
     """
-    model = load_mlp(TRAINED_MODEL_FN, TRAINED_MODEL_PARAMS)
 
     ct = 0
 

@@ -6,7 +6,8 @@ import numpy as np
 import torch
 
 from superphot_plus.constants import TRAINED_MODEL_PARAMS
-from superphot_plus.mlp import calculate_accuracy, create_dataset, epoch_time, run_mlp
+from superphot_plus.mlp import MLP, ModelConfig, ModelData
+from superphot_plus.utils import create_dataset, calculate_accuracy, epoch_time
 
 
 def test_run_mlp(test_data_dir):
@@ -30,20 +31,14 @@ def test_run_mlp(test_data_dir):
     train_data = create_dataset(train_features, train_labels)
     val_data = create_dataset(test_features, test_labels)
 
-    run_mlp(
-        train_data,
-        val_data,
-        test_features,
-        test_labels,
-        test_names,
-        test_group_idxs,
-        output_dim,
-        neurons_per_layer,
-        num_layers,
-        num_epochs,
+    config = ModelConfig(input_dim, output_dim, neurons_per_layer, num_layers)
+    data = ModelData(train_data, val_data, test_features, test_labels, test_names, test_group_idxs)
+
+    MLP.create(config, data).run(
+        num_epochs=num_epochs,
         plot_metrics=True,
-        model_dir=test_data_dir,
         metrics_dir=test_data_dir,
+        model_dir=test_data_dir,
     )
 
     # Check that accuracy and loss plots exist
