@@ -4,194 +4,151 @@ classification."""
 import os
 import random
 import time
+from dataclasses import dataclass
+from typing import List
 
-import matplotlib.pyplot as plt
 import numpy as np
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
-import torch.optim as optim
-import torch.utils.data as data
-from torch.utils.data import TensorDataset
+from torch import nn, optim
+from torch.utils.data import DataLoader, TensorDataset
 
-from .constants import *  # star import used due to large quantity of items imported
-from .file_paths import METRICS_DIR, MODEL_DIR, PROBS_FILE, PROBS_FILE2
+from superphot_plus.constants import (
+    BATCH_SIZE,
+    EPOCHS,
+    HIDDEN_DROPOUT_FRAC,
+    INPUT_DROPOUT_FRAC,
+    LEARNING_RATE,
+    MEANS_TRAINED_MODEL,
+    SEED,
+    STDDEVS_TRAINED_MODEL,
+)
+from superphot_plus.file_paths import METRICS_DIR, MODELS_DIR
+from superphot_plus.format_data_ztf import normalize_features
+from superphot_plus.plotting.classifier_results import plot_model_metrics
+from superphot_plus.utils import calculate_accuracy, create_dataset, epoch_time, save_test_probabilities
 
+@dataclass
+class ModelConfig:
+    """Class that holds the MLP configuration."""
 
-def save_test_probabilities(output_filename, true_label, pred_probabilities, output_dir=None, save_file=PROBS_FILE):
-    """Saves probabilities to a separate file for ROC curve generation.
+    input_dim: int
+    output_dim: int
+    neurons_per_layer: int
+    num_hidden_layers: int
 
-    Parameters
-    ----------
-    output_filename : str
-        The file name to save to.
-    true_label : str or int
-        The true label.
-    pred_probabilities : array-like
-        The prediction probabilities.
-    """
-    if output_dir:
-        output_path = os.path.join(output_dir, save_file)
-    else:
-        output_path = save_file
-        
-    true_label = str(true_label)
-    if true_label[:6] == 'tensor':
-        true_label = true_label[-2]
-    with open(output_path, "a+", encoding="utf-8") as pf:
-        pf.write("%s,%s" % (output_filename, true_label))
-        for p in pred_probabilities:
-            pf.write(",%.04f" % p)
-        pf.write("\n")
+    device: torch.device = torch.device("cpu")
+
+    def __iter__(self):
+        return iter((self.input_dim, self.output_dim, self.neurons_per_layer, self.num_hidden_layers))
 
 
-def save_unclassified_test_probabilities(output_filename, pred_probabilities, output_dir=None, save_file=PROBS_FILE2):
-    """Saves probabilities to a separate file for ROC curve generation.
+@dataclass
+class ModelData:
+    """Class that holds the MLP data to train / test / validate."""
 
-    Parameters
-    ----------
-    output_filename : str
-        The file name to save to.
-    pred_probabilities : array-like
-        The prediction probabilities.
-    """
-    if output_dir:
-        output_path = os.path.join(output_dir, save_file)
-    else:
-        output_path = save_file
-    with open(output_path, "a+", encoding="utf-8") as pf:
-        pf.write("%s" % output_filename)
-        for p in pred_probabilities:
-            pf.write(",%.04f" % p)
-        pf.write("\n")
+    train_data: TensorDataset
+    valid_data: TensorDataset
+    test_features: np.ndarray
+    test_classes: np.ndarray
+    test_names: np.ndarray
+    test_group_idxs: List[int]
 
-
-def get_predictions(model, iterator, device):
-    """Given a trained model, returns the test images, test labels, and
-    prediction probabilities across all the test labels.
-
-    Parameters
-    ----------
-    model : mlp.MLP
-        The trained model.
-    iterator : torch.utils.data.DataLoader
-        The data iterator.
-    device : torch.device or str
-        The device to use.
-
-    Returns
-    -------
-    tuple
-        A tuple containing the test images, test labels, sample indices,
-        and prediction probabilities.
-    """
-    model.eval()
-
-    images = []
-    labels = []
-    probs = []
-    sample_idxs = []
-
-    with torch.no_grad():
-        for x, y, z in iterator:
-            x = x.to(device)
-
-            y_pred, _ = model(x)
-
-            y_prob = F.softmax(y_pred, dim=-1)
-
-            images.append(x.cpu())
-            labels.append(y.cpu())
-            sample_idxs.append(z.cpu())
-            probs.append(y_prob.cpu())
-
-    images = torch.cat(images, dim=0)
-    labels = torch.cat(labels, dim=0)
-    probs = torch.cat(probs, dim=0)
-    sample_idxs = torch.cat(sample_idxs, dim=0)
-
-    return images, labels, sample_idxs, probs
+    def __iter__(self):
+        return iter(
+            (
+                self.train_data,
+                self.valid_data,
+                self.test_features,
+                self.test_classes,
+                self.test_names,
+                self.test_group_idxs,
+            )
+        )
 
 
-def get_predictions_new(model, iterator, device):
-    """Given a trained model, returns the test images, test labels, and
-    prediction probabilities across all the test labels.
+class ModelMetrics:
+    """Class containing the training and validation metrics."""
 
-    Parameters
-    ----------
-    model : mlp.MLP
-        The trained model.
-    iterator : torch.utils.data.DataLoader
-        The data iterator.
-    device : torch.device or str
-        The device to use.
+    train_acc: List[float] = []
+    val_acc: List[float] = []
+    train_loss: List[float] = []
+    val_loss: List[float] = []
 
-    Returns
-    -------
-    tuple
-        A tuple containing the test images and prediction probabilities.
-    """
-    model.eval()
+    epoch_mins: List[int] = []
+    epoch_secs: List[int] = []
+    curr_epoch: int = 0
 
-    images = []
-    probs = []
+    def append(self, train_loss, train_acc, val_loss, val_acc, epoch_mins, epoch_secs):
+        """Appends training information for an epoch.
 
-    with torch.no_grad():
-        for x in iterator:
-            x = x[0].to(device)
+        Parameters
+        ----------
+        train_loss: float
+            The epoch training loss.
+        train_acc: float
+            The epoch training accuracy.
+        val_loss: float
+            The epoch validation loss.
+        val_acc: float
+            The epoch validation accuracy.
+        epoch_mins: int
+            The number of minutes spent by the epoch.
+        epoch_secs: int
+            The number of seconds spent by the epoch.
+        """
+        self.curr_epoch += 1
+        self.train_loss.append(train_loss)
+        self.train_acc.append(train_acc)
+        self.val_loss.append(val_loss)
+        self.val_acc.append(val_acc)
+        self.epoch_mins.append(epoch_mins)
+        self.epoch_secs.append(epoch_secs)
 
-            y_pred, _ = model(x)
+    def get_values(self):
+        """Returns the training and validation accuracies and losses.
 
-            y_prob = F.softmax(y_pred, dim=-1)
+        Returns
+        -------
+        tuple
+            A tuple containing the training accuracy and loss, and
+            validation accuracy and loss, respectively.
+        """
+        return self.train_acc, self.train_loss, self.val_acc, self.val_loss
 
-            images.append(x.cpu())
-            probs.append(y_prob.cpu())
-
-    images = torch.cat(images, dim=0)
-    probs = torch.cat(probs, dim=0)
-
-    return images, probs
-
-
-def calculate_accuracy(y_pred, y):
-    """Calculate the prediction accuracy.
-
-    Parameters
-    ----------
-    y_pred : torch.Tensor
-        The predicted tensor.
-    y : torch.Tensor
-        The true tensor.
-
-    Returns
-    -------
-    torch.Tensor
-        The calculated accuracy.
-    """
-    top_pred = y_pred.argmax(1, keepdim=True)
-    correct = top_pred.eq(y.view_as(top_pred)).sum()
-    acc = correct.float() / y.shape[0]
-    return acc
+    def print_last(self):
+        """Prints the metrics for the last epoch."""
+        epoch_mins, epoch_secs, train_loss, train_acc, val_loss, val_acc = (
+            self.epoch_mins[-1],
+            self.epoch_secs[-1],
+            self.train_loss[-1],
+            self.train_acc[-1],
+            self.val_loss[-1],
+            self.val_acc[-1],
+        )
+        print(f"Epoch: {self.curr_epoch:02} | Epoch Time: {epoch_mins}m {epoch_secs}s")
+        print(f"\tTrain Loss: {train_loss:.3f} | Train Acc: {train_acc*100:.2f}%")
+        print(f"\t Val. Loss: {val_loss:.3f} |  Val. Acc: {val_acc*100:.2f}%")
 
 
 class MLP(nn.Module):
-    """The Multi-Layer Perceptron. Sets the number of layers and nodes
-    per layer.
+    """The Multi-Layer Perceptron.
 
     Parameters
     ----------
-    input_dim : int
-        The input dimension.
-    output_dim : int
-        The output dimension.
-    neurons_per_layer : int
-        The number of neurons per layer.
-    num_hidden_layers : int
-        The number of hidden layers. Must be >= 1.
+    config : ModelConfig
+        The MLP architecture configuration.
+    data : ModelData
+        The training, test and validation data.
     """
 
-    def __init__(self, input_dim, output_dim, neurons_per_layer, num_hidden_layers):
+    def __init__(self, config: ModelConfig, data: ModelData):
         super().__init__()
+
+        # Initialize MLP architecture
+        self.config = config
+
+        input_dim, output_dim, neurons_per_layer, num_hidden_layers = config
 
         n_neurons = neurons_per_layer
         self.input_fc = nn.Linear(input_dim, n_neurons)
@@ -202,12 +159,19 @@ class MLP(nn.Module):
         self.dropouts = nn.ModuleList()
         self.dropouts.append(nn.Dropout(INPUT_DROPOUT_FRAC))
 
-        for i in range(num_hidden_layers - 1):  # pylint: disable=unused-variable
+        for _ in range(num_hidden_layers - 1):
             self.hidden_layers.append(nn.Linear(n_neurons, n_neurons))
-        for i in range(num_hidden_layers):
+        for _ in range(num_hidden_layers):
             self.dropouts.append(nn.Dropout(HIDDEN_DROPOUT_FRAC))
 
         self.output_fc = nn.Linear(n_neurons, output_dim)
+
+        # Optimizer and criterion
+        self.optimizer = optim.Adam(self.parameters(), lr=LEARNING_RATE)
+        self.criterion = nn.CrossEntropyLoss()
+
+        # Training, test and validation data
+        self.data = data
 
     def forward(self, x):
         """Forward pass of the Multi-Layer Perceptron model.
@@ -231,308 +195,368 @@ class MLP(nn.Module):
         h_1 = F.relu(self.input_fc(h_1))
 
         h_hidden = h_1
-        for i in range(len(self.hidden_layers)):
+        for i, layer in enumerate(self.hidden_layers):
             h_hidden = self.dropouts[i + 1](h_hidden)
-            h_hidden = F.relu(self.hidden_layers[i](h_hidden))
+            h_hidden = F.relu(layer(h_hidden))
 
         h_hidden = self.dropouts[-1](h_hidden)
         y_pred = self.output_fc(h_hidden)
 
         return y_pred, h_hidden
 
+    def run(
+        self,
+        num_epochs=EPOCHS,
+        plot_metrics=False,
+        metrics_dir=METRICS_DIR,
+        models_dir=MODELS_DIR,
+    ):
+        """
+        Run the MLP initialization and training.
 
-def create_dataset(features, labels, idxs=None):
-    """Creates a PyTorch dataset object from numpy arrays.
+        Closely follows the demo
+        https://colab.research.google.com/github/bentrevett/pytorch-image-classification/blob/master/1_mlp.ipynb
 
-    Parameters
-    ----------
-    features : np.ndarray
-        The features array.
-    labels : np.ndarray
-        The labels array.
-    idxs : np.ndarray, optional
-        The indices array. Defaults to None.
+        Parameters
+        ----------
+        num_epochs : int, optional
+            The number of epochs. Defaults to EPOCHS.
+        plot_metrics : bool, optional
+            Whether to plot metrics. Defaults to False.
+        metrics_dir : str, optional
+            Where to store metrics.
+        models_dir : str, optional
+            Where to store models.
 
-    Returns
-    -------
-    torch.utils.data.TensorDataset
-        The created dataset.
-    """
-    tensor_x = torch.Tensor(features)  # transform to torch tensor
-    tensor_y = torch.Tensor(labels).type(torch.LongTensor)
+        Returns
+        -------
+        tuple
+            A tuple containing the labels, names, predicted labels, maximum
+            probabilities, and best validation loss.
+        """
+        random.seed(SEED)
+        np.random.seed(SEED)
+        torch.manual_seed(SEED)
+        torch.cuda.manual_seed(SEED)
+        torch.backends.cudnn.deterministic = True
 
-    if idxs is None:
-        return TensorDataset(tensor_x, tensor_y)  # create your datset
+        (
+            train_data,
+            valid_data,
+            test_features,
+            test_classes,
+            test_names,
+            test_group_idxs,
+        ) = self.data
 
-    tensor_z = torch.Tensor(idxs)
+        model_path = os.path.join(models_dir, f"superphot-model-{test_names[0]}.pt")
 
-    return TensorDataset(tensor_x, tensor_y, tensor_z)  # create your datset
+        train_iterator = DataLoader(train_data, shuffle=True, batch_size=BATCH_SIZE)
+        valid_iterator = DataLoader(valid_data, batch_size=BATCH_SIZE)
 
+        best_valid_loss = float("inf")
 
-def train(model, iterator, optimizer, criterion, device):
-    """Does one epoch of training for a given torch model.
+        metrics = ModelMetrics()
 
-    Parameters
-    ----------
-    model : mlp.MLP
-        The torch model.
-    iterator : torch.utils.data.DataLoader
-        The data iterator.
-    optimizer : torch.optim.Optimizer
-        The optimizer.
-    criterion : torch.nn.Module
-        The loss criterion.
-    device : torch.device
-        The device to use.
+        for epoch in np.arange(0, num_epochs):
+            start_time = time.monotonic()
 
-    Returns
-    -------
-    tuple
-        A tuple containing the epoch loss and epoch accuracy.
-    """
-    epoch_loss = 0
-    epoch_acc = 0
+            train_loss, train_acc = self.train_epoch(train_iterator)
+            val_loss, val_acc = self.evaluate_epoch(valid_iterator)
 
-    model.train()
+            if val_loss < best_valid_loss:
+                best_valid_loss = val_loss
+                torch.save(self.state_dict(), model_path)
 
-    for x, y in iterator:
-        x = x.to(device)
-        y = y.to(device)
+            end_time = time.monotonic()
 
-        optimizer.zero_grad()
+            epoch_mins, epoch_secs = epoch_time(start_time, end_time)
 
-        y_pred, _ = model(x)
+            # Store metrics for the current epoch
+            metrics.append(train_loss, train_acc, val_loss, val_acc, epoch_mins, epoch_secs)
 
-        loss = criterion(y_pred, y)
-        acc = calculate_accuracy(y_pred, y)
+            if epoch % 5 == 0:
+                metrics.print_last()
 
-        loss.backward()
+        self.load_state_dict(torch.load(model_path))
 
-        optimizer.step()
+        labels, names, pred_labels, max_probs = self.test(
+            test_features, test_classes, test_names, test_group_idxs
+        )
 
-        epoch_loss += loss.item()
-        epoch_acc += acc.item()
+        if plot_metrics:
+            plot_model_metrics(
+                metrics=metrics.get_values(),
+                num_epochs=num_epochs,
+                plot_name=test_names[0],
+                metrics_dir=metrics_dir,
+            )
 
-    return epoch_loss / len(iterator), epoch_acc / len(iterator)
+        return (
+            np.array(labels).astype(int),
+            np.array(names),
+            np.array(pred_labels).astype(int),
+            np.array(max_probs).astype(float),
+            best_valid_loss,
+        )
 
+    def train_epoch(self, iterator):
+        """Does one epoch of training for a given torch model.
 
-def evaluate(model, iterator, criterion, device):
-    """Evaluates the model for the validation set.
+        Parameters
+        ----------
+        iterator : torch.utils.DataLoader
+            The data iterator.
 
-    Parameters
-    ----------
-    model : mlp.MLP
-        The torch model.
-    iterator : torch.utils.data.DataLoader
-        The data iterator.
-    criterion : torch.nn.Module
-        The loss criterion.
-    device : torch.device
-        The device to use.
+        Returns
+        -------
+        tuple
+            A tuple containing the epoch loss and epoch accuracy.
+        """
+        epoch_loss = 0
+        epoch_acc = 0
 
-    Returns
-    -------
-    tuple
-        A tuple containing the epoch loss and epoch accuracy.
-    """
-    epoch_loss = 0
-    epoch_acc = 0
+        self.train()
 
-    model.eval()
-
-    with torch.no_grad():
         for x, y in iterator:
-            x = x.to(device)
-            y = y.to(device)
+            x = x.to(self.config.device)
+            y = y.to(self.config.device)
 
-            y_pred, _ = model(x)
+            self.optimizer.zero_grad()
 
-            loss = criterion(y_pred, y)
+            y_pred, _ = self(x)
 
+            loss = self.criterion(y_pred, y)
             acc = calculate_accuracy(y_pred, y)
+
+            loss.backward()
+
+            self.optimizer.step()
 
             epoch_loss += loss.item()
             epoch_acc += acc.item()
 
-    return epoch_loss / len(iterator), epoch_acc / len(iterator)
+        return epoch_loss / len(iterator), epoch_acc / len(iterator)
+
+    def evaluate_epoch(self, iterator):
+        """Evaluates the model for the validation set.
+
+        Parameters
+        ----------
+        iterator : torch.utils.DataLoader
+            The data iterator.
+
+        Returns
+        -------
+        tuple
+            A tuple containing the epoch loss and epoch accuracy.
+        """
+        epoch_loss = 0
+        epoch_acc = 0
+
+        self.eval()
+
+        with torch.no_grad():
+            for x, y in iterator:
+                x = x.to(self.config.device)
+                y = y.to(self.config.device)
+
+                loss = self.criterion(y_pred, y)
+
+                acc = calculate_accuracy(y_pred, y)
+
+                epoch_loss += loss.item()
+                epoch_acc += acc.item()
 
 
-def epoch_time(start_time, end_time):
-    """Sets the time it takes for each epoch to train.
+        return epoch_loss / len(iterator), epoch_acc / len(iterator)
 
-    Parameters
-    ----------
-    start_time : float
-        The start time.
-    end_time : float
-        The end time.
+    def test(self, test_features, test_classes, test_names, test_group_idxs):
+        """Runs model over a group of test samples
 
-    Returns
-    -------
-    tuple
-        A tuple containing the elapsed minutes and elapsed seconds.
-    """
-    elapsed_time = end_time - start_time
-    elapsed_mins = int(elapsed_time / 60)
-    elapsed_secs = int(elapsed_time - (elapsed_mins * 60))
-    return elapsed_mins, elapsed_secs
+        Parameters
+        ----------
+        test_features : np.ndarray
+            The features array.
+        test_classes : np.ndarray
+            The classes array.
+        test_names : np.ndarray
+            The names array.
+        test_group_idxs : np.ndarray
+            The indices for each test set.
 
+        Returns
+        -------
+        tuple
+            A tuple containing the labels, names, predicted labels
+            and maximum probabilities.
+        """
+        labels, pred_labels, max_probs, names = [], [], [], []
 
-def run_mlp(
-    train_data,
-    valid_data,
-    test_sample_features,
-    test_sample_classes,
-    test_sample_names,
-    test_group_idxs,
-    input_dim,
-    output_dim,
-    neurons_per_layer,
-    num_layers,
-    num_epochs=EPOCHS,
-    plot_metrics=False,
-):
-    """
-    Run the MLP initialization and training.
-
-    Closely follows the demo
-    https://colab.research.google.com/github/bentrevett/pytorch-image-classification/blob/master/1_mlp.ipynb
-
-    Parameters
-    ----------
-    train_data : TensorDataset
-        The training data.
-    valid_data : TensorDataset
-        The validation data.
-    test_sample_features : np.ndarray
-        The test sample features.
-    test_sample_classes : np.ndarray
-        The test sample classes.
-    test_sample_names : np.ndarray
-        The test sample names.
-    test_group_idxs : list of int
-        The list of test group indices.
-    output_dim : int
-        The output dimension.
-    neurons_per_layer : int
-        The number of neurons per layer.
-    num_layers : int
-        The number of layers.
-    num_epochs : int, optional
-        The number of epochs. Defaults to EPOCHS.
-    plot_metrics : bool, optional
-        Whether to plot metrics. Defaults to False.
-
-    Returns
-    -------
-    tuple
-        A tuple containing the labels, names, predicted labels, maximum
-        probabilities, and best validation loss.
-    """
-    random.seed(SEED)
-    np.random.seed(SEED)
-    torch.manual_seed(SEED)
-    torch.cuda.manual_seed(SEED)
-    torch.backends.cudnn.deterministic = True
-
-    train_iterator = data.DataLoader(train_data, shuffle=True, batch_size=BATCH_SIZE)
-
-    valid_iterator = data.DataLoader(valid_data, batch_size=BATCH_SIZE)
-
-    # Create model
-    model = MLP(input_dim, output_dim, neurons_per_layer, num_layers)
-    lr = LEARNING_RATE
-    optimizer = optim.Adam(model.parameters(), lr=lr)
-    criterion = nn.CrossEntropyLoss()
-    device = torch.device("cpu")
-    model = model.to(device)
-    criterion = criterion.to(device)
-
-    best_valid_loss = float("inf")
-
-    # for plotting
-    train_acc_arr = []
-    train_loss_arr = []
-    val_acc_arr = []
-    val_loss_arr = []
-    for epoch in np.arange(0, num_epochs):
-        start_time = time.monotonic()
-
-        train_loss, train_acc = train(model, train_iterator, optimizer, criterion, device)
-        valid_loss, valid_acc = evaluate(model, valid_iterator, criterion, device)
-
-        # print(model.input_fc.weight)
-
-        if valid_loss < best_valid_loss:
-            best_valid_loss = valid_loss
-            torch.save(
-                model.state_dict(),
-                os.path.join(MODEL_DIR, "superphot-model-%s.pt" % test_sample_names[0]),
+        for group_idx_set in test_group_idxs:
+            test_data = create_dataset(
+                test_features[group_idx_set],
+                test_classes[group_idx_set],
+                group_idx_set,
             )
 
-        end_time = time.monotonic()
+            test_iterator = DataLoader(test_data, batch_size=BATCH_SIZE)
 
-        epoch_mins, epoch_secs = epoch_time(start_time, end_time)
+            _, labels_indiv, indx_indiv, probs = self.get_predictions(test_iterator)
+            probs_avg = np.mean(probs.numpy(), axis=0)
 
-        if epoch % 5 == 0:
-            print(f"Epoch: {epoch+1:02} | Epoch Time: {epoch_mins}m {epoch_secs}s")
-            print(f"\tTrain Loss: {train_loss:.3f} | Train Acc: {train_acc*100:.2f}%")
-            print(f"\t Val. Loss: {valid_loss:.3f} |  Val. Acc: {valid_acc*100:.2f}%")
+            save_test_probabilities(
+                test_names[indx_indiv.numpy().astype(int)[0]],
+                probs_avg,
+                labels_indiv[0],
+            )
 
-        # plotting
-        train_loss_arr.append(train_loss)
-        train_acc_arr.append(train_acc)
-        val_loss_arr.append(valid_loss)
-        val_acc_arr.append(valid_acc)
+            pred_labels.append(np.argmax(probs_avg))
+            max_probs.append(np.amax(probs_avg))
+            labels.append(labels_indiv[0])
+            names.append(test_names[indx_indiv.numpy().astype(int)[0]])
 
-    model.load_state_dict(torch.load(os.path.join(MODEL_DIR, "superphot-model-%s.pt" % test_sample_names[0])))
+        return labels, names, pred_labels, max_probs
 
-    labels, pred_labels, max_probs, names = [], [], [], []
+    def get_predictions(self, iterator):
+        """Given a trained model, returns the test images, test labels, and
+        prediction probabilities across all the test labels.
 
-    for group_idx_set in test_group_idxs:
-        test_data = create_dataset(
-            test_sample_features[group_idx_set],
-            test_sample_classes[group_idx_set],
-            group_idx_set,
-        )
-        test_iterator = data.DataLoader(test_data, batch_size=BATCH_SIZE)
+        Parameters
+        ----------
+        iterator : torch.utils.DataLoader
+            The data iterator.
 
-        images, labels_indiv, indx_indiv, probs = get_predictions(
-            model, test_iterator, device
-        )  # pylint: disable=unused-variable
-        probs_avg = np.mean(probs.numpy(), axis=0)
-        save_test_probabilities(
-            test_sample_names[indx_indiv.numpy().astype(int)[0]], labels_indiv[0], probs_avg
-        )
-        pred_labels.append(np.argmax(probs_avg))
-        max_probs.append(np.amax(probs_avg))
-        labels.append(labels_indiv[0])
+        Returns
+        -------
+        tuple
+            A tuple containing the test images, test labels, sample indices,
+            and prediction probabilities.
+        """
+        self.eval()
 
-        names.append(test_sample_names[indx_indiv.numpy().astype(int)[0]])
+        images = []
+        labels = []
+        probs = []
+        sample_idxs = []
 
-    if plot_metrics:
-        # plotting of accuracy and loss for one epoch
-        plt.plot(np.arange(0, EPOCHS), train_acc_arr, label="Training")
-        plt.plot(np.arange(0, EPOCHS), val_acc_arr, label="Validation")
-        plt.xlabel("Epoch")
-        plt.ylabel("Accuracy")
-        plt.legend()
-        plt.savefig(os.path.join(METRICS_DIR, "accuracy_%s.png" % test_sample_names[0]))
-        plt.close()
+        with torch.no_grad():
+            for x, y, z in iterator:
+                x = x.to(self.config.device)
 
-        plt.plot(np.arange(0, EPOCHS), train_loss_arr, label="Training")
-        plt.plot(np.arange(0, EPOCHS), val_loss_arr, label="Validation")
-        plt.xlabel("Epoch")
-        plt.ylabel("Loss")
-        plt.yscale("log")
-        plt.legend()
-        plt.savefig(os.path.join(METRICS_DIR, "loss_%s.png" % test_sample_names[0]))
-        plt.close()
+                y_pred, _ = self(x)
 
-    return (
-        np.array(labels).astype(int),
-        np.array(names),
-        np.array(pred_labels).astype(int),
-        np.array(max_probs).astype(float),
-        best_valid_loss,
-    )
+                y_prob = F.softmax(y_pred, dim=-1)
+
+                images.append(x.cpu())
+                labels.append(y.cpu())
+                sample_idxs.append(z.cpu())
+                probs.append(y_prob.cpu())
+
+        images = torch.cat(images, dim=0)
+        labels = torch.cat(labels, dim=0)
+        probs = torch.cat(probs, dim=0)
+        sample_idxs = torch.cat(sample_idxs, dim=0)
+
+        return images, labels, sample_idxs, probs
+
+    def get_predictions_from_fit_params(self, iterator):
+        """Given a trained model, returns the test images, test labels, and
+        prediction probabilities across all the test labels.
+
+        Parameters
+        ----------
+        iterator : torch.utils.DataLoader
+            The data iterator.
+
+        Returns
+        -------
+        tuple
+            A tuple containing the test images and prediction probabilities.
+        """
+        self.eval()
+
+        images = []
+        probs = []
+
+        with torch.no_grad():
+            for x in iterator:
+                x = x[0].to(self.config.device)
+
+                y_pred, _ = self(x)
+
+                y_prob = F.softmax(y_pred, dim=-1)
+
+                images.append(x.cpu())
+                probs.append(y_prob.cpu())
+
+        images = torch.cat(images, dim=0)
+        probs = torch.cat(probs, dim=0)
+
+        return images, probs
+
+    def classify_from_fit_params(self, fit_params):
+        """Classify one or multiple light curves solely from the fit parameters
+        used in the classifier. Excludes t0 and, for redshift-exclusive
+        classifier, A. Includes chi-squared value.
+
+        Parameters
+        ----------
+        fit_params : np.ndarray
+            Set of model fit parameters.
+
+        Returns
+        ----------
+        np.ndarray
+            Probability of each light curve being each SN type.
+            Sums to 1 along each row.
+        """
+        fit_params_2d = np.atleast_2d(fit_params)  # cast to 2D if only 1 light curve
+        test_features, _, _ = normalize_features(fit_params_2d, MEANS_TRAINED_MODEL, STDDEVS_TRAINED_MODEL)
+        test_data = TensorDataset(torch.Tensor(test_features))
+        test_iterator = DataLoader(test_data, batch_size=32)
+        _, probs = self.get_predictions_from_fit_params(test_iterator)
+        return probs.numpy()
+
+    @classmethod
+    def create(cls, config, data=None):
+        """Creates an MLP instance, optimizer and respective criterion.
+
+        Parameters
+        ----------
+        config : ModelConfig
+            Includes (in order): input_size, output_size, n_neurons, n_hidden.
+        data : ModelData
+            Training, testing and validation data.
+
+        Returns
+        ----------
+        torch.nn.Module
+            The MLP object.
+        """
+        model = cls(config, data)
+        model.criterion = model.criterion.to(config.device)
+        model = model.to(config.device)
+        return model
+
+    @classmethod
+    def load(cls, filename, config, data=None):
+        """Load a trained MLP for subsequent classification of new objects.
+
+        Parameters
+        ----------
+        filename : str
+            Where the trained MLP is stored.
+        config : ModelConfig
+            Includes (in order): input_size, output_size, n_neurons, n_hidden.
+        data : ModelData
+            Training, testing and validation data.
+
+        Returns
+        ----------
+        torch.nn.Module
+            The pre-trained MLP object.
+        """
+        model = MLP.create(config, data)  # set up empty multi-layer perceptron
+        model.load_state_dict(torch.load(filename))  # load trained state dict to the MLP
+        return model

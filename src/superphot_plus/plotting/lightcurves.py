@@ -10,7 +10,17 @@ from superphot_plus.utils import flux_model, get_numpyro_cube
 from superphot_plus.plotting.format_params import *
 
 
-def plot_lc_fit(ztf_name, ref_band, ordered_bands, data_dir, fit_dir, out_dir, sampling_method="dynesty", file_type="pdf"):
+def plot_lc_fit(
+    ztf_name,
+    ref_band,
+    ordered_bands,
+    data_dir,
+    fit_dir,
+    out_dir,
+    sampling_method="dynesty",
+    file_type="pdf",
+    custom_formatting=None,
+):
     """Plot an existing light curve fit.
 
     Parameters
@@ -46,6 +56,7 @@ def plot_lc_fit(ztf_name, ref_band, ordered_bands, data_dir, fit_dir, out_dir, s
         ref_band,
         sampling_method,
         file_type,
+        custom_formatting
     )
 
 
@@ -61,6 +72,7 @@ def plot_sampling_lc_fit(
     ref_band,
     sampling_method="dynesty",
     file_type="pdf",
+    custom_formatting=None,
 ):
     """
     Plot lightcurve sampling fit using in-memory samples.
@@ -108,7 +120,11 @@ def plot_sampling_lc_fit(
 
     plt.xlabel("MJD")
     plt.ylabel("Flux")
+    
     plt.title(ztf_name + ": " + sampling_method)
+    
+    if custom_formatting is not None:
+        custom_formatting()
 
     plt.savefig(os.path.join(out_dir, ztf_name + "_" + sampling_method + "." + file_type))
 

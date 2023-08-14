@@ -126,7 +126,7 @@ def plot_sampling_trace_numpyro(posterior_samples, output_dir=None):
     plt.close()
 
 
-def compare_oversampling(names, labels, fits_dir, allowed_types=SnClass.all_classes(), aux_bands=Survey.ZTF().priors.aux_bands, sampler=None):
+def compare_oversampling(names, labels, fits_dir, allowed_types=SnClass.all_classes(), aux_bands=Survey.ZTF().priors.aux_bands, sampler=None, goal_per_class=4000):
     """
     Compare plots of various oversampling methods.
 
@@ -222,7 +222,7 @@ def compare_oversampling(names, labels, fits_dir, allowed_types=SnClass.all_clas
             plt.close()
 
 
-def plot_oversampling_1d(names, labels, fits_dir, save_dir, priors=Survey.ZTF().priors):
+def plot_oversampling_1d(names, labels, fits_dir, save_dir, priors=Survey.ZTF().priors, sampler='dynesty'):
     """
     Save all 1d oversampled histograms for each parameter, in one plot.
     Overlays prior distributions.
@@ -240,16 +240,17 @@ def plot_oversampling_1d(names, labels, fits_dir, save_dir, priors=Survey.ZTF().
     priors : MultibandPriors, optional
         Prior object to overlay prior distributions. Defaults to ZTF's priors.
     """
-    allowed_types = SnClass.all_classes()
+    labels_to_classes, classes_to_labels = SnClass.get_type_maps()
+    allowed_types = list(classes_to_labels.keys())
 
     goal_per_class = OVERSAMPLE_SIZE
-    features_gaussian, labels_gaussian = oversample_using_posteriors(names, labels, goal_per_class, fits_dir)
+    features_gaussian, labels_gaussian = oversample_using_posteriors(names, labels, goal_per_class, fits_dir, sampler)
 
     params, _ = param_labels(
         priors.aux_bands
     )
 
-    fig, axes = plt.subplots(3, 4, figsize=(8, 9))
+    fig, axes = plt.subplots(3, 4, figsize=(8, 10))
     axes = axes.ravel()
 
     prior_means = priors.to_numpy()[:, 2]
@@ -266,6 +267,8 @@ def plot_oversampling_1d(names, labels, fits_dir, save_dir, priors=Survey.ZTF().
         if i == 10:
             param_1 = r"$10^4\times (t_\mathrm{0, g} - 1)$"
             features_1_gauss = 10000 * (features_1_gauss - 1)
+            prior_means[i] = 10000 * (prior_means[i] - 1)
+            prior_stddevs[i] = 10000 * prior_stddevs[i]
 
         log_scale = False
 
@@ -275,28 +278,26 @@ def plot_oversampling_1d(names, labels, fits_dir, save_dir, priors=Survey.ZTF().
             feature_hist, bin_edges = np.histogram(np.log10(features_1_gauss), bins=20)
             bin_width = bin_edges[1] - bin_edges[0]
             bin_edges = 10**bin_edges
-            feature_hist[np.abs(feature_hist) > 1e5] = 0
-            current_area = np.sum(bin_width * feature_hist)
-            feature_hist = (1.0 / current_area) * feature_hist
 
         else:
-            bin_widths = 0
-            feature_hist, bin_edges = np.histogram(features_1_gauss, bins=20, density=True)
+            feature_hist, bin_edges = np.histogram(features_1_gauss, bins=20)
+            bin_width = bin_edges[1] - bin_edges[0]
 
+        
+        feature_hist[np.abs(feature_hist) > 1e5] = 0
+        current_area = np.sum(bin_width * feature_hist)
+        feature_hist = (1.0 / current_area) * feature_hist
+            
         feature_hist_all = feature_hist
         bin_centers = (bin_edges[1:] + bin_edges[:-1]) / 2
 
-        for a in allowed_types:
-            # a = labels_to_classes[at]
-            features_1_t = features_1_gauss[labels_gaussian == a]
+        for at in allowed_types:
+            a = classes_to_labels[at]
+            features_1_t = features_1_gauss[labels_gaussian == at]
 
-            if log_scale:
-                feature_hist, bin_edges = np.histogram(features_1_t, bins=bin_edges)
-                current_area = np.sum(bin_width * feature_hist)
-                feature_hist = (1.0 / current_area) * feature_hist
-            else:
-                feature_hist, bin_edges = np.histogram(features_1_t, bins=bin_edges, density=True)
-
+            feature_hist, bin_edges = np.histogram(features_1_t, bins=bin_edges)
+            current_area = np.sum(bin_width * feature_hist)
+            feature_hist = (1.0 / current_area) * feature_hist
             feature_hist[np.abs(feature_hist) > 1e5] = 0
             (l,) = axes[ax_num].step(bin_centers, feature_hist, where="mid", label=a)
             leg_lines.append(l)
@@ -305,13 +306,15 @@ def plot_oversampling_1d(names, labels, fits_dir, save_dir, priors=Survey.ZTF().
         (l,) = ax.step(bin_centers, feature_hist_all, where="mid", c="k", label="Combined", linewidth=2)
         leg_lines.append(l)
 
+        amp = 1.0/np.sqrt(2*np.pi)/prior_stddevs[i]
+        
         if log_scale:
             bins_fine = np.linspace(np.log10(bin_centers[0]), np.log10(bin_centers[-1]), num=100)
-            prior_dist = gaussian(bins_fine, 1.0, prior_means[i], prior_stddevs[i])
+            prior_dist = gaussian(bins_fine, amp, prior_means[i], prior_stddevs[i])
             bins_fine = 10**bins_fine
         else:
             bins_fine = np.linspace(bin_centers[0], bin_centers[-1], num=100)
-            prior_dist = gaussian(bins_fine, 1.0, prior_means[i], prior_stddevs[i])
+            prior_dist = gaussian(bins_fine, amp, prior_means[i], prior_stddevs[i])
 
         (l,) = ax.plot(bins_fine, prior_dist, linestyle="dashed", label="Prior", linewidth=2, c="magenta")
         leg_lines.append(l)
@@ -330,7 +333,7 @@ def plot_oversampling_1d(names, labels, fits_dir, save_dir, priors=Survey.ZTF().
 
         ax_num += 1
 
-    fig.legend(leg_lines, [*allowed_types, "Combined", "Prior"], loc="lower center", ncol=4)
+    fig.legend(leg_lines, [*list(labels_to_classes.keys()), "Combined", "Prior"], loc="lower center", ncol=4)
     plt.locator_params(axis="x", nbins=3)
 
     plt.savefig(os.path.join(save_dir, "all_1d_hists.pdf"), bbox_inches="tight")

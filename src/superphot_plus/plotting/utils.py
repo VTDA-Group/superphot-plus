@@ -16,8 +16,8 @@ def get_survey_fracs():
 
     psmds_counts = np.array([404, 94, 24, 17, 19])
     psmds_fracs = psmds_counts / np.sum(psmds_counts)
-    
-    return {'YSE': yse_fracs, 'PS-MDS': psmds_fracs}
+
+    return {"YSE": yse_fracs, "PS-MDS": psmds_fracs}
 
 
 def read_probs_csv(probs_fn, return_dataframe=False):

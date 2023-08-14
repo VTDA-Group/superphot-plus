@@ -11,10 +11,12 @@ CM_FOLDER = "./figs/hp_cm"
 WRONGLY_CLASSIFIED_FOLDER = "./figs/wrongly_classified"
 FIT_PLOTS_FOLDER = "./figs/fits_good"
 CLASSIFY_LOG_FILE = "./temp_output.txt"
+
 MODEL_DIR = "./models"
 METRICS_DIR = "./figs/metrics"
 PROBS_FILE = "probs_new.csv"
 PROBS_FILE2 = "probs_phased.csv"
+
 TRAINED_MODEL_FN = (
     "../../tests/data/superphot-model-ZTF23aagkgnz.pt"  # glob.glob("models_saved/*ZTF23aagkgnz.pt")[0]
 )
