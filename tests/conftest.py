@@ -2,12 +2,12 @@ import os
 import os.path
 
 import pytest
-import torch
 from jax import random
 import numpy as np
 
-from superphot_plus.classify_ztf import load_mlp
+from superphot_plus.constants import TRAINED_MODEL_PARAMS
 from superphot_plus.lightcurve import Lightcurve
+from superphot_plus.mlp import ModelConfig, MLP
 from superphot_plus.surveys.surveys import Survey
 
 TEST_DIR = os.path.dirname(__file__)
@@ -69,9 +69,9 @@ def ztf_priors():
 
 @pytest.fixture
 def classifier(test_data_dir):
-    mlp_filename = os.path.join(test_data_dir, "superphot-model-ZTF23aagkgnz.pt")
-    mlp_params = (13, 5, 128, 3)
-    return load_mlp(mlp_filename, mlp_params)
+    filename = os.path.join(test_data_dir, "superphot-model-ZTF23aagkgnz.pt")
+    config = ModelConfig(*TRAINED_MODEL_PARAMS)
+    return MLP.load(filename, config)
 
 
 @pytest.fixture
@@ -93,9 +93,7 @@ def dummy_posterior_sample_dict():
         "tau_fall_g",
         "extra_sigma_g",
     ]
-    return {
-        param: np.random.rand(1, 20).flatten() for param in param_list
-    }
+    return {param: np.random.rand(1, 20).flatten() for param in param_list}
 
 
 @pytest.fixture
@@ -117,7 +115,4 @@ def dummy_posterior_sample_dict_batch():
         "tau_fall_g",
         "extra_sigma_g",
     ]
-    return {
-        param: np.random.rand(3, 20) for param in param_list
-    }
-
+    return {param: np.random.rand(3, 20) for param in param_list}

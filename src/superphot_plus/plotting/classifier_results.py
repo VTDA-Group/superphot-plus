@@ -34,7 +34,7 @@ def save_class_fractions(spec_probs_csv, phot_probs_csv, save_path):
 
     # import spec dataframe
     names_spec, true_class_spec, probs_spec, pred_class_spec = read_probs_csv(spec_probs_csv)
-    
+
     num_classes = probs_spec.shape[1]
 
     true_class_alerce = labels_true
@@ -50,10 +50,17 @@ def save_class_fractions(spec_probs_csv, phot_probs_csv, save_path):
     cm_p = confusion_matrix(true_class_spec, pred_class_spec, normalize="pred")
     cm_p_alerce = confusion_matrix(true_class_alerce, pred_class_spec_alerce, normalize="pred")
 
-    true_fracs = np.array([len(true_classes[true_class_spec == i]) / len(true_class_spec) for i in range(num_classes)])
-    pred_fracs = np.array([len(pred_classes[pred_class_phot == i]) / len(pred_class_phot) for i in range(num_classes)])
+    true_fracs = np.array(
+        [len(true_classes[true_class_spec == i]) / len(true_class_spec) for i in range(num_classes)]
+    )
+    pred_fracs = np.array(
+        [len(pred_classes[pred_class_phot == i]) / len(pred_class_phot) for i in range(num_classes)]
+    )
     alerce_fracs = np.array(
-        [len(alerce_preds[pred_class_phot_alerce == i]) / len(pred_class_phot_alerce) for i in range(num_classes)]
+        [
+            len(alerce_preds[pred_class_phot_alerce == i]) / len(pred_class_phot_alerce)
+            for i in range(num_classes)
+        ]
     )
 
     pred_fracs_corr = []
@@ -111,7 +118,7 @@ def plot_class_fractions(saved_cf_file, fig_dir, filename):
     true_fracs, pred_fracs, pred_fracs_corr, alerce_fracs, alerce_fracs_corr = frac_df.to_numpy().T
 
     survey_sn_fracs = get_survey_fracs()
-    yse_fracs, psmds_fracs = survey_sn_fracs['YSE'], survey_sn_fracs['PS-MDS']
+    yse_fracs, psmds_fracs = survey_sn_fracs["YSE"], survey_sn_fracs["PS-MDS"]
 
     combined_fracs = np.array(
         [
@@ -124,7 +131,7 @@ def plot_class_fractions(saved_cf_file, fig_dir, filename):
             alerce_fracs_corr,
         ]
     ).T
-    _, ax = plt.subplots(figsize=(11, 16)) 
+    _, ax = plt.subplots(figsize=(11, 16))
     bar = ax.bar(labels, combined_fracs[0], width, label=classes_to_labels[0])
     for i in range(len(combined_fracs[0])):
         bari = bar.patches[i]
@@ -695,4 +702,40 @@ def plot_chisquared_vs_accuracy(pred_spec_fn, pred_phot_fn, fits_dir, save_dir):
     ax2.yaxis.set_minor_locator(AutoMinorLocator())
 
     plt.savefig(os.path.join(save_dir, "chisq_vs_accuracy.pdf"), bbox_inches="tight")
+    plt.close()
+
+
+def plot_model_metrics(metrics, num_epochs, plot_name, metrics_dir):
+    """Plots training and validation results and exports them to files.
+
+    Parameters
+    ----------
+    metrics: tuple
+        Train and validation accuracies and losses.
+    num_epochs: int
+        The total number of epochs.
+    plot_name: str
+        The name for the plot figure files.
+    metrics_dir: str
+        Where to store the plot figures.
+    """
+    train_acc, train_loss, val_acc, val_loss = metrics
+
+    # Plot accuracy
+    plt.plot(np.arange(0, num_epochs), train_acc, label="Training")
+    plt.plot(np.arange(0, num_epochs), val_acc, label="Validation")
+    plt.xlabel("Epoch")
+    plt.ylabel("Accuracy")
+    plt.legend()
+    plt.savefig(os.path.join(metrics_dir, f"accuracy_{plot_name}.png"))
+    plt.close()
+
+    # Plot loss
+    plt.plot(np.arange(0, num_epochs), train_loss, label="Training")
+    plt.plot(np.arange(0, num_epochs), val_loss, label="Validation")
+    plt.xlabel("Epoch")
+    plt.ylabel("Loss")
+    plt.yscale("log")
+    plt.legend()
+    plt.savefig(os.path.join(metrics_dir, f"loss_{plot_name}.png"))
     plt.close()

@@ -131,6 +131,8 @@ def oversample_using_posteriors(lc_names, labels, goal_per_class, fits_dir, samp
         Number of samples per class.
     fits_dir : str
         Where fit parameters are stored.
+    sampler: str
+        The name of the sampler to use.
 
     Returns
     -------

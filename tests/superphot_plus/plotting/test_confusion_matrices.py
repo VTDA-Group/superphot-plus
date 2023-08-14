@@ -1,16 +1,9 @@
 import os
 
-import numpy as np
-import pytest
-
 from superphot_plus.plotting.confusion_matrices import (
     plot_high_confidence_confusion_matrix,
     plot_snIa_confusion_matrix,
     plot_confusion_matrix,
-    plot_alerce_confusion_matrix,
-    plot_agreement_matrix,
-    plot_expected_agreement_matrix,
-    plot_agreement_matrix_from_arrs,
 )
 
 

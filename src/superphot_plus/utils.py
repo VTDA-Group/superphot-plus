@@ -1,10 +1,15 @@
+import os
 import extinction
 import numpy as np
+import torch
 from astropy.coordinates import SkyCoord
 from dustmaps.config import config
 from dustmaps.sfd import SFDQuery
 
 from superphot_plus.sfd import dust_filepath
+
+from torch.utils.data import TensorDataset
+from superphot_plus.file_paths import PROBS_FILE, PROBS_FILE2
 
 
 def get_band_extinctions(ra, dec, wvs):
@@ -324,3 +329,100 @@ def calculate_neg_chi_squareds(cubes, t, f, ferr, b, ordered_bands=["r", "g"], r
     ) / len(t)
 
     return log_likelihoods
+
+
+def create_dataset(features, labels, idxs=None):
+    """Creates a PyTorch dataset object from numpy arrays.
+
+    Parameters
+    ----------
+    features : np.ndarray
+        The features array.
+    labels : np.ndarray
+        The labels array.
+    idxs : np.ndarray, optional
+        The indices array. Defaults to None.
+
+    Returns
+    -------
+    torch.utils.data.TensorDataset
+        The created dataset.
+    """
+    tensor_x = torch.Tensor(features)  # transform to torch tensor
+    tensor_y = torch.Tensor(labels).type(torch.LongTensor)
+
+    if idxs is None:
+        return TensorDataset(tensor_x, tensor_y)  # create your datset
+
+    tensor_z = torch.Tensor(idxs)
+
+    return TensorDataset(tensor_x, tensor_y, tensor_z)  # create your datset
+
+
+def calculate_accuracy(y_pred, y):
+    """Calculate the prediction accuracy.
+
+    Parameters
+    ----------
+    y_pred : torch.Tensor
+        The predicted tensor.
+    y : torch.Tensor
+        The true tensor.
+
+    Returns
+    -------
+    torch.Tensor
+        The calculated accuracy.
+    """
+    top_pred = y_pred.argmax(1, keepdim=True)
+    correct = top_pred.eq(y.view_as(top_pred)).sum()
+    acc = correct.float() / y.shape[0]
+    return acc
+
+
+def epoch_time(start_time, end_time):
+    """Sets the time it takes for each epoch to train.
+
+    Parameters
+    ----------
+    start_time : float
+        The start time.
+    end_time : float
+        The end time.
+
+    Returns
+    -------
+    tuple
+        A tuple containing the elapsed minutes and elapsed seconds.
+    """
+    elapsed_time = end_time - start_time
+    elapsed_mins = int(elapsed_time / 60)
+    elapsed_secs = int(elapsed_time - (elapsed_mins * 60))
+    return elapsed_mins, elapsed_secs
+
+
+def save_test_probabilities(output_filename, pred_probabilities, true_label=None, output_dir=None):
+    """Saves probabilities to a separate file for ROC curve generation.
+
+    Parameters
+    ----------
+    output_filename : str
+        The file name to save to.
+    pred_probabilities : array-like
+        The prediction probabilities.
+    true_label : str or int
+        The true label.
+    output_dir: str
+        Where to store the generated file.
+    """
+    default_dir = PROBS_FILE2 if true_label is None else PROBS_FILE
+    output_path = os.path.join(output_dir, default_dir) if output_dir else default_dir
+
+    with open(output_path, "a+", encoding="utf-8") as probs_file:
+        if true_label is None:
+            probs_file.write("%s" % output_filename)
+        else:
+            probs_file.write("%s,%s" % (output_filename, str(true_label)))
+        for prob in pred_probabilities:
+            probs_file.write(",%.04f" % prob)
+        probs_file.write("\n")
