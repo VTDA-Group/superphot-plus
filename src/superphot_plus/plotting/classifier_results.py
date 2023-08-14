@@ -10,6 +10,7 @@ from scipy.stats import binned_statistic
 from superphot_plus.supernova_class import SupernovaClass as SnClass
 from superphot_plus.format_data_ztf import import_labels_only
 from superphot_plus.utils import calculate_neg_chi_squareds
+from superphot_plus.file_utils import get_multiple_posterior_samples
 
 from superphot_plus.plotting.format_params import *
 from superphot_plus.plotting.utils import read_probs_csv, histedges_equalN

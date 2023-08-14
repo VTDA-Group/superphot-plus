@@ -12,7 +12,7 @@ WRONGLY_CLASSIFIED_FOLDER = "./figs/wrongly_classified"
 FIT_PLOTS_FOLDER = "./figs/fits_good"
 CLASSIFY_LOG_FILE = "./temp_output.txt"
 
-MODEL_DIR = "./models"
+MODELS_DIR = "./models"
 METRICS_DIR = "./figs/metrics"
 PROBS_FILE = "probs_new.csv"
 PROBS_FILE2 = "probs_phased.csv"

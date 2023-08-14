@@ -167,10 +167,12 @@ def classify(
 
         model = MLP(
             ModelConfig(
-                input_dim=train_data.shape[1],
+                input_dim=train_features.shape[1],
                 output_dim=output_dim,
                 neurons_per_layer=neurons_per_layer,
                 num_hidden_layers=num_layers,
+                normalization_means=mean.tolist(),
+                normalization_stddevs=std.tolist(),
             ),
             ModelData(train_data, val_data, test_features, test_classes, test_names, test_group_idxs),
         )
@@ -314,14 +316,7 @@ def return_new_classifications(model, test_csv, fit_dir, save_file, include_labe
 
             probs_avg = classify_single_light_curve(model, test_name, fit_dir)
 
-<<<<<<< HEAD
-            if include_labels:
-                save_test_probabilities(test_name, label, probs_avg, output_dir, save_file)
-            else:
-                save_unclassified_test_probabilities(test_name, probs_avg, output_dir, save_file)
-=======
-            save_test_probabilities(test_name, probs_avg, label, output_dir)
->>>>>>> bf1a30f61c068e85e3ee6ea6d0855436a4faf9b7
+        save_test_probabilities(test_name, probs_avg, label, output_dir, save_file)
 
 
 def save_phase_versus_class_probs(model, probs_csv, data_dir):

@@ -409,7 +409,7 @@ def epoch_time(start_time, end_time):
     return elapsed_mins, elapsed_secs
 
 
-def save_test_probabilities(output_filename, pred_probabilities, true_label=None, output_dir=None):
+def save_test_probabilities(output_filename, pred_probabilities, true_label=None, output_dir=None, save_file=None):
     """Saves probabilities to a separate file for ROC curve generation.
 
     Parameters
@@ -424,6 +424,7 @@ def save_test_probabilities(output_filename, pred_probabilities, true_label=None
         Where to store the generated file.
     """
     default_dir = PROBS_FILE2 if true_label is None else PROBS_FILE
+    default_dir = default_dir if save_file is None else save_file
     output_path = os.path.join(output_dir, default_dir) if output_dir else default_dir
 
     with open(output_path, "a+", encoding="utf-8") as probs_file:
