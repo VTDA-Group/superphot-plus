@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1691778215732,
+  "lastUpdate": 1692020887551,
   "repoUrl": "https://github.com/lincc-frameworks/superphot-plus",
   "entries": {
     "SUPERHOT-PLUS Benchmarking Monitor": [
@@ -2645,6 +2645,60 @@ window.BENCHMARK_DATA = {
           {
             "name": "test_fit::test_svi_single_file - Memory Used",
             "value": 781.890625,
+            "unit": "MB"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "kdesoto@g.harvard.edu",
+            "name": "Kaylee de Soto",
+            "username": "kdesoto-astro"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "bf1a30f61c068e85e3ee6ea6d0855436a4faf9b7",
+          "message": "Merge pull request #103 from lincc-frameworks/issue/62/add-tests-to-mlp\n\nRefactor and improve coverage of MLP class",
+          "timestamp": "2023-08-14T09:42:02-04:00",
+          "tree_id": "c46cf7f09e152186f9263ddfa2039ee6506f19cb",
+          "url": "https://github.com/lincc-frameworks/superphot-plus/commit/bf1a30f61c068e85e3ee6ea6d0855436a4faf9b7"
+        },
+        "date": 1692020886350,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "test_fit::test_dynesty_single_file - Runtime",
+            "value": 8.760910511016846,
+            "unit": "s"
+          },
+          {
+            "name": "test_fit::test_dynesty_single_file - Memory Used",
+            "value": 425.9609375,
+            "unit": "MB"
+          },
+          {
+            "name": "test_fit::test_nuts_single_file - Runtime",
+            "value": 21.954788208007812,
+            "unit": "s"
+          },
+          {
+            "name": "test_fit::test_nuts_single_file - Memory Used",
+            "value": 733.11328125,
+            "unit": "MB"
+          },
+          {
+            "name": "test_fit::test_svi_single_file - Runtime",
+            "value": 24.382771492004395,
+            "unit": "s"
+          },
+          {
+            "name": "test_fit::test_svi_single_file - Memory Used",
+            "value": 1038.23828125,
             "unit": "MB"
           }
         ]
