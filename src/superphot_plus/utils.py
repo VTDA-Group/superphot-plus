@@ -425,7 +425,7 @@ def save_test_probabilities(output_filename, pred_probabilities, true_label=None
     """
     default_dir = PROBS_FILE2 if true_label is None else PROBS_FILE
     default_dir = default_dir if save_file is None else save_file
-    output_path = os.path.join(output_dir, default_dir) if output_dir else default_dir
+    output_path = default_dir if output_dir is None else os.path.join(output_dir, default_dir)
 
     with open(output_path, "a+", encoding="utf-8") as probs_file:
         if true_label is None:

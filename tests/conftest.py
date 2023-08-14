@@ -70,8 +70,8 @@ def ztf_priors():
 @pytest.fixture
 def classifier(test_data_dir):
     filename = os.path.join(test_data_dir, "superphot-model-ZTF23aagkgnz.pt")
-    config = ModelConfig(*TRAINED_MODEL_PARAMS)
-    return MLP.load(filename, config)
+    config_filename = os.path.join(test_data_dir, "superphot-config-test.json")
+    return MLP.load(filename, config_filename)[0]
 
 
 @pytest.fixture

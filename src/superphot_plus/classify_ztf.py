@@ -59,6 +59,9 @@ def classify(
     classify_log_file,
     num_folds=NUM_FOLDS,
     fits_plotted=False,
+    metrics_dir=METRICS_DIR,
+    models_dir=MODELS_DIR,
+    csv_path=None,
     sampler="dynesty"
 ):
     """Train MLP to classify between supernovae of 'allowed_types'.
@@ -79,8 +82,8 @@ def classify(
         FIT_PLOTS_FOLDER. Copies plots of wrongly classified samples to
         separate folder for manual followup. Defaults to False.
     """
-
-    with open(PROBS_FILE, "w+", encoding="utf-8") as pf:
+    csv_path = PROBS_FILE if csv_path is None else csv_path
+    with open(csv_path, "w+", encoding="utf-8") as pf:
         pf.write("Name,Label,pSNIa,pSNII,pSNIIn,pSLSNI,pSNIbc")
         
     allowed_types = ["SN Ia", "SN II", "SN IIn", "SLSN-I", "SN Ibc"]
@@ -178,7 +181,11 @@ def classify(
         )
 
         # Train and evaluate multi-layer perceptron
-        test_classes, test_names, pred_classes, pred_probs, valid_loss = model.run(num_epochs)
+        test_classes, test_names, pred_classes, pred_probs, valid_loss = model.run(
+            num_epochs,
+            metrics_dir=metrics_dir,
+            models_dir=models_dir,
+            probs_csv_path=csv_path)
 
         return pred_classes, pred_probs > 0.7, test_classes, test_names, valid_loss
 
@@ -296,7 +303,10 @@ def return_new_classifications(model, test_csv, fit_dir, save_file, include_labe
         If True, labels from the test data are included in the
         probability saving process. Defaults to False.
     """
-    with open(save_file, "w+", encoding="utf-8") as pf:
+    filepath = save_file if output_dir is None else os.path.join(output_dir, save_file)
+    
+    print(filepath)
+    with open(filepath, "w+", encoding="utf-8") as pf:
         pf.write("Name,Label,pSNIa,pSNII,pSNIIn,pSLSNI,pSNIbc")
         
     with open(test_csv, "r", encoding="utf-8") as tc:

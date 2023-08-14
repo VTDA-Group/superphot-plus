@@ -24,7 +24,7 @@ from superphot_plus.constants import (
     SEED,
     STDDEVS_TRAINED_MODEL,
 )
-from superphot_plus.file_paths import METRICS_DIR, MODELS_DIR
+from superphot_plus.file_paths import METRICS_DIR, MODELS_DIR, PROBS_FILE
 from superphot_plus.format_data_ztf import normalize_features
 from superphot_plus.plotting.classifier_results import plot_model_metrics
 from superphot_plus.utils import calculate_accuracy, create_dataset, epoch_time, save_test_probabilities
@@ -248,6 +248,7 @@ class MLP(nn.Module):
         plot_metrics=False,
         metrics_dir=METRICS_DIR,
         models_dir=MODELS_DIR,
+        probs_csv_path=PROBS_FILE,
     ):
         """
         Run the MLP initialization and training.
@@ -321,7 +322,7 @@ class MLP(nn.Module):
         self.load_state_dict(torch.load(model_path))
 
         labels, names, pred_labels, max_probs = self.test(
-            test_features, test_classes, test_names, test_group_idxs
+            test_features, test_classes, test_names, test_group_idxs, probs_csv_path
         )
 
         if plot_metrics:
@@ -412,7 +413,7 @@ class MLP(nn.Module):
 
         return epoch_loss / len(iterator), epoch_acc / len(iterator)
 
-    def test(self, test_features, test_classes, test_names, test_group_idxs):
+    def test(self, test_features, test_classes, test_names, test_group_idxs, save_path):
         """Runs model over a group of test samples
 
         Parameters
@@ -450,6 +451,7 @@ class MLP(nn.Module):
                 test_names[indx_indiv.numpy().astype(int)[0]],
                 probs_avg,
                 labels_indiv[0],
+                save_file=save_path,
             )
 
             pred_labels.append(np.argmax(probs_avg))
