@@ -729,7 +729,7 @@ def plot_model_metrics(metrics, num_epochs, plot_name, metrics_dir):
     plt.xlabel("Epoch")
     plt.ylabel("Accuracy")
     plt.legend()
-    plt.savefig(os.path.join(metrics_dir, f"accuracy_{plot_name}.png"))
+    plt.savefig(os.path.join(metrics_dir, f"accuracy_{plot_name}.pdf"))
     plt.close()
 
     # Plot loss
@@ -739,5 +739,5 @@ def plot_model_metrics(metrics, num_epochs, plot_name, metrics_dir):
     plt.ylabel("Loss")
     plt.yscale("log")
     plt.legend()
-    plt.savefig(os.path.join(metrics_dir, f"loss_{plot_name}.png"))
+    plt.savefig(os.path.join(metrics_dir, f"loss_{plot_name}.pdf"))
     plt.close()
