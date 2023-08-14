@@ -420,5 +420,5 @@ def plot_confusion_matrix(y_true, y_pred, filename, purity=False, cmap=plt.cm.Pu
     fig.tight_layout()
     plt.xlim(-0.5, len(classes) - 0.5)
     plt.ylim(len(classes) - 0.5, -0.5)
-    plt.savefig(filename)
+    plt.savefig(filename, bbox_inches='tight')
     plt.close()

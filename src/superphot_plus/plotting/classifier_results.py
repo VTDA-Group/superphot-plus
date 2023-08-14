@@ -10,6 +10,7 @@ from scipy.stats import binned_statistic
 from superphot_plus.supernova_class import SupernovaClass as SnClass
 from superphot_plus.format_data_ztf import import_labels_only
 from superphot_plus.utils import calculate_neg_chi_squareds
+from superphot_plus.file_utils import get_multiple_posterior_samples
 
 from superphot_plus.plotting.format_params import *
 from superphot_plus.plotting.utils import read_probs_csv, histedges_equalN
@@ -565,11 +566,11 @@ def compare_mag_distributions(probs_classified, probs_unclassified, save_dir, ze
         Zeropoint used when converting mags to fluxes. Defaults to 26.3.
     """
     classified_df = pd.read_csv(probs_classified)
-    max_flux = classified_df.iloc[:, -5].to_numpy()
+    max_flux = classified_df.Fmax.to_numpy()
     max_r_classified = -2.5 * np.log10(max_flux) + zeropoint
 
-    unclassified_df = pd.read_csv(probs_classified)
-    max_flux = unclassified_df.iloc[:, -5].to_numpy()
+    unclassified_df = pd.read_csv(probs_unclassified)
+    max_flux = unclassified_df.Fmax.to_numpy()
     max_r_unclassified_all = -2.5 * np.log10(max_flux) + zeropoint
 
     mask_high_chisquared = (unclassified_df.iloc[:, 1] == "SKIP").to_numpy()
@@ -592,6 +593,7 @@ def compare_mag_distributions(probs_classified, probs_unclassified, save_dir, ze
         label="Unclassified (included)",
         density=True,
     )
+
     plt.hist(
         max_r_skipped,
         histtype="stepfilled",

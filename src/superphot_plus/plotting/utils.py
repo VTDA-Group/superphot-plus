@@ -110,9 +110,9 @@ def add_snr_to_prob_csv(probs_csv, data_dir, new_csv):
             snr = np.abs(lc.fluxes / lc.flux_errors)
             n_snr_3.append(len(snr[(snr > 3.0)]))
             n_snr_5.append(len(snr[(snr > 5.0)]))
-            n_snr_10.append((snr[(snr > 10.0)]))
+            n_snr_10.append(len(snr[(snr > 10.0)]))
             snr_ten_percent.append(np.quantile(snr, 0.9))
-            max_flux.append(lc.find_max_flux(band="r"))
+            max_flux.append(lc.find_max_flux(band="r")[0])
         except:
             n_snr_3.append(-1)
             n_snr_5.append(-1)

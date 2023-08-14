@@ -49,7 +49,21 @@ def adjust_log_dists(features_orig):
     return np.delete(features, [0, 3], 1)
 
 
-def classify(goal_per_class, num_epochs, neurons_per_layer, num_layers, fits_plotted=False):
+def classify(
+    input_csvs,
+    fit_dir,
+    goal_per_class,
+    num_epochs,
+    neurons_per_layer,
+    num_layers,
+    classify_log_file,
+    num_folds=NUM_FOLDS,
+    fits_plotted=False,
+    metrics_dir=METRICS_DIR,
+    models_dir=MODELS_DIR,
+    csv_path=None,
+    sampler="dynesty"
+):
     """Train MLP to classify between supernovae of 'allowed_types'.
 
     Parameters
@@ -68,10 +82,11 @@ def classify(goal_per_class, num_epochs, neurons_per_layer, num_layers, fits_plo
         FIT_PLOTS_FOLDER. Copies plots of wrongly classified samples to
         separate folder for manual followup. Defaults to False.
     """
-
-    # for file in os.scandir('models'):
-    #    os.remove(file.path)
-    allowed_types = ["SN Ia", "SN II", "SN IIn", "SLSN-I", "SN Ibc", "SLSN-II"]
+    csv_path = PROBS_FILE if csv_path is None else csv_path
+    with open(csv_path, "w+", encoding="utf-8") as pf:
+        pf.write("Name,Label,pSNIa,pSNII,pSNIIn,pSLSNI,pSNIbc")
+        
+    allowed_types = ["SN Ia", "SN II", "SN IIn", "SLSN-I", "SN Ibc"]
     output_dim = len(allowed_types)  # number of classes
 
     labels_to_classes, classes_to_labels = SnClass.get_type_maps(allowed_types)
@@ -82,11 +97,11 @@ def classify(goal_per_class, num_epochs, neurons_per_layer, num_layers, fits_plo
     fn_purity_07 = os.path.join(CM_FOLDER, fn_prefix + "_p_p07.pdf")
     fn_completeness_07 = os.path.join(CM_FOLDER, fn_prefix + "_c_p07.pdf")
 
-    names, labels = import_labels_only(input_csvs, allowed_types)
+    names, labels = import_labels_only(input_csvs, allowed_types, fits_dir=fit_dir, sampler=sampler)
 
     tally_each_class(labels)  # original tallies
 
-    kfold = generate_K_fold(np.zeros(len(labels)), labels, NUM_FOLDS)
+    kfold = generate_K_fold(np.zeros(len(labels)), labels, num_folds)
 
     true_classes_mlp = np.array([])
     predicted_classes_mlp = np.array([])
@@ -111,10 +126,10 @@ def classify(goal_per_class, num_epochs, neurons_per_layer, num_layers, fits_plo
         test_classes = SnClass.get_classes_from_labels(test_labels)
 
         train_features, train_classes = oversample_using_posteriors(
-            train_names, train_classes, goal_per_class
+            train_names, train_classes, goal_per_class, fit_dir, sampler=sampler
         )
         val_features, val_classes = oversample_using_posteriors(
-            val_names, val_classes, round(0.1 * goal_per_class)
+            val_names, val_classes, round(0.1 * goal_per_class), fit_dir, sampler=sampler
         )
 
         test_features = []
@@ -124,7 +139,7 @@ def classify(goal_per_class, num_epochs, neurons_per_layer, num_layers, fits_plo
 
         for i in range(len(test_names)):
             test_name = test_names[i]
-            test_posts = get_posterior_samples(test_name, FITS_DIR, "dynesty")
+            test_posts = get_posterior_samples(test_name, fit_dir, sampler)
             test_features.extend(test_posts)
             test_classes_os.extend([test_classes[i]] * len(test_posts))
             test_names_os.extend([test_names[i]] * len(test_posts))
@@ -155,16 +170,22 @@ def classify(goal_per_class, num_epochs, neurons_per_layer, num_layers, fits_plo
 
         model = MLP(
             ModelConfig(
-                input_dim=train_data.shape[1],
+                input_dim=train_features.shape[1],
                 output_dim=output_dim,
                 neurons_per_layer=neurons_per_layer,
                 num_hidden_layers=num_layers,
+                normalization_means=mean.tolist(),
+                normalization_stddevs=std.tolist(),
             ),
             ModelData(train_data, val_data, test_features, test_classes, test_names, test_group_idxs),
         )
 
         # Train and evaluate multi-layer perceptron
-        test_classes, test_names, pred_classes, pred_probs, valid_loss = model.run(num_epochs)
+        test_classes, test_names, pred_classes, pred_probs, valid_loss = model.run(
+            num_epochs,
+            metrics_dir=metrics_dir,
+            models_dir=models_dir,
+            probs_csv_path=csv_path)
 
         return pred_classes, pred_probs > 0.7, test_classes, test_names, valid_loss
 
@@ -199,7 +220,7 @@ def classify(goal_per_class, num_epochs, neurons_per_layer, num_layers, fits_plo
                 os.path.join(WRONGLY_CLASSIFIED_FOLDER, wc_type + "/" + fn_new),
             )
 
-    with open(CLASSIFY_LOG_FILE, "a+", encoding="utf-8") as the_file:
+    with open(classify_log_file, "a+", encoding="utf-8") as the_file:
         the_file.write(str(goal_per_class) + " samples per class\n")
         the_file.write(str(neurons_per_layer) + " neurons per each of " + str(num_layers) + " layers\n")
         the_file.write(str(num_epochs) + " epochs\n")
@@ -266,7 +287,7 @@ def classify_single_light_curve(model, obj_name, fits_dir):
     return probs_avg
 
 
-def return_new_classifications(model, test_csv, fit_dir, include_labels=False, output_dir=None):
+def return_new_classifications(model, test_csv, fit_dir, save_file, include_labels=False, output_dir=None):
     """Return new classifications based on model and save probabilities
     to a CSV file.
 
@@ -282,6 +303,12 @@ def return_new_classifications(model, test_csv, fit_dir, include_labels=False, o
         If True, labels from the test data are included in the
         probability saving process. Defaults to False.
     """
+    filepath = save_file if output_dir is None else os.path.join(output_dir, save_file)
+    
+    print(filepath)
+    with open(filepath, "w+", encoding="utf-8") as pf:
+        pf.write("Name,Label,pSNIa,pSNII,pSNIIn,pSLSNI,pSNIbc")
+        
     with open(test_csv, "r", encoding="utf-8") as tc:
         csv_reader = csv.reader(tc, delimiter=",")
         next(csv_reader)
@@ -299,7 +326,7 @@ def return_new_classifications(model, test_csv, fit_dir, include_labels=False, o
 
             probs_avg = classify_single_light_curve(model, test_name, fit_dir)
 
-            save_test_probabilities(test_name, probs_avg, label, output_dir)
+        save_test_probabilities(test_name, probs_avg, label, output_dir, save_file)
 
 
 def save_phase_versus_class_probs(model, probs_csv, data_dir):

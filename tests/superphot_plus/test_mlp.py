@@ -10,7 +10,7 @@ from superphot_plus.mlp import MLP, ModelConfig, ModelData
 from superphot_plus.utils import create_dataset, calculate_accuracy, epoch_time
 
 
-def test_run_mlp(test_data_dir):
+def test_run_mlp(test_data_dir, tmp_path):
     """Tests that we can run training of the model."""
 
     num_samples = 100
@@ -18,6 +18,8 @@ def test_run_mlp(test_data_dir):
     num_output_classes = 5
 
     input_dim, output_dim, neurons_per_layer, num_layers = TRAINED_MODEL_PARAMS
+    normed_means = list(np.zeros(input_dim))
+    normed_stds = list(np.ones(input_dim))
 
     train_features = np.random.random((num_samples, input_dim))
     train_labels = np.random.randint(num_output_classes, size=num_samples)
@@ -31,7 +33,14 @@ def test_run_mlp(test_data_dir):
     train_data = create_dataset(train_features, train_labels)
     val_data = create_dataset(test_features, test_labels)
 
-    config = ModelConfig(input_dim, output_dim, neurons_per_layer, num_layers)
+    config = ModelConfig(
+        input_dim,
+        output_dim,
+        neurons_per_layer,
+        num_layers,
+        normed_means,
+        normed_stds
+    )
     data = ModelData(train_data, val_data, test_features, test_labels, test_names, test_group_idxs)
 
     MLP.create(config, data).run(
@@ -39,6 +48,7 @@ def test_run_mlp(test_data_dir):
         plot_metrics=True,
         metrics_dir=test_data_dir,
         models_dir=test_data_dir,
+        probs_csv_path=os.path.join(tmp_path, "probs_mlp.csv"),
     )
 
     # Check that accuracy and loss plots exist
@@ -47,6 +57,8 @@ def test_run_mlp(test_data_dir):
 
     assert os.path.exists(os.path.join(test_data_dir, acc_plot))
     assert os.path.exists(os.path.join(test_data_dir, loss_plot))
+    
+    assert os.path.exists(os.path.join(tmp_path, "probs_mlp.csv"))
 
 
 def test_create_dataset():

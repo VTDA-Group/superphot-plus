@@ -11,7 +11,7 @@ from superphot_plus.file_utils import get_multiple_posterior_samples, has_poster
 from superphot_plus.supernova_class import SupernovaClass as SnClass
 
 
-def import_labels_only(input_csvs, allowed_types, fits_dir=None, needs_posteriors=True, redshift=False):
+def import_labels_only(input_csvs, allowed_types, fits_dir=None, needs_posteriors=True, redshift=False, sampler=None):
     """Filters CSVs for rows where label is in allowed_types and returns
     names, labels.
 
@@ -50,7 +50,7 @@ def import_labels_only(input_csvs, allowed_types, fits_dir=None, needs_posterior
             next(csvreader)
             for row in csvreader:
                 name = row[0]
-                if needs_posteriors and not has_posterior_samples(lc_name=name, fits_dir=fits_dir):
+                if needs_posteriors and not has_posterior_samples(lc_name=name, fits_dir=fits_dir, sampler=sampler):
                     continue
                 label_orig = row[1]
                 row_label = SnClass.canonicalize(label_orig)

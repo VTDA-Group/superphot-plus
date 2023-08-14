@@ -6,6 +6,7 @@ import random
 import time
 from dataclasses import dataclass
 from typing import List
+import json
 
 import numpy as np
 import torch
@@ -23,11 +24,10 @@ from superphot_plus.constants import (
     SEED,
     STDDEVS_TRAINED_MODEL,
 )
-from superphot_plus.file_paths import METRICS_DIR, MODELS_DIR
+from superphot_plus.file_paths import METRICS_DIR, MODELS_DIR, PROBS_FILE
 from superphot_plus.format_data_ztf import normalize_features
 from superphot_plus.plotting.classifier_results import plot_model_metrics
 from superphot_plus.utils import calculate_accuracy, create_dataset, epoch_time, save_test_probabilities
-
 
 @dataclass
 class ModelConfig:
@@ -37,11 +37,48 @@ class ModelConfig:
     output_dim: int
     neurons_per_layer: int
     num_hidden_layers: int
+    
+    normalization_means: List[float]
+    normalization_stddevs: List[float]
+    
 
     device: torch.device = torch.device("cpu")
 
     def __iter__(self):
-        return iter((self.input_dim, self.output_dim, self.neurons_per_layer, self.num_hidden_layers))
+        return iter((
+            self.input_dim,
+            self.output_dim,
+            self.neurons_per_layer,
+            self.num_hidden_layers,
+        ))
+    
+    def save(self, filename):
+        """Save configuration data to a JSON file.
+        """
+        data_dict = {
+            'config': [
+                self.input_dim,
+                self.output_dim,
+                self.neurons_per_layer,
+                self.num_hidden_layers
+            ],
+            'normalization_means': self.normalization_means,
+            'normalization_stddevs': self.normalization_stddevs
+        }
+        with open(filename, 'w') as f:
+            json.dump(data_dict, f)
+        
+    @classmethod
+    def load(cls, filename):
+        """Load configuration data from a JSON file.
+        """
+        with open(filename, "r") as f:
+            data_dict = json.load(f)
+        return ModelConfig(
+            *data_dict['config'],
+            data_dict['normalization_means'],
+            data_dict['normalization_stddevs'],
+        )
 
 
 @dataclass
@@ -211,6 +248,7 @@ class MLP(nn.Module):
         plot_metrics=False,
         metrics_dir=METRICS_DIR,
         models_dir=MODELS_DIR,
+        probs_csv_path=PROBS_FILE,
     ):
         """
         Run the MLP initialization and training.
@@ -250,6 +288,8 @@ class MLP(nn.Module):
             test_group_idxs,
         ) = self.data
 
+        config_path = os.path.join(models_dir, f"superphot-config-{test_names[0]}.json")
+        self.config.save(config_path)
         model_path = os.path.join(models_dir, f"superphot-model-{test_names[0]}.pt")
 
         train_iterator = DataLoader(train_data, shuffle=True, batch_size=BATCH_SIZE)
@@ -282,7 +322,7 @@ class MLP(nn.Module):
         self.load_state_dict(torch.load(model_path))
 
         labels, names, pred_labels, max_probs = self.test(
-            test_features, test_classes, test_names, test_group_idxs
+            test_features, test_classes, test_names, test_group_idxs, probs_csv_path
         )
 
         if plot_metrics:
@@ -363,7 +403,6 @@ class MLP(nn.Module):
                 y = y.to(self.config.device)
 
                 y_pred, _ = self(x)
-
                 loss = self.criterion(y_pred, y)
 
                 acc = calculate_accuracy(y_pred, y)
@@ -371,9 +410,10 @@ class MLP(nn.Module):
                 epoch_loss += loss.item()
                 epoch_acc += acc.item()
 
+
         return epoch_loss / len(iterator), epoch_acc / len(iterator)
 
-    def test(self, test_features, test_classes, test_names, test_group_idxs):
+    def test(self, test_features, test_classes, test_names, test_group_idxs, save_path):
         """Runs model over a group of test samples
 
         Parameters
@@ -411,6 +451,7 @@ class MLP(nn.Module):
                 test_names[indx_indiv.numpy().astype(int)[0]],
                 probs_avg,
                 labels_indiv[0],
+                save_file=save_path,
             )
 
             pred_labels.append(np.argmax(probs_avg))
@@ -514,7 +555,11 @@ class MLP(nn.Module):
             Sums to 1 along each row.
         """
         fit_params_2d = np.atleast_2d(fit_params)  # cast to 2D if only 1 light curve
-        test_features, _, _ = normalize_features(fit_params_2d, MEANS_TRAINED_MODEL, STDDEVS_TRAINED_MODEL)
+        test_features, _, _ = normalize_features(
+            fit_params_2d,
+            self.config.normalization_means,
+            self.config.normalization_stddevs,
+        )
         test_data = TensorDataset(torch.Tensor(test_features))
         test_iterator = DataLoader(test_data, batch_size=32)
         _, probs = self.get_predictions_from_fit_params(test_iterator)
@@ -542,7 +587,7 @@ class MLP(nn.Module):
         return model
 
     @classmethod
-    def load(cls, filename, config, data=None):
+    def load(cls, filename, config_filename, data=None):
         """Load a trained MLP for subsequent classification of new objects.
 
         Parameters
@@ -551,6 +596,7 @@ class MLP(nn.Module):
             Where the trained MLP is stored.
         config : ModelConfig
             Includes (in order): input_size, output_size, n_neurons, n_hidden.
+            Also includes normalization means and standard deviations.
         data : ModelData
             Training, testing and validation data.
 
@@ -559,6 +605,7 @@ class MLP(nn.Module):
         torch.nn.Module
             The pre-trained MLP object.
         """
+        config = ModelConfig.load(config_filename)
         model = MLP.create(config, data)  # set up empty multi-layer perceptron
         model.load_state_dict(torch.load(filename))  # load trained state dict to the MLP
-        return model
+        return model, config.normalization_means, config.normalization_stddevs
