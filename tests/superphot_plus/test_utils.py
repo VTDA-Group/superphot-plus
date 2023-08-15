@@ -9,6 +9,7 @@ from superphot_plus.utils import (
     get_band_extinctions,
     get_numpyro_cube,
     calculate_neg_chi_squareds,
+    params_valid,
 )
 
 
@@ -88,6 +89,18 @@ def test_get_band_extinctions() -> None:
     """
     ext_list = get_band_extinctions(0.0, 10.0, [4741.64, 6173.23])
     assert np.all(ext_list == pytest.approx([0.3133, 0.2202], 0.01))
+
+
+def test_params_valid():
+    """Test the params_valid function."""
+
+    # Prior ZTF values are valid.
+    assert params_valid(0.0052, 1.1391, 0.599, 1.4296)
+
+    # Invalid combinations
+    assert not params_valid(1.0, 1.1391, 0.599, 2.0)
+    assert not params_valid(1.0, 2.0, 0.599, 1.0)
+    assert not params_valid(1.0, 0.0, 1.0, 2.1)
 
 
 def test_get_numpyro_cube():
