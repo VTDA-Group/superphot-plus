@@ -20,3 +20,4 @@ PROBS_FILE2 = "probs_phased.csv"
 TRAINED_MODEL_FN = (
     "../../tests/data/superphot-model-ZTF23aagkgnz.pt"  # glob.glob("models_saved/*ZTF23aagkgnz.pt")[0]
 )
+TRAINED_MODEL_CONF_FILE = "../../tests/data/superphot-config-test.json"
