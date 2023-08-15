@@ -69,6 +69,7 @@ def test_numpyro_nuts(ztf_priors, single_ztf_lightcurve_object):
         9.66154117e-01,
         5.76787619e-01,
         8.59146651e-01,
+        -5.43,
     ]
     sample_mean = posterior_samples.sample_mean()
     assert np.all(np.isclose(sample_mean, expected, rtol=0.5))
@@ -101,6 +102,7 @@ def test_numpyro_svi(ztf_priors, single_ztf_lightcurve_object):
         9.64e-01,
         5.72e-01,
         8.57e-01,
+        -5.43,
     ]
     sample_mean = posterior_samples.sample_mean()
     assert np.all(np.isclose(sample_mean, expected, rtol=0.5))

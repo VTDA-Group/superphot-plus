@@ -46,17 +46,17 @@ def test_run_mlp(test_data_dir, tmp_path):
     MLP.create(config, data).run(
         num_epochs=num_epochs,
         plot_metrics=True,
-        metrics_dir=test_data_dir,
-        models_dir=test_data_dir,
+        metrics_dir=tmp_path,
+        models_dir=tmp_path,
         probs_csv_path=os.path.join(tmp_path, "probs_mlp.csv"),
     )
 
     # Check that accuracy and loss plots exist
-    acc_plot = f"accuracy_{test_names[0]}.png"
-    loss_plot = f"loss_{test_names[0]}.png"
+    acc_plot = f"accuracy_{test_names[0]}.pdf"
+    loss_plot = f"loss_{test_names[0]}.pdf"
 
-    assert os.path.exists(os.path.join(test_data_dir, acc_plot))
-    assert os.path.exists(os.path.join(test_data_dir, loss_plot))
+    assert os.path.exists(os.path.join(tmp_path, acc_plot))
+    assert os.path.exists(os.path.join(tmp_path, loss_plot))
     
     assert os.path.exists(os.path.join(tmp_path, "probs_mlp.csv"))
 
