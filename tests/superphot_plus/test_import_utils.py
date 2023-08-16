@@ -44,8 +44,8 @@ def test_clip_lightcurve_end(single_ztf_lightcurve):
     # Add 3 points in i with the max as the last point
     times.extend([2, 3, 4])
     fluxes.extend([14.1, 19.0, 19.5])
-    bands.extend(["i"] * 5)
-    errors.extend([0.1] * 5)
+    bands.extend(["i"] * 3)
+    errors.extend([0.1] * 3)
 
     (t_clip, f_clip, e_clip, b_clip) = clip_lightcurve_end(
         np.array(times),
