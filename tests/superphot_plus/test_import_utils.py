@@ -1,7 +1,10 @@
+import csv
 import numpy as np
+from pathlib import Path
 import pytest
+import tempfile
 
-from superphot_plus.import_utils import clip_lightcurve_end, import_lc
+from superphot_plus.import_utils import add_to_new_csv, clip_lightcurve_end, import_lc
 
 
 def test_import_lc(single_ztf_lightcurve):
@@ -38,6 +41,12 @@ def test_clip_lightcurve_end(single_ztf_lightcurve):
     bands.extend(["u"] * 5)
     errors.extend([0.1] * 5)
 
+    # Add 3 points in i with the max as the last point
+    times.extend([2, 3, 4])
+    fluxes.extend([14.1, 19.0, 19.5])
+    bands.extend(["i"] * 5)
+    errors.extend([0.1] * 5)
+
     (t_clip, f_clip, e_clip, b_clip) = clip_lightcurve_end(
         np.array(times),
         np.array(fluxes),
@@ -70,3 +79,31 @@ def test_clip_lightcurve_end(single_ztf_lightcurve):
     assert np.all(f_clip[u_inds] > 0.5)
     assert np.all(t_clip[u_inds] <= 4)
     assert np.all(e_clip[u_inds] == 0.1)
+
+    # Check i.
+    i_inds = b_clip == "i"
+    assert len(b_clip[i_inds]) == 3
+
+
+def test_clip_lightcurve_end(single_ztf_lightcurve):
+    with tempfile.TemporaryDirectory() as dir_name:
+        file_name = f"{dir_name}/tmp_data.dat"
+
+        # Create a new file with a single line.
+        add_to_new_csv("Name1", "Label1", 10.0, file_name)
+        assert Path(file_name).is_file()
+        with open(file_name, "r") as f:
+            reader = csv.reader(f)
+            assert next(reader) == ["Name1", "Label1", "10.0"]
+            with pytest.raises(StopIteration):
+                next(reader)
+
+        # Append one line.
+        add_to_new_csv("Name2", "Label2", 5.0, file_name)
+        assert Path(file_name).is_file()
+        with open(file_name, "r") as f:
+            reader = csv.reader(f)
+            assert next(reader) == ["Name1", "Label1", "10.0"]
+            assert next(reader) == ["Name2", "Label2", "5.0"]
+            with pytest.raises(StopIteration):
+                next(reader)
