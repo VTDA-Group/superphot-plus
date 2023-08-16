@@ -447,6 +447,8 @@ class MLP(nn.Module):
             _, labels_indiv, indx_indiv, probs = self.get_predictions(test_iterator)
             probs_avg = np.mean(probs.numpy(), axis=0)
 
+            labels_indiv = labels_indiv.numpy()
+            
             save_test_probabilities(
                 test_names[indx_indiv.numpy().astype(int)[0]],
                 probs_avg,
