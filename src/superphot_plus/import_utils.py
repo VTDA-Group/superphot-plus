@@ -76,7 +76,7 @@ def import_lc(filename, survey=Survey.ZTF(), clip_lightcurve=True):
     merr = merr[merr != np.nan]
 
     f, ferr = convert_mags_to_flux(m, merr, 26.3)
-    
+
     if clip_lightcurve:
         t, f, ferr, b = clip_lightcurve_end(t, f, ferr, b)
     snr = np.abs(f / ferr)
@@ -115,7 +115,7 @@ def clip_lightcurve_end(times, fluxes, fluxerrs, bands):
         t_b, f_b, ferr_b = times[idx_b], fluxes[idx_b], fluxerrs[idx_b]
         end_i = len(t_b) - np.argmax(f_b)
         num_to_cut = 0
-        
+
         if np.argmax(f_b) == len(f_b) - 1:
             t_clip.extend(t_b)
             flux_clip.extend(f_b)
