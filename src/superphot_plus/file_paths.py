@@ -23,3 +23,4 @@ TRAINED_MODEL_FN = (
 TRAINED_CONFIG_FN = (
     "../../tests/data/superphot-config-test.json"
 )
+

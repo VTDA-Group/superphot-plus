@@ -9,6 +9,7 @@ from superphot_plus.utils import (
     get_band_extinctions,
     get_numpyro_cube,
     calculate_neg_chi_squareds,
+    params_valid,
 )
 
 
@@ -81,6 +82,14 @@ def test_f1_score() -> None:
     )
     assert pytest.approx(s) == (2.0 * (4.0 / 5.0) + 4.0 * (6.0 / 7.0) + 2.0 + 2.0 + 2.0) / 12.0
 
+    # Test a case where there are no predictions for a class.
+    s = f1_score(
+        np.array([0, 0, 0, 0]),
+        np.array([0, 0, 1, 1]),
+        True,
+    )
+    assert pytest.approx(s) == (1.0 / 3.0)
+
 
 def test_get_band_extinctions() -> None:
     """This is currently a change detection test where we are just confirming
@@ -88,6 +97,18 @@ def test_get_band_extinctions() -> None:
     """
     ext_list = get_band_extinctions(0.0, 10.0, [4741.64, 6173.23])
     assert np.all(ext_list == pytest.approx([0.3133, 0.2202], 0.01))
+
+
+def test_params_valid():
+    """Test the params_valid function."""
+
+    # Prior ZTF values are valid.
+    assert params_valid(0.0052, 1.1391, 0.599, 1.4296)
+
+    # Invalid combinations
+    assert not params_valid(1.0, 1.1391, 0.599, 2.0)
+    assert not params_valid(1.0, 2.0, 0.599, 1.0)
+    assert not params_valid(1.0, 0.0, 1.0, 2.1)
 
 
 def test_get_numpyro_cube():

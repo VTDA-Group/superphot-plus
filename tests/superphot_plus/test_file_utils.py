@@ -3,7 +3,15 @@ import os
 import numpy as np
 import pytest
 
-from superphot_plus.file_utils import get_posterior_samples
+from superphot_plus.file_paths import FITS_DIR
+from superphot_plus.file_utils import get_posterior_filename, get_posterior_samples
+
+
+def test_get_posterior_filename():
+    """Test the file name computation."""
+    assert get_posterior_filename("test") == os.path.join(FITS_DIR, "test_eqwt.npz")
+    assert get_posterior_filename("test", fits_dir=".") == os.path.join(".", "test_eqwt.npz")
+    assert get_posterior_filename("test", sampler="2") == os.path.join(FITS_DIR, "test_eqwt_2.npz")
 
 
 def test_get_posterior_samples(single_ztf_sn_id, single_ztf_eqwt_compressed, test_data_dir):

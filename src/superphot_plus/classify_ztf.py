@@ -101,7 +101,7 @@ def classify(
     csv_path = PROBS_FILE if csv_path is None else csv_path
     with open(csv_path, "w+", encoding="utf-8") as pf:
         pf.write("Name,Label,pSNIa,pSNII,pSNIIn,pSLSNI,pSNIbc")
-        
+
     allowed_types = ["SN Ia", "SN II", "SN IIn", "SLSN-I", "SN Ibc"]
     output_dim = len(allowed_types)  # number of classes
 
@@ -227,10 +227,8 @@ def classify(
 
         # Train and evaluate multi-layer perceptron
         test_classes, test_names, pred_classes, pred_probs, valid_loss = model.run(
-            num_epochs,
-            metrics_dir=metrics_dir,
-            models_dir=models_dir,
-            probs_csv_path=csv_path)
+            num_epochs, metrics_dir=metrics_dir, models_dir=models_dir, probs_csv_path=csv_path
+        )
 
         return pred_classes, pred_probs > 0.7, test_classes, test_names, valid_loss
 
@@ -301,7 +299,7 @@ def classify(
     )
 
 
-def classify_single_light_curve(model, obj_name, fits_dir):
+def classify_single_light_curve(model, obj_name, fits_dir, sampler="dynesty"):
     """Given an object name, return classification probabilities
     based on the model fit and data.
 
@@ -313,13 +311,15 @@ def classify_single_light_curve(model, obj_name, fits_dir):
         Name of the supernova.
     fits_dir : str
         Where model fit information is stored.
+    sampler : str
+        The MCMC sampler to use. Defaults to "dynesty".
 
     Returns
     ----------
     np.ndarray
         The average probability for each SN type across all equally-weighted sets of fit parameters.
     """
-    post_features = get_posterior_samples(obj_name, fits_dir, "dynesty")
+    post_features = get_posterior_samples(obj_name, fits_dir, sampler)
 
     chisq = np.mean(post_features[:, -1])
     if np.abs(chisq) > 10:  # probably not a SN
@@ -356,11 +356,11 @@ def return_new_classifications(
         probability saving process. Defaults to False.
     """
     filepath = save_file if output_dir is None else os.path.join(output_dir, save_file)
-    
+
     print(filepath)
     with open(filepath, "w+", encoding="utf-8") as pf:
         pf.write("Name,Label,pSNIa,pSNII,pSNIIn,pSLSNI,pSNIbc")
-        
+
     with open(test_csv, "r", encoding="utf-8") as tc:
         csv_reader = csv.reader(tc, delimiter=",")
         next(csv_reader)
