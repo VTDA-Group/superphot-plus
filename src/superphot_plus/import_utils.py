@@ -28,7 +28,7 @@ def import_lc(filename, survey=Survey.ZTF(), clip_lightcurve=True):
     """
     ra = None
     dec = None
-    if not os.path.exists(filename):
+    if not os.path.exists(filename):  # pragma: no cover
         return [
             None,
         ] * 6
@@ -117,13 +117,10 @@ def clip_lightcurve_end(times, fluxes, fluxerrs, bands):
     tuple
         Tuple containing the clipped light curve data.
     """
-
     t_clip, flux_clip, ferr_clip, b_clip = [], [], [], []
     for b in np.unique(bands):
         idx_b = bands == b
         t_b, f_b, ferr_b = times[idx_b], fluxes[idx_b], fluxerrs[idx_b]
-        if len(f_b) == 0:
-            continue
         end_i = len(t_b) - np.argmax(f_b)
         num_to_cut = 0
         
@@ -144,7 +141,6 @@ def clip_lightcurve_end(times, fluxes, fluxerrs, bands):
                 num_to_cut = i
 
         if num_to_cut > 0:
-            #print("LC SNIPPED")
             t_clip.extend(t_b[:-num_to_cut])
             flux_clip.extend(f_b[:-num_to_cut])
             ferr_clip.extend(ferr_b[:-num_to_cut])

@@ -273,7 +273,7 @@ class Lightcurve:
         ------
         FileExistsError if the file exists and overwrite is False.
         """
-        if os.path.exists(filename) and not overwrite:
+        if os.path.exists(filename) and not overwrite:  # pragma: no cover
             raise FileExistsError(f"ERROR: File already exists {filename}")
 
         lcs = np.array([self.times, self.fluxes, self.flux_errors, self.bands])
