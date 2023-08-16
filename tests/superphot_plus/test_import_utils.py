@@ -85,7 +85,7 @@ def test_clip_lightcurve_end(single_ztf_lightcurve):
     assert len(b_clip[i_inds]) == 3
 
 
-def test_clip_lightcurve_end(single_ztf_lightcurve):
+def test_add_to_new_csv():
     with tempfile.TemporaryDirectory() as dir_name:
         file_name = f"{dir_name}/tmp_data.dat"
 
