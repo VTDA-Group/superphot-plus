@@ -11,7 +11,9 @@ from superphot_plus.file_utils import get_multiple_posterior_samples, has_poster
 from superphot_plus.supernova_class import SupernovaClass as SnClass
 
 
-def import_labels_only(input_csvs, allowed_types, fits_dir=None, needs_posteriors=True, redshift=False, sampler=None):
+def import_labels_only(
+    input_csvs, allowed_types, fits_dir=None, needs_posteriors=True, redshift=False, sampler=None
+):
     """Filters CSVs for rows where label is in allowed_types and returns
     names, labels.
 
@@ -50,7 +52,9 @@ def import_labels_only(input_csvs, allowed_types, fits_dir=None, needs_posterior
             next(csvreader)
             for row in csvreader:
                 name = row[0]
-                if needs_posteriors and not has_posterior_samples(lc_name=name, fits_dir=fits_dir, sampler=sampler):
+                if needs_posteriors and not has_posterior_samples(
+                    lc_name=name, fits_dir=fits_dir, sampler=sampler
+                ):
                     continue
                 label_orig = row[1]
                 row_label = SnClass.canonicalize(label_orig)
@@ -167,8 +171,9 @@ def normalize_features(features, mean=None, std=None):
 
     Parameters
     ----------
-    features : list
-        Input features.
+    features : numpy array
+        Input features. Must be a 2-d array where each row corresponds
+        to a data point and each entry to a feature.
     mean : ndarray, optional
         Mean values for normalization. Defaults to None.
     std : ndarray, optional
@@ -185,5 +190,6 @@ def normalize_features(features, mean=None, std=None):
     if std is None:
         std = features.std(axis=-2)
 
-    # print(mean, std)
-    return (features - mean) / std, mean, std
+    safe_std = np.copy(std)
+    safe_std[std == 0.0] = 1.0
+    return (features - mean) / safe_std, mean, std

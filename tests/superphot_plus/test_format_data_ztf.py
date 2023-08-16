@@ -4,7 +4,7 @@ from pathlib import Path
 
 import numpy as np
 
-from superphot_plus.format_data_ztf import import_labels_only, oversample_using_posteriors
+from superphot_plus.format_data_ztf import import_labels_only, normalize_features, oversample_using_posteriors
 from superphot_plus.lightcurve import Lightcurve
 from superphot_plus.supernova_class import SupernovaClass
 
@@ -66,3 +66,20 @@ def test_oversample_using_posteriors(test_data_dir, single_ztf_sn_id):
     # We should have less samples due to repeated class.
     assert len(features) == len(labels) == 20
     assert len(labels[labels == 4]) == len(labels[labels == 1]) == 10
+
+
+def test_normalize_features():
+    # Feature #1: mean = 1.0, std ~= 0.81649658
+    # Feature #2: mean = 0.75, std ~= 0.54006172
+    # Feature #3: mean = 1.0, std == 0.0
+    features = np.array([[1.0, 1.0, 1.0], [0.0, 0.0, 1.0], [2.0, 1.25, 1.0]])
+    expected = np.array([
+        [0.0, 0.25 / 0.54006172, 0.0],
+        [-1.0 / 0.81649658, -0.75 / 0.54006172, 0.0],
+        [1.0 / 0.81649658, 0.5 / 0.54006172, 0.0],
+    ])
+    computed, mean, std = normalize_features(features)
+
+    assert np.allclose(mean, [1.0, 0.75, 1.0])
+    assert np.allclose(std, [0.81649658, 0.54006172, 0.0])
+    assert np.allclose(computed, expected)
