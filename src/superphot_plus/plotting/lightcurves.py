@@ -118,6 +118,7 @@ def plot_sampling_lc_fit(
                 alpha=0.1,
             )
 
+    plt.legend()
     plt.xlabel("MJD")
     plt.ylabel("Flux")
     
