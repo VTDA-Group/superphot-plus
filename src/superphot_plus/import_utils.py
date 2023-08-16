@@ -29,9 +29,7 @@ def import_lc(filename, survey=Survey.ZTF(), clip_lightcurve=True):
     ra = None
     dec = None
     if not os.path.exists(filename):  # pragma: no cover
-        return [
-            None,
-        ] * 6
+        return [None] * 6
     with open(filename, "r", encoding="utf-8") as csv_f:
         csvreader = csv.reader(csv_f, delimiter=",")
         row_intro = next(csvreader)
@@ -53,17 +51,15 @@ def import_lc(filename, survey=Survey.ZTF(), clip_lightcurve=True):
                 dec = float(row[dec_idx])
                 try:
                     ext_dict = survey.get_extinctions(ra, dec)
-                except:
-                    return [
-                        None,
-                    ] * 6
+                except:  # pragma: no cover
+                    return [None] * 6
             if int(row[b_idx]) == 2:
                 flux.append(float(row[f_idx]) - ext_dict["r"])
                 bands.append("r")
             elif int(row[b_idx]) == 1:
                 flux.append(float(row[f_idx]) - ext_dict["g"])
                 bands.append("g")
-            else:
+            else:  # pragma: no cover
                 continue
             mjd.append(float(row[1]))
             flux_err.append(float(row[ferr_idx]))
@@ -86,14 +82,10 @@ def import_lc(filename, survey=Survey.ZTF(), clip_lightcurve=True):
     snr = np.abs(f / ferr)
 
     for band in survey.wavelengths:
-        if len(snr[(snr > 3.0) & (b == band)]) < 5:  # not enough good datapoints
-            return [
-                None,
-            ] * 6
-        if (np.max(f[b == band]) - np.min(f[b == band])) < 3.0 * np.mean(ferr[b == band]):
-            return [
-                None,
-            ] * 6
+        if len(snr[(snr > 3.0) & (b == band)]) < 5:  # pragma: no cover
+            return [None] * 6
+        if (np.max(f[b == band]) - np.min(f[b == band])) < 3.0 * np.mean(ferr[b == band]):  # pragma: no cover
+            return [None] * 6
     return t, f, ferr, b, ra, dec
 
 

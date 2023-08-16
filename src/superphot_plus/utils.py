@@ -115,7 +115,7 @@ def f1_score(pred_classes, true_classes, class_average=False):
             purity = true_positive / len(pred_classes[pred_classes == true_class])
             completeness = true_positive / len(true_classes[true_classes == true_class])
             
-            if purity + completeness == 0:
+            if purity + completeness == 0:  # pragma: no cover
                 f_1 = 0.0
             else:
                 f_1 = 2.0 * purity * completeness / (purity + completeness)

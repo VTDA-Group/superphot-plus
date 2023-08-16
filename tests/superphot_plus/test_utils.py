@@ -82,6 +82,14 @@ def test_f1_score() -> None:
     )
     assert pytest.approx(s) == (2.0 * (4.0 / 5.0) + 4.0 * (6.0 / 7.0) + 2.0 + 2.0 + 2.0) / 12.0
 
+    # Test a case where there are no predictions for a class.
+    s = f1_score(
+        np.array([0, 0, 0, 0]),
+        np.array([0, 0, 1, 1]),
+        True,
+    )
+    assert pytest.approx(s) == (1.0 / 3.0)
+
 
 def test_get_band_extinctions() -> None:
     """This is currently a change detection test where we are just confirming
