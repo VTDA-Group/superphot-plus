@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1692198487857,
+  "lastUpdate": 1692200257699,
   "repoUrl": "https://github.com/lincc-frameworks/superphot-plus",
   "entries": {
     "SUPERHOT-PLUS Benchmarking Monitor": [
@@ -3167,6 +3167,90 @@ window.BENCHMARK_DATA = {
           {
             "name": "test_inference::test_numpyro_svi_inference - Memory Used",
             "value": 812.05859375,
+            "unit": "MB"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "104161096+jeremykubica@users.noreply.github.com",
+            "name": "Jeremy Kubica",
+            "username": "jeremykubica"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "75852aa7e7adb1928741370b6b64157033f7dfc4",
+          "message": "Merge pull request #115 from lincc-frameworks/coverage_small\n\nFix name of test",
+          "timestamp": "2023-08-16T11:31:01-04:00",
+          "tree_id": "013cbe7880cb9c1c60dcdaa72d52eda8287eb58b",
+          "url": "https://github.com/lincc-frameworks/superphot-plus/commit/75852aa7e7adb1928741370b6b64157033f7dfc4"
+        },
+        "date": 1692200256808,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "test_fit::test_dynesty_single_file - Runtime",
+            "value": 5.7559120655059814,
+            "unit": "s"
+          },
+          {
+            "name": "test_fit::test_dynesty_single_file - Memory Used",
+            "value": 72.12109375,
+            "unit": "MB"
+          },
+          {
+            "name": "test_fit::test_nuts_single_file - Runtime",
+            "value": 18.728530645370483,
+            "unit": "s"
+          },
+          {
+            "name": "test_fit::test_nuts_single_file - Memory Used",
+            "value": 378.87890625,
+            "unit": "MB"
+          },
+          {
+            "name": "test_fit::test_svi_single_file - Runtime",
+            "value": 17.895267009735107,
+            "unit": "s"
+          },
+          {
+            "name": "test_fit::test_svi_single_file - Memory Used",
+            "value": 684.140625,
+            "unit": "MB"
+          },
+          {
+            "name": "test_inference::test_dynesty_inference - Runtime",
+            "value": 6.46411919593811,
+            "unit": "s"
+          },
+          {
+            "name": "test_inference::test_dynesty_inference - Memory Used",
+            "value": 676.18359375,
+            "unit": "MB"
+          },
+          {
+            "name": "test_inference::test_numpyro_nuts_inference - Runtime",
+            "value": 12.93802261352539,
+            "unit": "s"
+          },
+          {
+            "name": "test_inference::test_numpyro_nuts_inference - Memory Used",
+            "value": 683.8359375,
+            "unit": "MB"
+          },
+          {
+            "name": "test_inference::test_numpyro_svi_inference - Runtime",
+            "value": 17.90627932548523,
+            "unit": "s"
+          },
+          {
+            "name": "test_inference::test_numpyro_svi_inference - Memory Used",
+            "value": 815.0078125,
             "unit": "MB"
           }
         ]
