@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1692295701182,
+  "lastUpdate": 1692297462368,
   "repoUrl": "https://github.com/lincc-frameworks/superphot-plus",
   "entries": {
     "SUPERHOT-PLUS Benchmarking Monitor": [
@@ -3335,6 +3335,90 @@ window.BENCHMARK_DATA = {
           {
             "name": "test_inference::test_numpyro_svi_inference - Memory Used",
             "value": 809.64453125,
+            "unit": "MB"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "kdesoto@g.harvard.edu",
+            "name": "Kaylee de Soto",
+            "username": "kdesoto-astro"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "23eeba57f3fd1b02d49a245d20e96eb171ba1acf",
+          "message": "Merge pull request #116 from lincc-frameworks/legends_and_markers\n\nadding legends and markers for tutorial code",
+          "timestamp": "2023-08-17T14:31:37-04:00",
+          "tree_id": "44de1843bcf638b34c05ed60f95fe36d665b87f8",
+          "url": "https://github.com/lincc-frameworks/superphot-plus/commit/23eeba57f3fd1b02d49a245d20e96eb171ba1acf"
+        },
+        "date": 1692297461514,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "test_fit::test_dynesty_single_file - Runtime",
+            "value": 5.4653096199035645,
+            "unit": "s"
+          },
+          {
+            "name": "test_fit::test_dynesty_single_file - Memory Used",
+            "value": 71.953125,
+            "unit": "MB"
+          },
+          {
+            "name": "test_fit::test_nuts_single_file - Runtime",
+            "value": 17.973984718322754,
+            "unit": "s"
+          },
+          {
+            "name": "test_fit::test_nuts_single_file - Memory Used",
+            "value": 376.7109375,
+            "unit": "MB"
+          },
+          {
+            "name": "test_fit::test_svi_single_file - Runtime",
+            "value": 17.95850682258606,
+            "unit": "s"
+          },
+          {
+            "name": "test_fit::test_svi_single_file - Memory Used",
+            "value": 680.7109375,
+            "unit": "MB"
+          },
+          {
+            "name": "test_inference::test_dynesty_inference - Runtime",
+            "value": 6.365328788757324,
+            "unit": "s"
+          },
+          {
+            "name": "test_inference::test_dynesty_inference - Memory Used",
+            "value": 672.55078125,
+            "unit": "MB"
+          },
+          {
+            "name": "test_inference::test_numpyro_nuts_inference - Runtime",
+            "value": 13.481778621673584,
+            "unit": "s"
+          },
+          {
+            "name": "test_inference::test_numpyro_nuts_inference - Memory Used",
+            "value": 681.8515625,
+            "unit": "MB"
+          },
+          {
+            "name": "test_inference::test_numpyro_svi_inference - Runtime",
+            "value": 17.892573356628418,
+            "unit": "s"
+          },
+          {
+            "name": "test_inference::test_numpyro_svi_inference - Memory Used",
+            "value": 811.1875,
             "unit": "MB"
           }
         ]
