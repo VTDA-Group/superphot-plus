@@ -8,6 +8,7 @@ from superphot_plus.file_paths import FIT_PLOTS_FOLDER
 from superphot_plus.import_utils import clip_lightcurve_end, import_lc
 from superphot_plus.utils import flux_model, get_numpyro_cube
 from superphot_plus.plotting.format_params import *
+from superphot_plus.plotting.utils import lighten_color
 
 
 def plot_lc_fit(
@@ -126,7 +127,7 @@ def plot_sampling_lc_fit(
     if custom_formatting is not None:
         custom_formatting()
 
-    plt.savefig(os.path.join(out_dir, ztf_name + "_" + sampling_method + "." + file_type))
+    plt.savefig(os.path.join(out_dir, ztf_name + "_" + sampling_method + "." + file_type), bbox_inches='tight')
 
     plt.close()
 
@@ -252,7 +253,13 @@ def plot_lightcurve_clipping(ztf_name, data_folder, save_dir):
         ferr_notclip_b = ferr_notclip[notclip_b_idx]
 
         # TODO: have default band names to colors
-        plt.errorbar(t_notclip_b, f_notclip_b, yerr=ferr_notclip_b, fmt="o", c=b_name)
+        plt.errorbar(
+            t_notclip_b,
+            f_notclip_b,
+            yerr=ferr_notclip_b,
+            fmt="o",
+            c=lighten_color(b_name, 0.8),
+        )
 
         # overlay clipped points
         plt.errorbar(
@@ -260,7 +267,7 @@ def plot_lightcurve_clipping(ztf_name, data_folder, save_dir):
             f_clip_b,
             yerr=ferr_clip[clip_b_idx],
             fmt="^",
-            c=b_name,
+            c=lighten_color(b_name, 1.5),
         )
 
         # plot lines from last to max flux point
@@ -268,7 +275,14 @@ def plot_lightcurve_clipping(ztf_name, data_folder, save_dir):
         m_b = (f_b[np.argmax(t_b)] - np.max(f_b)) / (np.max(t_b) - t_b[np.argmax(f_b)])
         y_b = f_b[np.argmax(t_b)] + m_b * (t_range_b - np.max(t_b))
 
-        plt.plot(t_range_b, y_b, c=b_name, label=f"Max {b_name}-band slope", linewidth=1)
+        plt.plot(
+            t_range_b,
+            y_b,
+            c=lighten_color(b_name, 0.8),
+            label=f"Max {b_name}-band slope",
+            linestyle="dashed",
+            linewidth=2
+        )
 
         if len(t_clip_b) == 0:
             t_range_b = []
@@ -282,13 +296,18 @@ def plot_lightcurve_clipping(ztf_name, data_folder, save_dir):
             y_b = f_clip_b[np.argmax(t_clip_b)] + m_b * (t_range_b - np.max(t_clip_b))
 
         plt.plot(
-            t_range_b, y_b, c=b_name, linestyle="dashed", label=f"Clipped {b_name}-band slope", linewidth=1
+            t_range_b,
+            y_b,
+            c=lighten_color(b_name, 1.5),
+            linestyle="dotted",
+            label=f"Clipped {b_name}-band slope",
+            linewidth=2
         )
 
-    plt.title(ztf_name, fontsize=20)
-    plt.xlabel("MJD", fontsize=15)
-    plt.ylabel("Flux (arbitrary scaling)", fontsize=15)
+    plt.title(ztf_name)
+    plt.xlabel("MJD")
+    plt.ylabel("Flux (arbitrary scaling)")
     plt.legend()
 
-    plt.savefig(os.path.join(save_dir, f"lc_clip_demo_{ztf_name}.pdf"))
+    plt.savefig(os.path.join(save_dir, f"lc_clip_demo_{ztf_name}.pdf"), bbox_inches='tight')
     plt.close()

@@ -5,6 +5,7 @@ import csv
 
 import numpy as np
 from sklearn.model_selection import StratifiedKFold
+from imblearn.over_sampling import SMOTE
 
 from superphot_plus.file_paths import FITS_DIR
 from superphot_plus.file_utils import get_multiple_posterior_samples, has_posterior_samples
@@ -122,7 +123,7 @@ def tally_each_class(labels):
     print()
 
 
-def oversample_using_posteriors(lc_names, labels, goal_per_class, fits_dir, sampler=None):
+def oversample_using_posteriors(lc_names, labels, goal_per_class, fits_dir, sampler=None, redshifts=None):
     """Oversamples, drawing from posteriors of a certain fit.
 
     Parameters
@@ -144,6 +145,10 @@ def oversample_using_posteriors(lc_names, labels, goal_per_class, fits_dir, samp
         Tuple containing oversampled features, labels, and chi-squared
         values.
     """
+    inc_redshift = False
+    if redshifts is not None:
+        oversampled_redshifts = []
+        inc_redshift = True
     oversampled_labels = []
     oversampled_features = []
     labels_unique = np.unique(labels)
@@ -163,6 +168,12 @@ def oversample_using_posteriors(lc_names, labels, goal_per_class, fits_dir, samp
             sampled_features = all_posts[sampled_idx]
             oversampled_features.extend(list(sampled_features))
             oversampled_labels.extend([l] * samples_per_fit)
+            if inc_redshift:
+                oversampled_redshifts.extend([redshifts[i]] * samples_per_fit)
+                
+    if inc_redshift:
+        return np.array(oversampled_features), np.array(oversampled_labels), np.array(oversampled_redshifts)
+    
     return np.array(oversampled_features), np.array(oversampled_labels)
 
 
@@ -193,3 +204,13 @@ def normalize_features(features, mean=None, std=None):
     safe_std = np.copy(std)
     safe_std[std == 0.0] = 1.0
     return (features - mean) / safe_std, mean, std
+
+
+def oversample_smote(features, labels):
+    """
+    Uses SMOTE to oversample data from rarer classes.
+    """
+    oversample = SMOTE()
+    features_smote, labels_smote = oversample.fit_resample(features, labels)
+    return features_smote, labels_smote
+
