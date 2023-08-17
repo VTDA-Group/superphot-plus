@@ -631,7 +631,13 @@ def compare_mag_distributions(probs_classified, probs_unclassified, save_dir, ze
     plt.close()
 
 
-def plot_chisquared_vs_accuracy(pred_spec_fn, pred_phot_fn, fits_dir, save_dir):
+def plot_chisquared_vs_accuracy(
+    pred_spec_fn,
+    pred_phot_fn,
+    fits_dir,
+    save_dir,
+    sampler=None,
+):
     """
     Plot chi-squared value histograms for both the spectroscopic and photometric
     datasets, and plot spec chi-squared as a function of classification accuracy.
@@ -650,12 +656,16 @@ def plot_chisquared_vs_accuracy(pred_spec_fn, pred_phot_fn, fits_dir, save_dir):
     sn_names, true_classes, _, pred_classes = read_probs_csv(pred_spec_fn)
 
     correctly_classified = np.where(true_classes == pred_classes, 1, 0)
-    spec_cubes = get_multiple_posterior_samples(sn_names, fits_dir)
-    train_chis = -1 * calculate_neg_chi_squareds(speccubes, t, f, ferr, b)
+    mult_posteriors = get_multiple_posterior_samples(sn_names, fits_dir, sampler=sampler)
+    
+    train_chis = np.array([-1*np.mean(mult_posteriors[x][:,-1]) for x in  sn_names])
 
     sn_names, _, _, _ = read_probs_csv(pred_phot_fn)
-    train_chis_phot = -1 * calculate_neg_chi_squareds(sn_names, FITS_DIR, DATA_DIRS)
 
+    mult_posteriors = get_multiple_posterior_samples(sn_names, fits_dir, sampler=sampler)
+    
+    train_chis_phot = np.array([-1*np.mean(mult_posteriors[x][:,-1]) for x in  sn_names])
+    
     # plot
     fig, ax2 = plt.subplots(figsize=(7, 4.8))
     ax1 = ax2.twinx()
