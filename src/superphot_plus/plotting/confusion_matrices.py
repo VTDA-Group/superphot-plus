@@ -16,6 +16,7 @@ from superphot_plus.utils import calc_accuracy, f1_score
 from superphot_plus.plotting.format_params import *
 from superphot_plus.plotting.utils import read_probs_csv
 
+from superphot_plus.constants import BIGGER_SIZE, MEDIUM_SIZE, SMALL_SIZE
 
 def plot_high_confidence_confusion_matrix(probs_csv, filename, cutoff=0.7):
     """Plot confusion matrices for high-confidence predictions.

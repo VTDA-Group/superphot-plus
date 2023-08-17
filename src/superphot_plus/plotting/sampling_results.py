@@ -5,7 +5,7 @@ import os
 import arviz as az
 import corner
 
-from superphot_plus.format_data_ztf import oversample_using_posteriors, import_labels_only
+from superphot_plus.format_data_ztf import oversample_using_posteriors, oversample_smote, import_labels_only
 from superphot_plus.utils import get_numpyro_cube
 from superphot_plus.supernova_class import SupernovaClass as SnClass
 from superphot_plus.surveys.surveys import Survey
@@ -61,7 +61,9 @@ def plot_corner_plot_all(
         ax.set_ylabel(ax.get_ylabel(), fontsize=20)
         ax.set_xlabel(ax.get_xlabel(), fontsize=20)
 
-    figure.savefig(os.path.join(save_dir, "corner_all.pdf"))
+    figure.savefig(
+        os.path.join(save_dir, "corner_all.pdf")
+    )
     plt.close()
 
 
@@ -126,7 +128,7 @@ def plot_sampling_trace_numpyro(posterior_samples, output_dir=None):
     plt.close()
 
 
-def compare_oversampling(names, labels, fits_dir, allowed_types=SnClass.all_classes(), aux_bands=Survey.ZTF().priors.aux_bands, sampler=None, goal_per_class=4000):
+def compare_oversampling(names, labels, fits_dir, save_dir, allowed_types=SnClass.all_classes(), aux_bands=Survey.ZTF().priors.aux_bands, sampler=None, goal_per_class=1000):
     """
     Compare plots of various oversampling methods.
 
@@ -138,17 +140,20 @@ def compare_oversampling(names, labels, fits_dir, allowed_types=SnClass.all_clas
         Types to include in plot.
     """
     # names, labels = import_labels_only(input_csv, allowed_types)
+    _, classes_to_labels = SnClass.get_type_maps()
+    labels = np.array([classes_to_labels[x] for x in labels])
 
     features_gaussian, labels_gaussian = oversample_using_posteriors(
         names, labels, OVERSAMPLE_SIZE, fits_dir, sampler
     )
+    
 
     feature_means = []
     labels_ordered = []
 
     start_idx = 0
     for t in np.unique(labels):
-        type_idx = labels == t
+        type_idx = (labels == t)
         labels_ordered.extend(labels[type_idx])
         names_t = names[type_idx]
         samples_per_fit = max(1, int(np.round(goal_per_class / len(names_t))))
@@ -163,7 +168,7 @@ def compare_oversampling(names, labels, fits_dir, allowed_types=SnClass.all_clas
 
     feature_means_comb = np.vstack((feature_means, feature_means_filler))
     labels_comb = np.append(labels_ordered, labels_filler)
-    features_smote_comb, labels_smote_comb = oversample_minority_classes(feature_means_comb, labels_comb)
+    features_smote_comb, labels_smote_comb = oversample_smote(feature_means_comb, labels_comb)
 
     features_smote = features_smote_comb[labels_smote_comb == allowed_types[0]]
     labels_smote = labels_smote_comb[labels_smote_comb == allowed_types[0]]
@@ -171,11 +176,7 @@ def compare_oversampling(names, labels, fits_dir, allowed_types=SnClass.all_clas
     params, save_labels = param_labels(
         aux_bands
     )
-
-    fig, axes = plt.subplots(2, 1, sharex=True, figsize=(8, 10), gridspec_kw={"hspace": 0})
-    smote_ax = axes[0]
-    gauss_ax = axes[1]
-
+    
     for i in range(len(params)):
         for j in range(i):
             if i in [0, 3, len(params)]:
@@ -183,10 +184,16 @@ def compare_oversampling(names, labels, fits_dir, allowed_types=SnClass.all_clas
             if j in [0, 3, len(params)]:
                 continue
 
+            fig, axes = plt.subplots(2, 1, sharex=True, figsize=(8, 10), gridspec_kw={"hspace": 0})
+            smote_ax = axes[0]
+            gauss_ax = axes[1]
+    
             if i in [2, 4, 5, 6]:
-                plt.xscale("log")
+                smote_ax.set_xscale("log")
+                gauss_ax.set_xscale("log")
             if j in [2, 4, 5, 6]:
-                plt.yscale("log")
+                smote_ax.set_yscale("log")
+                gauss_ax.set_yscale("log")
 
             param_1 = params[i]
             param_2 = params[j]
@@ -194,6 +201,8 @@ def compare_oversampling(names, labels, fits_dir, allowed_types=SnClass.all_clas
             features_1_smote = features_smote[:, i]
             features_2_smote = features_smote[:, j]
 
+            features_1_gauss = features_gaussian[:, i]
+            features_2_gauss = features_gaussian[:, j]
             for a in allowed_types:
                 feature_means_t1 = feature_means[:, i][labels_ordered == a]
                 feature_means_t2 = feature_means[:, j][labels_ordered == a]
@@ -202,16 +211,16 @@ def compare_oversampling(names, labels, fits_dir, allowed_types=SnClass.all_clas
                 features_gauss_t1 = features_1_gauss[labels_gaussian == a]
                 features_gauss_t2 = features_2_gauss[labels_gaussian == a]
 
-                smote_ax.scatter(features_smote_t1, features_smote_t2, label=a, alpha=0.2, s=1, c="red")
+                smote_ax.scatter(features_smote_t1, features_smote_t2, label=a, alpha=0.2, s=1)
                 smote_ax.scatter(feature_means_t1, feature_means_t2, label=a, s=3, c="black")
 
                 gauss_ax.scatter(feature_means_t1, feature_means_t2, label=a, s=3, c="black")
-                gauss_ax.scatter(features_gauss_t1, features_gauss_t2, label=a, alpha=0.2, s=1, c="red")
+                gauss_ax.scatter(features_gauss_t1, features_gauss_t2, label=a, alpha=0.2, s=1)
 
-            plt.title("Oversampling using SMOTE vs Multiple Fits")
-            gauss_ax.xlabel(param_1)
-            gauss_ax.ylabel(param_2)
-            smote_ax.ylabel(param_2)
+            smote_ax.set_title("Oversampling using SMOTE vs Multiple Fits")
+            gauss_ax.set_xlabel(param_1)
+            gauss_ax.set_ylabel(param_2)
+            smote_ax.set_ylabel(param_2)
             # plt.legend()
             plt.savefig(
                 os.path.join(
@@ -247,7 +256,7 @@ def plot_oversampling_1d(names, labels, fits_dir, save_dir, priors=Survey.ZTF().
     features_gaussian, labels_gaussian = oversample_using_posteriors(names, labels, goal_per_class, fits_dir, sampler)
 
     params, _ = param_labels(
-        priors.aux_bands
+        priors.aux_bands, priors.reference_band
     )
 
     fig, axes = plt.subplots(3, 4, figsize=(8, 10))
@@ -392,7 +401,8 @@ def plot_combined_posterior_space(names, labels, fits_dir, save_dir, aux_bands=S
             # for lh in leg.legendHandles:
             #    lh.set_alpha(1)
             plt.savefig(
-                os.path.join(save_dir, "combined_2d_posteriors", f"{save_labels[i]}_vs_{save_labels[j]}.pdf")
+                os.path.join(save_dir, "combined_2d_posteriors", f"{save_labels[i]}_vs_{save_labels[j]}.pdf"),
+                bbox_inches='tight'
             )
             plt.close()
 
@@ -442,5 +452,8 @@ def plot_param_distributions(names, labels, fit_folder, save_dir, overlay_gaussi
 
         plt.xlabel(params[i])
         plt.ylabel("Count")
-        plt.savefig(os.path.join(save_dir, "posterior_hists", f"{save_labels[i]}.pdf"))
+        plt.savefig(
+            os.path.join(save_dir, "posterior_hists", f"{save_labels[i]}.pdf"),
+            bbox_inches='tight'
+        )
         plt.close()
