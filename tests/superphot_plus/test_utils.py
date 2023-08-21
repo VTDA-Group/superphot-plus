@@ -10,6 +10,9 @@ from superphot_plus.utils import (
     get_band_extinctions,
     get_numpyro_cube,
     params_valid,
+    flux_model,
+    calculate_log_likelihood,
+    calculate_mse,
 )
 
 
@@ -121,6 +124,102 @@ def test_get_numpyro_cube():
     assert cube.shape == (20, 14)
     assert len(aux_bands) == 1
     assert np.mean(cube[:, 1]) == np.mean(dummy_param_dict["beta"])
+
+
+def test_calculate_log_likelihood():
+    num_observations = 100
+    tdata = np.linspace(-50.0, 100.0, num_observations)
+    bands = ["r", "g"]
+    bdata = np.array([bands[i % 2] for i in range(num_observations)])
+    edata = np.array([0.01] * num_observations)
+
+    # Generate clean fluxes from the model.
+    cube = np.array(
+        [
+            3.12033307,
+            0.00516744388,
+            14.1035747,
+            -49.0239436,
+            6.31504200,
+            30.7416132,
+            0.0249219755,
+            1.33012285,
+            1.04407290,
+            1.01418818,
+            1.00009386,
+            0.980085932,
+            0.573802443,
+            0.948438711,
+        ]
+    )
+    fdata = flux_model(cube, tdata, bdata, bands, "r")
+    lc1 = Lightcurve(tdata, fdata, edata, bdata)
+    LogL1 = calculate_log_likelihood(cube, lc1, bands, "r")
+    assert LogL1 == pytest.approx(183.17363309388816)  # Change detection only
+
+    # Test noisy models
+    for diff in [-0.1, 0.1, 0.5, 1.0]:
+        lc2 = Lightcurve(tdata, fdata + diff, edata, bdata)
+        test_ll = calculate_log_likelihood(cube, lc2, bands, "r")
+        assert LogL1 > test_ll
+
+    # Test error conditions.
+    with pytest.raises(ValueError):
+        _ = calculate_log_likelihood(cube, lc1, bands, "u")
+    with pytest.raises(ValueError):
+        _ = calculate_log_likelihood(cube, lc1, ["r"], "r")
+
+    lc_empty = Lightcurve(np.array([]), np.array([]), np.array([]), np.array([]))
+    with pytest.raises(ValueError):
+        _ = calculate_log_likelihood(cube, lc_empty, ["r", "g"], "r")
+
+
+def test_calculate_mse():
+    num_observations = 100
+    tdata = np.linspace(-50.0, 100.0, num_observations)
+    bands = ["r", "g"]
+    bdata = np.array([bands[i % 2] for i in range(num_observations)])
+    edata = np.array([0.01] * num_observations)
+
+    # Generate clean fluxes from the model.
+    cube = np.array(
+        [
+            3.12033307,
+            0.00516744388,
+            14.1035747,
+            -49.0239436,
+            6.31504200,
+            30.7416132,
+            0.0249219755,
+            1.33012285,
+            1.04407290,
+            1.01418818,
+            1.00009386,
+            0.980085932,
+            0.573802443,
+            0.948438711,
+        ]
+    )
+    fdata = flux_model(cube, tdata, bdata, bands, "r")
+    lc1 = Lightcurve(tdata, fdata, edata, bdata)
+    mse1 = calculate_mse(cube, lc1, bands, "r")
+    assert mse1 == pytest.approx(0.0)
+
+    # Test noisy models
+    for diff in [-0.1, 0.1, 0.5, 1.0]:
+        lc2 = Lightcurve(tdata, fdata + diff, edata, bdata)
+        test_mse = calculate_mse(cube, lc2, bands, "r")
+        assert test_mse == pytest.approx(diff * diff)
+
+    # Test error conditions.
+    with pytest.raises(ValueError):
+        _ = calculate_mse(cube, lc1, bands, "u")
+    with pytest.raises(ValueError):
+        _ = calculate_mse(cube, lc1, ["r"], "r")
+
+    lc_empty = Lightcurve(np.array([]), np.array([]), np.array([]), np.array([]))
+    with pytest.raises(ValueError):
+        _ = calculate_mse(cube, lc_empty, ["r", "g"], "r")
 
 
 def test_neg_chi_squareds(single_ztf_lightcurve_compressed, test_data_dir, single_ztf_sn_id):
