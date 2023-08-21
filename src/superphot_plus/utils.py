@@ -1,15 +1,15 @@
 import os
-
 import extinction
 import numpy as np
 import torch
 from astropy.coordinates import SkyCoord
 from dustmaps.config import config
 from dustmaps.sfd import SFDQuery
-from torch.utils.data import TensorDataset
 
-from superphot_plus.file_paths import PROBS_FILE, PROBS_FILE2
 from superphot_plus.sfd import dust_filepath
+
+from torch.utils.data import TensorDataset
+from superphot_plus.file_paths import PROBS_FILE, PROBS_FILE2
 
 
 def get_band_extinctions(ra, dec, wvs):
@@ -115,7 +115,7 @@ def f1_score(pred_classes, true_classes, class_average=False):
             purity = true_positive / len(pred_classes[pred_classes == true_class])
             completeness = true_positive / len(true_classes[true_classes == true_class])
 
-            if purity + completeness == 0:  # pragma: no cover
+            if purity + completeness == 0:
                 f_1 = 0.0
             else:
                 f_1 = 2.0 * purity * completeness / (purity + completeness)
@@ -335,15 +335,17 @@ def calculate_log_likelihood(cube, lightcurve, unique_bands, ref_band):
     if len(lightcurve.times) == 0:
         raise ValueError("Empty light curve provided.")
 
+    # Generate points from 'cube' for comparison.
     max_flux, max_flux_loc = lightcurve.find_max_flux(band=ref_band)
     f_model = flux_model(cube, lightcurve.times, lightcurve.bands, unique_bands, ref_band)
     extra_sigma_arr = np.ones(len(lightcurve.times)) * cube[6] * max_flux
-
     for band_idx, ordered_band in enumerate(unique_bands):
         if ordered_band == ref_band:
             continue
         extra_sigma_arr[lightcurve.bands == ordered_band] *= cube[7 * band_idx + 6]
 
+    # Compute the loglikelihood based on the differences in flux between the observed
+    # and generated.
     sigma_sq = lightcurve.flux_errors**2 + extra_sigma_arr**2
     logL = np.sum(
         np.log(1.0 / np.sqrt(2.0 * np.pi * sigma_sq)) - 0.5 * (f_model - lightcurve.fluxes) ** 2 / sigma_sq
@@ -380,6 +382,7 @@ def calculate_mse(cube, lightcurve, unique_bands, ref_band):
     if len(lightcurve.times) == 0:
         raise ValueError("Empty light curve provided.")
 
+    # Generate points from 'cube' for comparison.
     f_model = flux_model(cube, lightcurve.times, lightcurve.bands, unique_bands, ref_band)
 
     mse_sum = np.sum(np.square(f_model - lightcurve.fluxes))
