@@ -60,7 +60,8 @@ def compare_result_files(goldens_file, new_results_file, delta=0.001):
     # row by row), but we're just using this as a placeholder for now)
     if not np.all(np.isclose(res_old, res_new, atol=delta)):
         print(
-            f"{np.isclose(res_old, res_new, atol=delta).sum()} of {res_old.size} values mismatch. (max delta={delta})"
+            f"{np.isclose(res_old, res_new, atol=delta).sum()} of {res_old.size} values mismatch. (max"
+            f" delta={delta})"
         )
         files_equal = False
 

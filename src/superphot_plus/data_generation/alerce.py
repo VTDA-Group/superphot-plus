@@ -142,7 +142,7 @@ def generate_flux_files(master_csv, save_folder):
                 ztf_name = row[0]
                 if os.path.exists(os.path.join(save_folder, ztf_name + ".csv")):
                     continue
-                #print(ztf_name)
+                # print(ztf_name)
                 # Getting detections for an object
                 detections = alerce.query_detections(ztf_name, format="pandas")
                 detections.to_csv(os.path.join(save_folder, ztf_name + ".csv"), index=False)

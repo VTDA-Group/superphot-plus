@@ -73,11 +73,13 @@ def test_normalize_features():
     # Feature #2: mean = 0.75, std ~= 0.54006172
     # Feature #3: mean = 1.0, std == 0.0
     features = np.array([[1.0, 1.0, 1.0], [0.0, 0.0, 1.0], [2.0, 1.25, 1.0]])
-    expected = np.array([
-        [0.0, 0.25 / 0.54006172, 0.0],
-        [-1.0 / 0.81649658, -0.75 / 0.54006172, 0.0],
-        [1.0 / 0.81649658, 0.5 / 0.54006172, 0.0],
-    ])
+    expected = np.array(
+        [
+            [0.0, 0.25 / 0.54006172, 0.0],
+            [-1.0 / 0.81649658, -0.75 / 0.54006172, 0.0],
+            [1.0 / 0.81649658, 0.5 / 0.54006172, 0.0],
+        ]
+    )
     computed, mean, std = normalize_features(features)
 
     assert np.allclose(mean, [1.0, 0.75, 1.0])

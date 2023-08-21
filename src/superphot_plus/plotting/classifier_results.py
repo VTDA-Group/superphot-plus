@@ -1,19 +1,19 @@
+import os
+
 import matplotlib.pyplot as plt
 import numpy as np
-import os
 import pandas as pd
-from sklearn.metrics import roc_curve
-from matplotlib.ticker import AutoMinorLocator
 from astropy.cosmology import Planck13 as cosmo
+from matplotlib.ticker import AutoMinorLocator
 from scipy.stats import binned_statistic
+from sklearn.metrics import roc_curve
 
-from superphot_plus.supernova_class import SupernovaClass as SnClass
-from superphot_plus.format_data_ztf import import_labels_only
-from superphot_plus.utils import calculate_neg_chi_squareds
 from superphot_plus.file_utils import get_multiple_posterior_samples
-
+from superphot_plus.format_data_ztf import import_labels_only
 from superphot_plus.plotting.format_params import *
-from superphot_plus.plotting.utils import read_probs_csv, histedges_equalN
+from superphot_plus.plotting.utils import histedges_equalN, read_probs_csv
+from superphot_plus.supernova_class import SupernovaClass as SnClass
+from superphot_plus.utils import calculate_neg_chi_squareds
 
 
 def save_class_fractions(spec_probs_csv, phot_probs_csv, save_path):
@@ -251,9 +251,7 @@ def generate_roc_curve(probs_csv, save_dir):
     legend_lines.append(l)
 
     fig.legend(legend_lines, [*list(labels_to_classes.keys()), "Combined"], loc="lower center", ncol=3)
-    plt.savefig(
-        os.path.join(save_dir, "roc_all.pdf"), bbox_inches="tight"
-    )
+    plt.savefig(os.path.join(save_dir, "roc_all.pdf"), bbox_inches="tight")
     plt.close()
 
 
@@ -342,10 +340,7 @@ def plot_phase_vs_accuracy(phased_probs_csv, save_dir):
     ax2.set_ylabel("Overprediction Fraction")
     ax2.set_xlim((-18.0, 48.0))
     fig.legend(leg_lines, [classes_to_labels[x] for x in allowed_types], loc="lower center", ncol=3)
-    plt.savefig(
-        os.path.join(save_dir, "phase_vs_accuracy.pdf"),
-        bbox_inches="tight"
-    )
+    plt.savefig(os.path.join(save_dir, "phase_vs_accuracy.pdf"), bbox_inches="tight")
     plt.close()
 
 
@@ -434,10 +429,7 @@ def plot_redshifts_abs_mags(probs_snr_csv, save_dir):
         ax.set_aspect(abs((x_right - x_left) / (y_low - y_high)) * ratio)
 
     fig.legend(legend_lines, [*allowed_types, "Combined"], loc="lower center", ncol=3)
-    plt.savefig(
-        os.path.join(save_dir, "abs_mag_hist.pdf"),
-        bbox_inches="tight"
-    )
+    plt.savefig(os.path.join(save_dir, "abs_mag_hist.pdf"), bbox_inches="tight")
     plt.close()
 
 
@@ -495,10 +487,7 @@ def plot_snr_npoints_vs_accuracy(probs_snr_csv, save_dir):
     plt.xlabel("90th Percentile SNR")
     plt.ylabel("Classification Accuracy")
     plt.legend()
-    plt.savefig(
-        os.path.join(save_dir, "snr_vs_accuracy.pdf"),
-        bbox_inches='tight'
-    )
+    plt.savefig(os.path.join(save_dir, "snr_vs_accuracy.pdf"), bbox_inches="tight")
     plt.close()
 
     # second plot
@@ -530,10 +519,7 @@ def plot_snr_npoints_vs_accuracy(probs_snr_csv, save_dir):
     plt.xlabel(r"Number of $\geq 3\sigma$ Datapoints")
     plt.ylabel("Classification Accuracy")
     plt.legend(loc="lower right")
-    plt.savefig(
-        os.path.join(save_dir, "n_vs_accuracy.pdf"),
-        bbox_inches='tight'
-    )
+    plt.savefig(os.path.join(save_dir, "n_vs_accuracy.pdf"), bbox_inches="tight")
     plt.close()
 
 
@@ -559,10 +545,7 @@ def plot_snr_hist(probs_snr_csv, save_dir):
     plt.xlabel("Number of Datapoints at Given SNR")
     plt.ylabel("Number of Lightcurves")
     plt.legend()
-    plt.savefig(
-        os.path.join(save_dir, "snr_hist.pdf"),
-        bbox_inches='tight'
-    )
+    plt.savefig(os.path.join(save_dir, "snr_hist.pdf"), bbox_inches="tight")
     plt.close()
 
 
@@ -626,7 +609,7 @@ def compare_mag_distributions(probs_classified, probs_unclassified, save_dir, ze
     plt.ylabel("Fraction of Lightcurves")
     plt.savefig(
         os.path.join(save_dir, "appm_hist_compare.pdf"),
-        bbox_inches='tight',
+        bbox_inches="tight",
     )
     plt.close()
 
@@ -723,10 +706,7 @@ def plot_chisquared_vs_accuracy(pred_spec_fn, pred_phot_fn, fits_dir, save_dir):
     ax1.yaxis.set_minor_locator(AutoMinorLocator())
     ax2.yaxis.set_minor_locator(AutoMinorLocator())
 
-    plt.savefig(
-        os.path.join(save_dir, "chisq_vs_accuracy.pdf"),
-        bbox_inches="tight"
-    )
+    plt.savefig(os.path.join(save_dir, "chisq_vs_accuracy.pdf"), bbox_inches="tight")
     plt.close()
 
 
@@ -754,7 +734,7 @@ def plot_model_metrics(metrics, num_epochs, plot_name, metrics_dir):
     plt.legend()
     plt.savefig(
         os.path.join(metrics_dir, f"accuracy_{plot_name}.pdf"),
-        bbox_inches='tight',
+        bbox_inches="tight",
     )
     plt.close()
 
@@ -765,8 +745,5 @@ def plot_model_metrics(metrics, num_epochs, plot_name, metrics_dir):
     plt.ylabel("Loss")
     plt.yscale("log")
     plt.legend()
-    plt.savefig(
-        os.path.join(metrics_dir, f"loss_{plot_name}.pdf"),
-        bbox_inches='tight'
-    )
+    plt.savefig(os.path.join(metrics_dir, f"loss_{plot_name}.pdf"), bbox_inches="tight")
     plt.close()
