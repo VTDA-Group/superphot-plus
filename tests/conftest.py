@@ -116,3 +116,10 @@ def dummy_posterior_sample_dict_batch():
         "extra_sigma_g",
     ]
     return {param: np.random.rand(3, 20) for param in param_list}
+
+
+@pytest.fixture
+def snana_filename(test_data_dir):
+    """Filename to SNANA ASCII File.
+    """
+    return os.path.join(test_data_dir, "sample.snana.txt")
