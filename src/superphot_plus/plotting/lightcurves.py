@@ -1,14 +1,15 @@
-import matplotlib.pyplot as plt
-import numpy as np
 import os
 
-from superphot_plus.file_utils import get_posterior_samples
-from superphot_plus.lightcurve import Lightcurve
+import matplotlib.pyplot as plt
+import numpy as np
+
 from superphot_plus.file_paths import FIT_PLOTS_FOLDER
+from superphot_plus.file_utils import get_posterior_samples
 from superphot_plus.import_utils import clip_lightcurve_end, import_lc
-from superphot_plus.utils import flux_model, get_numpyro_cube
+from superphot_plus.lightcurve import Lightcurve
 from superphot_plus.plotting.format_params import *
 from superphot_plus.plotting.utils import lighten_color
+from superphot_plus.utils import flux_model, get_numpyro_cube
 
 
 def plot_lc_fit(
@@ -57,7 +58,7 @@ def plot_lc_fit(
         ref_band,
         sampling_method,
         file_type,
-        custom_formatting
+        custom_formatting,
     )
 
 
@@ -122,13 +123,15 @@ def plot_sampling_lc_fit(
     plt.legend()
     plt.xlabel("MJD")
     plt.ylabel("Flux")
-    
+
     plt.title(ztf_name + ": " + sampling_method)
-    
+
     if custom_formatting is not None:
         custom_formatting()
 
-    plt.savefig(os.path.join(out_dir, ztf_name + "_" + sampling_method + "." + file_type), bbox_inches='tight')
+    plt.savefig(
+        os.path.join(out_dir, ztf_name + "_" + sampling_method + "." + file_type), bbox_inches="tight"
+    )
 
     plt.close()
 
@@ -235,7 +238,7 @@ def plot_lightcurve_clipping(ztf_name, data_folder, save_dir):
     f_clip = f[idx_clip]
     ferr_clip = ferr[idx_clip]
     b_clip = b[idx_clip]
-    
+
     t_notclip = t[~idx_clip]
     f_notclip = f[~idx_clip]
     ferr_notclip = ferr[~idx_clip]
@@ -282,7 +285,7 @@ def plot_lightcurve_clipping(ztf_name, data_folder, save_dir):
             c=lighten_color(b_name, 0.8),
             label=f"Max {b_name}-band slope",
             linestyle="dashed",
-            linewidth=2
+            linewidth=2,
         )
 
         if len(t_clip_b) == 0:
@@ -302,7 +305,7 @@ def plot_lightcurve_clipping(ztf_name, data_folder, save_dir):
             c=lighten_color(b_name, 1.5),
             linestyle="dotted",
             label=f"Clipped {b_name}-band slope",
-            linewidth=2
+            linewidth=2,
         )
 
     plt.title(ztf_name)
@@ -310,5 +313,5 @@ def plot_lightcurve_clipping(ztf_name, data_folder, save_dir):
     plt.ylabel("Flux (arbitrary scaling)")
     plt.legend()
 
-    plt.savefig(os.path.join(save_dir, f"lc_clip_demo_{ztf_name}.pdf"), bbox_inches='tight')
+    plt.savefig(os.path.join(save_dir, f"lc_clip_demo_{ztf_name}.pdf"), bbox_inches="tight")
     plt.close()

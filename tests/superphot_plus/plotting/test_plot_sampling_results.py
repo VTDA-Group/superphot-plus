@@ -1,16 +1,17 @@
-import os, glob
+import glob
+import os
 
 import numpy as np
 import pytest
 
 from superphot_plus.plotting.sampling_results import (
-    plot_posterior_hist_numpyro_dict,
-    plot_sampling_trace_numpyro,
-    plot_corner_plot_all,
     compare_oversampling,
     plot_combined_posterior_space,
-    plot_param_distributions,
+    plot_corner_plot_all,
     plot_oversampling_1d,
+    plot_param_distributions,
+    plot_posterior_hist_numpyro_dict,
+    plot_sampling_trace_numpyro,
 )
 
 

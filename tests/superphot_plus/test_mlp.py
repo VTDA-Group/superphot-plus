@@ -1,13 +1,13 @@
 import datetime
-import time
 import os
+import time
 
 import numpy as np
 import torch
 
 from superphot_plus.constants import TRAINED_MODEL_PARAMS
 from superphot_plus.mlp import MLP, ModelConfig, ModelData
-from superphot_plus.utils import create_dataset, calculate_accuracy, epoch_time
+from superphot_plus.utils import calculate_accuracy, create_dataset, epoch_time
 
 
 def test_run_mlp(test_data_dir, tmp_path):
@@ -33,14 +33,7 @@ def test_run_mlp(test_data_dir, tmp_path):
     train_data = create_dataset(train_features, train_labels)
     val_data = create_dataset(test_features, test_labels)
 
-    config = ModelConfig(
-        input_dim,
-        output_dim,
-        neurons_per_layer,
-        num_layers,
-        normed_means,
-        normed_stds
-    )
+    config = ModelConfig(input_dim, output_dim, neurons_per_layer, num_layers, normed_means, normed_stds)
     data = ModelData(train_data, val_data, test_features, test_labels, test_names, test_group_idxs)
 
     MLP.create(config, data).run(
@@ -57,7 +50,7 @@ def test_run_mlp(test_data_dir, tmp_path):
 
     assert os.path.exists(os.path.join(tmp_path, acc_plot))
     assert os.path.exists(os.path.join(tmp_path, loss_plot))
-    
+
     assert os.path.exists(os.path.join(tmp_path, "probs_mlp.csv"))
 
 

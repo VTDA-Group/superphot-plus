@@ -1,12 +1,13 @@
-import numpy as np
-from alerce.core import Alerce
-import pandas as pd
-import os
-import matplotlib.colors as mc
 import colorsys
+import os
 
-from superphot_plus.supernova_class import SupernovaClass as SnClass
+import matplotlib.colors as mc
+import numpy as np
+import pandas as pd
+from alerce.core import Alerce
+
 from superphot_plus.lightcurve import Lightcurve
+from superphot_plus.supernova_class import SupernovaClass as SnClass
 
 
 def lighten_color(color, amount=0.5):
@@ -20,6 +21,7 @@ def lighten_color(color, amount=0.5):
         c = color
     c = colorsys.rgb_to_hls(*mc.to_rgb(c))
     return colorsys.hls_to_rgb(c[0], max(0, min(1, amount * c[1])), c[2])
+
 
 def get_survey_fracs():
     """Return catalog with supernova fractions from existing

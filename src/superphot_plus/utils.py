@@ -1,15 +1,15 @@
 import os
+
 import extinction
 import numpy as np
 import torch
 from astropy.coordinates import SkyCoord
 from dustmaps.config import config
 from dustmaps.sfd import SFDQuery
-
-from superphot_plus.sfd import dust_filepath
-
 from torch.utils.data import TensorDataset
+
 from superphot_plus.file_paths import PROBS_FILE, PROBS_FILE2
+from superphot_plus.sfd import dust_filepath
 
 
 def get_band_extinctions(ra, dec, wvs):

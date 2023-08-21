@@ -4,8 +4,8 @@ manipulating data related to ZTF lightcurves."""
 import csv
 
 import numpy as np
-from sklearn.model_selection import StratifiedKFold
 from imblearn.over_sampling import SMOTE
+from sklearn.model_selection import StratifiedKFold
 
 from superphot_plus.file_paths import FITS_DIR
 from superphot_plus.file_utils import get_multiple_posterior_samples, has_posterior_samples
@@ -170,10 +170,10 @@ def oversample_using_posteriors(lc_names, labels, goal_per_class, fits_dir, samp
             oversampled_labels.extend([l] * samples_per_fit)
             if inc_redshift:
                 oversampled_redshifts.extend([redshifts[i]] * samples_per_fit)
-                
+
     if inc_redshift:
         return np.array(oversampled_features), np.array(oversampled_labels), np.array(oversampled_redshifts)
-    
+
     return np.array(oversampled_features), np.array(oversampled_labels)
 
 
@@ -213,4 +213,3 @@ def oversample_smote(features, labels):
     oversample = SMOTE()
     features_smote, labels_smote = oversample.fit_resample(features, labels)
     return features_smote, labels_smote
-

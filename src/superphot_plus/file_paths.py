@@ -17,10 +17,7 @@ METRICS_DIR = "./figs/metrics"
 PROBS_FILE = "probs_new.csv"
 PROBS_FILE2 = "probs_phased.csv"
 
-TRAINED_MODEL_FN = (
-    "../../tests/data/superphot-model-ZTF23aagkgnz.pt"  # glob.glob("models_saved/*ZTF23aagkgnz.pt")[0]
+TRAINED_MODEL_FN = (  # glob.glob("models_saved/*ZTF23aagkgnz.pt")[0]
+    "../../tests/data/superphot-model-ZTF23aagkgnz.pt"
 )
-TRAINED_CONFIG_FN = (
-    "../../tests/data/superphot-config-test.json"
-)
-
+TRAINED_CONFIG_FN = "../../tests/data/superphot-config-test.json"
