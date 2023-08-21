@@ -322,14 +322,13 @@ def classify_single_light_curve(model, obj_name, fits_dir, sampler="dynesty"):
     post_features = get_posterior_samples(obj_name, fits_dir, sampler)
 
     chisq = np.mean(post_features[:, -1])
-    if np.abs(chisq) > 10:  # probably not a SN
-        print("OBJECT LIKELY NOT A SN")
-
+    high_chisq = ( np.abs(chisq) > 10 ) # probably not a SN
+    
     # normalize the log distributions
     post_features = adjust_log_dists(post_features)
     probs = model.classify_from_fit_params(post_features)
     probs_avg = np.mean(probs, axis=0)
-    return probs_avg
+    return probs_avg, high_chisq
 
 
 def return_new_classifications(
@@ -376,8 +375,11 @@ def return_new_classifications(
             if include_labels:
                 label = row[1]
 
-            probs_avg = classify_single_light_curve(model, test_name, fit_dir)
+            probs_avg, high_chisq = classify_single_light_curve(model, test_name, fit_dir)
 
+            if high_chisq:
+                label = "SKIP"
+                
             save_test_probabilities(test_name, probs_avg, label, output_dir, save_file)
 
 

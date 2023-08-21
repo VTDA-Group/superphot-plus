@@ -2,7 +2,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import os
 import pandas as pd
-from sklearn.metrics import roc_curve
+from sklearn.metrics import roc_curve, confusion_matrix
 from matplotlib.ticker import AutoMinorLocator
 from astropy.cosmology import Planck13 as cosmo
 from scipy.stats import binned_statistic
@@ -13,10 +13,10 @@ from superphot_plus.utils import calculate_neg_chi_squareds
 from superphot_plus.file_utils import get_multiple_posterior_samples
 
 from superphot_plus.plotting.format_params import *
-from superphot_plus.plotting.utils import read_probs_csv, histedges_equalN
+from superphot_plus.plotting.utils import read_probs_csv, histedges_equalN, get_survey_fracs
 
 
-def save_class_fractions(spec_probs_csv, phot_probs_csv, save_path):
+def save_class_fractions(spec_probs_csv, probs_alerce_csv, phot_probs_csv, save_path):
     """Save class fractions from spectroscopic, photometric, and
     corrected photometric.
 
@@ -38,28 +38,45 @@ def save_class_fractions(spec_probs_csv, phot_probs_csv, save_path):
 
     num_classes = probs_spec.shape[1]
 
-    true_class_alerce = labels_true
+    true_class_alerce = true_class_spec.copy()
     true_class_alerce[true_class_alerce == 2] = 1
+    
+    # read in ALeRCE classes
+    df_alerce = pd.read_csv(probs_alerce_csv)
+    pred_alerce = df_alerce.alerce_label.to_numpy().astype(str)
+    
+    ignore_mask = ( pred_alerce == "None" ) | ( pred_alerce == "nan" ) | ( pred_alerce == "SKIP" )
+    # ignore true SNe IIn
+    ignore_mask = ignore_mask | (true_class_alerce == 2)
+    
+    true_class_alerce = true_class_alerce[~ignore_mask]
+    pred_alerce = pred_alerce[~ignore_mask]
+    
     pred_class_spec_alerce = np.array(
-        [labels_to_class[x] for x in get_alerce_pred_class(names_spec, reflect_style=True)]
+        [labels_to_class[x] for x in pred_alerce]
     )
 
     # import phot dataframe
     names_phot, pred_label_alerce, _, pred_class_phot = read_probs_csv(phot_probs_csv)
-    pred_class_phot_alerce = np.array([labels_to_class[x] for x in pred_label_alerce])
+    skip_idx = (pred_label_alerce == "SKIP")
+    pred_label_alerce, pred_class_phot = pred_label_alerce[~skip_idx], pred_class_phot[~skip_idx]
+    
+    pred_class_phot_alerce = np.array(
+        [labels_to_class[SnClass.from_alerce_to_superphot_format(x)] for x in pred_label_alerce]
+    )
 
     cm_p = confusion_matrix(true_class_spec, pred_class_spec, normalize="pred")
     cm_p_alerce = confusion_matrix(true_class_alerce, pred_class_spec_alerce, normalize="pred")
 
     true_fracs = np.array(
-        [len(true_classes[true_class_spec == i]) / len(true_class_spec) for i in range(num_classes)]
+        [len(true_class_spec[true_class_spec == i]) / len(true_class_spec) for i in range(num_classes)]
     )
     pred_fracs = np.array(
-        [len(pred_classes[pred_class_phot == i]) / len(pred_class_phot) for i in range(num_classes)]
+        [len(pred_class_phot[pred_class_phot == i]) / len(pred_class_phot) for i in range(num_classes)]
     )
     alerce_fracs = np.array(
         [
-            len(alerce_preds[pred_class_phot_alerce == i]) / len(pred_class_phot_alerce)
+            len(pred_class_phot_alerce[pred_class_phot_alerce == i]) / len(pred_class_phot_alerce)
             for i in range(num_classes)
         ]
     )
