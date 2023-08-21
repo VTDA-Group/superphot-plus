@@ -126,6 +126,50 @@ def test_get_numpyro_cube():
     assert np.mean(cube[:, 1]) == np.mean(dummy_param_dict["beta"])
 
 
+def test_calculate_log_likelihood_simple():
+    """Do a very simple test where we can compute the LL by hand."""
+    tdata = np.array([10.60606061, 12.12121212])
+    bands = ["r", "g"]
+    bdata = np.array(bands)
+    edata = np.array([0.01, 0.05])
+
+    # Generate clean fluxes from the model with extra sigma = 0.0
+    cube = np.array(
+        [
+            3.12033307,
+            0.00516744388,
+            14.1035747,
+            -49.0239436,
+            6.31504200,
+            30.7416132,
+            0.0,
+            1.33012285,
+            1.04407290,
+            1.01418818,
+            1.00009386,
+            0.980085932,
+            0.573802443,
+            0.0,
+        ]
+    )
+    ftrue = flux_model(cube, tdata, bdata, bands, "r")
+    assert np.allclose(ftrue, np.array([0.65786904, 0.26904324]))
+
+    # r+0.01 and b-0.025
+    fdata = np.array([0.66786904, 0.24404324])
+
+    # Compute the true probabilities and the log likelihood via the gaussian equation.
+    sigma_sq = np.square(edata)
+    probs = (
+        1.0 / np.sqrt(2 * np.pi * sigma_sq) * np.exp(-0.5 * np.divide(np.power(fdata - ftrue, 2), sigma_sq))
+    )
+    LogLTrue = np.sum(np.log(probs))
+
+    lc1 = Lightcurve(tdata, fdata, edata, bdata)
+    LogL1 = calculate_log_likelihood(cube, lc1, bands, "r")
+    assert LogL1 == pytest.approx(LogLTrue)
+
+
 def test_calculate_log_likelihood():
     num_observations = 100
     tdata = np.linspace(-50.0, 100.0, num_observations)
@@ -153,6 +197,7 @@ def test_calculate_log_likelihood():
         ]
     )
     fdata = flux_model(cube, tdata, bdata, bands, "r")
+
     lc1 = Lightcurve(tdata, fdata, edata, bdata)
     LogL1 = calculate_log_likelihood(cube, lc1, bands, "r")
     assert LogL1 == pytest.approx(183.17363309388816)  # Change detection only
