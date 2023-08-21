@@ -100,6 +100,15 @@ def gaussian(x, A, mu, sigma):
 
 
 def histedges_equalN(x, nbin):
+    """Generate histogram bin edges, such that counts are equal in each bin.
+
+    Parameters
+    ----------
+    x : array-like or float
+        Value(s) to bin in histogram
+    nbin : integer
+        number of bins
+    """
     npt = len(x)
     return np.interp(np.linspace(0, npt, nbin + 1), np.arange(npt), np.sort(x))
 
@@ -109,7 +118,7 @@ def add_snr_to_prob_csv(probs_csv, data_dir, new_csv):
     Adds 10% SNR and num of SNR > 5 points columns
     to probability CSV. Useful for plots.
     """
-    names, labels, probs, pred_classes, df = read_probs_csv(probs_csv, return_dataframe=True)
+    names, _, _, _, df = read_probs_csv(probs_csv, return_dataframe=True)
 
     extended_df = df.copy()
 

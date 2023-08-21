@@ -5,12 +5,11 @@ import corner
 import matplotlib.pyplot as plt
 import numpy as np
 
-from superphot_plus.format_data_ztf import import_labels_only, oversample_smote, oversample_using_posteriors
-from superphot_plus.plotting.format_params import *
+from superphot_plus.format_data_ztf import oversample_smote, oversample_using_posteriors
+from superphot_plus.plotting.format_params import param_labels
 from superphot_plus.plotting.utils import gaussian
 from superphot_plus.supernova_class import SupernovaClass as SnClass
 from superphot_plus.surveys.surveys import Survey
-from superphot_plus.utils import get_numpyro_cube
 
 OVERSAMPLE_SIZE = 4000
 
@@ -165,6 +164,7 @@ def compare_oversampling(
         samples_per_fit = max(1, int(np.round(goal_per_class / len(names_t))))
 
         for e, name in enumerate(names_t):
+            ## FIXME - e and name are unused - why is this a loop?
             feature_means.append(np.mean(features_gaussian[start_idx : start_idx + samples_per_fit], axis=0))
             start_idx += samples_per_fit
 
@@ -181,14 +181,14 @@ def compare_oversampling(
 
     params, save_labels = param_labels(aux_bands)
 
-    for i in range(len(params)):
+    for i, param_1 in enumerate(params):
         for j in range(i):
             if i in [0, 3, len(params)]:
                 continue
             if j in [0, 3, len(params)]:
                 continue
 
-            fig, axes = plt.subplots(2, 1, sharex=True, figsize=(8, 10), gridspec_kw={"hspace": 0})
+            _, axes = plt.subplots(2, 1, sharex=True, figsize=(8, 10), gridspec_kw={"hspace": 0})
             smote_ax = axes[0]
             gauss_ax = axes[1]
 
@@ -199,7 +199,6 @@ def compare_oversampling(
                 smote_ax.set_yscale("log")
                 gauss_ax.set_yscale("log")
 
-            param_1 = params[i]
             param_2 = params[j]
 
             features_1_smote = features_smote[:, i]
@@ -227,9 +226,7 @@ def compare_oversampling(
             smote_ax.set_ylabel(param_2)
             # plt.legend()
             plt.savefig(
-                os.path.join(
-                    save_dir, "oversample_compare", "%s_vs_%s.pdf" % (save_labels[i], save_labels[j])
-                ),
+                os.path.join(save_dir, "oversample_compare", f"{save_labels[i]}_vs_{save_labels[j]}.pdf"),
                 bbox_inches="tight",
             )
             plt.close()
@@ -368,7 +365,6 @@ def plot_combined_posterior_space(names, labels, fits_dir, save_dir, aux_bands=S
         Where to save figure
     """
     os.makedirs(os.path.join(save_dir, "combined_2d_posteriors"), exist_ok=True)
-    labels_to_class, classes_to_labels = SnClass.get_type_maps()
     # pt_colors = ["r", "c", "k", "m", "g"] # keep for TODO
 
     features, labels = oversample_using_posteriors(names, labels, OVERSAMPLE_SIZE, fits_dir)
@@ -389,13 +385,10 @@ def plot_combined_posterior_space(names, labels, fits_dir, save_dir, aux_bands=S
                 features_2 = np.log10(features_2)
 
             plt.scatter(features_1, features_2, s=2, alpha=0.005)
-            """
-            for t_idx in range(len(allowed_types)):
-                t = allowed_types[t_idx]
-                features_1_t = features_1[labels == t]
-                features_2_t = features_2[labels == t]
-                
-            """
+            # for t_idx in range(len(allowed_types)):
+            #     t = allowed_types[t_idx]
+            #     features_1_t = features_1[labels == t]
+            #     features_2_t = features_2[labels == t]
             plt.xlabel(param_1)
             plt.ylabel(param_2)
             # leg = plt.legend()
@@ -434,7 +427,7 @@ def plot_param_distributions(
         if i in [2, 4, 5, 6]:
             feat_i = np.log10(feat_i)
 
-        n, bins, patches = plt.hist(feat_i, bins=100)
+        n, bins, _ = plt.hist(feat_i, bins=100)
         bin_centers = (bins[1:] + bins[:-1]) / 2.0
         bin_centers = bin_centers[n != 0]
         n = n[n != 0]
@@ -446,9 +439,6 @@ def plot_param_distributions(
             mean_est = np.mean(feat_i)
             stddev_est = np.std(feat_i)
             amp_est = np.max(n)
-            """
-            popt, pcov = curve_fit(gaussian, bin_centers, n, p0=[5000., 1., 0.00005, 0.], sigma=s, bounds=([50., 0., 0., -50.], [100000., 1e20, 1e20, 200.]), maxfev=1e5, ftol=1e-10)
-            """
             plt.plot(bin_centers, gaussian(bin_centers, amp_est, mean_est, stddev_est), lw=2)
 
         plt.xlabel(params[i])

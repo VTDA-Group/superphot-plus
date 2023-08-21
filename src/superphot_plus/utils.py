@@ -305,7 +305,7 @@ def get_numpyro_cube(params, max_flux, aux_bands=None):
     return np.array(cube).T, np.array(aux_bands)
 
 
-def calculate_neg_chi_squareds(cubes, t, f, ferr, b, ordered_bands=["r", "g"], ref_band="r"):
+def calculate_neg_chi_squareds(cubes, t, f, ferr, b, ordered_bands=None, ref_band="r"):
     """Gets the negative chi-squared of posterior fits from the model
     parameters and original data files.
     Parameters
@@ -325,6 +325,8 @@ def calculate_neg_chi_squareds(cubes, t, f, ferr, b, ordered_bands=["r", "g"], r
     log_likelihoods : np.ndarray
         The log likelihoods for each object.
     """
+    if ordered_bands is None:
+        ordered_bands=["r", "g"]
     model_f = np.array(
         [flux_model(cube, t, b, ordered_bands, ref_band) for cube in cubes]
     )  # in future, maybe vectorize flux_model
@@ -433,9 +435,9 @@ def save_test_probabilities(
 
     with open(output_path, "a+", encoding="utf-8") as probs_file:
         if true_label is None:
-            probs_file.write("%s" % output_filename)
+            probs_file.write(output_filename)
         else:
-            probs_file.write("%s,%s" % (output_filename, str(true_label)))
+            probs_file.write(f"{output_filename},{str(true_label)}")
         for prob in pred_probabilities:
-            probs_file.write(",%.04f" % prob)
+            probs_file.write(f",{prob:.04f}")
         probs_file.write("\n")

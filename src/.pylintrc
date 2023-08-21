@@ -124,7 +124,6 @@ attr-naming-style=snake_case
 
 # Bad variable names which should always be refused, separated by a comma.
 bad-names=foo,
-          bar,
           baz,
           toto,
           tutu,
@@ -278,10 +277,10 @@ exclude-too-few-public-methods=
 ignored-parents=
 
 # Maximum number of arguments for function / method.
-max-args=10
+max-args=20
 
 # Maximum number of attributes for a class (see R0902).
-max-attributes=7
+max-attributes=10
 
 # Maximum number of boolean expressions in an if statement (see R0916).
 max-bool-expr=5
@@ -290,7 +289,7 @@ max-bool-expr=5
 max-branches=12
 
 # Maximum number of locals for function / method body.
-max-locals=30
+max-locals=50
 
 # Maximum number of parents for a class (see R0901).
 max-parents=7
@@ -426,6 +425,7 @@ disable=raw-checker-failed,
         unnecessary-pass,
         invalid-name,
         bare-except,
+        unbalanced-tuple-unpacking,
 
 
 # Enable the message, report, category or checker with the given id(s). You can
