@@ -5,11 +5,10 @@ import torch
 from astropy.coordinates import SkyCoord
 from dustmaps.config import config
 from dustmaps.sfd import SFDQuery
-
-from superphot_plus.sfd import dust_filepath
-
 from torch.utils.data import TensorDataset
+
 from superphot_plus.file_paths import PROBS_FILE, PROBS_FILE2
+from superphot_plus.sfd import dust_filepath
 
 
 def get_band_extinctions(ra, dec, wvs):
@@ -115,7 +114,7 @@ def f1_score(pred_classes, true_classes, class_average=False):
             purity = true_positive / len(pred_classes[pred_classes == true_class])
             completeness = true_positive / len(true_classes[true_classes == true_class])
 
-            if purity + completeness == 0:
+            if purity + completeness == 0:  # pragma: no cover
                 f_1 = 0.0
             else:
                 f_1 = 2.0 * purity * completeness / (purity + completeness)
