@@ -279,5 +279,3 @@ def test_debug_string():
         "  Flux Errors: [0.  0.  0.1]\n  Bands: ['r' 'g' 'r']\n"
     )
     assert db_str == expected_value
-
-    
