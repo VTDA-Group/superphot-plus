@@ -143,16 +143,23 @@ def run_all_benchmarks(num_samples):
 
     for i, lc in enumerate(lightcurves):
         for sampler in samplers:
-            print(f"\nTesting curve {i} with {sampler} -------")
-            results[sampler].append(run_one_benchmark(sampler, lc))
+            print(f"\nTesting curve {i} with {sampler}:")
+            itr_res = run_one_benchmark(sampler, lc)
+            results[sampler].append(itr_res)
 
-    print("\n\n Sampler | Time | Memory | LogL | MSE ")
-    print("------------------------------------------")
+            print(f"  Itr Running Time: {itr_res[0]}")
+            print(f"  Itr Memory Usage: {itr_res[1]}")
+            print(f"  Itr LL: {itr_res[2]}")
+            print(f"  Itr MSE: {itr_res[3]}")
 
+    print("=" * 20)
     for sampler in samplers:
         aves = np.mean(results[sampler], axis=0)
-        print(f" {sampler} | {aves[0]} | {aves[1]} | {aves[2]} | {aves[3]}")
-
+        print(f"\nFinal results for {sampler} sampler:")
+        print(f"  Ave Running Time: {aves[0]}")
+        print(f"  Ave Memory Usage: {aves[1]}")
+        print(f"  Ave LL: {aves[2]}")
+        print(f"  Ave MSE: {aves[3]}")
 
 if __name__ == "__main__":
-    run_all_benchmarks(1)
+    run_all_benchmarks(20)
