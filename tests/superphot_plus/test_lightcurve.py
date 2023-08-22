@@ -262,3 +262,22 @@ def test_padding():
     assert np.all(fluxes == lc.fluxes)
     assert np.all(errors == lc.flux_errors)
     assert np.all(bands == lc.bands)
+
+
+def test_debug_string():
+    times = np.array([0.0, 1.5, 5.0])
+    fluxes = np.array([1.0, 1.5, 2.0])
+    bands = np.array(["r", "g", "r"])
+    errors = np.array([0.0, 0.0, 0.1])
+
+    lc = Lightcurve(times, fluxes, errors, bands, name="Test")
+    db_str = lc.debug_string()
+
+    expected_value = (
+        "Supernova (name=Test, class=None, size=3)\n"
+        "  Times: [0.  1.5 5. ]\n  Fluxes: [1.  1.5 2. ]\n"
+        "  Flux Errors: [0.  0.  0.1]\n  Bands: ['r' 'g' 'r']\n"
+    )
+    assert db_str == expected_value
+
+    
