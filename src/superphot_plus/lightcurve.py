@@ -279,6 +279,23 @@ class Lightcurve:
         lcs = np.array([self.times, self.fluxes, self.flux_errors, self.bands])
         np.savez_compressed(filename, lcs)
 
+    def debug_string(self):
+        """Create and return a human readable debugging string.
+
+        Returns
+        -------
+        res : str
+            The debugging string.
+        """
+        res = (
+            f"Supernova (name={self.name}, class={self.sn_class}, size={len(self.times)})\n"
+            f"  Times: {self.times}\n"
+            f"  Fluxes: {self.fluxes}\n"
+            f"  Flux Errors: {self.flux_errors}\n"
+            f"  Bands: {self.bands}\n"
+        )
+        return res
+
     @classmethod
     def from_file(cls, filename, ref_band="r", t0_lim=None, shift_time=True):
         """Create a Lightcurve object from a file.
