@@ -14,10 +14,10 @@ if __name__ == "__main__":
     log_file = "classification_log.txt"
     dynesty_fit_folder = "data/dynesty_fits"
 
-    os.makedirs(CM_FOLDER)
-    os.makedirs(MODELS_DIR)
-    os.makedirs(METRICS_DIR)
-    os.makedirs(FIT_PLOTS_FOLDER)
+    os.makedirs(CM_FOLDER, exist_ok=True)
+    os.makedirs(MODELS_DIR, exist_ok=True)
+    os.makedirs(METRICS_DIR, exist_ok=True)
+    os.makedirs(FIT_PLOTS_FOLDER, exist_ok=True)
 
     classify(
         [training_csv],

@@ -6,7 +6,9 @@ import numpy as np
 import torch
 
 from superphot_plus.constants import TRAINED_MODEL_PARAMS
-from superphot_plus.mlp import MLP, ModelConfig, ModelData
+from superphot_plus.model.classifier import SuperphotClassifier
+from superphot_plus.model.config import ModelConfig
+from superphot_plus.model.data import TrainData, TestData
 from superphot_plus.utils import create_dataset, calculate_accuracy, epoch_time
 
 
@@ -27,11 +29,11 @@ def test_run_mlp(test_data_dir, tmp_path):
     test_features = np.random.random((num_samples, input_dim))
     test_labels = np.random.randint(num_output_classes, size=num_samples)
 
-    test_names = ["ZTF-testname", "ZTF-testname"]
+    test_names = ["ZTF-testname"]
     test_group_idxs = [np.arange(0, 20)]
 
-    train_data = create_dataset(train_features, train_labels)
-    val_data = create_dataset(test_features, test_labels)
+    train_dataset = create_dataset(train_features, train_labels)
+    val_dataset = create_dataset(test_features, test_labels)
 
     config = ModelConfig(
         input_dim,
@@ -41,9 +43,12 @@ def test_run_mlp(test_data_dir, tmp_path):
         normed_means,
         normed_stds
     )
-    data = ModelData(train_data, val_data, test_features, test_labels, test_names, test_group_idxs)
 
-    MLP.create(config, data).run(
+    train_data = TrainData(train_dataset, val_dataset)
+    test_data = TestData(test_features, test_labels, test_names, test_group_idxs)
+
+    SuperphotClassifier.create(config, train_data, test_data).run(
+        run_id="run_0",
         num_epochs=num_epochs,
         plot_metrics=True,
         metrics_dir=tmp_path,
@@ -51,13 +56,8 @@ def test_run_mlp(test_data_dir, tmp_path):
         probs_csv_path=os.path.join(tmp_path, "probs_mlp.csv"),
     )
 
-    # Check that accuracy and loss plots exist
-    acc_plot = f"accuracy_{test_names[0]}.pdf"
-    loss_plot = f"loss_{test_names[0]}.pdf"
-
-    assert os.path.exists(os.path.join(tmp_path, acc_plot))
-    assert os.path.exists(os.path.join(tmp_path, loss_plot))
-    
+    assert os.path.exists(os.path.join(tmp_path, "accuracy_run_0.pdf"))
+    assert os.path.exists(os.path.join(tmp_path, "loss_run_0.pdf"))
     assert os.path.exists(os.path.join(tmp_path, "probs_mlp.csv"))
 
 

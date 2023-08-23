@@ -5,9 +5,8 @@ import pytest
 from jax import random
 import numpy as np
 
-from superphot_plus.constants import TRAINED_MODEL_PARAMS
 from superphot_plus.lightcurve import Lightcurve
-from superphot_plus.mlp import ModelConfig, MLP
+from superphot_plus.model.classifier import SuperphotClassifier
 from superphot_plus.surveys.surveys import Survey
 
 TEST_DIR = os.path.dirname(__file__)
@@ -71,7 +70,7 @@ def ztf_priors():
 def classifier(test_data_dir):
     filename = os.path.join(test_data_dir, "superphot-model-ZTF23aagkgnz.pt")
     config_filename = os.path.join(test_data_dir, "superphot-config-test.json")
-    return MLP.load(filename, config_filename)[0]
+    return SuperphotClassifier.load(filename, config_filename)[0]
 
 
 @pytest.fixture

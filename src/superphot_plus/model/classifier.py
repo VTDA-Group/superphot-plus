@@ -4,187 +4,61 @@ classification."""
 import os
 import random
 import time
-from dataclasses import dataclass
-from typing import List
-import json
 
 import numpy as np
 import torch
 import torch.nn.functional as F
-from torch import nn, optim
-from torch.utils.data import DataLoader, TensorDataset
 
 from superphot_plus.constants import (
-    BATCH_SIZE,
     EPOCHS,
     HIDDEN_DROPOUT_FRAC,
     INPUT_DROPOUT_FRAC,
-    LEARNING_RATE,
-    MEANS_TRAINED_MODEL,
     SEED,
-    STDDEVS_TRAINED_MODEL,
 )
 from superphot_plus.file_paths import METRICS_DIR, MODELS_DIR, PROBS_FILE
 from superphot_plus.format_data_ztf import normalize_features
+from superphot_plus.model.config import ModelConfig
+from superphot_plus.model.data import TrainData, TestData
+from superphot_plus.model.metrics import ModelMetrics
 from superphot_plus.plotting.classifier_results import plot_model_metrics
 from superphot_plus.utils import calculate_accuracy, create_dataset, epoch_time, save_test_probabilities
 
-
-@dataclass
-class ModelConfig:
-    """Class that holds the MLP configuration."""
-
-    input_dim: int
-    output_dim: int
-    neurons_per_layer: int
-    num_hidden_layers: int
-
-    normalization_means: List[float]
-    normalization_stddevs: List[float]
-
-    batch_size: int
-    learning_rate: int
-
-    device: torch.device = torch.device("cpu")
-
-    def __iter__(self):
-        return iter(
-            (
-                self.input_dim,
-                self.output_dim,
-                self.neurons_per_layer,
-                self.num_hidden_layers,
-            )
-        )
-
-    def save(self, filename):
-        """Save configuration data to a JSON file."""
-        data_dict = {
-            "config": [self.input_dim, self.output_dim, self.neurons_per_layer, self.num_hidden_layers],
-            "normalization_means": self.normalization_means,
-            "normalization_stddevs": self.normalization_stddevs,
-        }
-        with open(filename, "w") as f:
-            json.dump(data_dict, f)
-
-    @classmethod
-    def load(cls, filename):
-        """Load configuration data from a JSON file."""
-        with open(filename, "r") as f:
-            data_dict = json.load(f)
-        return ModelConfig(
-            *data_dict["config"],
-            data_dict["normalization_means"],
-            data_dict["normalization_stddevs"],
-        )
+from torch import nn, optim
+from torch.utils.data import DataLoader, TensorDataset
 
 
-@dataclass
-class ModelData:
-    """Class that holds the MLP data to train / test / validate."""
-
-    train_data: TensorDataset
-    valid_data: TensorDataset
-    test_features: np.ndarray
-    test_classes: np.ndarray
-    test_names: np.ndarray
-    test_group_idxs: List[int]
-
-    def __iter__(self):
-        return iter(
-            (
-                self.train_data,
-                self.valid_data,
-                self.test_features,
-                self.test_classes,
-                self.test_names,
-                self.test_group_idxs,
-            )
-        )
-
-
-class ModelMetrics:
-    """Class containing the training and validation metrics."""
-
-    train_acc: List[float] = []
-    val_acc: List[float] = []
-    train_loss: List[float] = []
-    val_loss: List[float] = []
-
-    epoch_mins: List[int] = []
-    epoch_secs: List[int] = []
-    curr_epoch: int = 0
-
-    def append(self, train_loss, train_acc, val_loss, val_acc, epoch_mins, epoch_secs):
-        """Appends training information for an epoch.
-
-        Parameters
-        ----------
-        train_loss: float
-            The epoch training loss.
-        train_acc: float
-            The epoch training accuracy.
-        val_loss: float
-            The epoch validation loss.
-        val_acc: float
-            The epoch validation accuracy.
-        epoch_mins: int
-            The number of minutes spent by the epoch.
-        epoch_secs: int
-            The number of seconds spent by the epoch.
-        """
-        self.curr_epoch += 1
-        self.train_loss.append(train_loss)
-        self.train_acc.append(train_acc)
-        self.val_loss.append(val_loss)
-        self.val_acc.append(val_acc)
-        self.epoch_mins.append(epoch_mins)
-        self.epoch_secs.append(epoch_secs)
-
-    def get_values(self):
-        """Returns the training and validation accuracies and losses.
-
-        Returns
-        -------
-        tuple
-            A tuple containing the training accuracy and loss, and
-            validation accuracy and loss, respectively.
-        """
-        return self.train_acc, self.train_loss, self.val_acc, self.val_loss
-
-    def print_last(self):
-        """Prints the metrics for the last epoch."""
-        epoch_mins, epoch_secs, train_loss, train_acc, val_loss, val_acc = (
-            self.epoch_mins[-1],
-            self.epoch_secs[-1],
-            self.train_loss[-1],
-            self.train_acc[-1],
-            self.val_loss[-1],
-            self.val_acc[-1],
-        )
-        print(f"Epoch: {self.curr_epoch:02} | Epoch Time: {epoch_mins}m {epoch_secs}s")
-        print(f"\tTrain Loss: {train_loss:.3f} | Train Acc: {train_acc*100:.2f}%")
-        print(f"\t Val. Loss: {val_loss:.3f} |  Val. Acc: {val_acc*100:.2f}%")
-
-
-class MLP(nn.Module):
+class SuperphotClassifier(nn.Module):
     """The Multi-Layer Perceptron.
 
     Parameters
     ----------
     config : ModelConfig
         The MLP architecture configuration.
-    data : ModelData
-        The training, test and validation data.
+    train_data : TrainData
+        The training and validation datasets.
+    test_data : TestData, optional
+        The testing data.
     """
 
-    def __init__(self, config: ModelConfig, data: ModelData):
+    def __init__(
+        self,
+        config: ModelConfig,
+        train_data: TrainData,
+        test_data: TestData = None
+    ):
         super().__init__()
 
         # Initialize MLP architecture
         self.config = config
 
-        input_dim, output_dim, neurons_per_layer, num_hidden_layers = config
+        (
+            input_dim,
+            output_dim,
+            neurons_per_layer,
+            num_hidden_layers,
+            _,
+            learning_rate
+        ) = config
 
         n_neurons = neurons_per_layer
         self.input_fc = nn.Linear(input_dim, n_neurons)
@@ -203,11 +77,12 @@ class MLP(nn.Module):
         self.output_fc = nn.Linear(n_neurons, output_dim)
 
         # Optimizer and criterion
-        self.optimizer = optim.Adam(self.parameters(), lr=LEARNING_RATE)
+        self.optimizer = optim.Adam(self.parameters(), lr=learning_rate)
         self.criterion = nn.CrossEntropyLoss()
 
-        # Training, test and validation data
-        self.data = data
+        # Set training and testing data
+        self.train_data = train_data
+        self.test_data = test_data
 
     def forward(self, x):
         """Forward pass of the Multi-Layer Perceptron model.
@@ -242,6 +117,7 @@ class MLP(nn.Module):
 
     def run(
         self,
+        run_id="run_0",
         num_epochs=EPOCHS,
         plot_metrics=False,
         metrics_dir=METRICS_DIR,
@@ -256,6 +132,8 @@ class MLP(nn.Module):
 
         Parameters
         ----------
+        run_id: int, optional
+            A call identifier (useful for parallel calls on cross-validation).
         num_epochs : int, optional
             The number of epochs. Defaults to EPOCHS.
         plot_metrics : bool, optional
@@ -264,6 +142,8 @@ class MLP(nn.Module):
             Where to store metrics.
         models_dir : str, optional
             Where to store models.
+        probs_csv_path :
+            Where to store the probability results.
 
         Returns
         -------
@@ -278,20 +158,17 @@ class MLP(nn.Module):
         torch.backends.cudnn.deterministic = True
 
         (
-            train_data,
-            valid_data,
-            test_features,
-            test_classes,
-            test_names,
-            test_group_idxs,
-        ) = self.data
+            train_dataset,
+            valid_dataset,
+        ) = self.train_data
 
-        config_path = os.path.join(models_dir, f"superphot-config-{test_names[0]}.json")
+        config_path = os.path.join(models_dir, f"superphot-config-{run_id}.json")
         self.config.save(config_path)
-        model_path = os.path.join(models_dir, f"superphot-model-{test_names[0]}.pt")
 
-        train_iterator = DataLoader(train_data, shuffle=True, batch_size=self.config.batch_size)
-        valid_iterator = DataLoader(valid_data, batch_size=self.config.batch_size)
+        model_path = os.path.join(models_dir, f"superphot-model-{run_id}.pt")
+
+        train_iterator = DataLoader(train_dataset, shuffle=True, batch_size=self.config.batch_size)
+        valid_iterator = DataLoader(valid_dataset, batch_size=self.config.batch_size)
 
         best_valid_loss = float("inf")
         valid_acc = float("inf")
@@ -319,19 +196,22 @@ class MLP(nn.Module):
             if epoch % 5 == 0:
                 metrics.print_last()
 
+        # Load model with best validation score
         self.load_state_dict(torch.load(model_path))
 
-        """labels, names, pred_labels, max_probs = self.test(
-            test_features, test_classes, test_names, test_group_idxs, probs_csv_path
-        )
-
+        # Plot training and validation metrics
         if plot_metrics:
             plot_model_metrics(
                 metrics=metrics.get_values(),
                 num_epochs=num_epochs,
-                plot_name=test_names[0],
+                plot_name=run_id,
                 metrics_dir=metrics_dir,
             )
+
+        if self.test_data is None:
+            return best_valid_loss, valid_acc
+
+        labels, names, pred_labels, max_probs = self.test(probs_csv_path)
 
         return (
             np.array(labels).astype(int),
@@ -339,8 +219,7 @@ class MLP(nn.Module):
             np.array(pred_labels).astype(int),
             np.array(max_probs).astype(float),
             best_valid_loss,
-        )"""
-        return best_valid_loss, valid_acc
+        )
 
     def train_epoch(self, iterator):
         """Does one epoch of training for a given torch model.
@@ -413,19 +292,13 @@ class MLP(nn.Module):
 
         return epoch_loss / len(iterator), epoch_acc / len(iterator)
 
-    def test(self, test_features, test_classes, test_names, test_group_idxs, save_path):
+    def test(self, save_path):
         """Runs model over a group of test samples
 
         Parameters
         ----------
-        test_features : np.ndarray
-            The features array.
-        test_classes : np.ndarray
-            The classes array.
-        test_names : np.ndarray
-            The names array.
-        test_group_idxs : np.ndarray
-            The indices for each test set.
+        save_path
+            Where to store the probability results.
 
         Returns
         -------
@@ -433,6 +306,13 @@ class MLP(nn.Module):
             A tuple containing the labels, names, predicted labels
             and maximum probabilities.
         """
+        (
+            test_features,
+            test_classes,
+            test_names,
+            test_group_idxs
+        ) = self.test_data
+
         labels, pred_labels, max_probs, names = [], [], [], []
 
         for group_idx_set in test_group_idxs:
@@ -566,28 +446,30 @@ class MLP(nn.Module):
         return probs.numpy()
 
     @classmethod
-    def create(cls, config, data=None):
+    def create(cls, config, train_data=None, test_data=None):
         """Creates an MLP instance, optimizer and respective criterion.
 
         Parameters
         ----------
         config : ModelConfig
             Includes (in order): input_size, output_size, n_neurons, n_hidden.
-        data : ModelData
-            Training, testing and validation data.
+        train_data : TrainData
+            Training and validation data.
+        test_data : TestData
+            Testing data.
 
         Returns
         ----------
         torch.nn.Module
             The MLP object.
         """
-        model = cls(config, data)
+        model = cls(config, train_data, test_data)
         model.criterion = model.criterion.to(config.device)
         model = model.to(config.device)
         return model
 
     @classmethod
-    def load(cls, filename, config_filename, data=None):
+    def load(cls, filename, config_filename):
         """Load a trained MLP for subsequent classification of new objects.
 
         Parameters
@@ -597,8 +479,6 @@ class MLP(nn.Module):
         config : ModelConfig
             Includes (in order): input_size, output_size, n_neurons, n_hidden.
             Also includes normalization means and standard deviations.
-        data : ModelData
-            Training, testing and validation data.
 
         Returns
         ----------
@@ -606,6 +486,6 @@ class MLP(nn.Module):
             The pre-trained MLP object.
         """
         config = ModelConfig.load(config_filename)
-        model = MLP.create(config, data)  # set up empty multi-layer perceptron
+        model = SuperphotClassifier.create(config)  # set up empty multi-layer perceptron
         model.load_state_dict(torch.load(filename))  # load trained state dict to the MLP
         return model, config.normalization_means, config.normalization_stddevs

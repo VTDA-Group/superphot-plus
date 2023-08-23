@@ -23,7 +23,9 @@ from superphot_plus.format_data_ztf import (
     tally_each_class,
 )
 from superphot_plus.lightcurve import Lightcurve
-from superphot_plus.mlp import MLP, ModelConfig, ModelData
+from superphot_plus.model.classifier import SuperphotClassifier
+from superphot_plus.model.config import ModelConfig
+from superphot_plus.model.data import TrainData, TestData
 from superphot_plus.plotting.confusion_matrices import plot_confusion_matrix
 from superphot_plus.supernova_class import SupernovaClass as SnClass
 from superphot_plus.utils import calc_accuracy, create_dataset, f1_score, save_test_probabilities
@@ -107,7 +109,7 @@ def classify(
     predicted_classes_mlp = np.array([])
     prob_above_07_mlp = np.array([], dtype=bool)
 
-    def run_single_fold(x):
+    def run_single_fold(id, x):
         train_index, test_index = x
         train_labels = labels[train_index]
         test_labels = labels[test_index]
@@ -164,11 +166,11 @@ def classify(
         test_features, mean, std = normalize_features(test_features, mean, std)
 
         # Convert to Torch DataSet objects
-        train_data = create_dataset(train_features, train_classes)
-        val_data = create_dataset(val_features, val_classes)
+        train_dataset = create_dataset(train_features, train_classes)
+        val_dataset = create_dataset(val_features, val_classes)
         # test_data = create_dataset(test_features, test_classes)
 
-        model = MLP(
+        model = SuperphotClassifier(
             ModelConfig(
                 input_dim=train_features.shape[1],
                 output_dim=output_dim,
@@ -177,17 +179,22 @@ def classify(
                 normalization_means=mean.tolist(),
                 normalization_stddevs=std.tolist(),
             ),
-            ModelData(train_data, val_data, test_features, test_classes, test_names, test_group_idxs),
+            TrainData(train_dataset, val_dataset),
+            TestData(test_features, test_classes, test_names, test_group_idxs),
         )
 
         # Train and evaluate multi-layer perceptron
         test_classes, test_names, pred_classes, pred_probs, valid_loss = model.run(
-            num_epochs, metrics_dir=metrics_dir, models_dir=models_dir, probs_csv_path=csv_path
+            run_id=f"fold-{id}",
+            num_epochs=num_epochs,
+            metrics_dir=metrics_dir,
+            models_dir=models_dir,
+            probs_csv_path=csv_path
         )
 
         return pred_classes, pred_probs > 0.7, test_classes, test_names, valid_loss
 
-    r = Parallel(n_jobs=-1)(delayed(run_single_fold)(x) for x in kfold)
+    r = Parallel(n_jobs=-1)(delayed(run_single_fold)(i, fold) for i, fold in enumerate(kfold))
     (
         predicted_classes_mlp,
         prob_above_07_mlp,

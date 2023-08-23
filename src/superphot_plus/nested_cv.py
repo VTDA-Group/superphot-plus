@@ -10,7 +10,9 @@ from sklearn.model_selection import train_test_split
 from superphot_plus.classify_ztf import adjust_log_dists
 from superphot_plus.file_paths import METRICS_DIR, MODELS_DIR
 from superphot_plus.file_utils import get_posterior_samples
-from superphot_plus.mlp import MLP, ModelConfig, ModelData
+from superphot_plus.model.classifier import SuperphotClassifier
+from superphot_plus.model.config import ModelConfig
+from superphot_plus.model.data import TrainData
 
 from superphot_plus.supernova_class import SupernovaClass as SnClass
 from superphot_plus.format_data_ztf import import_labels_only, generate_K_fold, \
@@ -80,7 +82,7 @@ def run_tune_params(config):
     # Generate K-folds for the remaining data.
     kfold = generate_K_fold(np.zeros(len(labels)), labels, config["num_folds"])
 
-    def run_single_fold(fold):
+    def run_single_fold(id, fold):
         """Trains and validates model on single fold."""
         # Get training / test indices
         train_index, val_index = fold
@@ -105,11 +107,11 @@ def run_tune_params(config):
         val_features, mean, std = normalize_features(val_features, mean, std)
 
         # Convert to Torch DataSet objects.
-        train_data = create_dataset(train_features, train_classes)
-        val_data = create_dataset(val_features, val_classes)
+        train_dataset = create_dataset(train_features, train_classes)
+        val_dataset = create_dataset(val_features, val_classes)
 
-        model = MLP(
-            ModelConfig(
+        model = SuperphotClassifier(
+            config=ModelConfig(
                 input_dim=train_features.shape[1],
                 output_dim=output_dim,
                 neurons_per_layer=config["neurons_per_layer"],
@@ -119,11 +121,12 @@ def run_tune_params(config):
                 normalization_means=mean.tolist(),
                 normalization_stddevs=std.tolist(),
             ),
-            ModelData(train_data, val_data, *test_data),
+            train_data=TrainData(train_dataset, val_dataset),
         )
 
         # Run MLP for the number of specified epochs.
         best_val_loss, val_acc = model.run(
+            run_id=f"fold-{id}",
             num_epochs=config["num_epochs"],
             metrics_dir=METRICS_DIR,
             models_dir=MODELS_DIR
@@ -132,7 +135,7 @@ def run_tune_params(config):
         return best_val_loss, val_acc
 
     # Process each fold in parallel.
-    r = Parallel(n_jobs=-1)(delayed(run_single_fold)(f) for f in kfold)
+    r = Parallel(n_jobs=-1)(delayed(run_single_fold)(i, fold) for i, fold in enumerate(kfold))
 
     val_losses = [metric[0] for metric in r]
     val_accs = [metric[1] for metric in r]
