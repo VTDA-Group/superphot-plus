@@ -1,13 +1,11 @@
-from functools import partial
-
 import numpy as np
 import os
 
+import ray
 from joblib import Parallel, delayed
 from ray import tune
 from ray.air import session
 from ray.tune import CLIReporter
-from ray.tune.schedulers import ASHAScheduler
 from sklearn.model_selection import train_test_split
 from superphot_plus.classify_ztf import adjust_log_dists
 from superphot_plus.file_paths import METRICS_DIR, MODELS_DIR
@@ -15,23 +13,22 @@ from superphot_plus.file_utils import get_posterior_samples
 from superphot_plus.mlp import MLP, ModelConfig, ModelData
 
 from superphot_plus.supernova_class import SupernovaClass as SnClass
-from superphot_plus.format_data_ztf import import_labels_only, tally_each_class, generate_K_fold, \
+from superphot_plus.format_data_ztf import import_labels_only, generate_K_fold, \
     oversample_using_posteriors, normalize_features
 from superphot_plus.utils import create_dataset
+from ray.tune.search.optuna import OptunaSearch
 
 ####################################
-####### Model configuration ########
+######## Data configuration ########
 ####################################
 
-NUM_FOLDS = 2
 SAMPLER = "dynesty"
 FITS_DIR = "data/dynesty_fits"
 INPUT_CSVS = ["data/training_set.csv"]
 
-
 ####################################
 
-def run_tune_params(config, num_epochs, metric):
+def run_tune_params(config):
     """Estimates the model performance for each hyperparameter set.
 
     Reports the mean metric value for each fold.
@@ -42,7 +39,7 @@ def run_tune_params(config, num_epochs, metric):
     num_epochs The number of epochs for training
     metric The metric to estimate model performance
     """
-    # Run RayTune in the project's working directory.
+    # Run Tune in the project's working directory.
     os.chdir(os.environ["TUNE_ORIG_WORKING_DIR"])
 
     allowed_types = ["SN Ia", "SN II", "SN IIn", "SLSN-I", "SN Ibc"]
@@ -56,9 +53,8 @@ def run_tune_params(config, num_epochs, metric):
         redshift=False,
         sampler=SAMPLER,
     )
-    # tally_each_class(labels)  # original tallies
 
-    # Set aside 10% of data for testing
+    # Set aside 10% of data for testing.
     names, test_names, labels, test_labels = train_test_split(names, labels, test_size=0.1)
 
     test_classes = SnClass.get_classes_from_labels(test_labels)
@@ -81,10 +77,9 @@ def run_tune_params(config, num_epochs, metric):
 
     test_data = (np.array(test_features), test_classes, test_names, test_group_idxs)
 
-    # Generate K-folds for the remaining data
-    kfold = generate_K_fold(np.zeros(len(labels)), labels, NUM_FOLDS)
+    # Generate K-folds for the remaining data.
+    kfold = generate_K_fold(np.zeros(len(labels)), labels, config["num_folds"])
 
-    # For each fold
     def run_single_fold(fold):
         """Trains and validates model on single fold."""
         # Get training / test indices
@@ -103,13 +98,13 @@ def run_tune_params(config, num_epochs, metric):
             val_names, val_classes, round(0.1 * config["goal_per_class"]), FITS_DIR, SAMPLER
         )
 
-        # normalize the log distributions
+        # Normalize the log distributions.
         train_features = adjust_log_dists(train_features)
         val_features = adjust_log_dists(val_features)
         train_features, mean, std = normalize_features(train_features)
         val_features, mean, std = normalize_features(val_features, mean, std)
 
-        # Convert to Torch DataSet objects
+        # Convert to Torch DataSet objects.
         train_data = create_dataset(train_features, train_classes)
         val_data = create_dataset(val_features, val_classes)
 
@@ -127,26 +122,35 @@ def run_tune_params(config, num_epochs, metric):
             ModelData(train_data, val_data, *test_data),
         )
 
-        best_val_loss = model.run(num_epochs, METRICS_DIR, MODELS_DIR)
+        # Run MLP for the number of specified epochs.
+        best_val_loss, val_acc = model.run(
+            num_epochs=config["num_epochs"],
+            metrics_dir=METRICS_DIR,
+            models_dir=MODELS_DIR
+        )
 
-        return best_val_loss
+        return best_val_loss, val_acc
 
-    # Process each fold in parallel
+    # Process each fold in parallel.
     r = Parallel(n_jobs=-1)(delayed(run_single_fold)(f) for f in kfold)
 
-    # Average validation loss
-    session.report({metric: np.mean(r)})
+    val_losses = [metric[0] for metric in r]
+    val_accs = [metric[1] for metric in r]
+
+    # Report metrics for the current hyperparameter set.
+    session.report({
+        "avg_val_loss": np.mean(val_losses),
+        "avg_val_acc": np.mean(val_accs)
+    })
 
 
-def run_nested_cv(num_epochs, num_samples):
+def run_nested_cv(num_samples):
     """Runs Ray Tuner to search hyperparameter space."""
-    mode = "min"
-    metric = "avg_val_loss"
-
-    # Define hardware resources.
 
     # Define the parameter search configuration.
     config = {
+        "num_folds": tune.choice(np.arange(5, 10)),
+        "num_epochs": tune.choice([250, 500, 750]),
         "neurons_per_layer": tune.choice([128, 256, 512]),
         "num_hidden_layers": tune.choice([2, 3, 4]),
         "batch_size": tune.choice([32, 64, 128]),
@@ -154,32 +158,30 @@ def run_nested_cv(num_epochs, num_samples):
         "goal_per_class": tune.choice([100, 500, 1000]),
     }
 
-    # Scheduler to stop bad performing trails.
-    scheduler = ASHAScheduler(
-        max_t=num_epochs,
-        grace_period=1,
-        reduction_factor=2
-    )
-
     # Reporter to show on command line/output window.
-    reporter = CLIReporter(metric_columns=["loss", "accuracy"])
+    reporter = CLIReporter(metric_columns=["avg_val_loss", "avg_val_acc"])
 
+    # Init Ray cluster.
+    ray.init()
+
+    # Start hyperparameter search.
     result = tune.run(
-        partial(run_tune_params, num_epochs=num_epochs, metric=metric),
+        run_tune_params,
         config=config,
+        search_alg=OptunaSearch(),
         resources_per_trial={"cpu": 4, "gpu": 0},
-        metric=metric,
-        mode=mode,
+        metric="avg_val_loss",
+        mode="min",
         num_samples=num_samples,
-        scheduler=scheduler,
         progress_reporter=reporter,
     )
 
     # Extract the best trial run from the search.
+    # The best trial is the one with the min avg validation loss.
     best_trial = result.get_best_trial()
     print(f"Best trial config: {best_trial.config}")
-    print(f"Best trial validation loss: {best_trial.last_result[metric]}")
+    print(f"Best trial validation loss: {best_trial.last_result['avg_val_loss']}")
 
 
 if __name__ == "__main__":
-    run_nested_cv(num_epochs=500, num_samples=3)
+    run_nested_cv(num_samples=10)

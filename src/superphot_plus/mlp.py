@@ -294,6 +294,7 @@ class MLP(nn.Module):
         valid_iterator = DataLoader(valid_data, batch_size=self.config.batch_size)
 
         best_valid_loss = float("inf")
+        valid_acc = float("inf")
 
         metrics = ModelMetrics()
 
@@ -305,6 +306,7 @@ class MLP(nn.Module):
 
             if val_loss < best_valid_loss:
                 best_valid_loss = val_loss
+                valid_acc = val_acc
                 torch.save(self.state_dict(), model_path)
 
             end_time = time.monotonic()
@@ -338,7 +340,7 @@ class MLP(nn.Module):
             np.array(max_probs).astype(float),
             best_valid_loss,
         )"""
-        return best_valid_loss
+        return best_valid_loss, valid_acc
 
     def train_epoch(self, iterator):
         """Does one epoch of training for a given torch model.
