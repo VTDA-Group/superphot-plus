@@ -11,8 +11,12 @@ from ray.tune.search.optuna import OptunaSearch
 from sklearn.model_selection import train_test_split
 from superphot_plus.classify_ztf import adjust_log_dists
 from superphot_plus.file_paths import METRICS_DIR, MODELS_DIR
-from superphot_plus.format_data_ztf import import_labels_only, generate_K_fold, \
-    oversample_using_posteriors, normalize_features
+from superphot_plus.format_data_ztf import (
+    import_labels_only,
+    generate_K_fold,
+    oversample_using_posteriors,
+    normalize_features,
+)
 from superphot_plus.model.classifier import SuperphotClassifier
 from superphot_plus.model.config import ModelConfig
 from superphot_plus.model.data import TrainData
@@ -23,12 +27,14 @@ from superphot_plus.utils import create_dataset
 
 DATA_DIR = "data"
 SAMPLER = "dynesty"
+INCLUDE_REDSHIFT = True
 
 FITS_DIR = f"{DATA_DIR}/dynesty_fits"
 INPUT_CSVS = [f"{DATA_DIR}/training_set.csv"]
 BEST_CONFIG_FILE = f"{DATA_DIR}/best_config.json"
 
 ####################################
+
 
 def run_tune_params(config):
     """Estimates the model performance for each hyperparameter set,
@@ -48,17 +54,26 @@ def run_tune_params(config):
     allowed_types = ["SN Ia", "SN II", "SN IIn", "SLSN-I", "SN Ibc"]
     output_dim = len(allowed_types)
 
-    names, labels = import_labels_only(
-        input_csvs=INPUT_CSVS,
-        allowed_types=allowed_types,
-        fits_dir=FITS_DIR,
-        needs_posteriors=True,
-        redshift=False,
-        sampler=SAMPLER,
-    )
-
-    # Set aside 10% of data for testing.
-    names, test_names, labels, test_labels = train_test_split(names, labels, test_size=0.1)
+    # Load data and set aside 10% of data for testing.
+    if INCLUDE_REDSHIFT:
+        names, labels, redshifts = import_labels_only(
+            allowed_types=allowed_types,
+            input_csvs=INPUT_CSVS,
+            fits_dir=FITS_DIR,
+            sampler=SAMPLER,
+            redshift=True,
+        )
+        names, test_names, labels, test_labels, redshifts, test_redshifts = train_test_split(
+            names, labels, redshifts, test_size=0.1
+        )
+    else:
+        names, labels = import_labels_only(
+            allowed_types=allowed_types,
+            input_csvs=INPUT_CSVS,
+            fits_dir=FITS_DIR,
+            sampler=SAMPLER,
+        )
+        names, test_names, labels, test_labels = train_test_split(names, labels, test_size=0.1)
 
     # Generate K-folds for the remaining data.
     kfold = generate_K_fold(np.zeros(len(labels)), labels, config["num_folds"])
@@ -85,16 +100,66 @@ def run_tune_params(config):
         train_classes = SnClass.get_classes_from_labels(train_labels)
         val_classes = SnClass.get_classes_from_labels(val_labels)
 
-        train_features, train_classes = oversample_using_posteriors(
-            train_names, train_classes, config["goal_per_class"], FITS_DIR, SAMPLER
-        )
-        val_features, val_classes = oversample_using_posteriors(
-            val_names, val_classes, round(0.1 * config["goal_per_class"]), FITS_DIR, SAMPLER
-        )
+        if INCLUDE_REDSHIFT:
+            train_redshifts = redshifts[train_index]
+            val_redshifts = redshifts[val_index]
+
+            train_features, train_classes, train_redshifts = oversample_using_posteriors(
+                lc_names=train_names,
+                labels=train_classes,
+                goal_per_class=config["goal_per_class"],
+                fits_dir=FITS_DIR,
+                sampler=SAMPLER,
+                redshifts=train_redshifts,
+            )
+            val_features, val_classes, val_redshifts = oversample_using_posteriors(
+                lc_names=val_names,
+                labels=val_classes,
+                goal_per_class=round(0.1 * config["goal_per_class"]),
+                fits_dir=FITS_DIR,
+                sampler=SAMPLER,
+                redshifts=val_redshifts,
+            )
+
+            train_features = np.hstack(
+                (
+                    train_features,
+                    np.array(
+                        [
+                            train_redshifts,
+                        ]
+                    ).T,
+                )
+            )
+            val_features = np.hstack(
+                (
+                    val_features,
+                    np.array(
+                        [
+                            val_redshifts,
+                        ]
+                    ).T,
+                )
+            )
+        else:
+            train_features, train_classes = oversample_using_posteriors(
+                lc_names=train_names,
+                labels=train_classes,
+                goal_per_class=config["goal_per_class"],
+                fits_dir=FITS_DIR,
+                sampler=SAMPLER,
+            )
+            val_features, val_classes = oversample_using_posteriors(
+                lc_names=val_names,
+                labels=val_classes,
+                goal_per_class=round(0.1 * config["goal_per_class"]),
+                fits_dir=FITS_DIR,
+                sampler=SAMPLER,
+            )
 
         # Normalize the log distributions.
-        train_features = adjust_log_dists(train_features)
-        val_features = adjust_log_dists(val_features)
+        train_features = adjust_log_dists(train_features, redshift=INCLUDE_REDSHIFT)
+        val_features = adjust_log_dists(val_features, redshift=INCLUDE_REDSHIFT)
         train_features, mean, std = normalize_features(train_features)
         val_features, mean, std = normalize_features(val_features, mean, std)
 
@@ -121,7 +186,7 @@ def run_tune_params(config):
             run_id=f"fold-{fold_id}",
             num_epochs=config["num_epochs"],
             metrics_dir=METRICS_DIR,
-            models_dir=MODELS_DIR
+            models_dir=MODELS_DIR,
         )
 
         return best_val_loss, val_acc
@@ -133,10 +198,7 @@ def run_tune_params(config):
     val_losses = [metric[0] for metric in r]
     val_accs = [metric[1] for metric in r]
 
-    session.report({
-        "avg_val_loss": np.mean(val_losses),
-        "avg_val_acc": np.mean(val_accs)
-    })
+    session.report({"avg_val_loss": np.mean(val_losses), "avg_val_acc": np.mean(val_accs)})
 
 
 def run_nested_cv(num_samples):
@@ -191,4 +253,4 @@ def run_nested_cv(num_samples):
 
 
 if __name__ == "__main__":
-    run_nested_cv(num_samples=1)
+    run_nested_cv(num_samples=10)
