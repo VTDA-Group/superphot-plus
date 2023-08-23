@@ -1,19 +1,19 @@
+import os
+
 import matplotlib.pyplot as plt
 import numpy as np
-import os
 import pandas as pd
-from sklearn.metrics import roc_curve
-from matplotlib.ticker import AutoMinorLocator
 from astropy.cosmology import Planck13 as cosmo
+from matplotlib.ticker import AutoMinorLocator
 from scipy.stats import binned_statistic
+from sklearn.metrics import roc_curve
 
-from superphot_plus.supernova_class import SupernovaClass as SnClass
-from superphot_plus.format_data_ztf import import_labels_only
-from superphot_plus.utils import calculate_neg_chi_squareds
 from superphot_plus.file_utils import get_multiple_posterior_samples
-
+from superphot_plus.format_data_ztf import import_labels_only
 from superphot_plus.plotting.format_params import *
-from superphot_plus.plotting.utils import read_probs_csv, histedges_equalN
+from superphot_plus.plotting.utils import histedges_equalN, read_probs_csv
+from superphot_plus.supernova_class import SupernovaClass as SnClass
+from superphot_plus.utils import calculate_neg_chi_squareds
 
 
 def save_class_fractions(spec_probs_csv, phot_probs_csv, save_path):
@@ -358,7 +358,7 @@ def plot_redshifts_abs_mags(probs_snr_csv, save_dir):
     """
     labels_to_classes, classes_to_labels = SnClass.get_type_maps()
     allowed_types = list(labels_to_classes.keys())
-    allowed_classes = [str(x) for x in list(labels_to_classes.values())]
+    allowed_classes = [str(labels_to_classes[x]) for x in allowed_types]
 
     names, classes, redshifts = import_labels_only(
         [
@@ -487,7 +487,7 @@ def plot_snr_npoints_vs_accuracy(probs_snr_csv, save_dir):
     plt.xlabel("90th Percentile SNR")
     plt.ylabel("Classification Accuracy")
     plt.legend()
-    plt.savefig(os.path.join(save_dir, "snr_vs_accuracy.pdf"))
+    plt.savefig(os.path.join(save_dir, "snr_vs_accuracy.pdf"), bbox_inches="tight")
     plt.close()
 
     # second plot
@@ -519,7 +519,7 @@ def plot_snr_npoints_vs_accuracy(probs_snr_csv, save_dir):
     plt.xlabel(r"Number of $\geq 3\sigma$ Datapoints")
     plt.ylabel("Classification Accuracy")
     plt.legend(loc="lower right")
-    plt.savefig(os.path.join(save_dir, "n_vs_accuracy.pdf"))
+    plt.savefig(os.path.join(save_dir, "n_vs_accuracy.pdf"), bbox_inches="tight")
     plt.close()
 
 
@@ -545,7 +545,7 @@ def plot_snr_hist(probs_snr_csv, save_dir):
     plt.xlabel("Number of Datapoints at Given SNR")
     plt.ylabel("Number of Lightcurves")
     plt.legend()
-    plt.savefig(os.path.join(save_dir, "snr_hist.pdf"))
+    plt.savefig(os.path.join(save_dir, "snr_hist.pdf"), bbox_inches="tight")
     plt.close()
 
 
@@ -607,7 +607,10 @@ def compare_mag_distributions(probs_classified, probs_unclassified, save_dir, ze
     plt.legend(loc="upper left")
     plt.xlabel("Apparent Magnitude (m)")
     plt.ylabel("Fraction of Lightcurves")
-    plt.savefig(os.path.join(save_dir, "appm_hist_compare.pdf"))
+    plt.savefig(
+        os.path.join(save_dir, "appm_hist_compare.pdf"),
+        bbox_inches="tight",
+    )
     plt.close()
 
 
@@ -729,7 +732,10 @@ def plot_model_metrics(metrics, num_epochs, plot_name, metrics_dir):
     plt.xlabel("Epoch")
     plt.ylabel("Accuracy")
     plt.legend()
-    plt.savefig(os.path.join(metrics_dir, f"accuracy_{plot_name}.pdf"))
+    plt.savefig(
+        os.path.join(metrics_dir, f"accuracy_{plot_name}.pdf"),
+        bbox_inches="tight",
+    )
     plt.close()
 
     # Plot loss
@@ -739,5 +745,5 @@ def plot_model_metrics(metrics, num_epochs, plot_name, metrics_dir):
     plt.ylabel("Loss")
     plt.yscale("log")
     plt.legend()
-    plt.savefig(os.path.join(metrics_dir, f"loss_{plot_name}.pdf"))
+    plt.savefig(os.path.join(metrics_dir, f"loss_{plot_name}.pdf"), bbox_inches="tight")
     plt.close()

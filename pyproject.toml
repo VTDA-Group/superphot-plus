@@ -24,6 +24,7 @@ dependencies = [
     "etils",
     "dustmaps",
     "dynesty",
+    "imblearn",
     "jaxns",
     "joblib",
     "extinction",

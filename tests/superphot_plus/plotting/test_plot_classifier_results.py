@@ -4,12 +4,12 @@ import numpy as np
 import pytest
 
 from superphot_plus.plotting.classifier_results import (
-    generate_roc_curve,
-    plot_redshifts_abs_mags,
-    plot_snr_npoints_vs_accuracy,
-    plot_snr_hist,
     compare_mag_distributions,
+    generate_roc_curve,
     plot_chisquared_vs_accuracy,
+    plot_redshifts_abs_mags,
+    plot_snr_hist,
+    plot_snr_npoints_vs_accuracy,
 )
 
 

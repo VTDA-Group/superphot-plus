@@ -20,7 +20,7 @@ WRONGLY_CLASSIFIED_FOLDER = f"{DATA_DIR}/figs/wrongly_classified"
 FIT_PLOTS_FOLDER = f"{DATA_DIR}/figs/fits_good"
 CLASSIFY_LOG_FILE = f"{DATA_DIR}/temp_output.txt"
 
-TRAINED_MODEL_FN = (
-    "../../tests/data/superphot-model-ZTF23aagkgnz.pt"  # glob.glob("models_saved/*ZTF23aagkgnz.pt")[0]
+TRAINED_MODEL_FN = (  # glob.glob("models_saved/*ZTF23aagkgnz.pt")[0]
+    "../../tests/data/superphot-model-ZTF23aagkgnz.pt"
 )
-TRAINED_MODEL_CONF_FILE = "../../tests/data/superphot-config-test.json"
+TRAINED_CONFIG_FN = "../../tests/data/superphot-config-test.json"

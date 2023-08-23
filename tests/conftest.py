@@ -1,9 +1,9 @@
 import os
 import os.path
 
+import numpy as np
 import pytest
 from jax import random
-import numpy as np
 
 from superphot_plus.lightcurve import Lightcurve
 from superphot_plus.model.classifier import SuperphotClassifier

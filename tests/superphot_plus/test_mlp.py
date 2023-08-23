@@ -1,6 +1,6 @@
 import datetime
-import time
 import os
+import time
 
 import numpy as np
 import torch
@@ -12,7 +12,7 @@ from superphot_plus.model.data import TrainData, TestData
 from superphot_plus.utils import create_dataset, calculate_accuracy, epoch_time
 
 
-def test_run_mlp(test_data_dir, tmp_path):
+def test_run_mlp(tmp_path):
     """Tests that we can run training of the model."""
 
     num_samples = 100
@@ -35,14 +35,7 @@ def test_run_mlp(test_data_dir, tmp_path):
     train_dataset = create_dataset(train_features, train_labels)
     val_dataset = create_dataset(test_features, test_labels)
 
-    config = ModelConfig(
-        input_dim,
-        output_dim,
-        neurons_per_layer,
-        num_layers,
-        normed_means,
-        normed_stds
-    )
+    config = ModelConfig(input_dim, output_dim, neurons_per_layer, num_layers, normed_means, normed_stds)
 
     train_data = TrainData(train_dataset, val_dataset)
     test_data = TestData(test_features, test_labels, test_names, test_group_idxs)

@@ -9,6 +9,9 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 
+from torch import nn, optim
+from torch.utils.data import DataLoader, TensorDataset
+
 from superphot_plus.constants import (
     EPOCHS,
     HIDDEN_DROPOUT_FRAC,
@@ -22,9 +25,6 @@ from superphot_plus.model.data import TrainData, TestData
 from superphot_plus.model.metrics import ModelMetrics
 from superphot_plus.plotting.classifier_results import plot_model_metrics
 from superphot_plus.utils import calculate_accuracy, create_dataset, epoch_time, save_test_probabilities
-
-from torch import nn, optim
-from torch.utils.data import DataLoader, TensorDataset
 
 
 class SuperphotClassifier(nn.Module):
@@ -40,25 +40,13 @@ class SuperphotClassifier(nn.Module):
         The testing data.
     """
 
-    def __init__(
-        self,
-        config: ModelConfig,
-        train_data: TrainData,
-        test_data: TestData = None
-    ):
+    def __init__(self, config: ModelConfig, train_data: TrainData, test_data: TestData = None):
         super().__init__()
 
         # Initialize MLP architecture
         self.config = config
 
-        (
-            input_dim,
-            output_dim,
-            neurons_per_layer,
-            num_hidden_layers,
-            _,
-            learning_rate
-        ) = config
+        (input_dim, output_dim, neurons_per_layer, num_hidden_layers, _, learning_rate) = config
 
         n_neurons = neurons_per_layer
         self.input_fc = nn.Linear(input_dim, n_neurons)
@@ -306,12 +294,7 @@ class SuperphotClassifier(nn.Module):
             A tuple containing the labels, names, predicted labels
             and maximum probabilities.
         """
-        (
-            test_features,
-            test_classes,
-            test_names,
-            test_group_idxs
-        ) = self.test_data
+        (test_features, test_classes, test_names, test_group_idxs) = self.test_data
 
         labels, pred_labels, max_probs, names = [], [], [], []
 
@@ -326,6 +309,8 @@ class SuperphotClassifier(nn.Module):
 
             _, labels_indiv, indx_indiv, probs = self.get_predictions(test_iterator)
             probs_avg = np.mean(probs.numpy(), axis=0)
+
+            labels_indiv = labels_indiv.numpy()
 
             save_test_probabilities(
                 test_names[indx_indiv.numpy().astype(int)[0]],

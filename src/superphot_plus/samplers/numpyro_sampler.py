@@ -18,7 +18,7 @@ from superphot_plus.posterior_samples import PosteriorSamples
 from superphot_plus.samplers.sampler import Sampler
 from superphot_plus.surveys.fitting_priors import MultibandPriors, PriorFields
 from superphot_plus.surveys.surveys import Survey
-from superphot_plus.utils import get_numpyro_cube, calculate_neg_chi_squareds
+from superphot_plus.utils import calculate_neg_chi_squareds, get_numpyro_cube
 
 config.update("jax_enable_x64", True)
 numpyro.enable_x64()
@@ -299,8 +299,8 @@ def run_mcmc(lc, sampler="NUTS", priors=Survey.ZTF().priors):
         raise ValueError("'sampler' must be 'NUTS' or 'svi'")
 
     posterior_cube, aux_bands = get_numpyro_cube(posterior_samples, max_flux, priors.aux_bands)
-    
-    padded_idxs = (lc.flux_errors > 1e5)
+
+    padded_idxs = lc.flux_errors > 1e5
     red_neg_chisq = calculate_neg_chi_squareds(
         posterior_cube,
         lc.times[~padded_idxs],
@@ -308,8 +308,8 @@ def run_mcmc(lc, sampler="NUTS", priors=Survey.ZTF().priors):
         lc.flux_errors[~padded_idxs],
         lc.bands[~padded_idxs],
         ordered_bands=priors.ordered_bands,
-        ref_band=priors.reference_band
+        ref_band=priors.reference_band,
     )
-    
-    posterior_cube = np.hstack((posterior_cube, red_neg_chisq[np.newaxis,:].T))
+
+    posterior_cube = np.hstack((posterior_cube, red_neg_chisq[np.newaxis, :].T))
     return posterior_cube

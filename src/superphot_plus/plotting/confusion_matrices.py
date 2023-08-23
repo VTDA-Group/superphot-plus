@@ -1,20 +1,20 @@
 """This module provides various functions for analyzing and visualizing
 light curve data."""
 
-import os
 import csv
+import os
+
 import matplotlib.pyplot as plt
 import numpy as np
-
 from sklearn.metrics import confusion_matrix
 from sklearn.utils.multiclass import unique_labels
 
+from superphot_plus.constants import BIGGER_SIZE, MEDIUM_SIZE, SMALL_SIZE
 from superphot_plus.file_paths import CM_FOLDER
-from superphot_plus.supernova_class import SupernovaClass as SnClass
-from superphot_plus.utils import calc_accuracy, f1_score
-
 from superphot_plus.plotting.format_params import *
 from superphot_plus.plotting.utils import read_probs_csv
+from superphot_plus.supernova_class import SupernovaClass as SnClass
+from superphot_plus.utils import calc_accuracy, f1_score
 
 
 def plot_high_confidence_confusion_matrix(probs_csv, filename, cutoff=0.7):
@@ -420,5 +420,5 @@ def plot_confusion_matrix(y_true, y_pred, filename, purity=False, cmap=plt.cm.Pu
     fig.tight_layout()
     plt.xlim(-0.5, len(classes) - 0.5)
     plt.ylim(len(classes) - 0.5, -0.5)
-    plt.savefig(filename, bbox_inches='tight')
+    plt.savefig(filename, bbox_inches="tight")
     plt.close()
