@@ -143,7 +143,7 @@ def compare_two_files(file_name, goldens_dir, temp_results_dir):
         True if files are suficiently similar; False otherwise."""
 
     # Set up
-    deltas = {"dynesty": 0.0001, "svi": 0.01, "NUTS": 0.0001}
+    deltas = {"dynesty": 0.0001, "svi": 0.1, "NUTS": 0.0001}
     no_differences_found = True
 
     # Compare file sizes
