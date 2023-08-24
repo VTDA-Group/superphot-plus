@@ -156,7 +156,7 @@ def run_tune_params(config):
         )
 
         # Run classifier for the number of specified epochs.
-        best_val_loss, val_acc, _ = model.run(
+        best_val_loss, val_acc = model.run_training(
             run_id=f"fold-{fold_id}",
             num_epochs=config["num_epochs"],
             metrics_dir=METRICS_DIR,

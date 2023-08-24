@@ -40,14 +40,16 @@ def test_run_mlp(tmp_path):
     train_data = TrainData(train_dataset, val_dataset)
     test_data = TestData(test_features, test_labels, test_names, test_group_idxs)
 
-    SuperphotClassifier.create(config, train_data, test_data).run(
+    model = SuperphotClassifier.create(config, train_data)
+
+    model.run_training(
         run_id="run_0",
         num_epochs=num_epochs,
         plot_metrics=True,
         metrics_dir=tmp_path,
         models_dir=tmp_path,
-        probs_csv_path=os.path.join(tmp_path, "probs_mlp.csv"),
     )
+    model.run_testing(test_data, probs_csv_path=os.path.join(tmp_path, "probs_mlp.csv"))
 
     assert os.path.exists(os.path.join(tmp_path, "accuracy_run_0.pdf"))
     assert os.path.exists(os.path.join(tmp_path, "loss_run_0.pdf"))

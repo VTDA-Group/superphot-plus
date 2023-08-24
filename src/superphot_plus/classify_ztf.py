@@ -75,8 +75,8 @@ def classify(
     fit_dir,
     goal_per_class,
     num_epochs,
-    neurons_per_layer,
     num_layers,
+    neurons_per_layer,
     classify_log_file,
     include_redshift=False,
     num_folds=NUM_FOLDS,
@@ -96,10 +96,10 @@ def classify(
         type.
     num_epochs : int
         Number of training epochs.
-    neurons_per_layer : int
-        Number of neurons per hidden layer of MLP.
     num_layers : int
         Number of hidden layers in MLP.
+    neurons_per_layer : int
+        Number of neurons per hidden layer of MLP.
     fits_plotted : bool
         If true, assumes all sample fit plots are saved in
         FIT_PLOTS_FOLDER. Copies plots of wrongly classified samples to
@@ -239,20 +239,17 @@ def classify(
                 normalization_stddevs=std.tolist(),
             ),
             TrainData(train_dataset, val_dataset),
-            TestData(test_features, test_classes, test_names, test_group_idxs),
         )
 
-        # Train and evaluate multi-layer perceptron
-        best_valid_loss, _, test_results = model.run(
-            run_id=f"fold-{fold_id}",
-            num_epochs=num_epochs,
-            metrics_dir=metrics_dir,
-            models_dir=models_dir,
-            probs_csv_path=csv_path,
+        # Train and validate multi-layer perceptron
+        best_valid_loss, _ = model.run_training(
+            run_id=f"fold-{fold_id}", num_epochs=num_epochs, metrics_dir=metrics_dir, models_dir=models_dir
         )
 
-        # Extract test results
-        test_classes, test_names, pred_classes, pred_probs = test_results
+        # Test model on remaining data
+        test_classes, test_names, pred_classes, pred_probs = model.run_testing(
+            TestData(test_features, test_classes, test_names, test_group_idxs), probs_csv_path=csv_path
+        )
 
         return pred_classes, pred_probs > 0.7, test_classes, test_names, best_valid_loss
 

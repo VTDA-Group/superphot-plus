@@ -30,11 +30,16 @@ class SuperphotClassifier(nn.Module):
         The MLP architecture configuration.
     train_data : TrainData
         The training and validation datasets.
-    test_data : TestData, optional
-        The testing data.
     """
 
-    def __init__(self, config: ModelConfig, train_data: TrainData, test_data: TestData = None):
+    # Structure to store best model in memory
+    best_model = {
+        "state_dict": None,
+        "valid_loss": float("inf"),
+        "valid_acc": float("inf"),
+    }
+
+    def __init__(self, config: ModelConfig, train_data: TrainData):
         super().__init__()
 
         # Initialize MLP architecture
@@ -62,9 +67,8 @@ class SuperphotClassifier(nn.Module):
         self.optimizer = optim.Adam(self.parameters(), lr=learning_rate)
         self.criterion = nn.CrossEntropyLoss()
 
-        # Set training and testing data
+        # Set training / validation data
         self.train_data = train_data
-        self.test_data = test_data
 
     def forward(self, x):
         """Forward pass of the Multi-Layer Perceptron model.
@@ -97,14 +101,13 @@ class SuperphotClassifier(nn.Module):
 
         return y_pred, h_hidden
 
-    def run(
+    def run_training(
         self,
         run_id="run_0",
         num_epochs=EPOCHS,
         plot_metrics=False,
         metrics_dir=METRICS_DIR,
         models_dir=MODELS_DIR,
-        probs_csv_path=PROBS_FILE,
     ):
         """
         Run the MLP initialization and training.
@@ -124,8 +127,6 @@ class SuperphotClassifier(nn.Module):
             Where to store metrics.
         models_dir : str, optional
             Where to store models.
-        probs_csv_path :
-            Where to store the probability results.
 
         Returns
         -------
@@ -145,15 +146,13 @@ class SuperphotClassifier(nn.Module):
         ) = self.train_data
 
         config_path = os.path.join(models_dir, f"superphot-config-{run_id}.json")
-        self.config.save(config_path)
-
         model_path = os.path.join(models_dir, f"superphot-model-{run_id}.pt")
+
+        # Log model configuration
+        self.config.save(config_path)
 
         train_iterator = DataLoader(train_dataset, shuffle=True, batch_size=self.config.batch_size)
         valid_iterator = DataLoader(valid_dataset, batch_size=self.config.batch_size)
-
-        best_valid_loss = float("inf")
-        valid_acc = float("inf")
 
         metrics = ModelMetrics()
 
@@ -163,23 +162,25 @@ class SuperphotClassifier(nn.Module):
             train_loss, train_acc = self.train_epoch(train_iterator)
             val_loss, val_acc = self.evaluate_epoch(valid_iterator)
 
-            if val_loss < best_valid_loss:
-                best_valid_loss = val_loss
-                valid_acc = val_acc
-                torch.save(self.state_dict(), model_path)
+            if val_loss < self.best_model["valid_loss"]:
+                self.best_model["state_dict"] = self.state_dict()
+                self.best_model["valid_loss"] = val_loss
+                self.best_model["valid_acc"] = val_acc
 
             end_time = time.monotonic()
 
-            epoch_mins, epoch_secs = epoch_time(start_time, end_time)
-
             # Store metrics for the current epoch
-            metrics.append(train_loss, train_acc, val_loss, val_acc, epoch_mins, epoch_secs)
+            metrics.append(
+                train_metrics=(train_loss, train_acc),
+                val_metrics=(val_loss, val_acc),
+                epoch_time=epoch_time(start_time, end_time),
+            )
 
             if epoch % 5 == 0:
                 metrics.print_last()
 
-        # Load model with best validation score
-        self.load_state_dict(torch.load(model_path))
+        # Save model with best validation score
+        torch.save(self.best_model["state_dict"], model_path)
 
         # Plot training and validation metrics
         if plot_metrics:
@@ -190,19 +191,7 @@ class SuperphotClassifier(nn.Module):
                 metrics_dir=metrics_dir,
             )
 
-        # Run test if data is available
-        test_results = None
-
-        if self.test_data is not None:
-            labels, names, pred_labels, max_probs = self.test(probs_csv_path)
-            test_results = (
-                np.array(labels).astype(int),
-                np.array(names),
-                np.array(pred_labels).astype(int),
-                np.array(max_probs).astype(float),
-            )
-
-        return best_valid_loss, valid_acc, test_results
+        return self.best_model["valid_loss"], self.best_model["valid_acc"]
 
     def train_epoch(self, iterator):
         """Does one epoch of training for a given torch model.
@@ -275,12 +264,15 @@ class SuperphotClassifier(nn.Module):
 
         return epoch_loss / len(iterator), epoch_acc / len(iterator)
 
-    def test(self, save_path):
-        """Runs model over a group of test samples
+    def run_testing(self, test_data, probs_csv_path=PROBS_FILE):
+        """Runs model over a group of test samples.
 
         Parameters
         ----------
-        save_path
+        test_data : TestData
+            The data to evaluate the model. Consists of test features,
+            test classes, test names and a list of grouped indices, respectively.
+        probs_csv_path : str
             Where to store the probability results.
 
         Returns
@@ -289,18 +281,21 @@ class SuperphotClassifier(nn.Module):
             A tuple containing the labels, names, predicted labels
             and maximum probabilities.
         """
-        (test_features, test_classes, test_names, test_group_idxs) = self.test_data
+        # Retrieve the best model
+        self.load_state_dict(self.best_model["state_dict"])
+
+        test_features, test_classes, test_names, test_group_idxs = test_data
 
         labels, pred_labels, max_probs, names = [], [], [], []
 
         for group_idx_set in test_group_idxs:
-            test_data = create_dataset(
+            test_dataset = create_dataset(
                 test_features[group_idx_set],
                 test_classes[group_idx_set],
                 group_idx_set,
             )
 
-            test_iterator = DataLoader(test_data, batch_size=self.config.batch_size)
+            test_iterator = DataLoader(test_dataset, batch_size=self.config.batch_size)
 
             _, labels_indiv, indx_indiv, probs = self.get_predictions(test_iterator)
             probs_avg = np.mean(probs.numpy(), axis=0)
@@ -311,7 +306,7 @@ class SuperphotClassifier(nn.Module):
                 test_names[indx_indiv.numpy().astype(int)[0]],
                 probs_avg,
                 labels_indiv[0],
-                save_file=save_path,
+                save_file=probs_csv_path,
             )
 
             pred_labels.append(np.argmax(probs_avg))
@@ -319,7 +314,12 @@ class SuperphotClassifier(nn.Module):
             labels.append(labels_indiv[0])
             names.append(test_names[indx_indiv.numpy().astype(int)[0]])
 
-        return labels, names, pred_labels, max_probs
+        return (
+            np.array(labels).astype(int),
+            np.array(names),
+            np.array(pred_labels).astype(int),
+            np.array(max_probs).astype(float),
+        )
 
     def get_predictions(self, iterator):
         """Given a trained model, returns the test images, test labels, and
@@ -426,7 +426,7 @@ class SuperphotClassifier(nn.Module):
         return probs.numpy()
 
     @classmethod
-    def create(cls, config, train_data=None, test_data=None):
+    def create(cls, config, train_data=None):
         """Creates an MLP instance, optimizer and respective criterion.
 
         Parameters
@@ -435,15 +435,13 @@ class SuperphotClassifier(nn.Module):
             Includes (in order): input_size, output_size, n_neurons, n_hidden.
         train_data : TrainData
             Training and validation data.
-        test_data : TestData
-            Testing data.
 
         Returns
         ----------
         torch.nn.Module
             The MLP object.
         """
-        model = cls(config, train_data, test_data)
+        model = cls(config, train_data)
         model.criterion = model.criterion.to(config.device)
         model = model.to(config.device)
         return model
