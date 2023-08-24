@@ -15,7 +15,6 @@ from superphot_plus.constants import EPOCHS, HIDDEN_DROPOUT_FRAC, INPUT_DROPOUT_
 from superphot_plus.file_paths import METRICS_DIR, MODELS_DIR, PROBS_FILE
 from superphot_plus.format_data_ztf import normalize_features
 from superphot_plus.model.config import ModelConfig
-from superphot_plus.model.data import TestData, TrainData
 from superphot_plus.model.metrics import ModelMetrics
 from superphot_plus.plotting.classifier_results import plot_model_metrics
 from superphot_plus.utils import calculate_accuracy, create_dataset, epoch_time, save_test_probabilities
@@ -28,24 +27,15 @@ class SuperphotClassifier(nn.Module):
     ----------
     config : ModelConfig
         The MLP architecture configuration.
-    train_data : TrainData
-        The training and validation datasets.
     """
 
-    # Structure to store best model in memory
-    best_model = {
-        "state_dict": None,
-        "valid_loss": float("inf"),
-        "valid_acc": float("inf"),
-    }
-
-    def __init__(self, config: ModelConfig, train_data: TrainData):
+    def __init__(self, config: ModelConfig):
         super().__init__()
 
         # Initialize MLP architecture
         self.config = config
 
-        (input_dim, output_dim, neurons_per_layer, num_hidden_layers, _, learning_rate) = config
+        input_dim, output_dim, neurons_per_layer, num_hidden_layers = config.network_params
 
         n_neurons = neurons_per_layer
         self.input_fc = nn.Linear(input_dim, n_neurons)
@@ -64,11 +54,8 @@ class SuperphotClassifier(nn.Module):
         self.output_fc = nn.Linear(n_neurons, output_dim)
 
         # Optimizer and criterion
-        self.optimizer = optim.Adam(self.parameters(), lr=learning_rate)
+        self.optimizer = optim.Adam(self.parameters(), lr=config.learning_rate)
         self.criterion = nn.CrossEntropyLoss()
-
-        # Set training / validation data
-        self.train_data = train_data
 
     def forward(self, x):
         """Forward pass of the Multi-Layer Perceptron model.
@@ -101,13 +88,15 @@ class SuperphotClassifier(nn.Module):
 
         return y_pred, h_hidden
 
-    def run_training(
+    def train_and_validate(
         self,
+        train_data,
         run_id="run_0",
         num_epochs=EPOCHS,
         plot_metrics=False,
         metrics_dir=METRICS_DIR,
         models_dir=MODELS_DIR,
+        load_best_model=True,
     ):
         """
         Run the MLP initialization and training.
@@ -127,6 +116,8 @@ class SuperphotClassifier(nn.Module):
             Where to store metrics.
         models_dir : str, optional
             Where to store models.
+        load_best_model : boolean, optional
+            Determines whether to load best model configuration by the end of training.
 
         Returns
         -------
@@ -140,21 +131,23 @@ class SuperphotClassifier(nn.Module):
         torch.cuda.manual_seed(SEED)
         torch.backends.cudnn.deterministic = True
 
-        (
-            train_dataset,
-            valid_dataset,
-        ) = self.train_data
-
-        config_path = os.path.join(models_dir, f"superphot-config-{run_id}.json")
-        model_path = os.path.join(models_dir, f"superphot-model-{run_id}.pt")
+        train_dataset, valid_dataset = train_data
 
         # Log model configuration
+        config_path = os.path.join(models_dir, f"superphot-config-{run_id}.json")
         self.config.save(config_path)
 
-        train_iterator = DataLoader(train_dataset, shuffle=True, batch_size=self.config.batch_size)
-        valid_iterator = DataLoader(valid_dataset, batch_size=self.config.batch_size)
+        train_iterator = DataLoader(dataset=train_dataset, shuffle=True, batch_size=self.config.batch_size)
+        valid_iterator = DataLoader(dataset=valid_dataset, batch_size=self.config.batch_size)
 
         metrics = ModelMetrics()
+
+        # Structure to store best model in memory
+        best_model = {
+            "state_dict": None,
+            "valid_loss": float("inf"),
+            "valid_acc": float("inf"),
+        }
 
         for epoch in np.arange(0, num_epochs):
             start_time = time.monotonic()
@@ -162,10 +155,10 @@ class SuperphotClassifier(nn.Module):
             train_loss, train_acc = self.train_epoch(train_iterator)
             val_loss, val_acc = self.evaluate_epoch(valid_iterator)
 
-            if val_loss < self.best_model["valid_loss"]:
-                self.best_model["state_dict"] = self.state_dict()
-                self.best_model["valid_loss"] = val_loss
-                self.best_model["valid_acc"] = val_acc
+            if val_loss < best_model["valid_loss"]:
+                best_model["state_dict"] = self.state_dict()
+                best_model["valid_loss"] = val_loss
+                best_model["valid_acc"] = val_acc
 
             end_time = time.monotonic()
 
@@ -179,9 +172,6 @@ class SuperphotClassifier(nn.Module):
             if epoch % 5 == 0:
                 metrics.print_last()
 
-        # Save model with best validation score
-        torch.save(self.best_model["state_dict"], model_path)
-
         # Plot training and validation metrics
         if plot_metrics:
             plot_model_metrics(
@@ -191,7 +181,14 @@ class SuperphotClassifier(nn.Module):
                 metrics_dir=metrics_dir,
             )
 
-        return self.best_model["valid_loss"], self.best_model["valid_acc"]
+        # Save model with the best validation score
+        model_path = os.path.join(models_dir, f"superphot-model-{run_id}.pt")
+        torch.save(best_model["state_dict"], model_path)
+
+        if load_best_model:
+            self.load_state_dict(best_model["state_dict"])
+
+        return best_model["valid_loss"], best_model["valid_acc"]
 
     def train_epoch(self, iterator):
         """Does one epoch of training for a given torch model.
@@ -264,7 +261,7 @@ class SuperphotClassifier(nn.Module):
 
         return epoch_loss / len(iterator), epoch_acc / len(iterator)
 
-    def run_testing(self, test_data, probs_csv_path=PROBS_FILE):
+    def evaluate(self, test_data, probs_csv_path=PROBS_FILE):
         """Runs model over a group of test samples.
 
         Parameters
@@ -272,7 +269,7 @@ class SuperphotClassifier(nn.Module):
         test_data : TestData
             The data to evaluate the model. Consists of test features,
             test classes, test names and a list of grouped indices, respectively.
-        probs_csv_path : str
+        probs_csv_path : str, optional
             Where to store the probability results.
 
         Returns
@@ -281,9 +278,6 @@ class SuperphotClassifier(nn.Module):
             A tuple containing the labels, names, predicted labels
             and maximum probabilities.
         """
-        # Retrieve the best model
-        self.load_state_dict(self.best_model["state_dict"])
-
         test_features, test_classes, test_names, test_group_idxs = test_data
 
         labels, pred_labels, max_probs, names = [], [], [], []
@@ -295,7 +289,7 @@ class SuperphotClassifier(nn.Module):
                 group_idx_set,
             )
 
-            test_iterator = DataLoader(test_dataset, batch_size=self.config.batch_size)
+            test_iterator = DataLoader(dataset=test_dataset, batch_size=self.config.batch_size)
 
             _, labels_indiv, indx_indiv, probs = self.get_predictions(test_iterator)
             probs_avg = np.mean(probs.numpy(), axis=0)
@@ -426,22 +420,21 @@ class SuperphotClassifier(nn.Module):
         return probs.numpy()
 
     @classmethod
-    def create(cls, config, train_data=None):
+    def create(cls, config):
         """Creates an MLP instance, optimizer and respective criterion.
 
         Parameters
         ----------
         config : ModelConfig
             Includes (in order): input_size, output_size, n_neurons, n_hidden.
-        train_data : TrainData
-            Training and validation data.
+            Also includes normalization means and standard deviations.
 
         Returns
         ----------
         torch.nn.Module
             The MLP object.
         """
-        model = cls(config, train_data)
+        model = cls(config)
         model.criterion = model.criterion.to(config.device)
         model = model.to(config.device)
         return model
@@ -454,7 +447,7 @@ class SuperphotClassifier(nn.Module):
         ----------
         filename : str
             Where the trained MLP is stored.
-        config : ModelConfig
+        config_filename : ModelConfig
             Includes (in order): input_size, output_size, n_neurons, n_hidden.
             Also includes normalization means and standard deviations.
 

@@ -8,13 +8,23 @@ from superphot_plus.constants import BATCH_SIZE, LEARNING_RATE
 
 
 @dataclass
-class ModelConfig:
-    """Class that holds the MLP configuration."""
+class NetworkParams:
+    """Holds the neural network configuration."""
 
     input_dim: int
     output_dim: int
     neurons_per_layer: int
     num_hidden_layers: int
+
+    def __iter__(self):
+        return iter((self.input_dim, self.output_dim, self.neurons_per_layer, self.num_hidden_layers))
+
+
+@dataclass
+class ModelConfig:
+    """Holds model training configuration."""
+
+    network_params: NetworkParams
 
     normalization_means: List[float]
     normalization_stddevs: List[float]
@@ -24,31 +34,14 @@ class ModelConfig:
 
     device: torch.device = torch.device("cpu")
 
-    def __iter__(self):
-        return iter(
-            (
-                self.input_dim,
-                self.output_dim,
-                self.neurons_per_layer,
-                self.num_hidden_layers,
-                self.batch_size,
-                self.learning_rate,
-            )
-        )
-
     def save(self, filename):
         """Save configuration data to a JSON file."""
         data_dict = {
-            "config": [
-                self.input_dim,
-                self.output_dim,
-                self.neurons_per_layer,
-                self.num_hidden_layers,
-                self.batch_size,
-                self.learning_rate,
-            ],
+            "network_params": [*self.network_params],
             "normalization_means": self.normalization_means,
             "normalization_stddevs": self.normalization_stddevs,
+            "batch_size": self.batch_size,
+            "learning_rate": self.learning_rate,
         }
         with open(filename, "w", encoding="utf-8") as f:
             json.dump(data_dict, f)
@@ -59,7 +52,9 @@ class ModelConfig:
         with open(filename, "r", encoding="utf-8") as f:
             data_dict = json.load(f)
         return ModelConfig(
-            *data_dict["config"],
+            NetworkParams(*data_dict["network_params"]),
             data_dict["normalization_means"],
             data_dict["normalization_stddevs"],
+            data_dict["batch_size"],
+            data_dict["learning_rate"],
         )

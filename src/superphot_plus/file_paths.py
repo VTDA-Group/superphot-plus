@@ -6,7 +6,7 @@ FITS_DIR = "/storage/group/vav5084/default/superphot+/dynesty_fits_unclassified_
 DATA_DIRS = [
     "/storage/group/vav5084/default/superphot+/data_reformatted_05_09_2023",
 ]
-INPUT_CSVS = ["{DATA_DIR}/training_set.csv"]  # ["../data/training_set_combined_05_09_2023.csv"]
+INPUT_CSVS = [f"{DATA_DIR}/training_set.csv"]  # ["../data/training_set_combined_05_09_2023.csv"]
 
 # Directory to store models
 MODELS_DIR = f"{DATA_DIR}/models"

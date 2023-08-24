@@ -7,7 +7,7 @@ import torch
 
 from superphot_plus.constants import TRAINED_MODEL_PARAMS
 from superphot_plus.model.classifier import SuperphotClassifier
-from superphot_plus.model.config import ModelConfig
+from superphot_plus.model.config import ModelConfig, NetworkParams
 from superphot_plus.model.data import TrainData, TestData
 from superphot_plus.utils import create_dataset, calculate_accuracy, epoch_time
 
@@ -35,21 +35,34 @@ def test_run_mlp(tmp_path):
     train_dataset = create_dataset(train_features, train_labels)
     val_dataset = create_dataset(test_features, test_labels)
 
-    config = ModelConfig(input_dim, output_dim, neurons_per_layer, num_layers, normed_means, normed_stds)
+    network_params = NetworkParams(
+        input_dim=input_dim,
+        output_dim=output_dim,
+        neurons_per_layer=neurons_per_layer,
+        num_hidden_layers=num_layers,
+    )
 
-    train_data = TrainData(train_dataset, val_dataset)
-    test_data = TestData(test_features, test_labels, test_names, test_group_idxs)
+    model = SuperphotClassifier.create(
+        config=ModelConfig(
+            network_params=network_params,
+            normalization_means=normed_means,
+            normalization_stddevs=normed_stds,
+        )
+    )
 
-    model = SuperphotClassifier.create(config, train_data)
-
-    model.run_training(
+    model.train_and_validate(
+        train_data=TrainData(train_dataset, val_dataset),
         run_id="run_0",
         num_epochs=num_epochs,
         plot_metrics=True,
         metrics_dir=tmp_path,
         models_dir=tmp_path,
     )
-    model.run_testing(test_data, probs_csv_path=os.path.join(tmp_path, "probs_mlp.csv"))
+
+    model.evaluate(
+        test_data=TestData(test_features, test_labels, test_names, test_group_idxs),
+        probs_csv_path=os.path.join(tmp_path, "probs_mlp.csv"),
+    )
 
     assert os.path.exists(os.path.join(tmp_path, "accuracy_run_0.pdf"))
     assert os.path.exists(os.path.join(tmp_path, "loss_run_0.pdf"))

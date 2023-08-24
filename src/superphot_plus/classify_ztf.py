@@ -31,7 +31,7 @@ from superphot_plus.format_data_ztf import (
     tally_each_class,
 )
 from superphot_plus.model.classifier import SuperphotClassifier
-from superphot_plus.model.config import ModelConfig
+from superphot_plus.model.config import ModelConfig, NetworkParams
 from superphot_plus.model.data import TestData, TrainData
 from superphot_plus.plotting.confusion_matrices import plot_confusion_matrix
 from superphot_plus.supernova_class import SupernovaClass as SnClass
@@ -118,7 +118,7 @@ def classify(
 
     csv_path = PROBS_FILE if csv_path is None else csv_path
     with open(csv_path, "w+", encoding="utf-8") as pf:
-        pf.write("Name,Label,pSNIa,pSNII,pSNIIn,pSLSNI,pSNIbc")
+        pf.write("Name,Label,pSNIa,pSNII,pSNIIn,pSLSNI,pSNIbc\n")
 
     allowed_types = ["SN Ia", "SN II", "SN IIn", "SLSN-I", "SN Ibc"]
     output_dim = len(allowed_types)  # number of classes
@@ -229,25 +229,32 @@ def classify(
         val_dataset = create_dataset(val_features, val_classes)
         # test_data = create_dataset(test_features, test_classes)
 
+        params = NetworkParams(
+            input_dim=train_features.shape[1],
+            output_dim=output_dim,
+            neurons_per_layer=neurons_per_layer,
+            num_hidden_layers=num_layers,
+        )
+
         model = SuperphotClassifier(
-            ModelConfig(
-                input_dim=train_features.shape[1],
-                output_dim=output_dim,
-                neurons_per_layer=neurons_per_layer,
-                num_hidden_layers=num_layers,
+            config=ModelConfig(
+                network_params=params,
                 normalization_means=mean.tolist(),
                 normalization_stddevs=std.tolist(),
-            ),
-            TrainData(train_dataset, val_dataset),
+            )
         )
 
         # Train and validate multi-layer perceptron
-        best_valid_loss, _ = model.run_training(
-            run_id=f"fold-{fold_id}", num_epochs=num_epochs, metrics_dir=metrics_dir, models_dir=models_dir
+        best_valid_loss, _ = model.train_and_validate(
+            train_data=TrainData(train_dataset, val_dataset),
+            run_id=f"fold-{fold_id}",
+            num_epochs=num_epochs,
+            metrics_dir=metrics_dir,
+            models_dir=models_dir,
         )
 
         # Test model on remaining data
-        test_classes, test_names, pred_classes, pred_probs = model.run_testing(
+        test_classes, test_names, pred_classes, pred_probs = model.evaluate(
             TestData(test_features, test_classes, test_names, test_group_idxs), probs_csv_path=csv_path
         )
 
@@ -373,7 +380,7 @@ def return_new_classifications(model, test_csv, fit_dir, save_file, include_labe
 
     print(filepath)
     with open(filepath, "w+", encoding="utf-8") as pf:
-        pf.write("Name,Label,pSNIa,pSNII,pSNIIn,pSLSNI,pSNIbc")
+        pf.write("Name,Label,pSNIa,pSNII,pSNIIn,pSLSNI,pSNIbc\n")
 
     with open(test_csv, "r", encoding="utf-8") as tc:
         csv_reader = csv.reader(tc, delimiter=",")

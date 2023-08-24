@@ -19,7 +19,7 @@ from superphot_plus.format_data_ztf import (
     oversample_using_posteriors,
 )
 from superphot_plus.model.classifier import SuperphotClassifier
-from superphot_plus.model.config import ModelConfig
+from superphot_plus.model.config import ModelConfig, NetworkParams
 from superphot_plus.model.data import TrainData
 from superphot_plus.supernova_class import SupernovaClass as SnClass
 from superphot_plus.utils import create_dataset
@@ -141,22 +141,26 @@ def run_tune_params(config):
         train_dataset = create_dataset(train_features, train_classes)
         val_dataset = create_dataset(val_features, val_classes)
 
+        network_params = NetworkParams(
+            input_dim=train_features.shape[1],
+            output_dim=output_dim,
+            neurons_per_layer=config["neurons_per_layer"],
+            num_hidden_layers=config["num_hidden_layers"],
+        )
+
         model = SuperphotClassifier(
             config=ModelConfig(
-                input_dim=train_features.shape[1],
-                output_dim=output_dim,
-                neurons_per_layer=config["neurons_per_layer"],
-                num_hidden_layers=config["num_hidden_layers"],
+                network_params=network_params,
                 batch_size=config["batch_size"],
                 learning_rate=config["learning_rate"],
                 normalization_means=mean.tolist(),
                 normalization_stddevs=std.tolist(),
-            ),
-            train_data=TrainData(train_dataset, val_dataset),
+            )
         )
 
         # Run classifier for the number of specified epochs.
-        best_val_loss, val_acc = model.run_training(
+        best_val_loss, val_acc = model.train_and_validate(
+            train_data=TrainData(train_dataset, val_dataset),
             run_id=f"fold-{fold_id}",
             num_epochs=config["num_epochs"],
             metrics_dir=METRICS_DIR,
