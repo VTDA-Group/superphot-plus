@@ -366,7 +366,6 @@ def plot_redshifts_abs_mags(probs_snr_csv, save_dir):
         ],
         allowed_classes,
         needs_posteriors=False,
-        redshift=True,
     )
 
     labels = np.array([classes_to_labels[int(x)] for x in classes])

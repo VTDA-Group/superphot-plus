@@ -8,20 +8,14 @@ import time
 import numpy as np
 import torch
 import torch.nn.functional as F
-
 from torch import nn, optim
 from torch.utils.data import DataLoader, TensorDataset
 
-from superphot_plus.constants import (
-    EPOCHS,
-    HIDDEN_DROPOUT_FRAC,
-    INPUT_DROPOUT_FRAC,
-    SEED,
-)
+from superphot_plus.constants import EPOCHS, HIDDEN_DROPOUT_FRAC, INPUT_DROPOUT_FRAC, SEED
 from superphot_plus.file_paths import METRICS_DIR, MODELS_DIR, PROBS_FILE
 from superphot_plus.format_data_ztf import normalize_features
 from superphot_plus.model.config import ModelConfig
-from superphot_plus.model.data import TrainData, TestData
+from superphot_plus.model.data import TestData, TrainData
 from superphot_plus.model.metrics import ModelMetrics
 from superphot_plus.plotting.classifier_results import plot_model_metrics
 from superphot_plus.utils import calculate_accuracy, create_dataset, epoch_time, save_test_probabilities
@@ -196,18 +190,19 @@ class SuperphotClassifier(nn.Module):
                 metrics_dir=metrics_dir,
             )
 
-        if self.test_data is None:
-            return best_valid_loss, valid_acc
+        # Run test if data is available
+        test_results = None
 
-        labels, names, pred_labels, max_probs = self.test(probs_csv_path)
+        if self.test_data is not None:
+            labels, names, pred_labels, max_probs = self.test(probs_csv_path)
+            test_results = (
+                np.array(labels).astype(int),
+                np.array(names),
+                np.array(pred_labels).astype(int),
+                np.array(max_probs).astype(float),
+            )
 
-        return (
-            np.array(labels).astype(int),
-            np.array(names),
-            np.array(pred_labels).astype(int),
-            np.array(max_probs).astype(float),
-            best_valid_loss,
-        )
+        return best_valid_loss, valid_acc, test_results
 
     def train_epoch(self, iterator):
         """Does one epoch of training for a given torch model.

@@ -9,9 +9,7 @@ import numpy as np
 from sklearn.metrics import confusion_matrix
 from sklearn.utils.multiclass import unique_labels
 
-from superphot_plus.constants import BIGGER_SIZE, MEDIUM_SIZE, SMALL_SIZE
 from superphot_plus.file_paths import CM_FOLDER
-from superphot_plus.plotting.format_params import *
 from superphot_plus.plotting.utils import read_probs_csv
 from superphot_plus.supernova_class import SupernovaClass as SnClass
 from superphot_plus.utils import calc_accuracy, f1_score

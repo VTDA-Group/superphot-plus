@@ -13,12 +13,8 @@ class TrainData:
     val_dataset: TensorDataset
 
     def __iter__(self):
-        return iter(
-            (
-                self.train_dataset,
-                self.val_dataset
-            )
-        )
+        return iter((self.train_dataset, self.val_dataset))
+
 
 @dataclass
 class TestData:

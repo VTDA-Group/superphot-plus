@@ -1,9 +1,8 @@
 import json
-
-import torch
-
 from dataclasses import dataclass
 from typing import List
+
+import torch
 
 from superphot_plus.constants import BATCH_SIZE, LEARNING_RATE
 
@@ -46,18 +45,18 @@ class ModelConfig:
                 self.neurons_per_layer,
                 self.num_hidden_layers,
                 self.batch_size,
-                self.learning_rate
+                self.learning_rate,
             ],
             "normalization_means": self.normalization_means,
             "normalization_stddevs": self.normalization_stddevs,
         }
-        with open(filename, "w") as f:
+        with open(filename, "w", encoding="utf-8") as f:
             json.dump(data_dict, f)
 
     @classmethod
     def load(cls, filename):
         """Load configuration data from a JSON file."""
-        with open(filename, "r") as f:
+        with open(filename, "r", encoding="utf-8") as f:
             data_dict = json.load(f)
         return ModelConfig(
             *data_dict["config"],

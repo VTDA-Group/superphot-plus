@@ -13,8 +13,15 @@ import numpy as np
 from joblib import Parallel, delayed
 from sklearn.model_selection import train_test_split
 
-from superphot_plus.constants import NUM_FOLDS, PAD_SIZE
-from superphot_plus.file_paths import *  # pylint: disable=wildcard-import
+from superphot_plus.constants import NUM_FOLDS
+from superphot_plus.file_paths import (
+    CM_FOLDER,
+    FIT_PLOTS_FOLDER,
+    METRICS_DIR,
+    MODELS_DIR,
+    PROBS_FILE,
+    WRONGLY_CLASSIFIED_FOLDER,
+)
 from superphot_plus.file_utils import get_posterior_samples
 from superphot_plus.format_data_ztf import (
     generate_K_fold,
@@ -23,10 +30,9 @@ from superphot_plus.format_data_ztf import (
     oversample_using_posteriors,
     tally_each_class,
 )
-from superphot_plus.lightcurve import Lightcurve
 from superphot_plus.model.classifier import SuperphotClassifier
 from superphot_plus.model.config import ModelConfig
-from superphot_plus.model.data import TrainData, TestData
+from superphot_plus.model.data import TestData, TrainData
 from superphot_plus.plotting.confusion_matrices import plot_confusion_matrix
 from superphot_plus.supernova_class import SupernovaClass as SnClass
 from superphot_plus.utils import calc_accuracy, create_dataset, f1_score, save_test_probabilities
@@ -40,6 +46,8 @@ def adjust_log_dists(features_orig, redshift=False):
     ----------
     features_orig : np.ndarray
         Array of fit features of all samples.
+    redshift : boolean, optional
+        Whether to keep redshift data or not.
 
     Returns
     ---------
@@ -97,6 +105,7 @@ def classify(
         FIT_PLOTS_FOLDER. Copies plots of wrongly classified samples to
         separate folder for manual followup. Defaults to False.
     """
+    sampler = "dynesty"
 
     os.makedirs(metrics_dir, exist_ok=True)
     os.makedirs(models_dir, exist_ok=True)
@@ -114,21 +123,15 @@ def classify(
     allowed_types = ["SN Ia", "SN II", "SN IIn", "SLSN-I", "SN Ibc"]
     output_dim = len(allowed_types)  # number of classes
 
-    labels_to_classes, classes_to_labels = SnClass.get_type_maps(allowed_types)
-
-    fn_prefix = "cm_%d_%d_%d_%d" % (goal_per_class, num_epochs, neurons_per_layer, num_layers)
+    fn_prefix = f"cm_{goal_per_class}_{num_epochs}_{neurons_per_layer}_{num_layers}"
     fn_purity = os.path.join(cm_folder, fn_prefix + "_p.pdf")
     fn_completeness = os.path.join(cm_folder, fn_prefix + "_c.pdf")
     fn_purity_07 = os.path.join(cm_folder, fn_prefix + "_p_p07.pdf")
     fn_completeness_07 = os.path.join(cm_folder, fn_prefix + "_c_p07.pdf")
 
-    if include_redshift:
-        names, labels, redshifts = import_labels_only(
-            input_csvs, allowed_types, fits_dir=fit_dir, sampler=sampler, redshift=True
-        )
-
-    else:
-        names, labels = import_labels_only(input_csvs, allowed_types, fits_dir=fit_dir, sampler=sampler)
+    names, labels, redshifts = import_labels_only(
+        input_csvs, allowed_types, fits_dir=fit_dir, sampler=sampler
+    )
 
     tally_each_class(labels)  # original tallies
 
@@ -138,8 +141,8 @@ def classify(
     predicted_classes_mlp = np.array([])
     prob_above_07_mlp = np.array([], dtype=bool)
 
-    def run_single_fold(id, x):
-        train_index, test_index = x
+    def run_single_fold(fold_id, fold):
+        train_index, test_index = fold
         train_labels = labels[train_index]
         test_labels = labels[test_index]
         test_names = np.array(names[test_index])
@@ -152,48 +155,41 @@ def classify(
         train_labels = labels[train_index]
         val_labels = labels[val_index]
 
-        if include_redshift:
-            train_redshifts = redshifts[train_index]
-            val_redshifts = redshifts[val_index]
-            test_redshifts = redshifts[test_index]
-            test_redshifts_os = []
-
         train_classes = SnClass.get_classes_from_labels(train_labels)
         val_classes = SnClass.get_classes_from_labels(val_labels)
         test_classes = SnClass.get_classes_from_labels(test_labels)
 
-        if include_redshift:
-            train_features, train_classes, train_redshifts = oversample_using_posteriors(
-                train_names,
-                train_classes,
-                goal_per_class,
-                fit_dir,
-                sampler=sampler,
-                redshifts=train_redshifts,
-            )
-            val_features, val_classes, val_redshifts = oversample_using_posteriors(
-                val_names,
-                val_classes,
-                round(0.1 * goal_per_class),
-                fit_dir,
-                sampler=sampler,
-                redshifts=val_redshifts,
-            )
-        else:
-            train_features, train_classes = oversample_using_posteriors(
-                train_names, train_classes, goal_per_class, fit_dir, sampler=sampler
-            )
-            val_features, val_classes = oversample_using_posteriors(
-                val_names, val_classes, round(0.1 * goal_per_class), fit_dir, sampler=sampler
-            )
+        train_redshifts = redshifts[train_index]
+        val_redshifts = redshifts[val_index]
+        test_redshifts = redshifts[test_index]
+        test_redshifts_os = []
 
+        train_features, train_classes, train_redshifts = oversample_using_posteriors(
+            lc_names=train_names,
+            labels=train_classes,
+            goal_per_class=goal_per_class,
+            fits_dir=fit_dir,
+            sampler=sampler,
+            redshifts=train_redshifts,
+            oversample_redshifts=include_redshift,
+        )
+        val_features, val_classes, val_redshifts = oversample_using_posteriors(
+            lc_names=val_names,
+            labels=val_classes,
+            goal_per_class=round(0.1 * goal_per_class),
+            fits_dir=fit_dir,
+            sampler=sampler,
+            redshifts=val_redshifts,
+            oversample_redshifts=include_redshift,
+        )
+
+        # Generate test data
         test_features = []
         test_classes_os = []
         test_group_idxs = []
         test_names_os = []
 
-        for i in range(len(test_names)):
-            test_name = test_names[i]
+        for i, test_name in enumerate(test_names):
             test_posts = get_posterior_samples(test_name, fit_dir, sampler)
             test_features.extend(test_posts)
             test_classes_os.extend([test_classes[i]] * len(test_posts))
@@ -247,15 +243,18 @@ def classify(
         )
 
         # Train and evaluate multi-layer perceptron
-        test_classes, test_names, pred_classes, pred_probs, valid_loss = model.run(
-            run_id=f"fold-{id}",
+        best_valid_loss, _, test_results = model.run(
+            run_id=f"fold-{fold_id}",
             num_epochs=num_epochs,
             metrics_dir=metrics_dir,
             models_dir=models_dir,
-            probs_csv_path=csv_path
+            probs_csv_path=csv_path,
         )
 
-        return pred_classes, pred_probs > 0.7, test_classes, test_names, valid_loss
+        # Extract test results
+        test_classes, test_names, pred_classes, pred_probs = test_results
+
+        return pred_classes, pred_probs > 0.7, test_classes, test_names, best_valid_loss
 
     r = Parallel(n_jobs=-1)(delayed(run_single_fold)(i, fold) for i, fold in enumerate(kfold))
     (
@@ -288,6 +287,9 @@ def classify(
                 os.path.join(WRONGLY_CLASSIFIED_FOLDER, wc_type + "/" + fn_new),
             )
 
+    test_acc = calc_accuracy(predicted_classes_mlp, true_classes_mlp)
+    test_f1_score = f1_score(predicted_classes_mlp, true_classes_mlp, class_average=True)
+
     with open(classify_log_file, "a+", encoding="utf-8") as the_file:
         the_file.write(str(goal_per_class) + " samples per class\n")
         the_file.write(str(neurons_per_layer) + " neurons per each of " + str(num_layers) + " layers\n")
@@ -299,12 +301,9 @@ def classify(
             + str(len(true_classes_mlp[prob_above_07_mlp]))
             + "\n"
         )
-        the_file.write(
-            "MLP class-averaged F1-score: %.04f\n"
-            % f1_score(predicted_classes_mlp, true_classes_mlp, class_average=True)
-        )
-        the_file.write("Accuracy: %.04f\n" % calc_accuracy(predicted_classes_mlp, true_classes_mlp))
-        the_file.write("Validation Loss: %.04f\n\n" % valid_loss_avg)
+        the_file.write(f"MLP class-averaged F1-score: {test_f1_score:.04f}\n")
+        the_file.write(f"Accuracy: {test_acc:.04f}\n")
+        the_file.write(f"Validation Loss: {valid_loss_avg:.04f}\n\n")
 
     # Plot full and p > 0.7 confusion matrices
     plot_confusion_matrix(true_classes_mlp, predicted_classes_mlp, fn_purity, True)
@@ -397,68 +396,3 @@ def return_new_classifications(model, test_csv, fit_dir, save_file, include_labe
             probs_avg = classify_single_light_curve(model, test_name, fit_dir)
 
             save_test_probabilities(test_name, probs_avg, label, output_dir, save_file)
-
-
-def save_phase_versus_class_probs(model, probs_csv, data_dir):
-    """Apply classifier to dataset over different phases. Plot overall
-    trends of phase vs confidence, phase vs F1 score, phase vs each
-    class accuracy.
-
-    Note this was being manually altered for different desired plots.
-    Future versions will move all that to function args.
-
-    Parameters
-    ----------
-    probs_csv : str
-        Path to the CSV file containing the test probabilities.
-    data_dir : str
-        Path to the directory containing the data.
-    """
-
-    ct = 0
-
-    t_cutoffs = np.arange(-18, 54, 4)
-    with open(probs_csv, "r") as tc:
-        csv_reader = csv.reader(tc, delimiter=",")
-        next(csv_reader)
-        for _, row in enumerate(csv_reader):
-            if ct >= 60:
-                break
-            test_name = row[0]
-            label = row[1]
-            if int(label[-2]) != 4:
-                continue
-
-            ct += 1
-
-            try:
-                lc = Lightcurve.from_file(os.path.join(data_dir, test_name + ".npz"))
-                lc.pad_bands(["g", "r"], PAD_SIZE)
-                tarr = lc.times
-                farr = lc.fluxes
-            except:
-                print("skipping import")
-                continue
-
-            mean_t0 = tarr[np.argmax(farr)]
-
-            def single_loop(phase):
-                t = phase + float(mean_t0)
-                print(phase)
-                if phase > 50.0:
-                    return None
-
-                # try:
-                #     # refit_posts = run_mcmc(os.path.join(data_dir, test_name + ".npz"), t)
-                # except:
-                #     print("skipping fitting")
-                #     return None
-
-                # normalize the log distributions
-                test_features = adjust_log_dists(test_features)
-                probs = model.classify_from_fit_params(test_features)
-                probs_avg = np.mean(probs.numpy(), axis=0)
-                # idx_random = np.random.choice(np.arange(len(probs)))
-                save_test_probabilities(str(label), round(phase, 2), probs_avg)
-
-            Parallel(n_jobs=-1)(delayed(single_loop)(float(x)) for x in t_cutoffs)

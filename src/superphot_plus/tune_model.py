@@ -9,13 +9,14 @@ from ray.air import session
 from ray.tune import CLIReporter
 from ray.tune.search.optuna import OptunaSearch
 from sklearn.model_selection import train_test_split
+
 from superphot_plus.classify_ztf import adjust_log_dists
 from superphot_plus.file_paths import METRICS_DIR, MODELS_DIR
 from superphot_plus.format_data_ztf import (
-    import_labels_only,
     generate_K_fold,
-    oversample_using_posteriors,
+    import_labels_only,
     normalize_features,
+    oversample_using_posteriors,
 )
 from superphot_plus.model.classifier import SuperphotClassifier
 from superphot_plus.model.config import ModelConfig
@@ -55,25 +56,11 @@ def run_tune_params(config):
     output_dim = len(allowed_types)
 
     # Load data and set aside 10% of data for testing.
-    if INCLUDE_REDSHIFT:
-        names, labels, redshifts = import_labels_only(
-            allowed_types=allowed_types,
-            input_csvs=INPUT_CSVS,
-            fits_dir=FITS_DIR,
-            sampler=SAMPLER,
-            redshift=True,
-        )
-        names, test_names, labels, test_labels, redshifts, test_redshifts = train_test_split(
-            names, labels, redshifts, test_size=0.1
-        )
-    else:
-        names, labels = import_labels_only(
-            allowed_types=allowed_types,
-            input_csvs=INPUT_CSVS,
-            fits_dir=FITS_DIR,
-            sampler=SAMPLER,
-        )
-        names, test_names, labels, test_labels = train_test_split(names, labels, test_size=0.1)
+    names, labels, redshifts = import_labels_only(
+        allowed_types=allowed_types, input_csvs=INPUT_CSVS, fits_dir=FITS_DIR, sampler=SAMPLER
+    )
+
+    names, _, labels, _, redshifts, _ = train_test_split(names, labels, redshifts, test_size=0.1)
 
     # Generate K-folds for the remaining data.
     kfold = generate_K_fold(np.zeros(len(labels)), labels, config["num_folds"])
@@ -100,27 +87,29 @@ def run_tune_params(config):
         train_classes = SnClass.get_classes_from_labels(train_labels)
         val_classes = SnClass.get_classes_from_labels(val_labels)
 
+        train_redshifts = redshifts[train_index]
+        val_redshifts = redshifts[val_index]
+
+        train_features, train_classes, train_redshifts = oversample_using_posteriors(
+            lc_names=train_names,
+            labels=train_classes,
+            goal_per_class=config["goal_per_class"],
+            fits_dir=FITS_DIR,
+            sampler=SAMPLER,
+            redshifts=train_redshifts,
+            oversample_redshifts=INCLUDE_REDSHIFT,
+        )
+        val_features, val_classes, val_redshifts = oversample_using_posteriors(
+            lc_names=val_names,
+            labels=val_classes,
+            goal_per_class=round(0.1 * config["goal_per_class"]),
+            fits_dir=FITS_DIR,
+            sampler=SAMPLER,
+            redshifts=val_redshifts,
+            oversample_redshifts=INCLUDE_REDSHIFT,
+        )
+
         if INCLUDE_REDSHIFT:
-            train_redshifts = redshifts[train_index]
-            val_redshifts = redshifts[val_index]
-
-            train_features, train_classes, train_redshifts = oversample_using_posteriors(
-                lc_names=train_names,
-                labels=train_classes,
-                goal_per_class=config["goal_per_class"],
-                fits_dir=FITS_DIR,
-                sampler=SAMPLER,
-                redshifts=train_redshifts,
-            )
-            val_features, val_classes, val_redshifts = oversample_using_posteriors(
-                lc_names=val_names,
-                labels=val_classes,
-                goal_per_class=round(0.1 * config["goal_per_class"]),
-                fits_dir=FITS_DIR,
-                sampler=SAMPLER,
-                redshifts=val_redshifts,
-            )
-
             train_features = np.hstack(
                 (
                     train_features,
@@ -140,21 +129,6 @@ def run_tune_params(config):
                         ]
                     ).T,
                 )
-            )
-        else:
-            train_features, train_classes = oversample_using_posteriors(
-                lc_names=train_names,
-                labels=train_classes,
-                goal_per_class=config["goal_per_class"],
-                fits_dir=FITS_DIR,
-                sampler=SAMPLER,
-            )
-            val_features, val_classes = oversample_using_posteriors(
-                lc_names=val_names,
-                labels=val_classes,
-                goal_per_class=round(0.1 * config["goal_per_class"]),
-                fits_dir=FITS_DIR,
-                sampler=SAMPLER,
             )
 
         # Normalize the log distributions.
@@ -182,7 +156,7 @@ def run_tune_params(config):
         )
 
         # Run classifier for the number of specified epochs.
-        best_val_loss, val_acc = model.run(
+        best_val_loss, val_acc, _ = model.run(
             run_id=f"fold-{fold_id}",
             num_epochs=config["num_epochs"],
             metrics_dir=METRICS_DIR,
@@ -248,7 +222,7 @@ def run_nested_cv(num_samples):
     print(f"Best trial validation loss: {best_trial.last_result['avg_val_loss']}")
 
     # Store best config to file
-    with open(BEST_CONFIG_FILE, "w") as out_file:
+    with open(BEST_CONFIG_FILE, "w", encoding="utf-8") as out_file:
         json.dump(best_trial.config, out_file)
 
 
