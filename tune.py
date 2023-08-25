@@ -230,6 +230,11 @@ if __name__ == "__main__":
         description="Entrypoint to train and evaluate models using K-Fold cross validation",
     )
     parser.add_argument(
+        "--num_samples",
+        help="Name of parameter combinations to try",
+        default=10,
+    )
+    parser.add_argument(
         "--sampler",
         help="Name of the sampler to load fits from",
         choices=["dynesty", "nuts", "svi"],
@@ -245,7 +250,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     run_nested_cv(
-        num_samples=1,
+        num_samples=args.num_samples,
         sampler=args.sampler,
         include_redshift=args.include_redshifts,
     )
