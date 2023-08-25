@@ -1,6 +1,6 @@
 """This module implements the Multi-Layer Perceptron (MLP) model for
 classification."""
-
+import csv
 import os
 import random
 import time
@@ -13,11 +13,18 @@ from torch.utils.data import DataLoader, TensorDataset
 
 from superphot_plus.constants import EPOCHS, HIDDEN_DROPOUT_FRAC, INPUT_DROPOUT_FRAC, SEED
 from superphot_plus.file_paths import METRICS_DIR, MODELS_DIR, PROBS_FILE
+from superphot_plus.file_utils import get_posterior_samples
 from superphot_plus.format_data_ztf import normalize_features
 from superphot_plus.model.config import ModelConfig
 from superphot_plus.model.metrics import ModelMetrics
 from superphot_plus.plotting.classifier_results import plot_model_metrics
-from superphot_plus.utils import calculate_accuracy, create_dataset, epoch_time, save_test_probabilities
+from superphot_plus.utils import (
+    adjust_log_dists,
+    calculate_accuracy,
+    create_dataset,
+    epoch_time,
+    save_test_probabilities,
+)
 
 
 class SuperphotClassifier(nn.Module):
@@ -106,7 +113,9 @@ class SuperphotClassifier(nn.Module):
 
         Parameters
         ----------
-        run_id: int, optional
+        train_data : TrainData
+            The training and validation datasets.
+        run_id : int, optional
             A call identifier (useful for parallel calls on cross-validation).
         num_epochs : int, optional
             The number of epochs. Defaults to EPOCHS.
@@ -392,6 +401,36 @@ class SuperphotClassifier(nn.Module):
 
         return images, probs
 
+    def classify_single_light_curve(self, obj_name, fits_dir, sampler="dynesty"):
+        """Given an object name, return classification probabilities
+        based on the model fit and data.
+
+        Parameters
+        ----------
+        obj_name : str
+            Name of the supernova.
+        fits_dir : str
+            Where model fit information is stored.
+        sampler : str
+            The MCMC sampler to use. Defaults to "dynesty".
+
+        Returns
+        ----------
+        np.ndarray
+            The average probability for each SN type across all equally-weighted sets of fit parameters.
+        """
+        post_features = get_posterior_samples(obj_name, fits_dir, sampler)
+
+        chisq = np.mean(post_features[:, -1])
+        if np.abs(chisq) > 10:  # probably not a SN
+            print("OBJECT LIKELY NOT A SN")
+
+        # normalize the log distributions
+        post_features = adjust_log_dists(post_features)
+        probs = self.classify_from_fit_params(post_features)
+        probs_avg = np.mean(probs, axis=0)
+        return probs_avg
+
     def classify_from_fit_params(self, fit_params):
         """Classify one or multiple light curves solely from the fit parameters
         used in the classifier. Excludes t0 and, for redshift-exclusive
@@ -418,6 +457,48 @@ class SuperphotClassifier(nn.Module):
         test_iterator = DataLoader(test_data, batch_size=self.config.batch_size)
         _, probs = self.get_predictions_from_fit_params(test_iterator)
         return probs.numpy()
+
+    def return_new_classifications(self, test_csv, fit_dir, save_file, output_dir=None, include_labels=False):
+        """Return new classifications based on model and save probabilities
+        to a CSV file.
+
+        Parameters
+        ----------
+        test_csv : str
+            Path to the CSV file containing the test data.
+        fit_dir : str
+            Path to the directory containing the fit data.
+        save_file : str
+            File to store the new classification outputs.
+        output_dir : str
+            Path to the directory to store the classification outputs.
+        include_labels : bool, optional
+            If True, labels from the test data are included in the
+            probability saving process. Defaults to False.
+        """
+        filepath = save_file if output_dir is None else os.path.join(output_dir, save_file)
+
+        print(filepath)
+        with open(filepath, "w+", encoding="utf-8") as pf:
+            pf.write("Name,Label,pSNIa,pSNII,pSNIIn,pSLSNI,pSNIbc\n")
+
+        with open(test_csv, "r", encoding="utf-8") as tc:
+            csv_reader = csv.reader(tc, delimiter=",")
+            next(csv_reader)
+            for _, row in enumerate(csv_reader):
+                try:
+                    test_name = row[0]
+                except:
+                    print(row, "skipped")
+                    continue
+
+                label = None
+
+                if include_labels:
+                    label = row[1]
+
+                probs_avg = self.classify_single_light_curve(test_name, fit_dir)
+                save_test_probabilities(test_name, probs_avg, label, output_dir, save_file)
 
     @classmethod
     def create(cls, config):

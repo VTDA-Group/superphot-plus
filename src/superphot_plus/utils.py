@@ -1,4 +1,5 @@
 import os
+import shutil
 
 import extinction
 import numpy as np
@@ -8,7 +9,7 @@ from dustmaps.config import config
 from dustmaps.sfd import SFDQuery
 from torch.utils.data import TensorDataset
 
-from superphot_plus.file_paths import PROBS_FILE, PROBS_FILE2
+from superphot_plus.file_paths import FIT_PLOTS_FOLDER, PROBS_FILE, PROBS_FILE2, WRONGLY_CLASSIFIED_FOLDER
 from superphot_plus.sfd import dust_filepath
 
 
@@ -442,3 +443,58 @@ def save_test_probabilities(
         for prob in pred_probabilities:
             probs_file.write(f",{prob:.04f}")
         probs_file.write("\n")
+
+
+def adjust_log_dists(features_orig, redshift=False):
+    """Takes log of fit parameters with log-Gaussian priors before
+    feeding into classifier. Also removes apparent amplitude and t0.
+
+    Parameters
+    ----------
+    features_orig : np.ndarray
+        Array of fit features of all samples.
+    redshift : boolean, optional
+        Whether to keep redshift data or not.
+
+    Returns
+    ---------
+    features : np.ndarray
+        Array of adjusted fit features.
+    """
+    features = np.copy(features_orig)
+    features[:, 4:7] = np.log10(features[:, 4:7])
+    features[:, 2] = np.log10(features[:, 2])
+
+    if redshift:  # keep amplitude
+        return np.delete(
+            features,
+            [
+                3,
+            ],
+            1,
+        )
+
+    return np.delete(features, [0, 3], 1)
+
+
+def extract_wrong_classifications(true_classes, predicted_classes, ztf_test_names):
+    """Extracts the wrong model classifications and copies them to a separate folder.
+
+    Parameters
+    ----------
+    true_classes The ground truth for the classified samples
+    predicted_classes The predictions for the classified samples
+    ztf_test_names The ZTF object names for the classified samples
+    """
+    wrongly_classified = np.where(true_classes != predicted_classes)[0]
+
+    for wc_idx in wrongly_classified:
+        wc = ztf_test_names[wc_idx]
+        wc_type = true_classes[wc_idx]
+        wrong_type = predicted_classes[wc_idx]
+        fn = wc + ".png"
+        fn_new = wc + "_" + wc_type + "_" + wrong_type + ".png"
+        shutil.copy(
+            os.path.join(FIT_PLOTS_FOLDER, fn),
+            os.path.join(WRONGLY_CLASSIFIED_FOLDER, wc_type + "/" + fn_new),
+        )

@@ -1,5 +1,7 @@
+"""Entrypoint to run hyperparameter tuning using Nested CV."""
 import json
 import os
+from functools import partial
 
 import numpy as np
 import ray
@@ -11,7 +13,7 @@ from ray.tune.search.optuna import OptunaSearch
 from sklearn.model_selection import train_test_split
 
 from superphot_plus.classify_ztf import adjust_log_dists
-from superphot_plus.file_paths import METRICS_DIR, MODELS_DIR
+from superphot_plus.file_paths import METRICS_DIR, MODELS_DIR, INPUT_CSVS, DATA_DIR
 from superphot_plus.format_data_ztf import (
     generate_K_fold,
     import_labels_only,
@@ -22,22 +24,12 @@ from superphot_plus.model.classifier import SuperphotClassifier
 from superphot_plus.model.config import ModelConfig, NetworkParams
 from superphot_plus.model.data import TrainData
 from superphot_plus.supernova_class import SupernovaClass as SnClass
+from superphot_plus.tune_model import BEST_CONFIG_FILE
 from superphot_plus.utils import create_dataset
-
-####################################
-
-DATA_DIR = "data"
-SAMPLER = "dynesty"
-INCLUDE_REDSHIFT = True
-
-FITS_DIR = f"{DATA_DIR}/dynesty_fits"
-INPUT_CSVS = [f"{DATA_DIR}/training_set.csv"]
-BEST_CONFIG_FILE = f"{DATA_DIR}/best_config.json"
-
-####################################
+from argparse import ArgumentParser
 
 
-def run_tune_params(config):
+def run_tune_params(config, sampler, include_redshift):
     """Estimates the model performance for each hyperparameter set,
     reporting the mean validation loss and accuracy for each fold.
 
@@ -48,6 +40,8 @@ def run_tune_params(config):
     # Run Tune in the project's working directory.
     os.chdir(os.environ["TUNE_ORIG_WORKING_DIR"])
 
+    fits_dir = f"{DATA_DIR}/{sampler}_fits"
+
     # Create output folders.
     os.makedirs(MODELS_DIR, exist_ok=True)
     os.makedirs(METRICS_DIR, exist_ok=True)
@@ -56,8 +50,9 @@ def run_tune_params(config):
     output_dim = len(allowed_types)
 
     # Load data and set aside 10% of data for testing.
+
     names, labels, redshifts = import_labels_only(
-        allowed_types=allowed_types, input_csvs=INPUT_CSVS, fits_dir=FITS_DIR, sampler=SAMPLER
+        allowed_types=allowed_types, input_csvs=INPUT_CSVS, fits_dir=fits_dir, sampler=sampler
     )
 
     names, _, labels, _, redshifts, _ = train_test_split(names, labels, redshifts, test_size=0.1)
@@ -94,22 +89,22 @@ def run_tune_params(config):
             lc_names=train_names,
             labels=train_classes,
             goal_per_class=config["goal_per_class"],
-            fits_dir=FITS_DIR,
-            sampler=SAMPLER,
+            fits_dir=fits_dir,
+            sampler=sampler,
             redshifts=train_redshifts,
-            oversample_redshifts=INCLUDE_REDSHIFT,
+            oversample_redshifts=include_redshift,
         )
         val_features, val_classes, val_redshifts = oversample_using_posteriors(
             lc_names=val_names,
             labels=val_classes,
             goal_per_class=round(0.1 * config["goal_per_class"]),
-            fits_dir=FITS_DIR,
-            sampler=SAMPLER,
+            fits_dir=fits_dir,
+            sampler=sampler,
             redshifts=val_redshifts,
-            oversample_redshifts=INCLUDE_REDSHIFT,
+            oversample_redshifts=include_redshift,
         )
 
-        if INCLUDE_REDSHIFT:
+        if include_redshift:
             train_features = np.hstack(
                 (
                     train_features,
@@ -132,8 +127,8 @@ def run_tune_params(config):
             )
 
         # Normalize the log distributions.
-        train_features = adjust_log_dists(train_features, redshift=INCLUDE_REDSHIFT)
-        val_features = adjust_log_dists(val_features, redshift=INCLUDE_REDSHIFT)
+        train_features = adjust_log_dists(train_features, redshift=include_redshift)
+        val_features = adjust_log_dists(val_features, redshift=include_redshift)
         train_features, mean, std = normalize_features(train_features)
         val_features, mean, std = normalize_features(val_features, mean, std)
 
@@ -179,7 +174,7 @@ def run_tune_params(config):
     session.report({"avg_val_loss": np.mean(val_losses), "avg_val_acc": np.mean(val_accs)})
 
 
-def run_nested_cv(num_samples):
+def run_nested_cv(num_samples, sampler, include_redshift):
     """Runs Tune experiments to search hyperparameter space.
 
     Parameters
@@ -208,7 +203,7 @@ def run_nested_cv(num_samples):
 
     # Start hyperparameter search.
     result = tune.run(
-        run_tune_params,
+        partial(run_tune_params, sampler=sampler, include_redshift=include_redshift),
         config=config,
         search_alg=OptunaSearch(),
         resources_per_trial=resources,
@@ -231,4 +226,22 @@ def run_nested_cv(num_samples):
 
 
 if __name__ == "__main__":
-    run_nested_cv(num_samples=10)
+    parser = ArgumentParser(
+        description="Entrypoint to train and evaluate models using K-Fold cross validation",
+    )
+    parser.add_argument(
+        "--sampler", help="Name of the sampler to use", choices=["dynesty", "nuts", "svi"], default="dynesty"
+    )
+    parser.add_argument(
+        "--include_redshift",
+        help="If true, include redshift data for hyperparameter tuning",
+        choices=[True, False],
+        default=True,
+    )
+    args = parser.parse_args()
+
+    run_nested_cv(
+        num_samples=10,
+        sampler=args.sampler,
+        include_redshift=args.include_redshift,
+    )

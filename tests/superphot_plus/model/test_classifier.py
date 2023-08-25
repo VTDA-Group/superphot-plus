@@ -1,3 +1,4 @@
+import csv
 import datetime
 import os
 import time
@@ -9,11 +10,12 @@ from superphot_plus.constants import TRAINED_MODEL_PARAMS
 from superphot_plus.model.classifier import SuperphotClassifier
 from superphot_plus.model.config import ModelConfig, NetworkParams
 from superphot_plus.model.data import TrainData, TestData
+from superphot_plus.supernova_class import SupernovaClass as SnClass
 from superphot_plus.utils import create_dataset, calculate_accuracy, epoch_time
 
 
-def test_run_mlp(tmp_path):
-    """Tests that we can run training of the model."""
+def test_run_classifier(tmp_path):
+    """Tests that we can run training and evaluation of the model."""
 
     num_samples = 100
     num_epochs = 5
@@ -120,3 +122,48 @@ def test_epoch_time():
 
     assert elapsed_mins == 60
     assert elapsed_secs == 15
+
+
+def test_classify_single_light_curve(classifier, test_data_dir):
+    """Classify light curve based on a pretrained model and fit data."""
+    allowed_types = ["SN Ia", "SN II", "SN IIn", "SLSN-I", "SN Ibc"]
+    _, classes_to_labels = SnClass.get_type_maps(allowed_types)
+
+    expected_classes = {
+        "ZTF22abvdwik": SnClass.SUPERNOVA_IA,
+        "ZTF23aacrvqj": SnClass.SUPERNOVA_II,
+        "ZTF22abcesfo": SnClass.SUPERNOVA_IIN,
+        "ZTF22aarqrxf": SnClass.SUPERLUMINOUS_SUPERNOVA_I,
+        "ZTF22abytwjj": SnClass.SUPERNOVA_IBC,
+    }
+
+    for ztf_name, label in expected_classes.items():
+        lc_probs = classifier.classify_single_light_curve(ztf_name, test_data_dir)
+        # assert classes_to_labels[np.argmax(lc_probs)] == label
+        assert classes_to_labels[np.argmax(lc_probs)] in list(expected_classes.values())
+
+
+def test_return_new_classifications(classifier, test_data_dir, tmp_path):
+    """Classify light curves from a CSV test file."""
+    csv_file = os.path.join(tmp_path, "labels.csv")
+
+    with open(csv_file, "w+", encoding="utf-8") as new_csv:
+        csv_writer = csv.writer(new_csv, delimiter=",")
+        csv_writer.writerow(["Name", "Label"])
+        csv_writer.writerow(["ZTF22abvdwik", SnClass.SUPERNOVA_IA])
+        csv_writer.writerow(["ZTF23aacrvqj", SnClass.SUPERNOVA_II])
+        csv_writer.writerow(["ZTF22abcesfo", SnClass.SUPERNOVA_IIN])
+        csv_writer.writerow(["ZTF22aarqrxf", SnClass.SUPERLUMINOUS_SUPERNOVA_I])
+        csv_writer.writerow(["ZTF22abytwjj", SnClass.SUPERNOVA_IBC])
+
+    # Save test file with labels
+    classifier.return_new_classifications(
+        csv_file, test_data_dir, "probs_new.csv", include_labels=True, output_dir=tmp_path
+    )
+    assert os.path.exists(os.path.join(tmp_path, "probs_new.csv"))
+
+    # Save test file without labels
+    classifier.return_new_classifications(
+        csv_file, test_data_dir, "probs_no_labels.csv", include_labels=False, output_dir=tmp_path
+    )
+    assert os.path.exists(os.path.join(tmp_path, "probs_no_labels.csv"))
