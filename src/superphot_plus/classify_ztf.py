@@ -44,21 +44,42 @@ from superphot_plus.utils import (
 )
 
 
+# pylint: disable=too-many-instance-attributes)
 class CrossValidationTrainer:
-    """Trainer to perform K-Fold cross validation."""
+    """
+    Parameters
+    ----------
+    num_layers : int
+        Number of hidden layers in MLP.
+    neurons_per_layer : int
+        Number of neurons per hidden layer of MLP.
+    goal_per_class : int
+        Oversampling such that there are this many fits per supernova type.
+    metrics_dir : str
+        The directory where model metrics are stored.
+    models_dir: str
+        The directory where trained models are stored.
+    cm_folder : str
+        The directory where plots of confusion matrices are stored.
+    classify_log_file : str
+        The output file where classifications are logged.
+    sampler : str
+        The type of sampler used for the lightcurve fits.
+    include_redshift : bool
+        If True, includes redshift data for training.
+    """
 
     def __init__(
-        self,
-        num_layers,
-        neurons_per_layer,
-        goal_per_class,
-        metrics_dir=METRICS_DIR,
-        models_dir=MODELS_DIR,
-        cm_folder=CM_FOLDER,
-        classify_log_file=CLASSIFY_LOG_FILE,
-        plots_folder=FIT_PLOTS_FOLDER,
-        sampler="dynesty",
-        include_redshift=True,
+            self,
+            num_layers,
+            neurons_per_layer,
+            goal_per_class,
+            metrics_dir=METRICS_DIR,
+            models_dir=MODELS_DIR,
+            cm_folder=CM_FOLDER,
+            classify_log_file=CLASSIFY_LOG_FILE,
+            sampler="dynesty",
+            include_redshift=True,
     ):
         self.num_layers = num_layers
         self.neurons_per_layer = neurons_per_layer
@@ -70,7 +91,6 @@ class CrossValidationTrainer:
         self.models_dir = models_dir
         self.cm_folder = cm_folder
         self.classify_log_file = classify_log_file
-        self.plots_folder = plots_folder
 
         # Derive from sampler type
         self.fits_dir = f"{DATA_DIR}/{sampler}_fits"
@@ -79,22 +99,39 @@ class CrossValidationTrainer:
         os.makedirs(metrics_dir, exist_ok=True)
         os.makedirs(models_dir, exist_ok=True)
         os.makedirs(cm_folder, exist_ok=True)
-        os.makedirs(plots_folder, exist_ok=True)
+        os.makedirs(FIT_PLOTS_FOLDER, exist_ok=True)
 
         # Cleanup previous output content
-        for directory in [metrics_dir, models_dir, cm_folder]:
+        for directory in [metrics_dir, models_dir, cm_folder, FIT_PLOTS_FOLDER]:
             files = glob.glob(os.path.join(directory, "*"))
             for f in files:
                 os.remove(f)
 
     def run(
-        self,
-        input_csvs=None,
-        num_epochs=EPOCHS,
-        num_folds=NUM_FOLDS,
-        csv_path=PROBS_FILE,
-        plot_wrongly_classified=False,
+            self,
+            input_csvs=None,
+            num_epochs=EPOCHS,
+            num_folds=NUM_FOLDS,
+            csv_path=PROBS_FILE,
+            extract_wc=False,
     ):
+        """Performs model training and evaluation using K-Fold cross validation.
+
+        Parameters
+        ----------
+        input_csvs : list of str
+            The list of training CSV files.
+        num_epochs : int
+            Number of training epochs. Defaults to EPOCHS.
+        num_folds : int
+            The number for K in cross-fold validation. Defaults to NUM_FOLDS.
+        csv_path : int
+            The file to save test probabilities to. Defaults to PROBS_FILE.
+        extract_wc : bool
+            If true, assumes all sample fit plots are saved in
+            FIT_PLOTS_FOLDER. Copies plots of wrongly classified samples to
+            separate folder for manual followup. Defaults to False.
+        """
         allowed_types = ["SN Ia", "SN II", "SN IIn", "SLSN-I", "SN Ibc"]
         output_dim = len(allowed_types)  # number of classes
 
@@ -201,11 +238,11 @@ class CrossValidationTrainer:
             prob_above_07=prob_above_07_mlp,
         )
 
-        if plot_wrongly_classified:
+        if extract_wc:
             extract_wrong_classifications(
                 true_classes=true_classes_mlp,
                 predicted_classes=predicted_classes_mlp,
-                ztf_test_names=ztf_test_names
+                ztf_test_names=ztf_test_names,
             )
 
         self.log_metrics_to_file(
@@ -218,6 +255,21 @@ class CrossValidationTrainer:
         )
 
     def generate_train_data(self, names, labels, redshifts, train_indices):
+        """Creates training and validation data, oversampling when needed.
+
+        Parameters
+        ----------
+        names The full list of ZTF objects.
+        labels The full list of supernova labels.
+        redshifts The redshifts for each of the ZTF objects.
+        train_indices The indices for the training data.
+
+        Returns
+        -------
+        tuple
+            A tuple containing the train features and classes,
+            and the validation features and classes, respectively.
+        """
         # Set a 10% validation set for the current fold,
         # using stratification on the training classes
         train_index, val_index = train_test_split(
@@ -265,6 +317,20 @@ class CrossValidationTrainer:
         return train_features, train_classes, val_features, val_classes
 
     def generate_test_data(self, test_names, test_labels, test_redshifts):
+        """Creates several test groups from testing data.
+
+        Parameters
+        ----------
+        test_names The list of ZTF test objects.
+        test_labels The list of supernova test labels.
+        test_redshifts The redshifts for each of the test ZTF objects.
+
+        Returns
+        -------
+        tuple
+            A tuple containing the test features, the test classes,
+            the test names and the list of groups, respectively.
+        """
         test_features = []
         test_classes_os = []
         test_group_idxs = []
@@ -300,8 +366,25 @@ class CrossValidationTrainer:
         return test_features, test_classes, test_names, test_group_idxs
 
     def log_metrics_to_file(
-        self, num_epochs, true_classes, prob_above_07, test_f1_score, test_acc, val_loss_avg
+            self, num_epochs, true_classes, prob_above_07, test_f1_score, test_acc, val_loss_avg
     ):
+        """Outputs the model classification metrics to a file.
+
+        Parameters
+        ----------
+        num_epochs
+            The number of training epochs.
+        true_classes
+            The classification ground truths.
+        prob_above_07
+            The class predictions which had a probability of over 70%.
+        test_f1_score
+            The F1 score calculated with the test data.
+        test_acc
+            The accuracy over the test data.
+        val_loss_avg
+            The average validation loss over all the training folds.
+        """
         with open(self.classify_log_file, "a+", encoding="utf-8") as the_file:
             the_file.write(str(self.goal_per_class) + " samples per class\n")
             the_file.write(
@@ -320,6 +403,19 @@ class CrossValidationTrainer:
             the_file.write(f"Validation Loss: {val_loss_avg:.04f}\n\n")
 
     def plot_matrices(self, num_epochs, true_classes, predicted_classes, prob_above_07):
+        """Plots confusion matrices.
+
+        Parameters
+        ----------
+        num_epochs
+            The number of training epochs
+        true_classes
+            The classification ground truths.
+        predicted_classes
+            The classes predicted for the test data.
+        prob_above_07
+            The class predictions which had a probability of over 70%.
+        """
         fn_prefix = f"cm_{self.goal_per_class}_{num_epochs}_{self.neurons_per_layer}_{self.num_layers}"
 
         fn_purity = os.path.join(self.cm_folder, fn_prefix + "_p.pdf")
