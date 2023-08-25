@@ -1,6 +1,5 @@
 """Entrypoint to train and evaluate models using K-Fold cross validation."""
-
-from argparse import ArgumentParser
+from argparse import ArgumentParser, BooleanOptionalAction
 
 from superphot_plus.classify_ztf import CrossValidationTrainer
 from superphot_plus.file_paths import (
@@ -12,14 +11,22 @@ if __name__ == "__main__":
     parser = ArgumentParser(
         description="Entrypoint to train and evaluate models using K-Fold cross validation",
     )
-
     parser.add_argument(
         "--input_csvs",
         help="List of CSVs containing light curve data (comma separated)",
         default=",".join(INPUT_CSVS),
     )
     parser.add_argument(
-        "--sampler", help="Name of the sampler to use", choices=["dynesty", "nuts", "svi"], default="dynesty"
+        "--sampler",
+        help="Name of the sampler to load fits from",
+        choices=["dynesty", "nuts", "svi"],
+        default="dynesty",
+    )
+    parser.add_argument(
+        "--include_redshifts",
+        help="If flag is set, include redshift data for training",
+        default=False,
+        action=BooleanOptionalAction,
     )
     parser.add_argument("--num_layers", help="Number of network hidden layers", default=3)
     parser.add_argument("--neurons_per_layer", help="Number of neurons per hidden layer", default=128)
@@ -40,7 +47,7 @@ if __name__ == "__main__":
         goal_per_class=args.goal_per_class,
         classify_log_file=args.classify_log_file,
         sampler=args.sampler,
-        include_redshift=True,
+        include_redshift=args.include_redshifts,
     )
 
     trainer.run(input_csvs=args.input_csvs.split(","), num_epochs=args.num_epochs, num_folds=args.num_folds)

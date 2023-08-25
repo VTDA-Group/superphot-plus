@@ -478,7 +478,6 @@ class SuperphotClassifier(nn.Module):
         """
         filepath = save_file if output_dir is None else os.path.join(output_dir, save_file)
 
-        print(filepath)
         with open(filepath, "w+", encoding="utf-8") as pf:
             pf.write("Name,Label,pSNIa,pSNII,pSNIIn,pSLSNI,pSNIbc\n")
 

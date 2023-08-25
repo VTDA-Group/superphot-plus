@@ -26,7 +26,7 @@ from superphot_plus.model.data import TrainData
 from superphot_plus.supernova_class import SupernovaClass as SnClass
 from superphot_plus.tune_model import BEST_CONFIG_FILE
 from superphot_plus.utils import create_dataset
-from argparse import ArgumentParser
+from argparse import ArgumentParser, BooleanOptionalAction
 
 
 def run_tune_params(config, sampler, include_redshift):
@@ -230,18 +230,22 @@ if __name__ == "__main__":
         description="Entrypoint to train and evaluate models using K-Fold cross validation",
     )
     parser.add_argument(
-        "--sampler", help="Name of the sampler to use", choices=["dynesty", "nuts", "svi"], default="dynesty"
+        "--sampler",
+        help="Name of the sampler to load fits from",
+        choices=["dynesty", "nuts", "svi"],
+        default="dynesty",
     )
     parser.add_argument(
-        "--include_redshift",
-        help="If true, include redshift data for hyperparameter tuning",
-        choices=[True, False],
-        default=True,
+        "--include_redshifts",
+        help="If flag is set, include redshift data for hyperparameter tuning",
+        default=False,
+        action=BooleanOptionalAction,
     )
+
     args = parser.parse_args()
 
     run_nested_cv(
-        num_samples=10,
+        num_samples=1,
         sampler=args.sampler,
-        include_redshift=args.include_redshift,
+        include_redshift=args.include_redshifts,
     )
