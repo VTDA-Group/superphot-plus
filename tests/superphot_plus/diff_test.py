@@ -106,7 +106,7 @@ def compare_directories(goldens_dir, temp_results_dir):
     Returns
     -------
     boolean
-        True if files in directories are suficiently similar; False otherwise.
+        True if files in directories are sufficiently similar; False otherwise.
     """
     no_differences_found = True
 
@@ -146,7 +146,7 @@ def compare_two_files(file_name, goldens_dir, temp_results_dir):
     Returns
     -------
     boolean
-        True if files are suficiently similar; False otherwise."""
+        True if files are sufficiently similar; False otherwise."""
 
     # Set up
     deltas = {"dynesty": 0.0001, "svi": 0.5, "NUTS": 0.0001}
