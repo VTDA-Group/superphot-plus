@@ -54,6 +54,7 @@ dev = [
     "pytest-monitor", # Used to run benchmarks on the test suite
     "ray[tune]", # Hyperparameter tuning library
     "optuna", # Optimization search algorithm
+    "memory_profiler", # Used to benchmark memory usage
 ]
 
 [build-system]
