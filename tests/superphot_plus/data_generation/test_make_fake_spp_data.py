@@ -12,6 +12,9 @@ def test_generate_clean_data():
     assert len(lcs) == 10
     for i in range(10):
         assert lcs[i].shape == (4, 50)
+        assert "r" in lcs[i][3]
+        assert "g" in lcs[i][3]
+        assert "i" not in lcs[i][3]
         assert len(params[i]) == 14
 
     # Generate 5 light curves with 10 time steps each and 3 bands
@@ -20,6 +23,9 @@ def test_generate_clean_data():
     assert len(lcs) == 5
     for i in range(5):
         assert lcs[i].shape == (4, 10)
+        assert "r" in lcs[i][3]
+        assert "g" in lcs[i][3]
+        assert "i" in lcs[i][3]
         assert len(params[i]) == 21
 
 

@@ -161,5 +161,6 @@ def run_all_benchmarks(num_samples):
         print(f"  Ave LL: {aves[2]}")
         print(f"  Ave MSE: {aves[3]}")
 
+
 if __name__ == "__main__":
     run_all_benchmarks(20)

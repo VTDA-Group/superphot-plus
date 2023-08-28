@@ -126,7 +126,7 @@ def ztf_noise_model(mag, band, snr_range_g=None, snr_range_r=None):
     return snr
 
 
-def create_clean_models(nmodels, num_times=100, bands=["r", "g"], ref_band="r"):
+def create_clean_models(nmodels, num_times=100, bands=None, ref_band="r"):
     """Generate 'clean' (noiseless) models from the prior
 
     Parameters
@@ -150,8 +150,11 @@ def create_clean_models(nmodels, num_times=100, bands=["r", "g"], ref_band="r"):
     params = []
     lcs = []
 
+    if bands is None:
+        bands = ["r", "g"]
+
     tdata = np.linspace(-100, 100, num_times)
-    bdata = np.asarray([bands[i % 2] for i in range(num_times)], dtype=str)
+    bdata = np.asarray([bands[i % len(bands)] for i in range(num_times)], dtype=str)
     edata = np.asarray([1e-6] * num_times, dtype=float)
 
     while len(lcs) < nmodels:
