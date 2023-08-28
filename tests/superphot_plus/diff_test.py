@@ -44,12 +44,12 @@ def check_goldens_exist(goldens_dir):
     has_dynesty = False
     has_nuts = False
     has_svi = False
-    for file_name in os.listdir(goldens_dir):
-        if "dynesty" in file_name:
+    for file_or_dir in os.listdir(goldens_dir):
+        if "dynesty" in file_or_dir:
             has_dynesty = True
-        if "NUTS" in file_name:
+        if "NUTS" in file_or_dir:
             has_nuts = True
-        if "svi" in file_name:
+        if "svi" in file_or_dir:
             has_svi = True
     return has_dynesty and has_nuts and has_svi
 
@@ -124,9 +124,15 @@ def compare_directories(goldens_dir, temp_results_dir):
 
 
 def compare_two_files(file_name, goldens_dir, temp_results_dir):
-    """Compares file sizes (row and value count) and similarity of sample means.
+    """Compares similarity of sample means.
 
-    Note: This function specifies different deltas (relative tolerance) for each sampling method.
+    Notes
+    -----
+        This function specifies different deltas (relative tolerance) for each
+        sampling method.
+
+        Also, we choose not to compare file sizes here, as dynesty produces
+        different result sizes on different machines.
 
     Parameters
     ----------
@@ -146,16 +152,6 @@ def compare_two_files(file_name, goldens_dir, temp_results_dir):
     deltas = {"dynesty": 0.0001, "svi": 0.5, "NUTS": 0.0001}
     no_differences_found = True
 
-    # Compare file sizes
-    data_goldens = np.load(Path(goldens_dir, file_name))["arr_0"]
-    data_new_results = np.load(Path(temp_results_dir, file_name))["arr_0"]
-    if len(data_goldens) != len(data_new_results):
-        print(f"Mismatched number of rows in {file_name}.")
-        return False
-    if data_goldens.size != data_new_results.size:
-        print(f"Mismatched number of vals in {file_name}.")
-        return False
-
     # Compare sample means
     lightcurve_name = file_name.split("_")[0]
     sampling_method = file_name.split("_")[-1].split(".")[0]
@@ -169,8 +165,11 @@ def compare_two_files(file_name, goldens_dir, temp_results_dir):
         sampling_method=sampling_method,
     )
 
+    print(sampling_method, end=": ")
     for index, golden_val in enumerate(goldens_samples.sample_mean()):
         temp_val = temp_results_samples.sample_mean()[index]
+
+        print(f"{(abs( 1 - (golden_val / temp_val))):.2f}", end=", ")
         if not math.isclose(golden_val, temp_val, rel_tol=deltas[sampling_method]):
             no_differences_found = False
             print(
@@ -196,8 +195,10 @@ def delete_temp_files(temp_dir):
     temp_dir : pathlib Path
         The temporary directory where we've just generated our new results.
     """
-    if "temp" not in temp_dir.as_posix():
-        raise ValueError("Attempted to delete directory that is not designated with 'temp'.")
+    if "temp" not in temp_dir.as_posix() and "tmp" not in temp_dir.as_posix():
+        raise ValueError(
+            "Attempted to delete directory that is not designated with 'temp' or 'tmp'."
+        )
     for file in os.listdir(temp_dir):
         os.remove(Path(temp_dir, file))
     os.rmdir(temp_dir)
