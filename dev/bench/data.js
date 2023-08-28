@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1693245044595,
+  "lastUpdate": 1693246634931,
   "repoUrl": "https://github.com/lincc-frameworks/superphot-plus",
   "entries": {
     "SUPERHOT-PLUS Benchmarking Monitor": [
@@ -3755,6 +3755,90 @@ window.BENCHMARK_DATA = {
           {
             "name": "test_inference::test_numpyro_svi_inference - Memory Used",
             "value": 804.12109375,
+            "unit": "MB"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "olynn@andrew.cmu.edu",
+            "name": "Olivia R. Lynn",
+            "username": "OliviaLynn"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "2ac47eb7f4632e4f04a032d202cdd03511d69b39",
+          "message": "Merge pull request #125 from lincc-frameworks/issue/22/diffing\n\nUpdate diff test for e2e and interactive mode",
+          "timestamp": "2023-08-28T14:11:10-04:00",
+          "tree_id": "399347337c898ec32cd1ef2b3283ca86eec283a3",
+          "url": "https://github.com/lincc-frameworks/superphot-plus/commit/2ac47eb7f4632e4f04a032d202cdd03511d69b39"
+        },
+        "date": 1693246634244,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "test_fit::test_dynesty_single_file - Runtime",
+            "value": 5.7367846965789795,
+            "unit": "s"
+          },
+          {
+            "name": "test_fit::test_dynesty_single_file - Memory Used",
+            "value": 71.8828125,
+            "unit": "MB"
+          },
+          {
+            "name": "test_fit::test_nuts_single_file - Runtime",
+            "value": 18.84661293029785,
+            "unit": "s"
+          },
+          {
+            "name": "test_fit::test_nuts_single_file - Memory Used",
+            "value": 376.5703125,
+            "unit": "MB"
+          },
+          {
+            "name": "test_fit::test_svi_single_file - Runtime",
+            "value": 18.128644466400146,
+            "unit": "s"
+          },
+          {
+            "name": "test_fit::test_svi_single_file - Memory Used",
+            "value": 680.33203125,
+            "unit": "MB"
+          },
+          {
+            "name": "test_inference::test_dynesty_inference - Runtime",
+            "value": 5.902883291244507,
+            "unit": "s"
+          },
+          {
+            "name": "test_inference::test_dynesty_inference - Memory Used",
+            "value": 673.91796875,
+            "unit": "MB"
+          },
+          {
+            "name": "test_inference::test_numpyro_nuts_inference - Runtime",
+            "value": 13.495985507965088,
+            "unit": "s"
+          },
+          {
+            "name": "test_inference::test_numpyro_nuts_inference - Memory Used",
+            "value": 681.3046875,
+            "unit": "MB"
+          },
+          {
+            "name": "test_inference::test_numpyro_svi_inference - Runtime",
+            "value": 18.254884958267212,
+            "unit": "s"
+          },
+          {
+            "name": "test_inference::test_numpyro_svi_inference - Memory Used",
+            "value": 813.80078125,
             "unit": "MB"
           }
         ]
