@@ -23,7 +23,7 @@ import numpy as np
 from superphot_plus.lightcurve import Lightcurve
 from superphot_plus.posterior_samples import PosteriorSamples
 from superphot_plus.samplers.dynesty_sampler import DynestySampler
-from superphot_plus.samplers.numpyro_sampler NumpyroSampler
+from superphot_plus.samplers.numpyro_sampler import NumpyroSampler
 from superphot_plus.surveys.surveys import Survey
 
 
