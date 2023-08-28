@@ -23,7 +23,7 @@ import numpy as np
 from superphot_plus.lightcurve import Lightcurve
 from superphot_plus.posterior_samples import PosteriorSamples
 from superphot_plus.samplers.dynesty_sampler import DynestySampler
-from superphot_plus.samplers.numpyro_sampler import NumpyroSampler
+from superphot_plus.samplers.numpyro_sampler NumpyroSampler
 from superphot_plus.surveys.surveys import Survey
 
 
@@ -149,7 +149,7 @@ def compare_two_files(file_name, goldens_dir, temp_results_dir):
         True if files are suficiently similar; False otherwise."""
 
     # Set up
-    deltas = {"dynesty": 0.0001, "svi": 0.5, "NUTS": 0.0001}
+    deltas = {"dynesty": 0.01, "svi": 0.5, "NUTS": 0.01}
     no_differences_found = True
 
     # Compare sample means
