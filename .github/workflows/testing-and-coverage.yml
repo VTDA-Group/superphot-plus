@@ -26,7 +26,7 @@ jobs:
     - name: Install dependencies
       run: |
         sudo apt-get update
-        apt-get install librdkafka-dev # for antares
+        sudo apt-get install librdkafka-dev # for antares
         python -m pip install --upgrade pip
         pip install .
         pip install .[dev]
