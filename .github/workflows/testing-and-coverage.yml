@@ -36,6 +36,7 @@ jobs:
         python -m pytest tests docs/notebooks/*.ipynb \
           --nbval-lax --nbval-current-env \
           --cov=superphot_plus --cov-report=xml \
-          --no-monitor
+          --no-monitor \
+          -rP
     - name: Upload coverage report to codecov
       uses: codecov/codecov-action@v3
