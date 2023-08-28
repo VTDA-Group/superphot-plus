@@ -218,8 +218,8 @@ def test_calculate_log_likelihood():
     assert str(err.value) == "Size mismatch with curve parameters. Expected 7. Found 14."
 
     lc_empty = Lightcurve(np.array([]), np.array([]), np.array([]), np.array([]))
-    with pytest.raises(ValueError):
-        _ = calculate_log_likelihood(cube, lc_empty, ["r", "g"], "r")
+    with pytest.raises(ValueError) as err:
+        _ = calculate_log_likelihood(cube, lc_empty, bands, "r")
     assert str(err.value) == "Empty light curve provided."
 
 
