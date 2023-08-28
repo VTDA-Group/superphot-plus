@@ -209,14 +209,18 @@ def test_calculate_log_likelihood():
         assert LogL1 > test_ll
 
     # Test error conditions.
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError) as err:
         _ = calculate_log_likelihood(cube, lc1, bands, "u")
-    with pytest.raises(ValueError):
+    assert str(err.value) == "Reference band not included in unique_bands."
+
+    with pytest.raises(ValueError) as err:
         _ = calculate_log_likelihood(cube, lc1, ["r"], "r")
+    assert str(err.value) == "Size mismatch with curve parameters. Expected 7. Found 14."
 
     lc_empty = Lightcurve(np.array([]), np.array([]), np.array([]), np.array([]))
-    with pytest.raises(ValueError):
-        _ = calculate_log_likelihood(cube, lc_empty, ["r", "g"], "r")
+    with pytest.raises(ValueError) as err:
+        _ = calculate_log_likelihood(cube, lc_empty, bands, "r")
+    assert str(err.value) == "Empty light curve provided."
 
 
 def test_calculate_mse():
@@ -257,14 +261,18 @@ def test_calculate_mse():
         assert test_mse == pytest.approx(diff * diff)
 
     # Test error conditions.
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError) as err:
         _ = calculate_mse(cube, lc1, bands, "u")
-    with pytest.raises(ValueError):
+    assert str(err.value) == "Reference band not included in unique_bands."
+
+    with pytest.raises(ValueError) as err:
         _ = calculate_mse(cube, lc1, ["r"], "r")
+    assert str(err.value) == "Size mismatch with curve parameters. Expected 7. Found 14."
 
     lc_empty = Lightcurve(np.array([]), np.array([]), np.array([]), np.array([]))
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError) as err:
         _ = calculate_mse(cube, lc_empty, ["r", "g"], "r")
+    assert str(err.value) == "Empty light curve provided."
 
 
 def test_neg_chi_squareds(single_ztf_lightcurve_compressed, test_data_dir, single_ztf_sn_id):
