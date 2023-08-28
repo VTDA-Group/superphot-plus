@@ -38,7 +38,10 @@ class NumpyroSampler(Sampler):
         if eq_wt_samples is None:
             return None
         return PosteriorSamples(
-            eq_wt_samples, name=lightcurve.name, sampling_method=sampler, sn_class=lightcurve.sn_class
+            eq_wt_samples,
+            name=lightcurve.name,
+            sampling_method=sampler,
+            sn_class=lightcurve.sn_class,
         )
 
     def run_multi_curve(self, lightcurves, priors, **kwargs) -> List[PosteriorSamples]:
@@ -189,7 +192,9 @@ def create_jax_guide(priors):
             fields.mean,
             constraint=constraints.interval(fields.clip_a, fields.clip_b),
         )
-        param_sigma = numpyro.param(f"{prefix}_sigma", param_constraint, constraint=constraints.positive)
+        param_sigma = numpyro.param(
+            f"{prefix}_sigma", param_constraint, constraint=constraints.positive
+        )
         numpyro.sample(prefix, dist.Normal(param_mu, param_sigma))
 
     ref_priors = priors.bands[priors.reference_band]
@@ -291,6 +296,8 @@ def run_mcmc(lc, sampler="NUTS", priors=Survey.ZTF().priors):
         posterior_samples = {}
         for param in params:
             if param[-2:] == "mu":
+                seed = 42
+                np.random.seed(seed)
                 posterior_samples[param[:-3]] = np.random.normal(
                     loc=params[param], scale=params[param[:-2] + "sigma"], size=100
                 )
