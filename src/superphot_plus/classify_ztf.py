@@ -4,8 +4,8 @@ multi-layer perceptron (MLP).
 The classification is based on the fit parameters and light curves of
 the supernovae."""
 
-import glob
 import os
+import shutil
 
 import numpy as np
 from joblib import Parallel, delayed
@@ -44,7 +44,7 @@ from superphot_plus.utils import (
 )
 
 
-# pylint: disable=too-many-instance-attributes)
+# pylint: disable=too-many-instance-attributes
 class CrossValidationTrainer:
     """
     Parameters
@@ -70,16 +70,16 @@ class CrossValidationTrainer:
     """
 
     def __init__(
-            self,
-            num_layers,
-            neurons_per_layer,
-            goal_per_class,
-            metrics_dir=METRICS_DIR,
-            models_dir=MODELS_DIR,
-            cm_folder=CM_FOLDER,
-            classify_log_file=CLASSIFY_LOG_FILE,
-            sampler="dynesty",
-            include_redshift=True,
+        self,
+        num_layers,
+        neurons_per_layer,
+        goal_per_class,
+        metrics_dir=METRICS_DIR,
+        models_dir=MODELS_DIR,
+        cm_folder=CM_FOLDER,
+        classify_log_file=CLASSIFY_LOG_FILE,
+        sampler="dynesty",
+        include_redshift=True,
     ):
         self.num_layers = num_layers
         self.neurons_per_layer = neurons_per_layer
@@ -95,25 +95,23 @@ class CrossValidationTrainer:
         # Derive from sampler type
         self.fits_dir = f"{DATA_DIR}/{sampler}_fits"
 
-        # Initialize output directories
-        os.makedirs(metrics_dir, exist_ok=True)
-        os.makedirs(models_dir, exist_ok=True)
-        os.makedirs(cm_folder, exist_ok=True)
-        os.makedirs(FIT_PLOTS_FOLDER, exist_ok=True)
-
-        # Cleanup previous output content
+        # Remove previous outputs
         for directory in [metrics_dir, models_dir, cm_folder, FIT_PLOTS_FOLDER]:
-            files = glob.glob(os.path.join(directory, "*"))
-            for f in files:
-                os.remove(f)
+            shutil.rmtree(directory)
+
+        # Recreate output directories
+        os.makedirs(metrics_dir)
+        os.makedirs(models_dir)
+        os.makedirs(cm_folder)
+        os.makedirs(FIT_PLOTS_FOLDER)
 
     def run(
-            self,
-            input_csvs=None,
-            num_epochs=EPOCHS,
-            num_folds=NUM_FOLDS,
-            csv_path=PROBS_FILE,
-            extract_wc=False,
+        self,
+        input_csvs=None,
+        num_epochs=EPOCHS,
+        num_folds=NUM_FOLDS,
+        csv_path=PROBS_FILE,
+        extract_wc=False,
     ):
         """Performs model training and evaluation using K-Fold cross validation.
 
@@ -154,12 +152,26 @@ class CrossValidationTrainer:
         kfold = generate_K_fold(np.zeros(len(labels)), labels, num_folds)
 
         def run_single_fold(fold_id, fold):
+            """Trains and validates model on single fold.
+
+            Parameters
+            ----------
+            fold_id : str
+                An identifier for the current fold
+            fold : tuple of ndarray
+                The fold for cross validation
+
+            Returns
+            -------
+            tuple
+                The fold's validation loss and accuracy.
+            """
             train_index, test_index = fold
 
             # Separate training from test data
-            _, test_names = names[train_index], names[test_index]
-            _, test_labels = labels[train_index], labels[test_index]
-            _, test_redshifts = redshifts[train_index], redshifts[test_index]
+            test_names = names[test_index]
+            test_labels = labels[test_index]
+            test_redshifts = redshifts[test_index]
 
             train_features, train_classes, val_features, val_classes = self.generate_train_data(
                 names=names, labels=labels, redshifts=redshifts, train_indices=train_index
@@ -259,10 +271,14 @@ class CrossValidationTrainer:
 
         Parameters
         ----------
-        names The full list of ZTF objects.
-        labels The full list of supernova labels.
-        redshifts The redshifts for each of the ZTF objects.
-        train_indices The indices for the training data.
+        names : np.ndarray
+            The full list of ZTF objects.
+        labels : np.ndarray
+            The full list of supernova labels.
+        redshifts : np.ndarray
+            The redshifts for each of the ZTF objects.
+        train_indices : np.ndarray
+            The indices for the training data.
 
         Returns
         -------
@@ -321,9 +337,12 @@ class CrossValidationTrainer:
 
         Parameters
         ----------
-        test_names The list of ZTF test objects.
-        test_labels The list of supernova test labels.
-        test_redshifts The redshifts for each of the test ZTF objects.
+        test_names : np.ndarray
+            The list of ZTF test objects.
+        test_labels : np.ndarray
+            The list of supernova test labels.
+        test_redshifts : np.ndarray
+            The redshifts for each of the test ZTF objects.
 
         Returns
         -------
@@ -366,23 +385,23 @@ class CrossValidationTrainer:
         return test_features, test_classes, test_names, test_group_idxs
 
     def log_metrics_to_file(
-            self, num_epochs, true_classes, prob_above_07, test_f1_score, test_acc, val_loss_avg
+        self, num_epochs, true_classes, prob_above_07, test_f1_score, test_acc, val_loss_avg
     ):
         """Outputs the model classification metrics to a file.
 
         Parameters
         ----------
-        num_epochs
+        num_epochs : int
             The number of training epochs.
-        true_classes
+        true_classes : np.ndarray
             The classification ground truths.
-        prob_above_07
+        prob_above_07 : np.ndarray
             The class predictions which had a probability of over 70%.
-        test_f1_score
+        test_f1_score : float
             The F1 score calculated with the test data.
-        test_acc
+        test_acc : float
             The accuracy over the test data.
-        val_loss_avg
+        val_loss_avg : float
             The average validation loss over all the training folds.
         """
         with open(self.classify_log_file, "a+", encoding="utf-8") as the_file:
@@ -407,13 +426,13 @@ class CrossValidationTrainer:
 
         Parameters
         ----------
-        num_epochs
-            The number of training epochs
-        true_classes
+        num_epochs : int
+            The number of training epochs.
+        true_classes : np.ndarray
             The classification ground truths.
-        predicted_classes
+        predicted_classes : np.ndarray
             The classes predicted for the test data.
-        prob_above_07
+        prob_above_07 : np.ndarray
             The class predictions which had a probability of over 70%.
         """
         fn_prefix = f"cm_{self.goal_per_class}_{num_epochs}_{self.neurons_per_layer}_{self.num_layers}"

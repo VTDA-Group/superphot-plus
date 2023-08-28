@@ -1,4 +1,4 @@
-"""Entrypoint to train and evaluate models using K-Fold cross validation."""
+"""Entry point to train and evaluate models using K-Fold cross validation."""
 from argparse import ArgumentParser, BooleanOptionalAction
 
 from superphot_plus.classify_ztf import CrossValidationTrainer
@@ -9,7 +9,7 @@ from superphot_plus.file_paths import (
 
 if __name__ == "__main__":
     parser = ArgumentParser(
-        description="Entrypoint to train and evaluate models using K-Fold cross validation",
+        description="Entry point to train and evaluate models using K-Fold cross validation",
     )
     parser.add_argument(
         "--input_csvs",

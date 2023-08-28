@@ -1,16 +1,18 @@
+from dataclasses import dataclass, field
 from typing import List
 
 
+@dataclass
 class ModelMetrics:
     """Class containing the training and validation metrics."""
 
-    train_acc: List[float] = []
-    val_acc: List[float] = []
-    train_loss: List[float] = []
-    val_loss: List[float] = []
+    train_acc: List[float] = field(default_factory=list)
+    val_acc: List[float] = field(default_factory=list)
+    train_loss: List[float] = field(default_factory=list)
+    val_loss: List[float] = field(default_factory=list)
 
-    epoch_mins: List[int] = []
-    epoch_secs: List[int] = []
+    epoch_mins: List[int] = field(default_factory=list)
+    epoch_secs: List[int] = field(default_factory=list)
     curr_epoch: int = 0
 
     def get_values(self):

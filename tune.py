@@ -1,10 +1,11 @@
-"""Entrypoint to run hyperparameter tuning using Nested CV."""
+"""Entry point to run hyperparameter tuning using Nested CV."""
 import json
-import os
-from functools import partial
-
 import numpy as np
+import os
 import ray
+
+from argparse import ArgumentParser, BooleanOptionalAction
+from functools import partial
 from joblib import Parallel, delayed
 from ray import tune
 from ray.air import session
@@ -24,9 +25,8 @@ from superphot_plus.model.classifier import SuperphotClassifier
 from superphot_plus.model.config import ModelConfig, NetworkParams
 from superphot_plus.model.data import TrainData
 from superphot_plus.supernova_class import SupernovaClass as SnClass
-from superphot_plus.tune_model import BEST_CONFIG_FILE
+from superphot_plus.file_paths import BEST_CONFIG_FILE
 from superphot_plus.utils import create_dataset
-from argparse import ArgumentParser, BooleanOptionalAction
 
 
 def run_tune_params(config, sampler, include_redshift):
@@ -35,7 +35,12 @@ def run_tune_params(config, sampler, include_redshift):
 
     Parameters
     ----------
-    config The classifier hyperparameters
+    config : Dict[str, Any]
+        Tune run configuration
+    sampler : str
+        The name of the sampler used for fitting
+    include_redshift : bool
+        If true, include redshift data
     """
     # Run Tune in the project's working directory.
     os.chdir(os.environ["TUNE_ORIG_WORKING_DIR"])
@@ -65,8 +70,10 @@ def run_tune_params(config, sampler, include_redshift):
 
         Parameters
         ----------
-        fold_id An identifier for the current fold
-        fold The fold for cross validation
+        fold_id : str
+            An identifier for the current fold
+        fold : tuple of ndarray
+            The fold for cross validation
 
         Returns
         -------
@@ -179,7 +186,12 @@ def run_nested_cv(num_samples, sampler, include_redshift):
 
     Parameters
     ----------
-    num_samples The number of hyperparameter sets to generate
+    num_samples : int
+        The number of hyperparameter sets to generate
+    sampler : str
+        The name of the sampler used for fitting
+    include_redshift : bool
+        If true, include redshift data
     """
     # Define hardware resources per trial.
     resources = {"cpu": 2, "gpu": 0}
@@ -227,7 +239,7 @@ def run_nested_cv(num_samples, sampler, include_redshift):
 
 if __name__ == "__main__":
     parser = ArgumentParser(
-        description="Entrypoint to train and evaluate models using K-Fold cross validation",
+        description="Entry point to train and evaluate models using K-Fold cross validation",
     )
     parser.add_argument(
         "--num_samples",
