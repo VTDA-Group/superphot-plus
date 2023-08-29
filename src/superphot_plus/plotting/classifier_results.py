@@ -377,7 +377,7 @@ def plot_redshifts_abs_mags(probs_snr_csv, training_csv, fits_dir, save_dir, sam
     _, classes, redshifts = import_labels_only(
         [
             training_csv,
-        ]
+        ],
         allowed_types,
         needs_posteriors=True,
         redshift=True,
