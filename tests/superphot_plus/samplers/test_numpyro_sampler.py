@@ -48,31 +48,36 @@ def test_numpyro_nuts(ztf_priors, single_ztf_lightcurve_object):
     expected values."""
     sampler = NumpyroSampler()
     posterior_samples = sampler.run_single_curve(
-        single_ztf_lightcurve_object, priors=ztf_priors, sampler="NUTS"
+        single_ztf_lightcurve_object, priors=ztf_priors, sampler="NUTS", rng_seed=4,
     )
     # Check output length
     assert len(posterior_samples.samples) == 300
 
     # Check output values
     expected = [
-        9.85589522e02,
-        5.19716954e-03,
-        1.61198756e01,
-        -5.75673236e00,
-        3.26708896e00,
-        2.38970410e01,
-        3.64242112e-02,
-        1.04759061e00,
-        1.04258722e00,
-        1.00856218e00,
-        9.99988091e-01,
-        9.66154117e-01,
-        5.76787619e-01,
-        8.59146651e-01,
-        -5.43,
+        895.47189930,
+        0.00521055,
+        18.16068104,
+        -6.17901895,
+        2.87213922,
+        25.74471707,
+        0.03297451,
+        1.05761951,
+        1.04262573,
+        1.01245135,
+        0.99999012,
+        0.96668294,
+        0.62614179,
+        0.85886780,
+        -5.59074839,
     ]
     sample_mean = posterior_samples.sample_mean()
-    assert np.all(np.isclose(sample_mean, expected, rtol=0.5))
+
+    print("NUTS:")
+    for v in sample_mean:
+        print("%.8f," % v)
+    
+    assert np.all(np.isclose(sample_mean, expected, rtol=0.01))
 
 
 def test_numpyro_svi(ztf_priors, single_ztf_lightcurve_object):
@@ -81,28 +86,33 @@ def test_numpyro_svi(ztf_priors, single_ztf_lightcurve_object):
     expected values."""
     sampler = NumpyroSampler()
     posterior_samples = sampler.run_single_curve(
-        single_ztf_lightcurve_object, priors=ztf_priors, sampler="svi"
+        single_ztf_lightcurve_object, priors=ztf_priors, sampler="svi", rng_seed=1,
     )
     # Check output length
     assert len(posterior_samples.samples) == 100
 
     # Check output values
     expected = [
-        9.64e02,
-        5.21e-03,
-        1.70e01,
-        -6.07e00,
-        2.95e00,
-        2.36e01,
-        5.00e-02,
-        1.07e00,
-        1.04e00,
-        1.01e00,
-        9.99e-01,
-        9.64e-01,
-        5.72e-01,
-        8.57e-01,
-        -5.43,
+        884.51462144,
+        0.00528629,
+        18.80530674,
+        -6.33601188,
+        2.74016769,
+        25.16111683,
+        0.03493173,
+        1.06160793,
+        1.04252620,
+        1.01352523,
+        0.99999384,
+        0.96840261,
+        0.62417873,
+        0.86067821,
+        -5.63161335,
     ]
     sample_mean = posterior_samples.sample_mean()
-    assert np.all(np.isclose(sample_mean, expected, rtol=0.5))
+
+    print("SVI:")
+    for v in sample_mean:
+        print("%.8f," % v)
+
+    assert np.all(np.isclose(sample_mean, expected, rtol=0.01))

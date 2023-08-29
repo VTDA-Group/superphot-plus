@@ -82,12 +82,12 @@ def generate_files(lightcurve, output_dir):
 
     # Generate NUTS
     sampler = NumpyroSampler()
-    posteriors = sampler.run_single_curve(lightcurve, priors=priors, sampler="NUTS")
+    posteriors = sampler.run_single_curve(lightcurve, priors=priors, sampler="NUTS", rng_seed=4)
     posteriors.save_to_file(output_dir)
 
     # Generate svi
     sampler = NumpyroSampler()
-    posteriors = sampler.run_single_curve(lightcurve, priors=priors, sampler="svi")
+    posteriors = sampler.run_single_curve(lightcurve, priors=priors, sampler="svi", rng_seed=1)
     posteriors.save_to_file(output_dir)
 
     print(f"saved files to {output_dir}.")
@@ -149,7 +149,7 @@ def compare_two_files(file_name, goldens_dir, temp_results_dir):
         True if files are sufficiently similar; False otherwise."""
 
     # Set up
-    deltas = {"dynesty": 0.1, "svi": 0.5, "NUTS": 0.1}
+    deltas = {"dynesty": 0.1, "svi": 0.1, "NUTS": 0.1}
     no_differences_found = True
 
     # Compare sample means

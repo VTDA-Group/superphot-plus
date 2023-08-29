@@ -1,5 +1,6 @@
 """MCMC sampling using numpyro."""
 
+import time
 from typing import List
 
 import jax.numpy as jnp
@@ -31,14 +32,38 @@ class NumpyroSampler(Sampler):
         pass
 
     def run_single_curve(
-        self, lightcurve: Lightcurve, priors: MultibandPriors, sampler="svi", **kwargs
+        self,
+        lightcurve: Lightcurve,
+        priors: MultibandPriors,
+        sampler="svi",
+        rng_seed=None,
+        **kwargs
     ) -> PosteriorSamples:
+        """Run the sampler on a single light curve.
+
+        Parameters
+        ----------
+        lightcurve : Lightcurve
+            The lightcurve to sample.
+        priors : MultibandPriors
+            The curve priors to use.
+        sampler : str
+            The numpyro sampler to use. Either "NUTS" or "svi"
+        rng_seed : int, optional
+            The random seed to use. Warning should only be set for testing.
+            May not produce scientificially valid results when set.
+
+        Returns
+        -------
+        eq_wt_samples : PosteriorSamples
+            The resulting samples.
+        """
         lightcurve.pad_bands(priors.ordered_bands, PAD_SIZE)
-        eq_wt_samples = run_mcmc(lightcurve, sampler=sampler, priors=priors)
+        eq_wt_samples = run_mcmc(lightcurve, sampler=sampler, priors=priors, rng_seed=rng_seed)
         if eq_wt_samples is None:
             return None
         return PosteriorSamples(
-            eq_wt_samples, name=lightcurve.name, sampling_method=sampler, sn_class=lightcurve.sn_class
+            eq_wt_samples,name=lightcurve.name, sampling_method=sampler, sn_class=lightcurve.sn_class
         )
 
     def run_multi_curve(self, lightcurves, priors, **kwargs) -> List[PosteriorSamples]:
@@ -213,7 +238,7 @@ def create_jax_guide(priors):
         numpyro_sample("extra_sigma_" + uniq_b, b_priors.extra_sigma, 1e-3)
 
 
-def run_mcmc(lc, sampler="NUTS", priors=Survey.ZTF().priors):
+def run_mcmc(lc, sampler="NUTS", priors=Survey.ZTF().priors, rng_seed=None):
     """Runs MCMC using numpyro on the lightcurve to get set
     of equally weighted posteriors (sets of fit parameters).
 
@@ -225,6 +250,9 @@ def run_mcmc(lc, sampler="NUTS", priors=Survey.ZTF().priors):
         The MCMC sampler to use. Defaults to "NUTS".
     priors : MultibandPriors, optional
         The prior set to use for fitting. Defaults to ZTF's priors.
+    rng_seed : int, optional
+        The random seed to use. Warning should only be set for testing.
+        May not produce scientificially valid results when set.
 
     Returns
     -------
@@ -233,6 +261,9 @@ def run_mcmc(lc, sampler="NUTS", priors=Survey.ZTF().priors):
         a numpy array. If the lightcurve does not contain any valid
         points, None is returned.
     """
+    if rng_seed is None:
+        rng_seed = int(time.time())
+    
     # Require data in all bands.
     for unique_band in priors.ordered_bands:
         if lc.obs_count(unique_band) == 0:
@@ -250,7 +281,7 @@ def run_mcmc(lc, sampler="NUTS", priors=Survey.ZTF().priors):
         num_samples = 300
         kernel = NUTS(jax_model, init_strategy=init_to_uniform)
 
-        rng_key = random.PRNGKey(4)
+        rng_key = random.PRNGKey(rng_seed)
         rng_key, _ = random.split(rng_key)
 
         mcmc = MCMC(
@@ -279,7 +310,7 @@ def run_mcmc(lc, sampler="NUTS", priors=Survey.ZTF().priors):
         num_iter = 10000
         with numpyro.validation_enabled():
             svi_result = svi.run(
-                random.PRNGKey(1),
+                random.PRNGKey(rng_seed),
                 num_iter,
                 stable_update=True,
                 obsflux=lc.fluxes,
@@ -291,7 +322,8 @@ def run_mcmc(lc, sampler="NUTS", priors=Survey.ZTF().priors):
         posterior_samples = {}
         for param in params:
             if param[-2:] == "mu":
-                posterior_samples[param[:-3]] = np.random.normal(
+                rng = np.random.RandomState(rng_seed)
+                posterior_samples[param[:-3]] = rng.normal(
                     loc=params[param], scale=params[param[:-2] + "sigma"], size=100
                 )
 
