@@ -184,7 +184,7 @@ def compare_oversampling(names, labels, fits_dir, save_dir, allowed_types=SnClas
             if j in [0, 3, len(params)]:
                 continue
 
-            fig, axes = plt.subplots(2, 1, sharex=True, figsize=(8, 10), gridspec_kw={"hspace": 0})
+            fig, axes = plt.subplots(2, 1, sharex=True, figsize=(8, 12), gridspec_kw={"hspace": 0})
             smote_ax = axes[0]
             gauss_ax = axes[1]
     
@@ -221,6 +221,7 @@ def compare_oversampling(names, labels, fits_dir, save_dir, allowed_types=SnClas
             gauss_ax.set_xlabel(param_1)
             gauss_ax.set_ylabel(param_2)
             smote_ax.set_ylabel(param_2)
+            #fig.tight_layout()
             # plt.legend()
             plt.savefig(
                 os.path.join(
@@ -259,7 +260,7 @@ def plot_oversampling_1d(names, labels, fits_dir, save_dir, priors=Survey.ZTF().
         priors.aux_bands, priors.reference_band
     )
 
-    fig, axes = plt.subplots(3, 4, figsize=(8, 10))
+    fig, axes = plt.subplots(3, 4, figsize=(8, 11))
     axes = axes.ravel()
 
     prior_means = priors.to_numpy()[:, 2]
@@ -278,6 +279,11 @@ def plot_oversampling_1d(names, labels, fits_dir, save_dir, priors=Survey.ZTF().
             features_1_gauss = 10000 * (features_1_gauss - 1)
             prior_means[i] = 10000 * (prior_means[i] - 1)
             prior_stddevs[i] = 10000 * prior_stddevs[i]
+        if i == 1:
+            param_1 = r"$10^3\times \beta_\mathrm{r}$"
+            features_1_gauss = 1000 * features_1_gauss
+            prior_means[i] = 1000 * prior_means[i]
+            prior_stddevs[i] = 1000 * prior_stddevs[i]
 
         log_scale = False
 
@@ -331,7 +337,7 @@ def plot_oversampling_1d(names, labels, fits_dir, save_dir, priors=Survey.ZTF().
         ax.set_yticklabels([])
         ax.set_yticks([])
 
-        ratio = 1.25
+        ratio = 1.2
         x_left, x_right = ax.get_xlim()
         y_low, y_high = ax.get_ylim()
 
@@ -345,7 +351,10 @@ def plot_oversampling_1d(names, labels, fits_dir, save_dir, priors=Survey.ZTF().
     fig.legend(leg_lines, [*list(labels_to_classes.keys()), "Combined", "Prior"], loc="lower center", ncol=4)
     plt.locator_params(axis="x", nbins=3)
 
-    plt.savefig(os.path.join(save_dir, "all_1d_hists.pdf"), bbox_inches="tight")
+    fig.tight_layout()
+    fig.subplots_adjust(bottom=0.1)
+
+    plt.savefig(os.path.join(save_dir, "all_1d_hists.pdf"))#, bbox_inches="tight")
     plt.close()
 
 

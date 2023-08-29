@@ -115,7 +115,10 @@ def retrieve_four_class_info(probs_csv, probs_alerce_csv, p07=False):
         pred_classes
     ) = read_probs_csv(probs_csv)
     
-    true_labels = np.array([classes_to_labels[x] for x in true_classes])
+    try:
+        true_labels = np.array([classes_to_labels[x] for x in true_classes])
+    except:
+        true_labels = np.array([SnClass.canonicalize(x) for x in true_classes])
     pred_labels = np.array([classes_to_labels[x] for x in pred_classes])
     
     # read in ALeRCE classes

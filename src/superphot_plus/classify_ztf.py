@@ -100,7 +100,7 @@ def classify(
     
     csv_path = PROBS_FILE if csv_path is None else csv_path
     with open(csv_path, "w+", encoding="utf-8") as pf:
-        pf.write("Name,Label,pSNIa,pSNII,pSNIIn,pSLSNI,pSNIbc")
+        pf.write("Name,Label,pSNIa,pSNII,pSNIIn,pSLSNI,pSNIbc\n")
 
     allowed_types = ["SN Ia", "SN II", "SN IIn", "SLSN-I", "SN Ibc"]
     output_dim = len(allowed_types)  # number of classes
@@ -167,6 +167,8 @@ def classify(
             val_features, val_classes = oversample_using_posteriors(
                 val_names, val_classes, round(0.1 * goal_per_class), fit_dir, sampler=sampler
             )
+            
+        print(train_features)
 
         test_features = []
         test_classes_os = []
@@ -337,7 +339,8 @@ def return_new_classifications(
     fit_dir,
     save_file,
     include_labels=False,
-    output_dir=None
+    output_dir=None,
+    sampler="dynesty",
 ):
     """Return new classifications based on model and save probabilities
     to a CSV file.
@@ -375,7 +378,12 @@ def return_new_classifications(
             if include_labels:
                 label = row[1]
 
-            probs_avg, high_chisq = classify_single_light_curve(model, test_name, fit_dir)
+            probs_avg, high_chisq = classify_single_light_curve(
+                model,
+                test_name,
+                fit_dir,
+                sampler=sampler
+            )
 
             if high_chisq:
                 label = "SKIP"

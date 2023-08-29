@@ -47,6 +47,7 @@ def import_labels_only(
     names = []
     redshifts = []
 
+    print(input_csvs, fits_dir, sampler)
     for input_csv in input_csvs:
         with open(input_csv, newline="", encoding="utf-8") as csvfile:
             csvreader = csv.reader(csvfile)
@@ -156,7 +157,7 @@ def oversample_using_posteriors(lc_names, labels, goal_per_class, fits_dir, samp
     labels = np.array(labels)
 
     posterior_samples = get_multiple_posterior_samples(lc_names, fits_dir, sampler)
-
+    
     for l in labels_unique:
         idxs_in_class = np.asarray(labels == l).nonzero()[0]
         num_in_class = len(idxs_in_class)

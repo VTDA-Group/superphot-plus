@@ -100,8 +100,10 @@ def plot_sampling_lc_fit(
 
     trange_fine = np.linspace(np.amin(tdata), np.amax(tdata), num=500)
 
+    fig, ax = plt.subplots()
+    
     for b in np.unique(bdata):  # TODO: handle case where band name isnt a valid color
-        plt.errorbar(
+        ax.errorbar(
             tdata[bdata == b],
             fdata[bdata == b],
             yerr=ferrdata[bdata == b],
@@ -111,7 +113,7 @@ def plot_sampling_lc_fit(
         )
 
         for sample in eq_wt_samples[:30]:
-            plt.plot(
+            ax.plot(
                 trange_fine,
                 flux_model(sample, trange_fine, [b] * len(trange_fine), band_order, ref_band),
                 c=b,
@@ -119,14 +121,14 @@ def plot_sampling_lc_fit(
                 alpha=0.1,
             )
 
-    plt.legend()
-    plt.xlabel("MJD")
-    plt.ylabel("Flux")
+    ax.legend(loc="upper left")
+    ax.set_xlabel("MJD")
+    ax.set_ylabel("Flux (arbitrary units)")
     
-    plt.title(ztf_name + ": " + sampling_method)
+    ax.set_title(ztf_name + ": " + sampling_method)
     
     if custom_formatting is not None:
-        custom_formatting()
+        custom_formatting(ax)
 
     plt.savefig(os.path.join(out_dir, ztf_name + "_" + sampling_method + "." + file_type), bbox_inches='tight')
 

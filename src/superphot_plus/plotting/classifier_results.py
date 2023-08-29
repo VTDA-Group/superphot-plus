@@ -366,7 +366,7 @@ def plot_phase_vs_accuracy(phased_probs_csv, save_dir):
     plt.close()
 
 
-def plot_redshifts_abs_mags(probs_snr_csv, save_dir):
+def plot_redshifts_abs_mags(probs_snr_csv, training_csv, fits_dir, save_dir, sampler="dynesty"):
     """
     Plot redshift and absolute magnitude distributions used in the
     redshift-inclusive classifier.
@@ -382,25 +382,27 @@ def plot_redshifts_abs_mags(probs_snr_csv, save_dir):
     allowed_types = list(labels_to_classes.keys())
     allowed_classes = [str(labels_to_classes[x]) for x in allowed_types]
 
-    names, classes, redshifts = import_labels_only(
+    names, labels, redshifts = import_labels_only(
         [
-            probs_snr_csv,
+            training_csv,
         ],
-        allowed_classes,
-        needs_posteriors=False,
+        allowed_types,
+        needs_posteriors=True,
         redshift=True,
+        sampler=sampler,
+        fits_dir=fits_dir,
     )
 
-    labels = np.array([classes_to_labels[int(x)] for x in classes])
+    #labels = np.array([classes_to_labels[int(x)] for x in classes])
     df = pd.read_csv(probs_snr_csv)
-    amplitudes = df.iloc[:, -5].to_numpy()
+    amplitudes = df.Fmax.to_numpy()
     app_mags = -2.5 * np.log10(amplitudes) + 26.3
 
     k_correction = 2.5 * np.log10(1.0 + redshifts)
     dist = cosmo.luminosity_distance([redshifts]).value[0]  # returns dist in Mpc
     abs_mags = app_mags - 5.0 * np.log10(dist * 1e6 / 10.0) + k_correction
 
-    fig, axes = plt.subplots(1, 2)
+    fig, axes = plt.subplots(1, 2, figsize=(8, 6))
     z_ax = axes[0]
     mag_ax = axes[1]
 
@@ -569,9 +571,9 @@ def plot_snr_hist(probs_snr_csv, save_dir):
     snr, n_snr_3, n_snr_5, n_snr_10 = df.iloc[:, -4:].to_numpy().T
     skip_mask = (df.iloc[:, 1] == "SKIP").to_numpy()
 
-    plt.hist(n_snr_3[~skip_mask], histtype="step", label=r"$3\sigma$", bins=np.arange(0, 603, 3))
-    plt.hist(n_snr_5[~skip_mask], histtype="step", label=r"$5\sigma$", bins=np.arange(0, 603, 3))
-    plt.hist(n_snr_10[~skip_mask], histtype="step", label=r"$10\sigma$", bins=np.arange(0, 603, 3))
+    plt.hist(n_snr_3[~skip_mask], histtype="step", label=r"$SNR \geq 3$", bins=np.arange(0, 603, 3))
+    plt.hist(n_snr_5[~skip_mask], histtype="step", label=r"$SNR \geq 5$", bins=np.arange(0, 603, 3))
+    plt.hist(n_snr_10[~skip_mask], histtype="step", label=r"$SNR \geq 10$", bins=np.arange(0, 603, 3))
     plt.loglog()
     plt.xlabel("Number of Datapoints at Given SNR")
     plt.ylabel("Number of Lightcurves")
@@ -616,7 +618,7 @@ def compare_mag_distributions(probs_classified, probs_unclassified, save_dir, ze
         histtype="stepfilled",
         bins=np.arange(5.0, 21.0, 0.5),
         alpha=0.5,
-        label="Classified",
+        label="Spectroscopic",
         density=True,
     )
     plt.hist(
@@ -624,7 +626,7 @@ def compare_mag_distributions(probs_classified, probs_unclassified, save_dir, ze
         histtype="stepfilled",
         bins=np.arange(5.0, 21.0, 0.5),
         alpha=0.5,
-        label="Unclassified (included)",
+        label="Photometric (included)",
         density=True,
     )
 
@@ -633,7 +635,7 @@ def compare_mag_distributions(probs_classified, probs_unclassified, save_dir, ze
         histtype="stepfilled",
         bins=np.arange(5.0, 21.0, 0.5),
         alpha=0.5,
-        label="Unclassified (excluded)",
+        label="Photometric (excluded)",
         density=True,
     )
 
@@ -701,6 +703,8 @@ def plot_chisquared_vs_accuracy(
 
     ax2.hist(bin_centers, bin_edges, weights=all_hist, color="purple", alpha=0.5, label="Spectroscopic")
     ax2.hist(bin_centers, bin_edges, weights=all_hist_phot, color="red", alpha=0.5, label="Photometric")
+    
+    ax2.set_yscale("log")
 
     all_hist[all_hist == 0] = np.inf
 

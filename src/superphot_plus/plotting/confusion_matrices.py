@@ -112,14 +112,14 @@ def compare_four_class_confusion_matrices(probs_csv, probs_alerce_csv, save_dir,
         pred_labels,
         os.path.join(save_dir, "superphot4_c.pdf"),
         purity=False,
-        cmap=plt.cm.Reds
+        cmap=plt.cm.Purples
     )
     plot_confusion_matrix(
         true_labels,
         pred_labels,
         os.path.join(save_dir, "superphot4_p.pdf"),
         purity=True,
-        cmap=plt.cm.Reds
+        cmap=plt.cm.Purples
     )
     
         
@@ -161,7 +161,7 @@ def plot_true_agreement_matrix(probs_csv, probs_alerce_csv, save_dir, spec=True)
     ) = retrieve_four_class_info(
         probs_csv,
         probs_alerce_csv,
-        False
+        False,
     )
     
     plot_agreement_matrix_from_arrs(pred_labels, pred_alerce, save_dir, spec=spec)
@@ -248,7 +248,6 @@ def plot_expected_agreement_matrix(probs_csv, probs_alerce_csv, save_dir, cmap=p
     plt.ylim(len(classes) - 0.5, -0.5)
     plt.savefig(
         os.path.join(save_dir, "expected_agreement.pdf"),
-        bbox_inches='tight'
     )
     plt.close()
 
@@ -326,7 +325,6 @@ def plot_agreement_matrix_from_arrs(our_labels, alerce_labels, save_dir, spec=Tr
 
     plt.savefig(
         os.path.join(save_dir, f"true_agreement_{suffix}.pdf"),
-        bbox_inches='tight',
     )
     plt.close()
 
@@ -403,5 +401,5 @@ def plot_confusion_matrix(y_true, y_pred, filename, purity=False, cmap=plt.cm.Pu
     fig.tight_layout()
     plt.xlim(-0.5, len(classes) - 0.5)
     plt.ylim(len(classes) - 0.5, -0.5)
-    plt.savefig(filename, bbox_inches='tight')
+    plt.savefig(filename)
     plt.close()
