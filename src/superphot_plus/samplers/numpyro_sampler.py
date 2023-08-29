@@ -263,6 +263,7 @@ def run_mcmc(lc, sampler="NUTS", priors=Survey.ZTF().priors, rng_seed=None):
     """
     if rng_seed is None:
         rng_seed = int(time.time())
+    print(f"Running numpyro with init val {rng_seed}")
     
     # Require data in all bands.
     for unique_band in priors.ordered_bands:
@@ -308,9 +309,15 @@ def run_mcmc(lc, sampler="NUTS", priors=Survey.ZTF().priors, rng_seed=None):
         optimizer = numpyro.optim.Adam(step_size=0.001)
         svi = SVI(jax_model, jax_guide, optimizer, loss=Trace_ELBO())
         num_iter = 10000
+
+        # Split random key into two: one for the MCMC sampling and
+        # on to seed the numpy based campling of the params (afterward).
+        rng_key = random.PRNGKey(rng_seed)
+        rng_key, seed2 = random.split(rng_key)
+
         with numpyro.validation_enabled():
             svi_result = svi.run(
-                random.PRNGKey(rng_seed),
+                rng_key,
                 num_iter,
                 stable_update=True,
                 obsflux=lc.fluxes,
@@ -322,7 +329,7 @@ def run_mcmc(lc, sampler="NUTS", priors=Survey.ZTF().priors, rng_seed=None):
         posterior_samples = {}
         for param in params:
             if param[-2:] == "mu":
-                rng = np.random.RandomState(rng_seed)
+                rng = np.random.RandomState(seed2[0])
                 posterior_samples[param[:-3]] = rng.normal(
                     loc=params[param], scale=params[param[:-2] + "sigma"], size=100
                 )
