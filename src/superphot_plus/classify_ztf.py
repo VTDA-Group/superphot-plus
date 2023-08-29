@@ -95,9 +95,10 @@ class CrossValidationTrainer:
         # Derive from sampler type
         self.fits_dir = f"{DATA_DIR}/{sampler}_fits"
 
-        # Remove previous outputs
-        for directory in [metrics_dir, models_dir, cm_folder, FIT_PLOTS_FOLDER]:
-            shutil.rmtree(directory)
+        # Remove previous output folders
+        for folder in [metrics_dir, models_dir, cm_folder, FIT_PLOTS_FOLDER]:
+            if os.path.exists(folder) and os.path.isdir(folder):
+                shutil.rmtree(folder)
 
         # Recreate output directories
         os.makedirs(metrics_dir)
