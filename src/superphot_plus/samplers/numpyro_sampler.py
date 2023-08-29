@@ -32,12 +32,7 @@ class NumpyroSampler(Sampler):
         pass
 
     def run_single_curve(
-        self,
-        lightcurve: Lightcurve,
-        priors: MultibandPriors,
-        sampler="svi",
-        rng_seed=None,
-        **kwargs
+        self, lightcurve: Lightcurve, priors: MultibandPriors, sampler="svi", rng_seed=None, **kwargs
     ) -> PosteriorSamples:
         """Run the sampler on a single light curve.
 
@@ -63,7 +58,7 @@ class NumpyroSampler(Sampler):
         if eq_wt_samples is None:
             return None
         return PosteriorSamples(
-            eq_wt_samples,name=lightcurve.name, sampling_method=sampler, sn_class=lightcurve.sn_class
+            eq_wt_samples, name=lightcurve.name, sampling_method=sampler, sn_class=lightcurve.sn_class
         )
 
     def run_multi_curve(self, lightcurves, priors, **kwargs) -> List[PosteriorSamples]:
@@ -264,7 +259,7 @@ def run_mcmc(lc, sampler="NUTS", priors=Survey.ZTF().priors, rng_seed=None):
     if rng_seed is None:
         rng_seed = int(time.time())
     print(f"Running numpyro with init val {rng_seed}")
-    
+
     # Require data in all bands.
     for unique_band in priors.ordered_bands:
         if lc.obs_count(unique_band) == 0:

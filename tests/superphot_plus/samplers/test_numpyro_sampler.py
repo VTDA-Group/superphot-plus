@@ -48,7 +48,10 @@ def test_numpyro_nuts(ztf_priors, single_ztf_lightcurve_object):
     expected values."""
     sampler = NumpyroSampler()
     posterior_samples = sampler.run_single_curve(
-        single_ztf_lightcurve_object, priors=ztf_priors, sampler="NUTS", rng_seed=4,
+        single_ztf_lightcurve_object,
+        priors=ztf_priors,
+        sampler="NUTS",
+        rng_seed=4,
     )
     # Check output length
     assert len(posterior_samples.samples) == 300
@@ -76,7 +79,7 @@ def test_numpyro_nuts(ztf_priors, single_ztf_lightcurve_object):
     print("NUTS:")
     for v in sample_mean:
         print("        %.8f," % v)
-    
+
     assert np.all(np.isclose(sample_mean, expected, rtol=0.01))
 
 
@@ -86,7 +89,10 @@ def test_numpyro_svi(ztf_priors, single_ztf_lightcurve_object):
     expected values."""
     sampler = NumpyroSampler()
     posterior_samples = sampler.run_single_curve(
-        single_ztf_lightcurve_object, priors=ztf_priors, sampler="svi", rng_seed=1,
+        single_ztf_lightcurve_object,
+        priors=ztf_priors,
+        sampler="svi",
+        rng_seed=1,
     )
     # Check output length
     assert len(posterior_samples.samples) == 100
