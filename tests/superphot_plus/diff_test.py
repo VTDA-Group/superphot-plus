@@ -64,7 +64,30 @@ def generate_files(lightcurve, output_dir):
     output_dir : pathlib Path
         The directory where we will save the files.
     """
-    print("Generating files", end="...")
+    files_equal = True
+
+    res_new = np.load(new_results_file)["arr_0"]
+    print(f"Loaded {len(res_new)} rows from new file {new_results_file}.")
+    res_old = np.load(goldens_file)["arr_0"]
+    print(f"Loaded {len(res_old)} rows from new file {goldens_file}.")
+
+    # Check that the number of results matches up
+    if len(res_new) != len(res_old):
+        print(f"Mismatched number of results ({len(res_new)} vs {len(res_old)} rows).")
+        files_equal = False
+    if res_new.size != res_old.size:
+        print(f"Mismatched number of results ({res_new.size} vs {res_old.size} values).")
+        files_equal = False
+
+    # Check that the values are close to each other
+    # This makes less sense for svi (we'd rather check to some mean than
+    # row by row), but we're just using this as a placeholder for now)
+    if not np.all(np.isclose(res_old, res_new, atol=delta)):
+        print(
+            f"{np.isclose(res_old, res_new, atol=delta).sum()} of {res_old.size} values mismatch. (max"
+            f" delta={delta})"
+        )
+        files_equal = False
 
     # Make sure our target directory exists
     if not output_dir.is_dir():

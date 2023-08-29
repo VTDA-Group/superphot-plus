@@ -20,9 +20,7 @@ from superphot_plus.constants import (
     HIDDEN_DROPOUT_FRAC,
     INPUT_DROPOUT_FRAC,
     LEARNING_RATE,
-    MEANS_TRAINED_MODEL,
     SEED,
-    STDDEVS_TRAINED_MODEL,
 )
 from superphot_plus.file_paths import METRICS_DIR, MODELS_DIR, PROBS_FILE
 from superphot_plus.format_data_ztf import normalize_features
@@ -61,13 +59,13 @@ class ModelConfig:
             "normalization_means": self.normalization_means,
             "normalization_stddevs": self.normalization_stddevs,
         }
-        with open(filename, "w") as f:
+        with open(filename, "w", encoding="utf=8") as f:
             json.dump(data_dict, f)
 
     @classmethod
     def load(cls, filename):
         """Load configuration data from a JSON file."""
-        with open(filename, "r") as f:
+        with open(filename, "r", encoding="utf=8") as f:
             data_dict = json.load(f)
         return ModelConfig(
             *data_dict["config"],
