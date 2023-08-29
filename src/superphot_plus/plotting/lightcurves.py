@@ -7,7 +7,6 @@ from superphot_plus.file_paths import FIT_PLOTS_FOLDER
 from superphot_plus.file_utils import get_posterior_samples
 from superphot_plus.import_utils import clip_lightcurve_end, import_lc
 from superphot_plus.lightcurve import Lightcurve
-from superphot_plus.plotting.format_params import *
 from superphot_plus.plotting.utils import lighten_color
 from superphot_plus.utils import flux_model, get_numpyro_cube
 
@@ -146,7 +145,6 @@ def plot_sampling_lc_fit_numpyro(
     lcs,
     ref_band,
     sampling_method="svi",
-    t0_lim=None,
     output_folder=FIT_PLOTS_FOLDER,
 ):
     """
@@ -168,8 +166,6 @@ def plot_sampling_lc_fit_numpyro(
         Max flux of data.
     lcs: array-like
         Light curve objects on which sampling was run.
-    t0_lim:  float or None, optional
-        Upper time limit for the data.
     output_folder : str or FITS_PLOTS_FOLDER, optional
         Directory where to store the light curve sampling fit.
     """
@@ -180,9 +176,9 @@ def plot_sampling_lc_fit_numpyro(
     bdata = np.atleast_2d(bdata)
     max_flux = np.atleast_1d(max_flux)
 
-    for i in range(len(tdata)):
-        ignore_idx = ferrdata[i] == 1e10  # pylint: ignore-superfluous parens
-        tdata_i = tdata[i][~ignore_idx]
+    for i, tdata_i in enumerate(tdata):
+        ignore_idx = ferrdata[i] == 1e10
+        tdata_i = tdata_i[~ignore_idx]
         fdata_i = fdata[i][~ignore_idx]
         ferrdata_i = ferrdata[i][~ignore_idx]
         bdata_i = bdata[i][~ignore_idx]

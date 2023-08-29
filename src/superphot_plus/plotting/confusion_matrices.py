@@ -10,7 +10,7 @@ from sklearn.metrics import confusion_matrix
 from sklearn.utils.multiclass import unique_labels
 
 from superphot_plus.file_paths import CM_FOLDER
-from superphot_plus.plotting.utils import read_probs_csv
+from superphot_plus.plotting.utils import read_probs_csv, get_alerce_pred_class
 from superphot_plus.supernova_class import SupernovaClass as SnClass
 from superphot_plus.utils import calc_accuracy, f1_score
 
@@ -31,7 +31,7 @@ def plot_high_confidence_confusion_matrix(probs_csv, filename, cutoff=0.7):
     _, classes_to_labels = SnClass.get_type_maps()
 
     (
-        names,
+        _,
         true_classes,
         probs,
         pred_classes,
@@ -59,12 +59,8 @@ def plot_snIa_confusion_matrix(probs_csv, filename, p07=False):
         If True, only include predictions with a probability >= 0.7.
         Default is False.
     """
-    (
-        names,
-        true_classes,
-        probs,
-        pred_classes,
-    ) = read_probs_csv(probs_csv)
+    # FIXME - p07 is unused
+    (_, true_classes, probs, _) = read_probs_csv(probs_csv)
     pred_binary = np.where(probs[:, 0] > 0.5, "SN Ia", "SN CC")
     true_binary = np.where(true_classes == 0, "SN Ia", "SN CC")
 
@@ -91,13 +87,13 @@ def plot_alerce_confusion_matrix(probs_csv, filename, p07=False):
     _, classes_to_labels = SnClass.get_type_maps()
     true_classes = []
     pred_classes = []
-    with open(probs_csv, "r") as csvfile:
+    with open(probs_csv, "r", encoding="utf-8") as csvfile:
         csvreader = csv.reader(csvfile)
         for e, row in enumerate(csvreader):
             name = row[0]
             try:
                 pass
-                # pred_class = get_alerce_pred_class(name, reflect_style=True)
+                # pred_class = get_alerce_pred_class(name, superphot_style=True)
             except:
                 print(name, " skipped")
                 continue
@@ -143,12 +139,12 @@ def plot_agreement_matrix(probs_csv, filename):
     _, classes_to_labels = SnClass.get_type_maps()
     pred_classes = []
     alerce_preds = []
-    with open(probs_csv, "r") as csvfile:
+    with open(probs_csv, "r", encoding="utf-8") as csvfile:
         csvreader = csv.reader(csvfile)
         for e, row in enumerate(csvreader):
             name = row[0]
             try:
-                alerce_pred = get_alerce_pred_class(name, reflect_style=True)
+                alerce_pred = get_alerce_pred_class(name, superphot_style=True)
                 print(alerce_pred, e)
             except:
                 print(name, " skipped")
@@ -189,12 +185,12 @@ def plot_expected_agreement_matrix(probs_csv, filename, cmap=plt.cm.Purples):
     alerce_preds = []
 
     true_classes = []
-    with open(probs_csv, "r") as csvfile:
+    with open(probs_csv, "r", encoding="utf-8") as csvfile:
         csvreader = csv.reader(csvfile)
         for e, row in enumerate(csvreader):
             name = row[0]
             try:
-                alerce_pred = get_alerce_pred_class(name, reflect_style=True)
+                alerce_pred = get_alerce_pred_class(name, superphot_style=True)
                 print(alerce_pred, e)
             except:
                 print(name, " skipped")
@@ -237,11 +233,9 @@ def plot_expected_agreement_matrix(probs_csv, filename, cmap=plt.cm.Purples):
 
     exp_acc /= len(alerce_preds)
 
-    title = r"Expected Agreement Matrix, Spec. ($A' = %.2f$)" % exp_acc
+    title = f"Expected Agreement Matrix, Spec. ($A' = {exp_acc:.2f}$)"
     fig, ax = plt.subplots()
-    im = ax.imshow(
-        cm, interpolation="nearest", vmin=0.0, vmax=1.0, cmap=cmap
-    )  # pylint: disable=unused-variable
+    _ = ax.imshow(cm, interpolation="nearest", vmin=0.0, vmax=1.0, cmap=cmap)
     # ax.figure.colorbar(im, ax=ax)
     # We want to show all ticks...
     ax.set(
@@ -302,11 +296,9 @@ def plot_agreement_matrix_from_arrs(our_labels, alerce_labels, filename, cmap=pl
     alerce_labels = np.array(alerce_labels)
 
     exp_acc = calc_accuracy(alerce_labels, our_labels)
-    title = r"True Agreement Matrix, Spec. ($A' = %.2f$)" % exp_acc
+    title = f"True Agreement Matrix, Spec. ($A' = {exp_acc:.2f}$)"
     fig, ax = plt.subplots()
-    im = ax.imshow(
-        cm, interpolation="nearest", vmin=0.0, vmax=1.0, cmap=cmap
-    )  # pylint: disable=unused-variable
+    _ = ax.imshow(cm, interpolation="nearest", vmin=0.0, vmax=1.0, cmap=cmap)
 
     ax.set(
         xticks=np.arange(cm.shape[1]),
@@ -323,7 +315,6 @@ def plot_agreement_matrix_from_arrs(our_labels, alerce_labels, filename, cmap=pl
     plt.setp(ax.get_xticklabels(), rotation=45, ha="right", rotation_mode="anchor")
 
     # Loop over data dimensions and create text annotations.
-    fmt = ".2f"  # pylint: disable=unused-variable
     thresh = cm.max() / 2.0
     for i in range(cm.shape[0]):
         for j in range(cm.shape[1]):
@@ -333,7 +324,7 @@ def plot_agreement_matrix_from_arrs(our_labels, alerce_labels, filename, cmap=pl
             ax.text(
                 j,
                 i,
-                "%.2f\n(%d)" % (cm[i, j], num_in_cell),
+                f"{cm[i, j]:.2f}\n({num_in_cell})",
                 ha="center",
                 va="center",
                 color="white" if cm[i, j] > thresh else "black",
@@ -371,18 +362,16 @@ def plot_confusion_matrix(y_true, y_pred, filename, purity=False, cmap=plt.cm.Pu
 
     # plt.rcParams["figure.figsize"] = (16, 16)
     if purity:
-        title = r"Purity ($N = %d, A = %.2f, F_1 = %.2f$)" % (len(y_pred), acc, f1)
+        title = f"Purity ($N = {len(y_pred)}, A = {acc:.2f}, F_1 = {f1:.2f}$)"
         cm = confusion_matrix(y_true, y_pred, normalize="pred")
     else:
-        title = r"Completeness ($N = %d, A = %.2f, F_1 = %.2f$)" % (len(y_pred), acc, f1)
+        title = f"Completeness ($N = {len(y_pred)}, A = {acc:.2f}, F_1 = {f1:.2f}$)"
         cm = confusion_matrix(y_true, y_pred, normalize="true")
 
     classes = unique_labels(y_true, y_pred)
 
     fig, ax = plt.subplots()
-    im = ax.imshow(
-        cm, interpolation="nearest", vmin=0.0, vmax=1.0, cmap=cmap
-    )  # pylint: disable=unused-variable
+    _ = ax.imshow(cm, interpolation="nearest", vmin=0.0, vmax=1.0, cmap=cmap)
 
     ax.set(
         xticks=np.arange(cm.shape[1]),
@@ -399,7 +388,6 @@ def plot_confusion_matrix(y_true, y_pred, filename, purity=False, cmap=plt.cm.Pu
     plt.setp(ax.get_xticklabels(), rotation=45, ha="right", rotation_mode="anchor")
 
     # Loop over data dimensions and create text annotations.
-    fmt = ".2f"  # pylint: disable=unused-variable
     thresh = cm.max() / 2.0
 
     for i in range(cm.shape[0]):
@@ -410,7 +398,7 @@ def plot_confusion_matrix(y_true, y_pred, filename, purity=False, cmap=plt.cm.Pu
             ax.text(
                 j,
                 i,
-                "%.2f\n(%d)" % (cm[i, j], num_in_cell),
+                f"{cm[i, j]:.2f}\n({num_in_cell})",
                 ha="center",
                 va="center",
                 color="white" if cm[i, j] > thresh else "black",

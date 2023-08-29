@@ -390,7 +390,7 @@ def calculate_mse(cube, lightcurve, unique_bands, ref_band):
     return mse_sum / len(lightcurve.times)
 
 
-def calculate_neg_chi_squareds(cubes, t, f, ferr, b, ordered_bands=["r", "g"], ref_band="r"):
+def calculate_neg_chi_squareds(cubes, t, f, ferr, b, ordered_bands=None, ref_band="r"):
     """Gets the negative chi-squared of posterior fits from the model
     parameters and original data files.
     Parameters
