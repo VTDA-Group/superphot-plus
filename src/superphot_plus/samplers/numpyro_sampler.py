@@ -45,8 +45,7 @@ class NumpyroSampler(Sampler):
         sampler : str
             The numpyro sampler to use. Either "NUTS" or "svi"
         rng_seed : int, optional
-            The random seed to use. Warning should only be set for testing.
-            May not produce scientificially valid results when set.
+            The random seed to use (for testing purposes).
 
         Returns
         -------
