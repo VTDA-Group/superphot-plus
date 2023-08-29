@@ -263,7 +263,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     run_nested_cv(
-        num_samples=args.num_samples,
+        num_samples=int(args.num_samples),
         sampler=args.sampler,
         include_redshift=args.include_redshifts,
     )

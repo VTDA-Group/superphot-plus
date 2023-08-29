@@ -42,12 +42,14 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     trainer = CrossValidationTrainer(
-        num_layers=args.num_layers,
-        neurons_per_layer=args.neurons_per_layer,
-        goal_per_class=args.goal_per_class,
+        num_layers=int(args.num_layers),
+        neurons_per_layer=int(args.neurons_per_layer),
+        goal_per_class=int(args.goal_per_class),
         classify_log_file=args.classify_log_file,
         sampler=args.sampler,
         include_redshift=args.include_redshifts,
     )
 
-    trainer.run(input_csvs=args.input_csvs.split(","), num_epochs=args.num_epochs, num_folds=args.num_folds)
+    trainer.run(
+        input_csvs=args.input_csvs.split(","), num_epochs=int(args.num_epochs), num_folds=int(args.num_folds)
+    )
