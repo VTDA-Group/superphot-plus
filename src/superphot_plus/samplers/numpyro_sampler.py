@@ -245,8 +245,7 @@ def run_mcmc(lc, sampler="NUTS", priors=Survey.ZTF().priors, rng_seed=None):
     priors : MultibandPriors, optional
         The prior set to use for fitting. Defaults to ZTF's priors.
     rng_seed : int, optional
-        The random seed to use. Warning should only be set for testing.
-        May not produce scientificially valid results when set.
+        The random seed to use (for testing purposes).
 
     Returns
     -------
@@ -257,7 +256,7 @@ def run_mcmc(lc, sampler="NUTS", priors=Survey.ZTF().priors, rng_seed=None):
     """
     if rng_seed is None:
         rng_seed = int(time.time())
-    print(f"Running numpyro with init val {rng_seed}")
+    print(f"Running numpyro with seed={rng_seed}")
 
     # Require data in all bands.
     for unique_band in priors.ordered_bands:
