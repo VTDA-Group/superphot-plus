@@ -25,7 +25,7 @@ PROBS_FILE2 = f"{DATA_DIR}/probs_phased.csv"
 # Pretrained model
 # glob.glob("models_saved/*ZTF23aagkgnz.pt")[0]
 TRAINED_MODEL_FN = "../../tests/data/superphot-model-ZTF23aagkgnz.pt"
-TRAINED_CONFIG_FN = "../../tests/data/superphot-config-test.json"
+TRAINED_CONFIG_FN = "../../tests/data/superphot-config-test.yaml"
 
 # Filepaths for hyperparameter files
-BEST_CONFIG_FILE = f"{DATA_DIR}/best_config.json"
+BEST_CONFIG_FILE = f"{DATA_DIR}/best_config.yaml"

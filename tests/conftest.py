@@ -1,5 +1,4 @@
 import os
-import os.path
 
 import numpy as np
 import pytest
@@ -69,7 +68,7 @@ def ztf_priors():
 @pytest.fixture
 def classifier(test_data_dir):
     filename = os.path.join(test_data_dir, "superphot-model-ZTF23aagkgnz.pt")
-    config_filename = os.path.join(test_data_dir, "superphot-config-test.json")
+    config_filename = os.path.join(test_data_dir, "superphot-config-test.yaml")
     return SuperphotClassifier.load(filename, config_filename)[0]
 
 

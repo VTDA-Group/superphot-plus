@@ -142,9 +142,10 @@ class SuperphotClassifier(nn.Module):
 
         train_dataset, valid_dataset = train_data
 
+        config_file_prefix = os.path.join(models_dir, f"superphot-config-{run_id}")
+
         # Log model configuration
-        config_path = os.path.join(models_dir, f"superphot-config-{run_id}.json")
-        self.config.save(config_path)
+        self.config.write_to_file(f"{config_file_prefix}.yaml")
 
         train_iterator = DataLoader(dataset=train_dataset, shuffle=True, batch_size=self.config.batch_size)
         valid_iterator = DataLoader(dataset=valid_dataset, batch_size=self.config.batch_size)
@@ -191,8 +192,7 @@ class SuperphotClassifier(nn.Module):
             )
 
         # Save model with the best validation score
-        model_path = os.path.join(models_dir, f"superphot-model-{run_id}.pt")
-        torch.save(best_model["state_dict"], model_path)
+        torch.save(best_model["state_dict"], f"{config_file_prefix}.pt")
 
         if load_best_model:
             self.load_state_dict(best_model["state_dict"])
@@ -536,7 +536,7 @@ class SuperphotClassifier(nn.Module):
         torch.nn.Module
             The pre-trained MLP object.
         """
-        config = ModelConfig.load(config_filename)
+        config = ModelConfig.from_file(config_filename)
         model = SuperphotClassifier.create(config)  # set up empty multi-layer perceptron
         model.load_state_dict(torch.load(filename))  # load trained state dict to the MLP
         return model, config.normalization_means, config.normalization_stddevs

@@ -19,7 +19,7 @@ def benchmarks_data_dir():
 @pytest.fixture
 def classifier(benchmarks_data_dir):
     filename = os.path.join(benchmarks_data_dir, "superphot-model-ZTF23aagkgnz.pt")
-    config_filename = os.path.join(benchmarks_data_dir, "superphot-config-test.json")
+    config_filename = os.path.join(benchmarks_data_dir, "superphot-config-test.yaml")
     return SuperphotClassifier.load(filename, config_filename)[0]
 
 

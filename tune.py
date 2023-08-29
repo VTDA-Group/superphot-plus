@@ -1,8 +1,8 @@
 """Entry point to run hyperparameter tuning using Nested CV."""
-import json
 import numpy as np
 import os
 import ray
+import yaml
 
 from argparse import ArgumentParser, BooleanOptionalAction
 from functools import partial
@@ -233,8 +233,9 @@ def run_nested_cv(num_samples, sampler, include_redshift):
     print(f"Best trial validation loss: {best_trial.last_result['avg_val_loss']}")
 
     # Store best config to file
-    with open(BEST_CONFIG_FILE, "w", encoding="utf-8") as out_file:
-        json.dump(best_trial.config, out_file)
+    encoded_string = yaml.dump(best_trial.config, sort_keys=False)
+    with open(BEST_CONFIG_FILE, "w", encoding="utf-8") as file_handle:
+        file_handle.write(encoded_string)
 
 
 if __name__ == "__main__":

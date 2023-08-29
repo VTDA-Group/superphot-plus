@@ -1,8 +1,10 @@
-import json
+import dataclasses
 from dataclasses import dataclass
 from typing import List
 
 import torch
+import yaml
+from typing_extensions import Self
 
 from superphot_plus.constants import BATCH_SIZE, LEARNING_RATE
 
@@ -32,29 +34,23 @@ class ModelConfig:
     batch_size: int = BATCH_SIZE
     learning_rate: int = LEARNING_RATE
 
-    device: torch.device = torch.device("cpu")
+    device = torch.device("cpu")
 
-    def save(self, filename):
-        """Save configuration data to a JSON file."""
-        data_dict = {
-            "network_params": [*self.network_params],
-            "normalization_means": self.normalization_means,
-            "normalization_stddevs": self.normalization_stddevs,
-            "batch_size": self.batch_size,
-            "learning_rate": self.learning_rate,
-        }
-        with open(filename, "w", encoding="utf-8") as f:
-            json.dump(data_dict, f)
+    def __post_init__(self):
+        """Coerce string dictionaries into the appropriatedata type."""
+        if isinstance(self.network_params, dict):
+            self.network_params = NetworkParams(**self.network_params)  # pylint: disable=not-a-mapping
+
+    def write_to_file(self, file: str):
+        """Save configuration data to a YAML file."""
+        args = dataclasses.asdict(self)
+        encoded_string = yaml.dump(args, sort_keys=False)
+        with open(file, "w", encoding="utf-8") as file_handle:
+            file_handle.write(encoded_string)
 
     @classmethod
-    def load(cls, filename):
-        """Load configuration data from a JSON file."""
-        with open(filename, "r", encoding="utf-8") as f:
-            data_dict = json.load(f)
-        return ModelConfig(
-            NetworkParams(*data_dict["network_params"]),
-            data_dict["normalization_means"],
-            data_dict["normalization_stddevs"],
-            data_dict["batch_size"],
-            data_dict["learning_rate"],
-        )
+    def from_file(cls, file: str) -> Self:
+        """Load configuration data from a YAML file."""
+        with open(file, "r", encoding="utf-8") as file_handle:
+            metadata = yaml.safe_load(file_handle)
+            return cls(**metadata)

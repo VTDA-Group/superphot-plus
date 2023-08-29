@@ -1,9 +1,9 @@
-import extinction
-import numpy as np
 import os
 import shutil
-import torch
 
+import extinction
+import numpy as np
+import torch
 from astropy.coordinates import SkyCoord
 from dustmaps.config import config
 from dustmaps.sfd import SFDQuery
