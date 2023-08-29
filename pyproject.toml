@@ -51,7 +51,8 @@ dev = [
     "sphinx-rtd-theme==1.2.0", # Used to render documentation
     "sphinx-autoapi==2.0.1", # Used to automatically generate api documentation
     "pylint", # Used for static linting of files
-    "pytest-monitor" # Used to run benchmarks on the test suite
+    "pytest-monitor", # Used to run benchmarks on the test suite
+    "memory_profiler" # Used to benchmark memory usage.
 ]
 
 [build-system]

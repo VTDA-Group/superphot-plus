@@ -126,7 +126,7 @@ def ztf_noise_model(mag, band, snr_range_g=None, snr_range_r=None):
     return snr
 
 
-def create_clean_models(nmodels, num_times=100):
+def create_clean_models(nmodels, num_times=100, bands=None, ref_band="r"):
     """Generate 'clean' (noiseless) models from the prior
 
     Parameters
@@ -134,7 +134,11 @@ def create_clean_models(nmodels, num_times=100):
     nmodels : int
         The number of models you want to generate.
     num_times : int, optional
-        The number of timesteps to use.
+        The number of timesteps to use. Default = 100
+    bands : list, optional
+        The ordered list of bands to use. Default = ['r', 'g']
+    ref_band : str, optional
+        The reference band. Default = 'r'
 
     Returns
     -------
@@ -146,12 +150,15 @@ def create_clean_models(nmodels, num_times=100):
     params = []
     lcs = []
 
+    if bands is None:
+        bands = ["r", "g"]
+
     tdata = np.linspace(-100, 100, num_times)
-    bdata = np.asarray(["g"] * num_times, dtype=str)
+    bdata = np.asarray([bands[i % len(bands)] for i in range(num_times)], dtype=str)
     edata = np.asarray([1e-6] * num_times, dtype=float)
 
     while len(lcs) < nmodels:
-        cube = np.random.uniform(0, 1, 14)
+        cube = np.random.uniform(0, 1, 7 * len(bands))
         cube = create_prior(cube)
         A, beta, gamma, t0, tau_rise, tau_fall, es = cube[:7]  # pylint: disable=unused-variable
 
@@ -160,7 +167,7 @@ def create_clean_models(nmodels, num_times=100):
             continue
         params.append(cube)
 
-        f_model = flux_model(cube, tdata, bdata, ["r", "g"], "r")
+        f_model = flux_model(cube, tdata, bdata, bands, ref_band)
         lcs.append(np.array([tdata, f_model, edata, bdata]))
 
     return params, lcs
