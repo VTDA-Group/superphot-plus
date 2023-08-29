@@ -4,11 +4,11 @@ import numpy as np
 import pandas as pd
 
 from superphot_plus.plotting.utils import (
-    read_probs_csv,
-    get_alerce_pred_class,
-    gaussian,
-    histedges_equalN,
     add_snr_to_prob_csv,
+    gaussian,
+    get_alerce_pred_class,
+    histedges_equalN,
+    read_probs_csv,
 )
 
 

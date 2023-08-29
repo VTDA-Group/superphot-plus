@@ -6,10 +6,11 @@ import pytest
 from superphot_plus.file_utils import get_posterior_samples
 from superphot_plus.plotting.lightcurves import (
     plot_lc_fit,
+    plot_lightcurve_clipping,
     plot_sampling_lc_fit,
     plot_sampling_lc_fit_numpyro,
-    plot_lightcurve_clipping,
 )
+
 
 def test_plot_lc_fit(single_ztf_sn_id, ztf_priors, test_data_dir, tmp_path):
     """Tests plot_lc_fit() and by extension, plot_sampling_lc_fit()."""
@@ -32,7 +33,9 @@ def test_plot_lc_fit(single_ztf_sn_id, ztf_priors, test_data_dir, tmp_path):
     assert os.path.exists(out_fn)
 
 
-def test_plot_sampling_lc_fit_numpyro(single_ztf_sn_id, ztf_priors, single_ztf_lightcurve_object, tmp_path, dummy_posterior_sample_dict):
+def test_plot_sampling_lc_fit_numpyro(
+    single_ztf_sn_id, ztf_priors, single_ztf_lightcurve_object, tmp_path, dummy_posterior_sample_dict
+):
     """Test plot_sampling_lc_fit_numpyro()."""
     posterior_samples = dummy_posterior_sample_dict
     lc = single_ztf_lightcurve_object

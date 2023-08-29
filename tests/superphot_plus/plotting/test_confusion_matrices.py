@@ -1,9 +1,9 @@
 import os
 
 from superphot_plus.plotting.confusion_matrices import (
+    plot_confusion_matrix,
     plot_high_confidence_confusion_matrix,
     plot_snIa_confusion_matrix,
-    plot_confusion_matrix,
 )
 
 

@@ -1,12 +1,12 @@
 """This module implements the Multi-Layer Perceptron (MLP) model for
 classification."""
 
+import json
 import os
 import random
 import time
 from dataclasses import dataclass
 from typing import List
-import json
 
 import numpy as np
 import torch
@@ -20,14 +20,13 @@ from superphot_plus.constants import (
     HIDDEN_DROPOUT_FRAC,
     INPUT_DROPOUT_FRAC,
     LEARNING_RATE,
-    MEANS_TRAINED_MODEL,
     SEED,
-    STDDEVS_TRAINED_MODEL,
 )
 from superphot_plus.file_paths import METRICS_DIR, MODELS_DIR, PROBS_FILE
 from superphot_plus.format_data_ztf import normalize_features
 from superphot_plus.plotting.classifier_results import plot_model_metrics
 from superphot_plus.utils import calculate_accuracy, create_dataset, epoch_time, save_test_probabilities
+
 
 @dataclass
 class ModelConfig:
@@ -37,47 +36,41 @@ class ModelConfig:
     output_dim: int
     neurons_per_layer: int
     num_hidden_layers: int
-    
+
     normalization_means: List[float]
     normalization_stddevs: List[float]
-    
 
     device: torch.device = torch.device("cpu")
 
     def __iter__(self):
-        return iter((
-            self.input_dim,
-            self.output_dim,
-            self.neurons_per_layer,
-            self.num_hidden_layers,
-        ))
-    
-    def save(self, filename):
-        """Save configuration data to a JSON file.
-        """
-        data_dict = {
-            'config': [
+        return iter(
+            (
                 self.input_dim,
                 self.output_dim,
                 self.neurons_per_layer,
-                self.num_hidden_layers
-            ],
-            'normalization_means': self.normalization_means,
-            'normalization_stddevs': self.normalization_stddevs
+                self.num_hidden_layers,
+            )
+        )
+
+    def save(self, filename):
+        """Save configuration data to a JSON file."""
+        data_dict = {
+            "config": [self.input_dim, self.output_dim, self.neurons_per_layer, self.num_hidden_layers],
+            "normalization_means": self.normalization_means,
+            "normalization_stddevs": self.normalization_stddevs,
         }
-        with open(filename, 'w') as f:
+        with open(filename, "w", encoding="utf=8") as f:
             json.dump(data_dict, f)
-        
+
     @classmethod
     def load(cls, filename):
-        """Load configuration data from a JSON file.
-        """
-        with open(filename, "r") as f:
+        """Load configuration data from a JSON file."""
+        with open(filename, "r", encoding="utf=8") as f:
             data_dict = json.load(f)
         return ModelConfig(
-            *data_dict['config'],
-            data_dict['normalization_means'],
-            data_dict['normalization_stddevs'],
+            *data_dict["config"],
+            data_dict["normalization_means"],
+            data_dict["normalization_stddevs"],
         )
 
 
@@ -410,7 +403,6 @@ class MLP(nn.Module):
                 epoch_loss += loss.item()
                 epoch_acc += acc.item()
 
-
         return epoch_loss / len(iterator), epoch_acc / len(iterator)
 
     def test(self, test_features, test_classes, test_names, test_group_idxs, save_path):
@@ -448,7 +440,7 @@ class MLP(nn.Module):
             probs_avg = np.mean(probs.numpy(), axis=0)
 
             labels_indiv = labels_indiv.numpy()
-            
+
             save_test_probabilities(
                 test_names[indx_indiv.numpy().astype(int)[0]],
                 probs_avg,

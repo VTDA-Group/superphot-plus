@@ -1,15 +1,15 @@
 import os
+
 import extinction
 import numpy as np
 import torch
 from astropy.coordinates import SkyCoord
 from dustmaps.config import config
 from dustmaps.sfd import SFDQuery
-
-from superphot_plus.sfd import dust_filepath
-
 from torch.utils.data import TensorDataset
+
 from superphot_plus.file_paths import PROBS_FILE, PROBS_FILE2
+from superphot_plus.sfd import dust_filepath
 
 
 def get_band_extinctions(ra, dec, wvs):
@@ -305,6 +305,90 @@ def get_numpyro_cube(params, max_flux, aux_bands=None):
     return np.array(cube).T, np.array(aux_bands)
 
 
+def calculate_log_likelihood(cube, lightcurve, unique_bands, ref_band):
+    """Calculate the log-likelihood of a single lightcurve.
+    Copied from dynesty_sampler.py
+
+    Parameters
+    ----------
+    cube : np.ndarray
+        Array of parameters. Must be length 7 * B where B is
+        the number of unique bands.
+    lightcurve : Lightcurve
+        The lightcurve object to evaluate.
+    unique_bands : list
+        A list of bands to use.
+    ref_band : str
+        The reference band.
+
+    Returns
+    -------
+    logL : float
+        Log-likelihood value.
+    """
+    if ref_band not in unique_bands:
+        raise ValueError("Reference band not included in unique_bands.")
+    if 7 * len(unique_bands) != len(cube):
+        raise ValueError(
+            f"Size mismatch with curve parameters. Expected {7 * len(unique_bands)}. Found {len(cube)}."
+        )
+    if len(lightcurve.times) == 0:
+        raise ValueError("Empty light curve provided.")
+
+    # Generate points from 'cube' for comparison.
+    max_flux, max_flux_loc = lightcurve.find_max_flux(band=ref_band)
+    f_model = flux_model(cube, lightcurve.times, lightcurve.bands, unique_bands, ref_band)
+    extra_sigma_arr = np.ones(len(lightcurve.times)) * cube[6] * max_flux
+    for band_idx, ordered_band in enumerate(unique_bands):
+        if ordered_band == ref_band:
+            continue
+        extra_sigma_arr[lightcurve.bands == ordered_band] *= cube[7 * band_idx + 6]
+
+    # Compute the loglikelihood based on the differences in flux between the observed
+    # and generated.
+    sigma_sq = lightcurve.flux_errors**2 + extra_sigma_arr**2
+    logL = np.sum(
+        np.log(1.0 / np.sqrt(2.0 * np.pi * sigma_sq)) - 0.5 * (f_model - lightcurve.fluxes) ** 2 / sigma_sq
+    )
+    return logL
+
+
+def calculate_mse(cube, lightcurve, unique_bands, ref_band):
+    """Calculate the mean-square error for a lightcurve.
+
+    Parameters
+    ----------
+    cube : np.ndarray
+        Array of parameters. Must be length 7 * B where B is
+        the number of unique bands.
+    lightcurve : Lightcurve
+        The lightcurve object to evaluate.
+    unique_bands : list
+        A list of bands to use.
+    ref_band : str
+        The reference band.
+
+    Returns
+    -------
+    mse : float
+        The mean square error of the predictions
+    """
+    if ref_band not in unique_bands:
+        raise ValueError("Reference band not included in unique_bands.")
+    if 7 * len(unique_bands) != len(cube):
+        raise ValueError(
+            f"Size mismatch with curve parameters. Expected {7 * len(unique_bands)}. Found {len(cube)}."
+        )
+    if len(lightcurve.times) == 0:
+        raise ValueError("Empty light curve provided.")
+
+    # Generate points from 'cube' for comparison.
+    f_model = flux_model(cube, lightcurve.times, lightcurve.bands, unique_bands, ref_band)
+
+    mse_sum = np.sum(np.square(f_model - lightcurve.fluxes))
+    return mse_sum / len(lightcurve.times)
+
+
 def calculate_neg_chi_squareds(cubes, t, f, ferr, b, ordered_bands=["r", "g"], ref_band="r"):
     """Gets the negative chi-squared of posterior fits from the model
     parameters and original data files.
@@ -325,6 +409,8 @@ def calculate_neg_chi_squareds(cubes, t, f, ferr, b, ordered_bands=["r", "g"], r
     log_likelihoods : np.ndarray
         The log likelihoods for each object.
     """
+    if ordered_bands is None:
+        ordered_bands=["r", "g"]
     model_f = np.array(
         [flux_model(cube, t, b, ordered_bands, ref_band) for cube in cubes]
     )  # in future, maybe vectorize flux_model
@@ -433,9 +519,9 @@ def save_test_probabilities(
 
     with open(output_path, "a+", encoding="utf-8") as probs_file:
         if true_label is None:
-            probs_file.write("%s" % output_filename)
+            probs_file.write(output_filename)
         else:
-            probs_file.write("%s,%s" % (output_filename, str(true_label)))
+            probs_file.write(f"{output_filename},{str(true_label)}")
         for prob in pred_probabilities:
-            probs_file.write(",%.04f" % prob)
+            probs_file.write(f",{prob:.04f}")
         probs_file.write("\n")

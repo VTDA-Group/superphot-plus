@@ -1,16 +1,16 @@
-import matplotlib.pyplot as plt
-import numpy as np
 import os
 
 import arviz as az
 import corner
+import matplotlib.pyplot as plt
+import numpy as np
 
-from superphot_plus.format_data_ztf import oversample_using_posteriors, oversample_smote, import_labels_only
-from superphot_plus.utils import get_numpyro_cube
+from superphot_plus.format_data_ztf import oversample_smote, oversample_using_posteriors
+from superphot_plus.plotting.format_params import param_labels
+from superphot_plus.plotting.utils import gaussian
 from superphot_plus.supernova_class import SupernovaClass as SnClass
 from superphot_plus.surveys.surveys import Survey
-from superphot_plus.plotting.utils import gaussian
-from superphot_plus.plotting.format_params import *
+
 
 OVERSAMPLE_SIZE = 4000
 
@@ -61,9 +61,7 @@ def plot_corner_plot_all(
         ax.set_ylabel(ax.get_ylabel(), fontsize=20)
         ax.set_xlabel(ax.get_xlabel(), fontsize=20)
 
-    figure.savefig(
-        os.path.join(save_dir, "corner_all.pdf")
-    )
+    figure.savefig(os.path.join(save_dir, "corner_all.pdf"))
     plt.close()
 
 
@@ -128,7 +126,16 @@ def plot_sampling_trace_numpyro(posterior_samples, output_dir=None):
     plt.close()
 
 
-def compare_oversampling(names, labels, fits_dir, save_dir, allowed_types=SnClass.all_classes(), aux_bands=Survey.ZTF().priors.aux_bands, sampler=None, goal_per_class=1000):
+def compare_oversampling(
+    names,
+    labels,
+    fits_dir,
+    save_dir,
+    allowed_types=SnClass.all_classes(),
+    aux_bands=Survey.ZTF().priors.aux_bands,
+    sampler=None,
+    goal_per_class=1000,
+):
     """
     Compare plots of various oversampling methods.
 
@@ -146,19 +153,19 @@ def compare_oversampling(names, labels, fits_dir, save_dir, allowed_types=SnClas
     features_gaussian, labels_gaussian = oversample_using_posteriors(
         names, labels, OVERSAMPLE_SIZE, fits_dir, sampler
     )
-    
 
     feature_means = []
     labels_ordered = []
 
     start_idx = 0
     for t in np.unique(labels):
-        type_idx = (labels == t)
+        type_idx = labels == t
         labels_ordered.extend(labels[type_idx])
         names_t = names[type_idx]
         samples_per_fit = max(1, int(np.round(goal_per_class / len(names_t))))
 
         for e, name in enumerate(names_t):
+            ## FIXME - e and name are unused - why is this a loop?
             feature_means.append(np.mean(features_gaussian[start_idx : start_idx + samples_per_fit], axis=0))
             start_idx += samples_per_fit
 
@@ -173,21 +180,20 @@ def compare_oversampling(names, labels, fits_dir, save_dir, allowed_types=SnClas
     features_smote = features_smote_comb[labels_smote_comb == allowed_types[0]]
     labels_smote = labels_smote_comb[labels_smote_comb == allowed_types[0]]
 
-    params, save_labels = param_labels(
-        aux_bands
-    )
-    
-    for i in range(len(params)):
+    params, save_labels = param_labels(aux_bands)
+
+    for i, param_1 in enumerate(params):
         for j in range(i):
             if i in [0, 3, len(params)]:
                 continue
             if j in [0, 3, len(params)]:
                 continue
 
-            fig, axes = plt.subplots(2, 1, sharex=True, figsize=(8, 12), gridspec_kw={"hspace": 0})
+            _, axes = plt.subplots(2, 1, sharex=True, figsize=(8, 12), gridspec_kw={"hspace": 0})
+
             smote_ax = axes[0]
             gauss_ax = axes[1]
-    
+
             if i in [2, 4, 5, 6]:
                 smote_ax.set_xscale("log")
                 gauss_ax.set_xscale("log")
@@ -195,7 +201,6 @@ def compare_oversampling(names, labels, fits_dir, save_dir, allowed_types=SnClas
                 smote_ax.set_yscale("log")
                 gauss_ax.set_yscale("log")
 
-            param_1 = params[i]
             param_2 = params[j]
 
             features_1_smote = features_smote[:, i]
@@ -224,15 +229,13 @@ def compare_oversampling(names, labels, fits_dir, save_dir, allowed_types=SnClas
             #fig.tight_layout()
             # plt.legend()
             plt.savefig(
-                os.path.join(
-                    save_dir, "oversample_compare", "%s_vs_%s.pdf" % (save_labels[i], save_labels[j])
-                ),
+                os.path.join(save_dir, "oversample_compare", f"{save_labels[i]}_vs_{save_labels[j]}.pdf"),
                 bbox_inches="tight",
             )
             plt.close()
 
 
-def plot_oversampling_1d(names, labels, fits_dir, save_dir, priors=Survey.ZTF().priors, sampler='dynesty'):
+def plot_oversampling_1d(names, labels, fits_dir, save_dir, priors=Survey.ZTF().priors, sampler="dynesty"):
     """
     Save all 1d oversampled histograms for each parameter, in one plot.
     Overlays prior distributions.
@@ -254,13 +257,13 @@ def plot_oversampling_1d(names, labels, fits_dir, save_dir, priors=Survey.ZTF().
     allowed_types = list(classes_to_labels.keys())
 
     goal_per_class = OVERSAMPLE_SIZE
-    features_gaussian, labels_gaussian = oversample_using_posteriors(names, labels, goal_per_class, fits_dir, sampler)
-
-    params, _ = param_labels(
-        priors.aux_bands, priors.reference_band
+    features_gaussian, labels_gaussian = oversample_using_posteriors(
+        names, labels, goal_per_class, fits_dir, sampler
     )
 
-    fig, axes = plt.subplots(3, 4, figsize=(8, 11))
+    params, _ = param_labels(priors.aux_bands, priors.reference_band)
+
+    fig, axes = plt.subplots(3, 4, figsize=(8, 10))
     axes = axes.ravel()
 
     prior_means = priors.to_numpy()[:, 2]
@@ -298,11 +301,10 @@ def plot_oversampling_1d(names, labels, fits_dir, save_dir, priors=Survey.ZTF().
             feature_hist, bin_edges = np.histogram(features_1_gauss, bins=20)
             bin_width = bin_edges[1] - bin_edges[0]
 
-        
         feature_hist[np.abs(feature_hist) > 1e5] = 0
         current_area = np.sum(bin_width * feature_hist)
         feature_hist = (1.0 / current_area) * feature_hist
-            
+
         feature_hist_all = feature_hist
         bin_centers = (bin_edges[1:] + bin_edges[:-1]) / 2
 
@@ -321,8 +323,8 @@ def plot_oversampling_1d(names, labels, fits_dir, save_dir, priors=Survey.ZTF().
         (l,) = ax.step(bin_centers, feature_hist_all, where="mid", c="k", label="Combined", linewidth=2)
         leg_lines.append(l)
 
-        amp = 1.0/np.sqrt(2*np.pi)/prior_stddevs[i]
-        
+        amp = 1.0 / np.sqrt(2 * np.pi) / prior_stddevs[i]
+
         if log_scale:
             bins_fine = np.linspace(np.log10(bin_centers[0]), np.log10(bin_centers[-1]), num=100)
             prior_dist = gaussian(bins_fine, amp, prior_means[i], prior_stddevs[i])
@@ -374,14 +376,11 @@ def plot_combined_posterior_space(names, labels, fits_dir, save_dir, aux_bands=S
         Where to save figure
     """
     os.makedirs(os.path.join(save_dir, "combined_2d_posteriors"), exist_ok=True)
-    labels_to_class, classes_to_labels = SnClass.get_type_maps()
     # pt_colors = ["r", "c", "k", "m", "g"] # keep for TODO
 
     features, labels = oversample_using_posteriors(names, labels, OVERSAMPLE_SIZE, fits_dir)
 
-    params, save_labels = param_labels(
-        aux_bands
-    )
+    params, save_labels = param_labels(aux_bands)
 
     # color_arr = [labels_to_vals[l] for l in labels]
     for j in range(1, len(params) - 1):
@@ -397,13 +396,10 @@ def plot_combined_posterior_space(names, labels, fits_dir, save_dir, aux_bands=S
                 features_2 = np.log10(features_2)
 
             plt.scatter(features_1, features_2, s=2, alpha=0.005)
-            """
-            for t_idx in range(len(allowed_types)):
-                t = allowed_types[t_idx]
-                features_1_t = features_1[labels == t]
-                features_2_t = features_2[labels == t]
-                
-            """
+            # for t_idx in range(len(allowed_types)):
+            #     t = allowed_types[t_idx]
+            #     features_1_t = features_1[labels == t]
+            #     features_2_t = features_2[labels == t]
             plt.xlabel(param_1)
             plt.ylabel(param_2)
             # leg = plt.legend()
@@ -411,12 +407,14 @@ def plot_combined_posterior_space(names, labels, fits_dir, save_dir, aux_bands=S
             #    lh.set_alpha(1)
             plt.savefig(
                 os.path.join(save_dir, "combined_2d_posteriors", f"{save_labels[i]}_vs_{save_labels[j]}.pdf"),
-                bbox_inches='tight'
+                bbox_inches="tight",
             )
             plt.close()
 
 
-def plot_param_distributions(names, labels, fit_folder, save_dir, overlay_gaussians=True, aux_bands=Survey.ZTF().priors.aux_bands):
+def plot_param_distributions(
+    names, labels, fit_folder, save_dir, overlay_gaussians=True, aux_bands=Survey.ZTF().priors.aux_bands
+):
     """
     Plot the parameter distributions to get better priors for fitting.
 
@@ -432,9 +430,7 @@ def plot_param_distributions(names, labels, fit_folder, save_dir, overlay_gaussi
     os.makedirs(os.path.join(save_dir, "posterior_hists"), exist_ok=True)
     posteriors, labels = oversample_using_posteriors(names, labels, OVERSAMPLE_SIZE, fit_folder)
 
-    params, save_labels = param_labels(
-        aux_bands
-    )
+    params, save_labels = param_labels(aux_bands)
 
     for i in range(1, len(params) - 1):
         feat_i = posteriors[:, i]
@@ -442,7 +438,7 @@ def plot_param_distributions(names, labels, fit_folder, save_dir, overlay_gaussi
         if i in [2, 4, 5, 6]:
             feat_i = np.log10(feat_i)
 
-        n, bins, patches = plt.hist(feat_i, bins=100)
+        n, bins, _ = plt.hist(feat_i, bins=100)
         bin_centers = (bins[1:] + bins[:-1]) / 2.0
         bin_centers = bin_centers[n != 0]
         n = n[n != 0]
@@ -454,15 +450,9 @@ def plot_param_distributions(names, labels, fit_folder, save_dir, overlay_gaussi
             mean_est = np.mean(feat_i)
             stddev_est = np.std(feat_i)
             amp_est = np.max(n)
-            """
-            popt, pcov = curve_fit(gaussian, bin_centers, n, p0=[5000., 1., 0.00005, 0.], sigma=s, bounds=([50., 0., 0., -50.], [100000., 1e20, 1e20, 200.]), maxfev=1e5, ftol=1e-10)
-            """
             plt.plot(bin_centers, gaussian(bin_centers, amp_est, mean_est, stddev_est), lw=2)
 
         plt.xlabel(params[i])
         plt.ylabel("Count")
-        plt.savefig(
-            os.path.join(save_dir, "posterior_hists", f"{save_labels[i]}.pdf"),
-            bbox_inches='tight'
-        )
+        plt.savefig(os.path.join(save_dir, "posterior_hists", f"{save_labels[i]}.pdf"), bbox_inches="tight")
         plt.close()

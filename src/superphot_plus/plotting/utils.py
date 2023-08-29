@@ -1,12 +1,13 @@
-import numpy as np
-from alerce.core import Alerce
-import pandas as pd
-import os
-import matplotlib.colors as mc
 import colorsys
+import os
 
-from superphot_plus.supernova_class import SupernovaClass as SnClass
+import matplotlib.colors as mc
+import numpy as np
+import pandas as pd
+from alerce.core import Alerce
+
 from superphot_plus.lightcurve import Lightcurve
+from superphot_plus.supernova_class import SupernovaClass as SnClass
 
 
 def lighten_color(color, amount=0.5):
@@ -20,6 +21,7 @@ def lighten_color(color, amount=0.5):
         c = color
     c = colorsys.rgb_to_hls(*mc.to_rgb(c))
     return colorsys.hls_to_rgb(c[0], max(0, min(1, amount * c[1])), c[2])
+
 
 def get_survey_fracs():
     """Return catalog with supernova fractions from existing
@@ -198,6 +200,15 @@ def gaussian(x, A, mu, sigma):
 
 
 def histedges_equalN(x, nbin):
+    """Generate histogram bin edges, such that counts are equal in each bin.
+
+    Parameters
+    ----------
+    x : array-like or float
+        Value(s) to bin in histogram
+    nbin : integer
+        number of bins
+    """
     npt = len(x)
     return np.interp(np.linspace(0, npt, nbin + 1), np.arange(npt), np.sort(x))
 
@@ -207,7 +218,7 @@ def add_snr_to_prob_csv(probs_csv, data_dir, new_csv):
     Adds 10% SNR and num of SNR > 5 points columns
     to probability CSV. Useful for plots.
     """
-    names, labels, probs, pred_classes, df = read_probs_csv(probs_csv, return_dataframe=True)
+    names, _, _, _, df = read_probs_csv(probs_csv, return_dataframe=True)
 
     extended_df = df.copy()
 

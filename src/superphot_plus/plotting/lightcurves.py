@@ -1,14 +1,14 @@
-import matplotlib.pyplot as plt
-import numpy as np
 import os
 
-from superphot_plus.file_utils import get_posterior_samples
-from superphot_plus.lightcurve import Lightcurve
+import matplotlib.pyplot as plt
+import numpy as np
+
 from superphot_plus.file_paths import FIT_PLOTS_FOLDER
+from superphot_plus.file_utils import get_posterior_samples
 from superphot_plus.import_utils import clip_lightcurve_end, import_lc
-from superphot_plus.utils import flux_model, get_numpyro_cube
-from superphot_plus.plotting.format_params import *
+from superphot_plus.lightcurve import Lightcurve
 from superphot_plus.plotting.utils import lighten_color
+from superphot_plus.utils import flux_model, get_numpyro_cube
 
 
 def plot_lc_fit(
@@ -57,7 +57,7 @@ def plot_lc_fit(
         ref_band,
         sampling_method,
         file_type,
-        custom_formatting
+        custom_formatting,
     )
 
 
@@ -120,17 +120,19 @@ def plot_sampling_lc_fit(
                 lw=1,
                 alpha=0.1,
             )
-
+      
     ax.legend(loc="upper left")
     ax.set_xlabel("MJD")
     ax.set_ylabel("Flux (arbitrary units)")
     
     ax.set_title(ztf_name + ": " + sampling_method)
-    
+
     if custom_formatting is not None:
         custom_formatting(ax)
 
-    plt.savefig(os.path.join(out_dir, ztf_name + "_" + sampling_method + "." + file_type), bbox_inches='tight')
+    plt.savefig(
+        os.path.join(out_dir, ztf_name + "_" + sampling_method + "." + file_type), bbox_inches="tight"
+    )
 
     plt.close()
 
@@ -145,7 +147,6 @@ def plot_sampling_lc_fit_numpyro(
     lcs,
     ref_band,
     sampling_method="svi",
-    t0_lim=None,
     output_folder=FIT_PLOTS_FOLDER,
 ):
     """
@@ -167,8 +168,6 @@ def plot_sampling_lc_fit_numpyro(
         Max flux of data.
     lcs: array-like
         Light curve objects on which sampling was run.
-    t0_lim:  float or None, optional
-        Upper time limit for the data.
     output_folder : str or FITS_PLOTS_FOLDER, optional
         Directory where to store the light curve sampling fit.
     """
@@ -179,9 +178,9 @@ def plot_sampling_lc_fit_numpyro(
     bdata = np.atleast_2d(bdata)
     max_flux = np.atleast_1d(max_flux)
 
-    for i in range(len(tdata)):
-        ignore_idx = ferrdata[i] == 1e10  # pylint: ignore-superfluous parens
-        tdata_i = tdata[i][~ignore_idx]
+    for i, tdata_i in enumerate(tdata):
+        ignore_idx = ferrdata[i] == 1e10
+        tdata_i = tdata_i[~ignore_idx]
         fdata_i = fdata[i][~ignore_idx]
         ferrdata_i = ferrdata[i][~ignore_idx]
         bdata_i = bdata[i][~ignore_idx]
@@ -237,7 +236,7 @@ def plot_lightcurve_clipping(ztf_name, data_folder, save_dir):
     f_clip = f[idx_clip]
     ferr_clip = ferr[idx_clip]
     b_clip = b[idx_clip]
-    
+
     t_notclip = t[~idx_clip]
     f_notclip = f[~idx_clip]
     ferr_notclip = ferr[~idx_clip]
@@ -284,7 +283,7 @@ def plot_lightcurve_clipping(ztf_name, data_folder, save_dir):
             c=lighten_color(b_name, 0.8),
             label=f"Max {b_name}-band slope",
             linestyle="dashed",
-            linewidth=2
+            linewidth=2,
         )
 
         if len(t_clip_b) == 0:
@@ -304,7 +303,7 @@ def plot_lightcurve_clipping(ztf_name, data_folder, save_dir):
             c=lighten_color(b_name, 1.5),
             linestyle="dotted",
             label=f"Clipped {b_name}-band slope",
-            linewidth=2
+            linewidth=2,
         )
 
     plt.title(ztf_name)
@@ -312,5 +311,5 @@ def plot_lightcurve_clipping(ztf_name, data_folder, save_dir):
     plt.ylabel("Flux (arbitrary scaling)")
     plt.legend()
 
-    plt.savefig(os.path.join(save_dir, f"lc_clip_demo_{ztf_name}.pdf"), bbox_inches='tight')
+    plt.savefig(os.path.join(save_dir, f"lc_clip_demo_{ztf_name}.pdf"), bbox_inches="tight")
     plt.close()

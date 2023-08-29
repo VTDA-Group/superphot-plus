@@ -4,7 +4,8 @@ multi-layer perceptron (MLP).
 The classification is based on the fit parameters and light curves of
 the supernovae."""
 
-import csv, glob
+import csv
+import glob
 import os
 import shutil
 
@@ -46,10 +47,16 @@ def adjust_log_dists(features_orig, redshift=False):
     features = np.copy(features_orig)
     features[:, 4:7] = np.log10(features[:, 4:7])
     features[:, 2] = np.log10(features[:, 2])
-    
-    if redshift: # keep amplitude
-        return np.delete(features, [3,], 1)
-    
+
+    if redshift:  # keep amplitude
+        return np.delete(
+            features,
+            [
+                3,
+            ],
+            1,
+        )
+
     return np.delete(features, [0, 3], 1)
 
 
@@ -68,7 +75,7 @@ def classify(
     models_dir=MODELS_DIR,
     csv_path=None,
     cm_folder=CM_FOLDER,
-    sampler="dynesty"
+    sampler="dynesty",
 ):
     """Train MLP to classify between supernovae of 'allowed_types'.
 
@@ -88,16 +95,16 @@ def classify(
         FIT_PLOTS_FOLDER. Copies plots of wrongly classified samples to
         separate folder for manual followup. Defaults to False.
     """
-    
+
     os.makedirs(metrics_dir, exist_ok=True)
     os.makedirs(models_dir, exist_ok=True)
     os.makedirs(cm_folder, exist_ok=True)
-    
+
     for directory in [metrics_dir, models_dir, cm_folder]:
         files = glob.glob(os.path.join(directory, "*"))
         for f in files:
             os.remove(f)
-    
+
     csv_path = PROBS_FILE if csv_path is None else csv_path
     with open(csv_path, "w+", encoding="utf-8") as pf:
         pf.write("Name,Label,pSNIa,pSNII,pSNIIn,pSLSNI,pSNIbc\n")
@@ -114,11 +121,12 @@ def classify(
     fn_completeness_07 = os.path.join(cm_folder, fn_prefix + "_c_p07.pdf")
 
     if include_redshift:
-        names, labels, redshifts = import_labels_only(input_csvs, allowed_types, fits_dir=fit_dir, sampler=sampler, redshift=True)
-        
+        names, labels, redshifts = import_labels_only(
+            input_csvs, allowed_types, fits_dir=fit_dir, sampler=sampler, redshift=True
+        )
+
     else:
         names, labels = import_labels_only(input_csvs, allowed_types, fits_dir=fit_dir, sampler=sampler)
-
 
     tally_each_class(labels)  # original tallies
 
@@ -141,13 +149,12 @@ def classify(
 
         train_labels = labels[train_index]
         val_labels = labels[val_index]
-        
+
         if include_redshift:
             train_redshifts = redshifts[train_index]
             val_redshifts = redshifts[val_index]
             test_redshifts = redshifts[test_index]
             test_redshifts_os = []
-            
 
         train_classes = SnClass.get_classes_from_labels(train_labels)
         val_classes = SnClass.get_classes_from_labels(val_labels)
@@ -155,10 +162,20 @@ def classify(
 
         if include_redshift:
             train_features, train_classes, train_redshifts = oversample_using_posteriors(
-                train_names, train_classes, goal_per_class, fit_dir, sampler=sampler, redshifts=train_redshifts,
+                train_names,
+                train_classes,
+                goal_per_class,
+                fit_dir,
+                sampler=sampler,
+                redshifts=train_redshifts,
             )
             val_features, val_classes, val_redshifts = oversample_using_posteriors(
-                val_names, val_classes, round(0.1 * goal_per_class), fit_dir, sampler=sampler, redshifts=val_redshifts,
+                val_names,
+                val_classes,
+                round(0.1 * goal_per_class),
+                fit_dir,
+                sampler=sampler,
+                redshifts=val_redshifts,
             )
         else:
             train_features, train_classes = oversample_using_posteriors(
@@ -174,7 +191,6 @@ def classify(
         test_classes_os = []
         test_group_idxs = []
         test_names_os = []
-        
 
         for i in range(len(test_names)):
             test_name = test_names[i]
@@ -194,10 +210,12 @@ def classify(
 
         # merge redshifts before normalizations
         if include_redshift:
+            # fmt: off
             test_features = np.hstack((test_features, np.array([test_redshifts_os,]).T))
             train_features = np.hstack((train_features, np.array([train_redshifts,]).T))
             val_features = np.hstack((val_features, np.array([val_redshifts,]).T))
-            
+            # fmt: on
+
         # normalize the log distributions
         test_features = adjust_log_dists(test_features, redshift=include_redshift)
         test_classes = np.array(test_classes_os)

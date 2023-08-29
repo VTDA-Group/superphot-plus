@@ -23,7 +23,7 @@ def test_classify_single_light_curve(classifier, test_data_dir):
 
     for ztf_name, label in expected_classes.items():
         lc_probs = classify_single_light_curve(classifier, ztf_name, test_data_dir)
-        #assert classes_to_labels[np.argmax(lc_probs)] == label
+        # assert classes_to_labels[np.argmax(lc_probs)] == label
         assert classes_to_labels[np.argmax(lc_probs)] in list(expected_classes.values())
 
 
@@ -41,9 +41,13 @@ def test_return_new_classifications(classifier, test_data_dir, tmp_path):
         csv_writer.writerow(["ZTF22abytwjj", SnClass.SUPERNOVA_IBC])
 
     # Save test file with labels
-    return_new_classifications(classifier, csv_file, test_data_dir, "probs_new.csv", include_labels=True, output_dir=tmp_path)
+    return_new_classifications(
+        classifier, csv_file, test_data_dir, "probs_new.csv", include_labels=True, output_dir=tmp_path
+    )
     assert os.path.exists(os.path.join(tmp_path, "probs_new.csv"))
 
     # Save test file without labels
-    return_new_classifications(classifier, csv_file, test_data_dir, "probs_no_labels.csv", include_labels=False, output_dir=tmp_path)
+    return_new_classifications(
+        classifier, csv_file, test_data_dir, "probs_no_labels.csv", include_labels=False, output_dir=tmp_path
+    )
     assert os.path.exists(os.path.join(tmp_path, "probs_no_labels.csv"))

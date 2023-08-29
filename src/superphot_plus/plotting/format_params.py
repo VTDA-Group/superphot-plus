@@ -1,5 +1,6 @@
 import matplotlib.pyplot as plt
 import numpy as np
+
 from superphot_plus.constants import BIGGER_SIZE, MEDIUM_SIZE, SMALL_SIZE
 
 plt.rc("font", size=SMALL_SIZE)  # controls default text sizes
@@ -58,7 +59,7 @@ def param_labels(aux_bands=None, ref_band=None):
 
     if aux_bands is None:
         aux_bands = []
-        
+
     for b in aux_bands:
         plot_labels.extend(
             [

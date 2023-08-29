@@ -1,13 +1,13 @@
 import os
 import os.path
 
+import numpy as np
 import pytest
 from jax import random
-import numpy as np
 
 from superphot_plus.constants import TRAINED_MODEL_PARAMS
 from superphot_plus.lightcurve import Lightcurve
-from superphot_plus.mlp import ModelConfig, MLP
+from superphot_plus.mlp import MLP, ModelConfig
 from superphot_plus.surveys.surveys import Survey
 
 TEST_DIR = os.path.dirname(__file__)

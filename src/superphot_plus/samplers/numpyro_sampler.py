@@ -18,7 +18,7 @@ from superphot_plus.posterior_samples import PosteriorSamples
 from superphot_plus.samplers.sampler import Sampler
 from superphot_plus.surveys.fitting_priors import MultibandPriors, PriorFields
 from superphot_plus.surveys.surveys import Survey
-from superphot_plus.utils import get_numpyro_cube, calculate_neg_chi_squareds
+from superphot_plus.utils import calculate_neg_chi_squareds, get_numpyro_cube
 
 config.update("jax_enable_x64", True)
 numpyro.enable_x64()
@@ -409,6 +409,5 @@ def run_mcmc(lc, sampler="NUTS", priors=Survey.ZTF().priors):
 
     else:
         raise ValueError("'sampler' must be 'NUTS' or 'svi'")
-
 
     return posterior_cubes
