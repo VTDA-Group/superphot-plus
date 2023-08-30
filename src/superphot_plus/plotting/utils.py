@@ -36,7 +36,7 @@ def get_survey_fracs():
     return {"YSE": yse_fracs, "PS-MDS": psmds_fracs}
 
 
-def read_probs_csv(probs_fn, return_dataframe=False):
+def read_probs_csv(probs_fn):
     """Helper function to read in a probability csv file
     and return the columns as numpy arrays.
     """
@@ -46,10 +46,7 @@ def read_probs_csv(probs_fn, return_dataframe=False):
     probs = df.iloc[:, 2:7].astype(float).to_numpy()
     pred_classes = np.argmax(probs, axis=1)
 
-    if return_dataframe:
-        return names, labels, probs, pred_classes, df
-
-    return names, labels, probs, pred_classes
+    return names, labels, probs, pred_classes, df
 
 
 def get_alerce_pred_class(ztf_name, alerce, superphot_style=False):

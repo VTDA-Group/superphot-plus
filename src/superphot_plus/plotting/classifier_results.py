@@ -1,3 +1,6 @@
+"""This module provides various functions for analyzing and visualizing
+classification results."""
+
 import os
 
 import matplotlib.pyplot as plt
@@ -10,13 +13,13 @@ from matplotlib.ticker import AutoMinorLocator
 from astropy.cosmology import Planck13 as cosmo
 from scipy.stats import binned_statistic
 
-from superphot_plus.plotting.format_params import *
+from superphot_plus.plotting.format_params import set_global_plot_formatting
 from superphot_plus.file_utils import get_multiple_posterior_samples
 from superphot_plus.format_data_ztf import import_labels_only
 from superphot_plus.plotting.utils import histedges_equalN, read_probs_csv, get_survey_fracs
 from superphot_plus.supernova_class import SupernovaClass as SnClass
-from superphot_plus.utils import calculate_neg_chi_squareds
 
+set_global_plot_formatting()
 
 def save_class_fractions(spec_probs_csv, probs_alerce_csv, phot_probs_csv, save_path):
     """Save class fractions from spectroscopic, photometric, and
@@ -36,7 +39,7 @@ def save_class_fractions(spec_probs_csv, probs_alerce_csv, phot_probs_csv, save_
     labels_to_class, _ = SnClass.get_type_maps()
 
     # import spec dataframe
-    names_spec, true_class_spec, probs_spec, pred_class_spec = read_probs_csv(spec_probs_csv)
+    _, true_class_spec, probs_spec, pred_class_spec, _ = read_probs_csv(spec_probs_csv)
 
     num_classes = probs_spec.shape[1]
 
@@ -57,7 +60,7 @@ def save_class_fractions(spec_probs_csv, probs_alerce_csv, phot_probs_csv, save_
     pred_class_spec_alerce = np.array([labels_to_class[x] for x in pred_alerce])
 
     # import phot dataframe
-    _, pred_label_alerce, _, pred_class_phot = read_probs_csv(phot_probs_csv)
+    _, pred_label_alerce, _, pred_class_phot, _ = read_probs_csv(phot_probs_csv)
     skip_idx = pred_label_alerce == "SKIP"
     pred_label_alerce, pred_class_phot = pred_label_alerce[~skip_idx], pred_class_phot[~skip_idx]
     pred_class_phot_alerce = np.array([labels_to_class[x] for x in pred_label_alerce])
@@ -147,30 +150,24 @@ def plot_class_fractions(saved_cf_file, fig_dir, filename):
         ]
     ).T
     _, ax = plt.subplots(figsize=(11, 16))
-    bar = ax.bar(labels, combined_fracs[0], width, label=classes_to_labels[0])
-    for i, fracs_i in enumerate(combined_fracs[0]):
-        bari = bar.patches[i]
-        ax.annotate(
-            round(fracs_i, 3),
-            (bari.get_x() + bari.get_width() / 2, bari.get_y() + bari.get_height() / 2),
-            ha="center",
-            va="center",
-            color="white",
-        )
 
-    for i in range(1, 5):
-        bar = ax.bar(
+    for i in range(5):
+        if i == 0:
+            bottom=0
+        else:
+            bottom=np.sum(combined_fracs[0:i], axis=0)
+        stacked_bar = ax.bar(
             labels,
             combined_fracs[i],
             width,
-            bottom=np.sum(combined_fracs[0:i], axis=0),
+            bottom=bottom,
             label=classes_to_labels[i],
         )
-        for j in range(len(combined_fracs[0])):
-            barj = bar.patches[j]
+        for j, fracs_j in enumerate(combined_fracs[i]):
+            barj = stacked_bar.patches[j]
             # Create annotation
             ax.annotate(
-                round(combined_fracs[i][j], 3),
+                round(fracs_j, 3),
                 (barj.get_x() + barj.get_width() / 2, barj.get_y() + barj.get_height() / 2),
                 ha="center",
                 va="center",
@@ -183,7 +180,12 @@ def plot_class_fractions(saved_cf_file, fig_dir, filename):
 
     # Put a legend below current axis
     ax.legend(
-        loc="upper center", bbox_to_anchor=(0.5, -0.05), fancybox=True, shadow=False, ncol=5, fontsize=15
+        loc="upper center",
+        bbox_to_anchor=(0.5, -0.05),
+        fancybox=True,
+        shadow=False,
+        ncol=5,
+        fontsize=15
     )
 
     ax.tick_params(axis="both", which="major", labelsize=12)
@@ -208,8 +210,8 @@ def generate_roc_curve(probs_csv, save_dir):
     labels_to_classes, classes_to_labels = SnClass.get_type_maps()
 
     colors = [plt.cm.Set1(i) for i in range(10)]
-    fig, ax = plt.subplots(1, 2, figsize=(8, 7))
-    ax1, ax2 = ax
+    fig, double_axes = plt.subplots(1, 2, figsize=(8, 7))
+    ax1, ax2 = double_axes
     ax1.set_xlim([0.0, 1.05])
     ax1.set_ylim([0.0, 1.05])
     ax2.set_xlim([0.0, 0.1])
@@ -222,20 +224,35 @@ def generate_roc_curve(probs_csv, save_dir):
     fpr = []
     tpr = []
 
-    for ref_label in range(len(classes_to_labels)):
-        _, true_labels, probs, _ = read_probs_csv(probs_csv)
-        y_true = np.where(true_labels == ref_label, 1, 0)
-        y_score = probs[:, ref_label]
+    for ref_class, ref_label in enumerate(classes_to_labels):
+        true_classes, probs = read_probs_csv(probs_csv)[1:3]
+        y_true = np.where(true_classes == ref_class, 1, 0)
+        y_score = probs[:, ref_class]
 
-        f, t, threshholds = roc_curve(y_true, y_score)
+        single_class_fpr, single_class_tpr, threshholds = roc_curve(y_true, y_score)
         idx_50 = np.argmin((threshholds - 0.5) ** 2)
-        (l,) = ax1.plot(f, t, label=classes_to_labels[ref_label], c=colors[ref_label])
-        ax2.plot(f, t, label=classes_to_labels[ref_label], c=colors[ref_label])
-        legend_lines.append(l)
-        # ax1.scatter(f[idx_50], t[idx_50], color=colors[ref_label], s=40)
-        ax2.scatter(f[idx_50], t[idx_50], color=colors[ref_label], s=100, marker="d")
-        fpr.append(f)
-        tpr.append(t)
+        (legend_line,) = ax1.plot(
+            single_class_fpr,
+            single_class_tpr,
+            label=ref_label,
+            c=colors[ref_class]
+        )
+        ax2.plot(
+            single_class_fpr,
+            single_class_tpr,
+            label=ref_label,
+            c=colors[ref_class]
+        )
+        legend_lines.append(legend_line)
+        ax2.scatter(
+            single_class_fpr[idx_50],
+            single_class_tpr[idx_50],
+            color=colors[ref_class],
+            s=100,
+            marker="d"
+        )
+        fpr.append(single_class_fpr)
+        tpr.append(single_class_tpr)
 
     # First aggregate all false positive rates
     all_fpr = np.unique(np.concatenate([fpr[i] for i in range(5)]))
@@ -249,8 +266,8 @@ def generate_roc_curve(probs_csv, save_dir):
     # Finally average it and compute AUC
     mean_tpr /= len(classes_to_labels)
 
-    for ax_i in ax:
-        (l,) = ax_i.plot(
+    for ax_i in double_axes:
+        (legend_line,) = ax_i.plot(
             all_fpr, mean_tpr, label="Macro-averaged", linewidth=3, linestyle="dashed", c="black"
         )
 
@@ -262,9 +279,9 @@ def generate_roc_curve(probs_csv, save_dir):
         ax_i.xaxis.set_minor_locator(AutoMinorLocator())
         ax_i.set_xlabel("False Positive Rate")
 
-    legend_lines.append(l)
-
-    fig.legend(legend_lines, [*list(labels_to_classes.keys()), "Combined"], loc="lower center", ncol=3)
+    legend_lines.append(legend_line)
+    legend_keys = [*list(labels_to_classes.keys()), "Combined"]
+    fig.legend(legend_lines, legend_keys, loc="lower center", ncol=3)
     plt.savefig(os.path.join(save_dir, "roc_all.pdf"), bbox_inches="tight")
     plt.close()
 
@@ -284,27 +301,29 @@ def plot_phase_vs_accuracy(phased_probs_csv, save_dir):
     _, classes_to_labels = SnClass.get_type_maps()
     allowed_types = np.arange(len(classes_to_labels))
 
-    true_type, phase, _, pred_type = read_probs_csv(phased_probs_csv)
+    true_type, phase, _, pred_type, _ = read_probs_csv(phased_probs_csv)
     correct_class = (true_type == pred_type).astype(int)
 
     legend_lines = []
-    for at in allowed_types:
-        correct_t = correct_class[true_type == at]
-        phase_t = phase[true_type == at]
+    for allowed_type in allowed_types:
+        correct_t = correct_class[true_type == allowed_type]
+        phase_t = phase[true_type == allowed_type]
 
         bins = np.arange(-16, 52, 4)
         # bins = histedges_equalN(phase_t[phase_t > -18.], 20)
 
-        correct_hist, _, _ = binned_statistic(phase_t, correct_t, statistic="sum", bins=bins)
-        all_hist, _, _ = binned_statistic(phase_t, np.ones(len(phase_t)), statistic="sum", bins=bins)
+        correct_hist, _, _ = binned_statistic(
+            phase_t, correct_t, statistic="sum", bins=bins
+        )
+        all_hist, _, _ = binned_statistic(
+            phase_t, np.ones(len(phase_t)), statistic="sum", bins=bins
+        )
         acc_hist_t = correct_hist / all_hist
         # acc_hist_comb += acc_hist_t
-        (l,) = ax.step(bins, np.append(acc_hist_t, acc_hist_t[-1]), where="post", label=at)
-        legend_lines.append(l)
-
-    # acc_hist = acc_hist_comb / 3
-    # l, = ax.step(bins, np.append(acc_hist, acc_hist[-1]), where='post', color="k", label="Average")
-    # leg_lines.append(l)
+        (legend_line,) = ax.step(
+            bins, np.append(acc_hist_t, acc_hist_t[-1]), where="post", label=allowed_type
+        )
+        legend_lines.append(legend_line)
 
     ax.axvline(x=0.0, color="grey", linestyle="dotted")
     ax.set_ylabel("Classification Accuracy")
@@ -316,21 +335,23 @@ def plot_phase_vs_accuracy(phased_probs_csv, save_dir):
     bins_eq = np.arange(-16, 52, 4)
     all_hist, _, _ = binned_statistic(phase, np.ones(len(true_type)), statistic="sum", bins=bins_eq)
 
-    for at in allowed_types:
+    for allowed_type in allowed_types:
         eff_num = np.zeros(len(bins_eq) - 1)  # effective numerator
-        for at2 in allowed_types:
-            idx_sub = true_type == at2
+        for allowed_type2 in allowed_types:
+            idx_sub = true_type == allowed_type2
             phase_t = phase[idx_sub]
 
             bins_eq = np.arange(-16, 52, 4)
 
-            true_hist, _, _ = binned_statistic(phase_t, np.ones(len(phase_t)), statistic="sum", bins=bins_eq)
+            true_hist, _, _ = binned_statistic(
+                phase_t, np.ones(len(phase_t)), statistic="sum", bins=bins_eq
+            )
             frac_hist = true_hist / all_hist  # within each bin, fraction that is that true type
 
             normed_const = 0.2 / frac_hist
 
             # get fraction of true type at2 classified as at, and add it to total 'at' fraction
-            idx_sub2 = (true_type == at2) & (pred_type == at)
+            idx_sub2 = (true_type == allowed_type2) & (pred_type == allowed_type)
             phase_sub = phase[idx_sub2]
             if len(phase_sub) == 0:
                 continue
@@ -343,15 +364,24 @@ def plot_phase_vs_accuracy(phased_probs_csv, save_dir):
             # acc_hist_comb += acc_hist_t
         pred_frac = eff_num / all_hist
         pred_frac_normed = pred_frac / pred_frac[-1]
-        (l,) = ax2.step(bins_eq, np.append(pred_frac_normed, pred_frac_normed[-1]), where="post", label=at)
-        legend_lines.append(l)
+        (legend_line,) = ax2.step(
+            bins_eq, np.append(
+                pred_frac_normed, pred_frac_normed[-1]
+            ), where="post", label=allowed_type
+        )
+        legend_lines.append(legend_line)
 
     ax2.axhline(y=1.0, color="k", xmin=-30, xmax=50, linestyle="--")
     ax2.axvline(x=0.0, color="grey", linestyle="dotted")
     ax2.set_xlabel(r"Phase (days)")
     ax2.set_ylabel("Overprediction Fraction")
     ax2.set_xlim((-18.0, 48.0))
-    fig.legend(leg_lines, [classes_to_labels[x] for x in allowed_types], loc="lower center", ncol=3)
+    fig.legend(
+        legend_lines,
+        [classes_to_labels[x] for x in allowed_types],
+        loc="lower center",
+        ncol=3
+    )
     plt.savefig(os.path.join(save_dir, "phase_vs_accuracy.pdf"), bbox_inches="tight")
     plt.close()
 
@@ -368,10 +398,10 @@ def plot_redshifts_abs_mags(probs_snr_csv, training_csv, fits_dir, save_dir, sam
     save_dir : str
         Where to save figures.
     """
-    labels_to_classes, classes_to_labels = SnClass.get_type_maps()
+    labels_to_classes, _ = SnClass.get_type_maps()
     allowed_types = list(labels_to_classes.keys())
 
-    _, classes, redshifts = import_labels_only(
+    _, labels, redshifts = import_labels_only(
         [
             training_csv,
         ],
@@ -380,11 +410,11 @@ def plot_redshifts_abs_mags(probs_snr_csv, training_csv, fits_dir, save_dir, sam
         redshift=True,
         sampler=sampler,
         fits_dir=fits_dir,
-    )
+    )[-1]
 
-    # labels = np.array([classes_to_labels[int(x)] for x in classes])
-    df = pd.read_csv(probs_snr_csv)
-    amplitudes = df.Fmax.to_numpy()
+    #labels = np.array([classes_to_labels[int(x)] for x in classes])
+    probs_dataframe = pd.read_csv(probs_snr_csv)
+    amplitudes = probs_dataframe.Fmax.to_numpy()
     app_mags = -2.5 * np.log10(amplitudes) + 26.3
 
     k_correction = 2.5 * np.log10(1.0 + redshifts)
@@ -395,45 +425,38 @@ def plot_redshifts_abs_mags(probs_snr_csv, training_csv, fits_dir, save_dir, sam
     z_ax = axes[0]
     mag_ax = axes[1]
 
-    mag_hist, bin_edges = np.histogram(-abs_mags, bins=40, density=True, range=(15, 25))
+    _, bin_edges = np.histogram(-abs_mags, bins=40, density=True, range=(15, 25))
     bin_width = bin_edges[1] - bin_edges[0]
-    mag_cumsum = np.cumsum(mag_hist) * bin_width
     bin_centers = (bin_edges[1:] + bin_edges[:-1]) / 2
 
     legend_lines = []
 
-    for at in allowed_types:
-        a = at
-        features_1_t = -abs_mags[labels == a]
+    for allowed_type in allowed_types:
+        features_1_t = -abs_mags[labels == allowed_type]
         feature_hist, bin_edges = np.histogram(features_1_t, bins=bin_edges, density=True)
         cumsum = np.cumsum(feature_hist) * bin_width
-        (l,) = mag_ax.step(-bin_centers, cumsum, where="mid", label=a)
-        legend_lines.append(l)
+        (legend_line,) = mag_ax.step(
+            -bin_centers, cumsum, where="mid", label=allowed_type
+        )
+        legend_lines.append(legend_line)
 
-    # l, = mag_ax.step(bin_centers, mag_cumsum, where='mid', c="k", label="Combined", linewidth=2)
-    # leg_lines.append(l)
     mag_ax.set_xlabel("Absolute Magnitude")
-    # mag_ax.set_yticklabels([])
-    # mag_ax.set_yticks([])
     mag_ax.invert_xaxis()
 
-    z_hist, bin_edges = np.histogram(redshifts, bins=40, density=True, range=(-0.1, 0.6))
+    _, bin_edges = np.histogram(redshifts, bins=40, density=True, range=(-0.1, 0.6))
     bin_width = bin_edges[1] - bin_edges[0]
-    z_cumsum = np.cumsum(z_hist) * bin_width
     bin_centers = (bin_edges[1:] + bin_edges[:-1]) / 2
 
-    for at in allowed_types:
-        a = at
-        features_1_t = redshifts[labels == a]
+    for allowed_type in allowed_types:
+        features_1_t = redshifts[labels == allowed_type]
         feature_hist, bin_edges = np.histogram(features_1_t, bins=bin_edges, density=True)
         cumsum = np.cumsum(feature_hist) * bin_width
-        (l,) = z_ax.step(bin_centers, cumsum, where="mid", label=a)
+        z_ax.step(
+            bin_centers, cumsum, where="mid", label=allowed_type
+        )
 
-    # l, = z_ax.step(bin_centers, z_cumsum, where='mid', c="k", label="Combined", linewidth=2)
     z_ax.set_xlabel("Redshift")
     z_ax.set_ylabel("Cumulative Fraction")
-    # z_ax.set_yticklabels([])
-    # z_ax.set_yticks([])
 
     for ax in axes:
         ratio = 1.0
@@ -461,17 +484,17 @@ def plot_snr_npoints_vs_accuracy(probs_snr_csv, save_dir):
         Where to save figures.
     """
 
-    labels_to_classes, classes_to_labels = SnClass.get_type_maps()
+    _, classes_to_labels = SnClass.get_type_maps()
 
-    names, true_type, _, pred_classes = read_probs_csv(probs_snr_csv)
+    _, true_type, _, pred_classes, _ = read_probs_csv(probs_snr_csv)
     correct_class = np.where(true_type == pred_classes, 1, 0)
 
     df = pd.read_csv(probs_snr_csv)
     snr, n_high_snr = df.SNR90, df.nSNR3
 
-    for t in np.unique(true_type):
-        snr_t = snr[true_type == t]
-        correct_t = correct_class[true_type == t]
+    for unique_type in np.unique(true_type):
+        snr_t = snr[true_type == unique_type]
+        correct_t = correct_class[true_type == unique_type]
 
         nbins = 8
         while nbins >= 1:
@@ -491,7 +514,7 @@ def plot_snr_npoints_vs_accuracy(probs_snr_csv, save_dir):
         plt.step(
             snr_bin_edges,
             np.append(snr_vs_accuracy, snr_vs_accuracy[-1]),
-            label=classes_to_labels[t],
+            label=classes_to_labels[unique_type],
             where="post",
         )
 
@@ -504,9 +527,9 @@ def plot_snr_npoints_vs_accuracy(probs_snr_csv, save_dir):
     plt.close()
 
     # second plot
-    for t in np.unique(true_type):
-        correct_t = correct_class[true_type == t]
-        n_high_t = n_high_snr[true_type == t]
+    for unique_type in np.unique(true_type):
+        correct_t = correct_class[true_type == unique_type]
+        n_high_t = n_high_snr[true_type == unique_type]
 
         nbins = 8
         while nbins >= 1:
@@ -524,7 +547,10 @@ def plot_snr_npoints_vs_accuracy(probs_snr_csv, save_dir):
         n_vs_accuracy[np.isnan(n_vs_accuracy)] = 1.0
 
         plt.step(
-            n_bin_edges, np.append(n_vs_accuracy, n_vs_accuracy[-1]), label=classes_to_labels[t], where="post"
+            n_bin_edges,
+            np.append(n_vs_accuracy, n_vs_accuracy[-1]),
+            label=classes_to_labels[unique_type],
+            where="post"
         )
 
     plt.xlim((8, 100))
@@ -548,12 +574,13 @@ def plot_snr_hist(probs_snr_csv, save_dir):
         Where to save figure.
     """
     df = pd.read_csv(probs_snr_csv)
-    snr, n_snr_3, n_snr_5, n_snr_10 = df.iloc[:, -4:].to_numpy().T
+    n_snr_3, n_snr_5, n_snr_10 = df.iloc[:, -3:].to_numpy().T
     skip_mask = (df.iloc[:, 1] == "SKIP").to_numpy()
+    bins = np.arange(0, 603, 3)
 
-    plt.hist(n_snr_3[~skip_mask], histtype="step", label=r"$SNR \geq 3$", bins=np.arange(0, 603, 3))
-    plt.hist(n_snr_5[~skip_mask], histtype="step", label=r"$SNR \geq 5$", bins=np.arange(0, 603, 3))
-    plt.hist(n_snr_10[~skip_mask], histtype="step", label=r"$SNR \geq 10$", bins=np.arange(0, 603, 3))
+    plt.hist(n_snr_3[~skip_mask], histtype="step", label=r"$SNR \geq 3$", bins=bins)
+    plt.hist(n_snr_5[~skip_mask], histtype="step", label=r"$SNR \geq 5$", bins=bins)
+    plt.hist(n_snr_10[~skip_mask], histtype="step", label=r"$SNR \geq 10$", bins=bins)
     plt.loglog()
     plt.xlabel("Number of Datapoints at Given SNR")
     plt.ylabel("Number of Lightcurves")
@@ -649,21 +676,21 @@ def plot_chisquared_vs_accuracy(
     save_dir : str
         Where to save figure.
     """
-    sn_names, true_classes, _, pred_classes = read_probs_csv(pred_spec_fn)
+    sn_names, true_classes, _, pred_classes, _ = read_probs_csv(pred_spec_fn)
 
     correctly_classified = np.where(true_classes == pred_classes, 1, 0)
     mult_posteriors = get_multiple_posterior_samples(sn_names, fits_dir, sampler=sampler)
 
     train_chis = np.array([-1 * np.mean(mult_posteriors[x][:, -1]) for x in sn_names])
 
-    sn_names, _, _, _ = read_probs_csv(pred_phot_fn)
+    sn_names = read_probs_csv(pred_phot_fn)[0]
 
     mult_posteriors = get_multiple_posterior_samples(sn_names, fits_dir, sampler=sampler)
 
     train_chis_phot = np.array([-1 * np.mean(mult_posteriors[x][:, -1]) for x in sn_names])
 
     # plot
-    fig, ax2 = plt.subplots(figsize=(7, 4.8))
+    _, ax2 = plt.subplots(figsize=(7, 4.8))
     ax1 = ax2.twinx()
     bins = np.arange(3.5, 14, 0.5)
 
@@ -671,15 +698,21 @@ def plot_chisquared_vs_accuracy(
         train_chis, correctly_classified, statistic="sum", bins=bins
     )
     bin_centers = (bin_edges[1:] + bin_edges[:-1]) / 2.0
-    bin_width = bin_edges[1] - bin_edges[0]
 
-    all_hist, _, _ = binned_statistic(train_chis, np.ones(len(train_chis)), statistic="sum", bins=bins)
+    all_hist, _, _ = binned_statistic(
+        train_chis, np.ones(len(train_chis)), statistic="sum", bins=bins
+    )
+
     all_hist_phot, _, _ = binned_statistic(
         train_chis_phot, np.ones(len(train_chis_phot)), statistic="sum", bins=bins
     )
 
-    ax2.hist(bin_centers, bin_edges, weights=all_hist, color="purple", alpha=0.5, label="Spectroscopic")
-    ax2.hist(bin_centers, bin_edges, weights=all_hist_phot, color="red", alpha=0.5, label="Photometric")
+    ax2.hist(
+        bin_centers, bin_edges, weights=all_hist, color="purple", alpha=0.5, label="Spectroscopic"
+    )
+    ax2.hist(
+        bin_centers, bin_edges, weights=all_hist_phot, color="red", alpha=0.5, label="Photometric"
+    )
 
     ax2.set_yscale("log")
 
@@ -689,7 +722,9 @@ def plot_chisquared_vs_accuracy(
 
     idx_keep = (bin_centers < 10) & (bin_centers > 5)
     ax1.step(
-        bin_centers[idx_keep], acc_hist[idx_keep], where="mid", color="blue", linewidth=3, label="Accuracy"
+        bin_centers[idx_keep],
+        acc_hist[idx_keep],
+        where="mid", color="blue", linewidth=3, label="Accuracy"
     )
     ax1.axvline(x=10, color="black", linestyle="--", linewidth=4, label=r"Phot. $\chi^2$ cutoff")
 
