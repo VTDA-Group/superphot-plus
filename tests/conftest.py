@@ -23,6 +23,11 @@ def test_data_dir():
 
 
 @pytest.fixture
+def training_csv(test_data_dir):
+    return os.path.join(test_data_dir, "training_set.csv")
+
+
+@pytest.fixture
 def single_ztf_lightcurve(test_data_dir):
     return os.path.join(test_data_dir, "ZTF22abvdwik.csv")
 

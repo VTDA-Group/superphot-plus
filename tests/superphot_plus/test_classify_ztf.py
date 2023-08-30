@@ -22,7 +22,7 @@ def test_classify_single_light_curve(classifier, test_data_dir):
     }
 
     for ztf_name, label in expected_classes.items():
-        lc_probs = classify_single_light_curve(classifier, ztf_name, test_data_dir)
+        lc_probs = classify_single_light_curve(classifier, ztf_name, test_data_dir)[0]
         # assert classes_to_labels[np.argmax(lc_probs)] == label
         assert classes_to_labels[np.argmax(lc_probs)] in list(expected_classes.values())
 

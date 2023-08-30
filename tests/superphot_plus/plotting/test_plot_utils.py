@@ -2,6 +2,7 @@ import os
 
 import numpy as np
 import pandas as pd
+from alerce.core import Alerce
 
 from superphot_plus.plotting.utils import (
     add_snr_to_prob_csv,
@@ -47,10 +48,11 @@ def test_get_alerce_pred_class(single_ztf_sn_id):
     """Test we can obtain ALeRCE predictions in both its native
     and Superphot+'s label formatting.
     """
-    label = get_alerce_pred_class(single_ztf_sn_id)
+    alerce = Alerce()
+    label = get_alerce_pred_class(single_ztf_sn_id, alerce)
     assert label in ["SNIa", "SNII", "SLSN", "SNIbc"]
 
-    label_superphot = get_alerce_pred_class(single_ztf_sn_id, superphot_style=True)
+    label_superphot = get_alerce_pred_class(single_ztf_sn_id, alerce, superphot_style=True)
     assert label_superphot in ["SN Ia", "SN II", "SLSN-I", "SN Ibc"]
 
 

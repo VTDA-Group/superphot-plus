@@ -42,6 +42,7 @@ class NumpyroSampler(Sampler):
         eq_wt_samples = run_mcmc(lightcurve, sampler=sampler, priors=priors)
         if eq_wt_samples is None:
             return None
+        print(eq_wt_samples[0][:,6])
         return PosteriorSamples(
             eq_wt_samples[0], name=lightcurve.name, sampling_method=sampler, sn_class=lightcurve.sn_class
         )
@@ -165,8 +166,8 @@ def create_jax_model(
     ref_priors = priors.bands[priors.reference_band]
 
     amp, beta, gamma, t_0, tau_rise, tau_fall, extra_sigma = prior_helper(ref_priors, max_flux)
-    extra_sigma *= max_flux
 
+    es_scaled = max_flux * extra_sigma
     phase = t - t_0
     flux_const = amp / (1.0 + jnp.exp(-phase / tau_rise))
     sigmoid = 1 / (1 + jnp.exp(10.0 * (gamma - phase)))
@@ -175,7 +176,7 @@ def create_jax_model(
         (1 - sigmoid) * (1 - beta * phase)
         + sigmoid * (1 - beta * gamma) * jnp.exp(-(phase - gamma) / tau_fall)
     )
-    sigma_tot = jnp.sqrt(uncertainties**2 + extra_sigma**2)
+    sigma_tot = jnp.sqrt(uncertainties**2 + es_scaled**2)
 
     # auxiliary bands
     for b_idx, uniq_b in enumerate(priors.aux_bands):
@@ -213,7 +214,7 @@ def create_jax_model(
         )
 
         sigma_tot = sigma_tot.at[inc_band_ix].set(
-            jnp.sqrt(uncertainties[inc_band_ix] ** 2 + extra_sigma_ratio**2 * extra_sigma**2)
+            jnp.sqrt(uncertainties[inc_band_ix] ** 2 + extra_sigma_ratio**2 * es_scaled**2)
         )
 
     _ = numpyro.sample("obs", dist.Normal(flux, sigma_tot), obs=obsflux)
@@ -385,6 +386,7 @@ def run_mcmc(lc, sampler="NUTS", priors=Survey.ZTF().priors):
             posterior_samples = {}
             for param in params:
                 if param[-2:] == "mu":
+                    print(param, params[param])
                     posterior_samples[param[:-3]] = np.random.normal(
                         loc=params[param], scale=params[param[:-2] + "sigma"], size=100
                     )

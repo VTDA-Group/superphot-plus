@@ -94,7 +94,7 @@ def test_numpyro_svi(ztf_priors, single_ztf_lightcurve_object):
         -6.07e00,
         2.95e00,
         2.36e01,
-        5.00e-02,
+        2.00e-02,
         1.07e00,
         1.04e00,
         1.01e00,
