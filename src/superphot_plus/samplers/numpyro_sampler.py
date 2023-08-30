@@ -42,7 +42,6 @@ class NumpyroSampler(Sampler):
         eq_wt_samples = run_mcmc(lightcurve, sampler=sampler, priors=priors)
         if eq_wt_samples is None:
             return None
-        print(eq_wt_samples[0][:,6])
         return PosteriorSamples(
             eq_wt_samples[0], name=lightcurve.name, sampling_method=sampler, sn_class=lightcurve.sn_class
         )
@@ -386,7 +385,6 @@ def run_mcmc(lc, sampler="NUTS", priors=Survey.ZTF().priors):
             posterior_samples = {}
             for param in params:
                 if param[-2:] == "mu":
-                    print(param, params[param])
                     posterior_samples[param[:-3]] = np.random.normal(
                         loc=params[param], scale=params[param[:-2] + "sigma"], size=100
                     )
