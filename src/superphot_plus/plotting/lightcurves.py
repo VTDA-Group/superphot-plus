@@ -1,3 +1,5 @@
+"""This module includes scripts to plot fit light curves."""
+
 import os
 
 import matplotlib.pyplot as plt
@@ -100,38 +102,40 @@ def plot_sampling_lc_fit(
 
     trange_fine = np.linspace(np.amin(tdata), np.amax(tdata), num=500)
 
-    fig, ax = plt.subplots()
+    _, axis = plt.subplots()
 
-    for b in np.unique(bdata):  # TODO: handle case where band name isnt a valid color
-        ax.errorbar(
-            tdata[bdata == b],
-            fdata[bdata == b],
-            yerr=ferrdata[bdata == b],
-            c=b,
-            label=b,
+    for band in np.unique(bdata):  # TODO: handle case where band name isnt a valid color
+        axis.errorbar(
+            tdata[bdata == band],
+            fdata[bdata == band],
+            yerr=ferrdata[bdata == band],
+            c=band,
+            label=band,
             fmt="o",
         )
 
         for sample in eq_wt_samples[:30]:
-            ax.plot(
+            axis.plot(
                 trange_fine,
-                flux_model(sample, trange_fine, [b] * len(trange_fine), band_order, ref_band),
-                c=b,
+                flux_model(sample, trange_fine, [band] * len(trange_fine), band_order, ref_band),
+                c=band,
                 lw=1,
                 alpha=0.1,
             )
 
-    ax.legend(loc="upper left")
-    ax.set_xlabel("MJD")
-    ax.set_ylabel("Flux (arbitrary units)")
+    axis.legend(loc="upper left")
+    axis.set_xlabel("MJD")
+    axis.set_ylabel("Flux (arbitrary units)")
 
-    ax.set_title(ztf_name + ": " + sampling_method)
+    axis.set_title(ztf_name + ": " + sampling_method)
 
     if custom_formatting is not None:
-        custom_formatting(ax)
+        custom_formatting(axis)
 
     plt.savefig(
-        os.path.join(out_dir, ztf_name + "_" + sampling_method + "." + file_type), bbox_inches="tight"
+        os.path.join(
+            out_dir, ztf_name + "_" + sampling_method + "." + file_type
+        ), bbox_inches="tight"
     )
 
     plt.close()
@@ -197,7 +201,9 @@ def plot_sampling_lc_fit_numpyro(
             ]
         )
 
-        cubes = np.array([get_numpyro_cube(single_model, max_flux[i])[0] for single_model in models])
+        cubes = np.array(
+            [get_numpyro_cube(single_model, max_flux[i])[0] for single_model in models]
+        )
         aux_bands = get_numpyro_cube(models[0], max_flux[i])[1]
 
         plot_sampling_lc_fit(
@@ -228,26 +234,30 @@ def plot_lightcurve_clipping(ztf_name, data_folder, save_dir):
         Directory path where to store the plot figure.
     """
     data_fn = os.path.join(data_folder, f"{ztf_name}.csv")
-    t, f, ferr, b, ra, dec = import_lc(data_fn, clip_lightcurve=False)  # pylint: disable=unused-variable
-    t_clip, f_clip, ferr_clip, b_clip = clip_lightcurve_end(t, f, ferr, b)
+    times, fluxes, flux_errs, bands, _, _ = import_lc(
+        data_fn, clip_lightcurve=False
+    )  # pylint: disable=unused-variable
+    t_clip, f_clip, ferr_clip, b_clip = clip_lightcurve_end(
+        times, fluxes, flux_errs, bands
+    )
 
-    idx_clip = ~np.isin(t, t_clip)
-    t_clip = t[idx_clip]
-    f_clip = f[idx_clip]
-    ferr_clip = ferr[idx_clip]
-    b_clip = b[idx_clip]
+    idx_clip = ~np.isin(times, t_clip)
+    t_clip = times[idx_clip]
+    f_clip = fluxes[idx_clip]
+    ferr_clip = flux_errs[idx_clip]
+    b_clip = bands[idx_clip]
 
-    t_notclip = t[~idx_clip]
-    f_notclip = f[~idx_clip]
-    ferr_notclip = ferr[~idx_clip]
-    b_notclip = b[~idx_clip]
+    t_notclip = times[~idx_clip]
+    f_notclip = fluxes[~idx_clip]
+    ferr_notclip = flux_errs[~idx_clip]
+    b_notclip = bands[~idx_clip]
 
-    for b_name in np.unique(b):
-        all_b_idx = b == b_name
+    for b_name in np.unique(bands):
+        all_b_idx = bands == b_name
         clip_b_idx = b_clip == b_name
         notclip_b_idx = b_notclip == b_name
-        t_b = t[all_b_idx]
-        f_b = f[all_b_idx]
+        t_b = times[all_b_idx]
+        f_b = fluxes[all_b_idx]
         t_clip_b = t_clip[clip_b_idx]
         f_clip_b = f_clip[clip_b_idx]
         t_notclip_b = t_notclip[notclip_b_idx]
