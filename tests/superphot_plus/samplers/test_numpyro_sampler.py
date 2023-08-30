@@ -30,7 +30,7 @@ def test_mcmc_missing_band(single_ztf_lightcurve_object):
             "r",
         ]
     )
-    assert run_mcmc(single_ztf_lightcurve_object) is None
+    assert run_mcmc(single_ztf_lightcurve_object, None) is None
 
 
 def test_nonimplemented_sampler(single_ztf_lightcurve_object, ztf_priors):
@@ -39,7 +39,9 @@ def test_nonimplemented_sampler(single_ztf_lightcurve_object, ztf_priors):
     """
     with pytest.raises(ValueError):
         sampler = NumpyroSampler()
-        _ = sampler.run_single_curve(single_ztf_lightcurve_object, priors=ztf_priors, sampler="sampler")
+        _ = sampler.run_single_curve(
+            single_ztf_lightcurve_object, priors=ztf_priors, rng_seed=None, sampler="sampler"
+        )
 
 
 def test_numpyro_nuts(ztf_priors, single_ztf_lightcurve_object):
@@ -50,8 +52,8 @@ def test_numpyro_nuts(ztf_priors, single_ztf_lightcurve_object):
     posterior_samples = sampler.run_single_curve(
         single_ztf_lightcurve_object,
         priors=ztf_priors,
-        sampler="NUTS",
         rng_seed=4,
+        sampler="NUTS",
     )
     # Check output length
     assert len(posterior_samples.samples) == 300
@@ -81,9 +83,9 @@ def test_numpyro_nuts(ztf_priors, single_ztf_lightcurve_object):
     # seed produces the same results.
     posterior_samples2 = sampler.run_single_curve(
         single_ztf_lightcurve_object,
+        rng_seed=4,
         priors=ztf_priors,
         sampler="NUTS",
-        rng_seed=4,
     )
     sample_mean2 = posterior_samples2.sample_mean()
     assert np.allclose(sample_mean, sample_mean2)
@@ -91,9 +93,9 @@ def test_numpyro_nuts(ztf_priors, single_ztf_lightcurve_object):
     # And a different random seed provides a different result.
     posterior_samples3 = sampler.run_single_curve(
         single_ztf_lightcurve_object,
+        rng_seed=5,
         priors=ztf_priors,
         sampler="NUTS",
-        rng_seed=5,
     )
     sample_mean3 = posterior_samples3.sample_mean()
     assert not np.allclose(sample_mean, sample_mean3)
@@ -106,9 +108,9 @@ def test_numpyro_svi(ztf_priors, single_ztf_lightcurve_object):
     sampler = NumpyroSampler()
     posterior_samples = sampler.run_single_curve(
         single_ztf_lightcurve_object,
+        rng_seed=1,
         priors=ztf_priors,
         sampler="svi",
-        rng_seed=1,
     )
     # Check output length
     assert len(posterior_samples.samples) == 100
@@ -138,9 +140,9 @@ def test_numpyro_svi(ztf_priors, single_ztf_lightcurve_object):
     # seed produces the same results.
     posterior_samples2 = sampler.run_single_curve(
         single_ztf_lightcurve_object,
+        rng_seed=1,
         priors=ztf_priors,
         sampler="svi",
-        rng_seed=1,
     )
     sample_mean2 = posterior_samples2.sample_mean()
     assert np.allclose(sample_mean, sample_mean2)
@@ -148,9 +150,9 @@ def test_numpyro_svi(ztf_priors, single_ztf_lightcurve_object):
     # And a different random seed provides a different result.
     posterior_samples3 = sampler.run_single_curve(
         single_ztf_lightcurve_object,
+        rng_seed=2,
         priors=ztf_priors,
         sampler="svi",
-        rng_seed=2,
     )
     sample_mean3 = posterior_samples3.sample_mean()
     assert not np.allclose(sample_mean, sample_mean3)

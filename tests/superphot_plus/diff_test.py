@@ -82,12 +82,12 @@ def generate_files(lightcurve, output_dir):
 
     # Generate NUTS
     sampler = NumpyroSampler()
-    posteriors = sampler.run_single_curve(lightcurve, priors=priors, sampler="NUTS", rng_seed=4)
+    posteriors = sampler.run_single_curve(lightcurve, rng_seed=4, priors=priors, sampler="NUTS")
     posteriors.save_to_file(output_dir)
 
     # Generate svi
     sampler = NumpyroSampler()
-    posteriors = sampler.run_single_curve(lightcurve, priors=priors, sampler="svi", rng_seed=1)
+    posteriors = sampler.run_single_curve(lightcurve, rng_seed=1, priors=priors, sampler="svi")
     posteriors.save_to_file(output_dir)
 
     print(f"saved files to {output_dir}.")
