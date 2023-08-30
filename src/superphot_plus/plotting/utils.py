@@ -1,3 +1,5 @@
+"""This module contains helper functions to access/manipulate data for plotting more concisely."""
+
 import colorsys
 import os
 
@@ -16,11 +18,13 @@ def lighten_color(color, amount=0.5):
     Input can be matplotlib color string, hex string, or RGB tuple.
     """
     try:
-        c = mc.cnames[color]
+        color_val = mc.cnames[color]
     except:
-        c = color
-    c = colorsys.rgb_to_hls(*mc.to_rgb(c))
-    return colorsys.hls_to_rgb(c[0], max(0, min(1, amount * c[1])), c[2])
+        color_val = color
+    color_hls = colorsys.rgb_to_hls(*mc.to_rgb(color_val))
+    return colorsys.hls_to_rgb(
+        color_hls[0], max(0, min(1, amount * color_hls[1])), color_hls[2]
+    )
 
 
 def get_survey_fracs():
@@ -66,9 +70,9 @@ def get_alerce_pred_class(ztf_name, alerce, superphot_style=False):
         Predicted class label.
     """
     try:
-        o = alerce.query_probabilities(oid=ztf_name, format="pandas")
-        o_transient = o[o["classifier_name"] == "lc_classifier_transient"]
-        label = o_transient[o_transient["ranking"] == 1]["class_name"].iat[0]
+        query = alerce.query_probabilities(oid=ztf_name, format="pandas")
+        query_transient = query[query["classifier_name"] == "lc_classifier_transient"]
+        label = query_transient[query_transient["ranking"] == 1]["class_name"].iat[0]
         return SnClass.from_alerce_to_superphot_format(label) if superphot_style else label
     except:
         return "None"
@@ -80,7 +84,8 @@ def create_alerce_pred_csv(probs_fn, save_fn):
     """
     alerce_obj = Alerce()
 
-    names, _, _, _ = read_probs_csv(probs_fn)
+    names = read_probs_csv(probs_fn)[0]
+
     alerce_labels = []
     for sn_name in names:
         alerce_labels.append(get_alerce_pred_class(sn_name, alerce_obj, superphot_style=True))
@@ -94,7 +99,7 @@ def retrieve_four_class_info(probs_csv, probs_alerce_csv, p07=False):
     """Extract Superphot+ and ALeRCE predictions and true class info."""
     _, classes_to_labels = SnClass.get_type_maps()
 
-    (sn_names, true_classes, class_probs, pred_classes) = read_probs_csv(probs_csv)
+    (sn_names, true_classes, class_probs, pred_classes, _) = read_probs_csv(probs_csv)
 
     try:
         true_labels = np.array([classes_to_labels[x] for x in true_classes])
@@ -134,16 +139,16 @@ def retrieve_four_class_info(probs_csv, probs_alerce_csv, p07=False):
     return (sn_names, true_labels, class_probs, pred_labels, pred_alerce)
 
 
-def gaussian(x, A, mu, sigma):
+def gaussian(inputs, amp, mean, sigma):
     """Evaluate a gaussian with params A at the values in x.
 
     Parameters
     ----------
-    x : array-like or float
+    inputs : array-like or float
         Value(s) to evaluate gaussian at
-    A : float
+    amp : float
         Amplitude of the Gaussian.
-    mu : float
+    mean : float
         Mean of Gaussian
     sigma : float
         Standard deviation of Gaussian
@@ -153,23 +158,23 @@ def gaussian(x, A, mu, sigma):
     array-like or float:
         Gaussian values evaluated at x
     """
-    if ~np.isscalar(x):
-        x = np.array(x)
-    return A * np.exp(-((x - mu) ** 2) / sigma**2 / 2.0)
+    if ~np.isscalar(inputs):
+        inputs = np.array(inputs)
+    return amp * np.exp(-((inputs - mean) ** 2) / sigma**2 / 2.0)
 
 
-def histedges_equalN(x, nbin):
+def histedges_equalN(vals, nbin):
     """Generate histogram bin edges, such that counts are equal in each bin.
 
     Parameters
     ----------
-    x : array-like or float
+    vals : array-like or float
         Value(s) to bin in histogram
     nbin : integer
         number of bins
     """
-    npt = len(x)
-    return np.interp(np.linspace(0, npt, nbin + 1), np.arange(npt), np.sort(x))
+    npt = len(vals)
+    return np.interp(np.linspace(0, npt, nbin + 1), np.arange(npt), np.sort(vals))
 
 
 def add_snr_to_prob_csv(probs_csv, data_dir, new_csv):
@@ -177,9 +182,9 @@ def add_snr_to_prob_csv(probs_csv, data_dir, new_csv):
     Adds 10% SNR and num of SNR > 5 points columns
     to probability CSV. Useful for plots.
     """
-    names, _, _, _, df = read_probs_csv(probs_csv, return_dataframe=True)
+    names, _, _, _, probs_df = read_probs_csv(probs_csv)
 
-    extended_df = df.copy()
+    extended_df = probs_df.copy()
 
     n_snr_3 = []
     n_snr_5 = []
@@ -189,14 +194,14 @@ def add_snr_to_prob_csv(probs_csv, data_dir, new_csv):
 
     for name in names:
         try:
-            fn = os.path.join(data_dir, name + ".npz")
-            lc = Lightcurve.from_file(fn)
-            snr = np.abs(lc.fluxes / lc.flux_errors)
+            filename = os.path.join(data_dir, name + ".npz")
+            lightcurve = Lightcurve.from_file(filename)
+            snr = np.abs(lightcurve.fluxes / lightcurve.flux_errors)
             n_snr_3.append(len(snr[(snr > 3.0)]))
             n_snr_5.append(len(snr[(snr > 5.0)]))
             n_snr_10.append(len(snr[(snr > 10.0)]))
             snr_ten_percent.append(np.quantile(snr, 0.9))
-            max_flux.append(lc.find_max_flux(band="r")[0])
+            max_flux.append(lightcurve.find_max_flux(band="r")[0])
         except:
             n_snr_3.append(-1)
             n_snr_5.append(-1)
