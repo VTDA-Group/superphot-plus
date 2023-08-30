@@ -410,7 +410,7 @@ def calculate_neg_chi_squareds(cubes, t, f, ferr, b, ordered_bands=["r", "g"], r
         The log likelihoods for each object.
     """
     if ordered_bands is None:
-        ordered_bands=["r", "g"]
+        ordered_bands = ["r", "g"]
     model_f = np.array(
         [flux_model(cube, t, b, ordered_bands, ref_band) for cube in cubes]
     )  # in future, maybe vectorize flux_model

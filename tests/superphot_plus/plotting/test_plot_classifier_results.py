@@ -10,7 +10,7 @@ from superphot_plus.plotting.classifier_results import (
     plot_redshifts_abs_mags,
     plot_snr_hist,
     plot_snr_npoints_vs_accuracy,
-    plot_class_fractions
+    plot_class_fractions,
 )
 
 
@@ -19,8 +19,8 @@ def test_plot_class_fractions(test_class_frac_csv, tmp_path):
     plot_class_fractions(test_class_frac_csv, tmp_path, "test_cf.png")
     filepath = os.path.join(tmp_path, "test_cf.png")
     assert os.path.exists(filepath)
-    
-    
+
+
 def test_generate_roc_curve(class_probs_csv, tmp_path):
     """Test ROC curve generation."""
     generate_roc_curve(class_probs_csv, tmp_path)

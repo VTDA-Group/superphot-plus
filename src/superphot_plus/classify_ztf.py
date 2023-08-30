@@ -184,7 +184,7 @@ def classify(
             val_features, val_classes = oversample_using_posteriors(
                 val_names, val_classes, round(0.1 * goal_per_class), fit_dir, sampler=sampler
             )
-            
+
         print(train_features)
 
         test_features = []
@@ -342,8 +342,8 @@ def classify_single_light_curve(model, obj_name, fits_dir, sampler="dynesty"):
     post_features = get_posterior_samples(obj_name, fits_dir, sampler)
 
     chisq = np.mean(post_features[:, -1])
-    high_chisq = ( np.abs(chisq) > 10 ) # probably not a SN
-    
+    high_chisq = np.abs(chisq) > 10  # probably not a SN
+
     # normalize the log distributions
     post_features = adjust_log_dists(post_features)
     probs = model.classify_from_fit_params(post_features)
@@ -396,16 +396,11 @@ def return_new_classifications(
             if include_labels:
                 label = row[1]
 
-            probs_avg, high_chisq = classify_single_light_curve(
-                model,
-                test_name,
-                fit_dir,
-                sampler=sampler
-            )
+            probs_avg, high_chisq = classify_single_light_curve(model, test_name, fit_dir, sampler=sampler)
 
             if high_chisq:
                 label = "SKIP"
-                
+
             save_test_probabilities(test_name, probs_avg, label, output_dir, save_file)
 
 

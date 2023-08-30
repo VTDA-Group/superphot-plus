@@ -35,7 +35,7 @@ def test_type_maps_for_allowed_types_enum():
         SnClass.SUPERNOVA_II,
         SnClass.SUPERNOVA_IIN,
         SnClass.SUPERLUMINOUS_SUPERNOVA_I,
-        #SnClass.SUPERLUMINOUS_SUPERNOVA_II,
+        # SnClass.SUPERLUMINOUS_SUPERNOVA_II,
     ]
 
     labels_to_classes, classes_to_labels = SnClass.get_type_maps(allowed_types)

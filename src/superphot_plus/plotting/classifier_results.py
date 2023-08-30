@@ -18,7 +18,6 @@ from superphot_plus.supernova_class import SupernovaClass as SnClass
 from superphot_plus.utils import calculate_neg_chi_squareds
 
 
-
 def save_class_fractions(spec_probs_csv, probs_alerce_csv, phot_probs_csv, save_path):
     """Save class fractions from spectroscopic, photometric, and
     corrected photometric.
@@ -43,25 +42,23 @@ def save_class_fractions(spec_probs_csv, probs_alerce_csv, phot_probs_csv, save_
 
     true_class_alerce = true_class_spec.copy()
     true_class_alerce[true_class_alerce == 2] = 1
-    
+
     # read in ALeRCE classes
     df_alerce = pd.read_csv(probs_alerce_csv)
     pred_alerce = df_alerce.alerce_label.to_numpy().astype(str)
-    
-    ignore_mask = ( pred_alerce == "None" ) | ( pred_alerce == "nan" ) | ( pred_alerce == "SKIP" )
+
+    ignore_mask = (pred_alerce == "None") | (pred_alerce == "nan") | (pred_alerce == "SKIP")
     # ignore true SNe IIn
     ignore_mask = ignore_mask | (true_class_alerce == 2)
-    
+
     true_class_alerce = true_class_alerce[~ignore_mask]
     pred_alerce = pred_alerce[~ignore_mask]
-    
-    pred_class_spec_alerce = np.array(
-        [labels_to_class[x] for x in pred_alerce]
-    )
+
+    pred_class_spec_alerce = np.array([labels_to_class[x] for x in pred_alerce])
 
     # import phot dataframe
     _, pred_label_alerce, _, pred_class_phot = read_probs_csv(phot_probs_csv)
-    skip_idx = (pred_label_alerce == "SKIP")
+    skip_idx = pred_label_alerce == "SKIP"
     pred_label_alerce, pred_class_phot = pred_label_alerce[~skip_idx], pred_class_phot[~skip_idx]
     pred_class_phot_alerce = np.array([labels_to_class[x] for x in pred_label_alerce])
 
@@ -385,7 +382,7 @@ def plot_redshifts_abs_mags(probs_snr_csv, training_csv, fits_dir, save_dir, sam
         fits_dir=fits_dir,
     )
 
-    #labels = np.array([classes_to_labels[int(x)] for x in classes])
+    # labels = np.array([classes_to_labels[int(x)] for x in classes])
     df = pd.read_csv(probs_snr_csv)
     amplitudes = df.Fmax.to_numpy()
     app_mags = -2.5 * np.log10(amplitudes) + 26.3
@@ -656,15 +653,15 @@ def plot_chisquared_vs_accuracy(
 
     correctly_classified = np.where(true_classes == pred_classes, 1, 0)
     mult_posteriors = get_multiple_posterior_samples(sn_names, fits_dir, sampler=sampler)
-    
-    train_chis = np.array([-1*np.mean(mult_posteriors[x][:,-1]) for x in  sn_names])
+
+    train_chis = np.array([-1 * np.mean(mult_posteriors[x][:, -1]) for x in sn_names])
 
     sn_names, _, _, _ = read_probs_csv(pred_phot_fn)
 
     mult_posteriors = get_multiple_posterior_samples(sn_names, fits_dir, sampler=sampler)
-    
-    train_chis_phot = np.array([-1*np.mean(mult_posteriors[x][:,-1]) for x in  sn_names])
-    
+
+    train_chis_phot = np.array([-1 * np.mean(mult_posteriors[x][:, -1]) for x in sn_names])
+
     # plot
     fig, ax2 = plt.subplots(figsize=(7, 4.8))
     ax1 = ax2.twinx()
@@ -683,7 +680,7 @@ def plot_chisquared_vs_accuracy(
 
     ax2.hist(bin_centers, bin_edges, weights=all_hist, color="purple", alpha=0.5, label="Spectroscopic")
     ax2.hist(bin_centers, bin_edges, weights=all_hist_phot, color="red", alpha=0.5, label="Photometric")
-    
+
     ax2.set_yscale("log")
 
     all_hist[all_hist == 0] = np.inf

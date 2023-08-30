@@ -65,7 +65,7 @@ def generate_files(lightcurve, output_dir):
         The directory where we will save the files.
     """
     print("Generating files", end="...")
-    
+
     # Make sure our target directory exists
     if not output_dir.is_dir():
         os.makedirs(output_dir)
@@ -75,9 +75,7 @@ def generate_files(lightcurve, output_dir):
 
     # Generate dynesty
     sampler = DynestySampler()
-    posteriors = sampler.run_single_curve(
-        lightcurve, priors=priors, rstate=np.random.default_rng(9876)
-    )
+    posteriors = sampler.run_single_curve(lightcurve, priors=priors, rstate=np.random.default_rng(9876))
     posteriors.save_to_file(output_dir)
 
     # Generate NUTS
@@ -197,9 +195,7 @@ def delete_temp_files(temp_dir):
         The temporary directory where we've just generated our new results.
     """
     if "temp" not in temp_dir.as_posix() and "tmp" not in temp_dir.as_posix():
-        raise ValueError(
-            "Attempted to delete directory that is not designated with 'temp' or 'tmp'."
-        )
+        raise ValueError("Attempted to delete directory that is not designated with 'temp' or 'tmp'.")
     for file in os.listdir(temp_dir):
         os.remove(Path(temp_dir, file))
     os.rmdir(temp_dir)
@@ -210,7 +206,7 @@ def test_diffs(test_data_dir, tmp_path):
 
     This is the function that is automatically run by pytest.
     """
-    #data_dir = Path("tests", "data")
+    # data_dir = Path("tests", "data")
     goldens_dir = Path(test_data_dir, "goldens")
 
     lightcurve_name = "ZTF22abvdwik"

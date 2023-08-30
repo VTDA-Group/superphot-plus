@@ -101,7 +101,7 @@ def plot_sampling_lc_fit(
     trange_fine = np.linspace(np.amin(tdata), np.amax(tdata), num=500)
 
     fig, ax = plt.subplots()
-    
+
     for b in np.unique(bdata):  # TODO: handle case where band name isnt a valid color
         ax.errorbar(
             tdata[bdata == b],
@@ -120,11 +120,11 @@ def plot_sampling_lc_fit(
                 lw=1,
                 alpha=0.1,
             )
-      
+
     ax.legend(loc="upper left")
     ax.set_xlabel("MJD")
     ax.set_ylabel("Flux (arbitrary units)")
-    
+
     ax.set_title(ztf_name + ": " + sampling_method)
 
     if custom_formatting is not None:

@@ -226,7 +226,7 @@ def compare_oversampling(
             gauss_ax.set_xlabel(param_1)
             gauss_ax.set_ylabel(param_2)
             smote_ax.set_ylabel(param_2)
-            #fig.tight_layout()
+            # fig.tight_layout()
             # plt.legend()
             plt.savefig(
                 os.path.join(save_dir, "oversample_compare", f"{save_labels[i]}_vs_{save_labels[j]}.pdf"),
@@ -356,7 +356,7 @@ def plot_oversampling_1d(names, labels, fits_dir, save_dir, priors=Survey.ZTF().
     fig.tight_layout()
     fig.subplots_adjust(bottom=0.1)
 
-    plt.savefig(os.path.join(save_dir, "all_1d_hists.pdf"))#, bbox_inches="tight")
+    plt.savefig(os.path.join(save_dir, "all_1d_hists.pdf"))  # , bbox_inches="tight")
     plt.close()
 
 

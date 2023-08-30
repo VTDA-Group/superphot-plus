@@ -31,13 +31,8 @@ class NumpyroSampler(Sampler):
         pass
 
     def run_single_curve(
-        self,
-        lightcurve: Lightcurve,
-        priors: MultibandPriors,
-        sampler="svi",
-        **kwargs
+        self, lightcurve: Lightcurve, priors: MultibandPriors, sampler="svi", **kwargs
     ) -> PosteriorSamples:
-        
         lightcurve.pad_bands(priors.ordered_bands, PAD_SIZE)
         eq_wt_samples = run_mcmc(lightcurve, sampler=sampler, priors=priors)
         if eq_wt_samples is None:
@@ -47,34 +42,29 @@ class NumpyroSampler(Sampler):
         )
 
     def run_multi_curve(
-        self,
-        lightcurves,
-        priors: MultibandPriors,
-        sampler="svi",
-        **kwargs
+        self, lightcurves, priors: MultibandPriors, sampler="svi", **kwargs
     ) -> List[PosteriorSamples]:
         """Not yet implemented."""
-        
+
         if len(lightcurves) == 0:
             return []
-        
+
         padded_lcs = []
         for lc in lightcurves:
             padded_lcs.append(lc.pad_bands(priors.ordered_bands, PAD_SIZE, in_place=False))
 
         eq_wt_samples = run_mcmc(padded_lcs, sampler=sampler, priors=priors)
-        
+
         post_list = []
         for i, posts in enumerate(eq_wt_samples):
             if posts is None:
                 continue
-            post_list.append(PosteriorSamples(
-                posts,
-                name=lightcurves[i].name,
-                sampling_method=sampler,
-                sn_class=lightcurves[i].sn_class
-            ))
-            
+            post_list.append(
+                PosteriorSamples(
+                    posts, name=lightcurves[i].name, sampling_method=sampler, sn_class=lightcurves[i].sn_class
+                )
+            )
+
         return post_list
 
 
@@ -115,8 +105,8 @@ def prior_helper(priors, max_flux, aux_b=None):
 
 
 def lax_helper_function(svi, svi_state, num_iters, *args, **kwargs):
-    """Helper function using LAX to speed up SVI state updates.
-    """
+    """Helper function using LAX to speed up SVI state updates."""
+
     @jit
     def update_svi(s, _):
         return svi.stable_update(s, *args, **kwargs)
@@ -278,7 +268,7 @@ def run_mcmc(lc, sampler="NUTS", priors=Survey.ZTF().priors):
         a numpy array. If the lightcurve does not contain any valid
         points, None is returned.
     """
-    batch = (type(lc) is list) # check if one LightCurve or multiple
+    batch = type(lc) is list  # check if one LightCurve or multiple
 
     def jax_model(t=None, obsflux=None, uncertainties=None, max_flux=None):
         create_jax_model(priors, t, obsflux, uncertainties, max_flux)
@@ -286,18 +276,17 @@ def run_mcmc(lc, sampler="NUTS", priors=Survey.ZTF().priors):
     def jax_guide(**kwargs):  # pylint: disable=unused-argument
         create_jax_guide(priors)
 
-
     if sampler == "NUTS":
         if batch:
             raise ValueError("Batch mode not implemented for NUTS.")
-            
+
         # Require data in all bands.
         for unique_band in priors.ordered_bands:
             if lc.obs_count(unique_band) == 0:
                 return None
 
         max_flux, _ = lc.find_max_flux(band=priors.reference_band)
-    
+
         num_samples = 300
         kernel = NUTS(jax_model, init_strategy=init_to_uniform)
 
@@ -325,7 +314,7 @@ def run_mcmc(lc, sampler="NUTS", priors=Survey.ZTF().priors):
         posterior_samples = mcmc.get_samples()
 
         posterior_cube, aux_bands = get_numpyro_cube(posterior_samples, max_flux, priors.aux_bands)
-        padded_idxs = (lc.flux_errors > 1e5)
+        padded_idxs = lc.flux_errors > 1e5
         red_neg_chisq = calculate_neg_chi_squareds(
             posterior_cube,
             lc.times[~padded_idxs],
@@ -333,27 +322,30 @@ def run_mcmc(lc, sampler="NUTS", priors=Survey.ZTF().priors):
             lc.flux_errors[~padded_idxs],
             lc.bands[~padded_idxs],
             ordered_bands=priors.ordered_bands,
-            ref_band=priors.reference_band
+            ref_band=priors.reference_band,
         )
 
-        posterior_cubes = [np.hstack((posterior_cube, red_neg_chisq[np.newaxis,:].T)),]
-        
-    
+        posterior_cubes = [
+            np.hstack((posterior_cube, red_neg_chisq[np.newaxis, :].T)),
+        ]
+
     elif sampler == "svi":
         optimizer = numpyro.optim.Adam(step_size=0.001)
         svi = SVI(jax_model, jax_guide, optimizer, loss=Trace_ELBO())
         num_iter = 10_000
-        lax_jit = jit(lax_helper_function, static_argnums=(0,2))
-        
+        lax_jit = jit(lax_helper_function, static_argnums=(0, 2))
+
         if not batch:
-            lc = [lc,]
-        
+            lc = [
+                lc,
+            ]
+
         bad_prev_fit = True
         posterior_cubes = []
         for i, lc_single in enumerate(lc):
-            if i%100 == 0:
+            if i % 100 == 0:
                 print(i)
-                
+
             # Require data in all bands.
             for unique_band in priors.ordered_bands:
                 if lc_single.obs_count(unique_band) == 0:
@@ -366,9 +358,9 @@ def run_mcmc(lc, sampler="NUTS", priors=Survey.ZTF().priors):
                     obsflux=lc_single.fluxes,
                     t=lc_single.times,
                     uncertainties=lc_single.flux_errors,
-                    max_flux=lc_single.find_max_flux(band=priors.reference_band)[0]
+                    max_flux=lc_single.find_max_flux(band=priors.reference_band)[0],
                 )
-                
+
             max_flux, _ = lc_single.find_max_flux(band=priors.reference_band)
 
             svi_state = lax_jit(
@@ -378,9 +370,9 @@ def run_mcmc(lc, sampler="NUTS", priors=Survey.ZTF().priors):
                 obsflux=lc_single.fluxes,
                 t=lc_single.times,
                 uncertainties=lc_single.flux_errors,
-                max_flux=max_flux
+                max_flux=max_flux,
             )
-            #params = svi_result.params
+            # params = svi_result.params
             params = svi.get_params(svi_state)
             posterior_samples = {}
             for param in params:
@@ -388,9 +380,9 @@ def run_mcmc(lc, sampler="NUTS", priors=Survey.ZTF().priors):
                     posterior_samples[param[:-3]] = np.random.normal(
                         loc=params[param], scale=params[param[:-2] + "sigma"], size=100
                     )
-                    
+
             posterior_cube = get_numpyro_cube(posterior_samples, max_flux, priors.aux_bands)[0]
-            padded_idxs = (lc_single.flux_errors == 1e10)
+            padded_idxs = lc_single.flux_errors == 1e10
             red_neg_chisq = calculate_neg_chi_squareds(
                 posterior_cube,
                 lc_single.times[~padded_idxs],
@@ -398,13 +390,12 @@ def run_mcmc(lc, sampler="NUTS", priors=Survey.ZTF().priors):
                 lc_single.flux_errors[~padded_idxs],
                 lc_single.bands[~padded_idxs],
                 ordered_bands=priors.ordered_bands,
-                ref_band=priors.reference_band
+                ref_band=priors.reference_band,
             )
-            
-            bad_prev_fit = (np.mean(red_neg_chisq) < -6)
-                
 
-            posterior_cube = np.hstack((posterior_cube, red_neg_chisq[np.newaxis,:].T))
+            bad_prev_fit = np.mean(red_neg_chisq) < -6
+
+            posterior_cube = np.hstack((posterior_cube, red_neg_chisq[np.newaxis, :].T))
             posterior_cubes.append(posterior_cube)
 
     else:

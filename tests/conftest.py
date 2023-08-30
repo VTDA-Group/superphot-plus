@@ -141,6 +141,5 @@ def dummy_posterior_sample_dict_batch():
 
 @pytest.fixture
 def snana_filename(test_data_dir):
-    """Filename to SNANA ASCII File.
-    """
+    """Filename to SNANA ASCII File."""
     return os.path.join(test_data_dir, "sample.snana.txt")

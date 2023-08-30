@@ -36,25 +36,21 @@ def test_plot_confusion_matrices(class_probs_csv, tmp_path):
     assert os.path.exists(test_filename_binary + "_c.pdf")
     assert os.path.exists(test_filename_binary + "_p.pdf")
 
-    
+
 def test_four_class_cm(class_probs_csv, dummy_alerce_preds, tmp_path):
     """Test generation of both Superphot+ and ALeRCE four-class CMs."""
     compare_four_class_confusion_matrices(class_probs_csv, dummy_alerce_preds, tmp_path, p07=False)
     assert os.path.exists(os.path.join(tmp_path, "superphot4_c.pdf"))
     assert os.path.exists(os.path.join(tmp_path, "alerce_c.pdf"))
-    
-    
+
+
 def test_agreement_matrix(class_probs_csv, dummy_alerce_preds, tmp_path):
     """Test expected and true agreement matrix generation."""
     plot_expected_agreement_matrix(class_probs_csv, dummy_alerce_preds, tmp_path)
     assert os.path.exists(os.path.join(tmp_path, "expected_agreement.pdf"))
-    
+
     plot_true_agreement_matrix(class_probs_csv, dummy_alerce_preds, tmp_path, spec=True)
     plot_true_agreement_matrix(class_probs_csv, dummy_alerce_preds, tmp_path, spec=False)
-    
+
     assert os.path.exists(os.path.join(tmp_path, "true_agreement_spec.pdf"))
     assert os.path.exists(os.path.join(tmp_path, "true_agreement_phot.pdf"))
-
-
-
-                          

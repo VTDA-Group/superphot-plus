@@ -18,7 +18,7 @@ from superphot_plus.supernova_class import SupernovaClass as SnClass
 from superphot_plus.utils import calc_accuracy, f1_score
 
 from superphot_plus.plotting.format_params import *
-from superphot_plus.plotting.utils import read_probs_csv, retrieve_four_class_info 
+from superphot_plus.plotting.utils import read_probs_csv, retrieve_four_class_info
 
 from superphot_plus.constants import BIGGER_SIZE, MEDIUM_SIZE, SMALL_SIZE
 
@@ -95,47 +95,26 @@ def compare_four_class_confusion_matrices(probs_csv, probs_alerce_csv, save_dir,
         If True, only include predictions with a probability >= 0.7.
         Default is False.
     """
-    (
-        sn_names,
-        true_labels,
-        class_probs,
-        pred_labels,
-        pred_alerce
-    ) = retrieve_four_class_info(
-        probs_csv,
-        probs_alerce_csv,
-        p07
+    (sn_names, true_labels, class_probs, pred_labels, pred_alerce) = retrieve_four_class_info(
+        probs_csv, probs_alerce_csv, p07
     )
-    
+
     plot_confusion_matrix(
         true_labels,
         pred_labels,
         os.path.join(save_dir, "superphot4_c.pdf"),
         purity=False,
-        cmap=plt.cm.Purples
+        cmap=plt.cm.Purples,
     )
     plot_confusion_matrix(
-        true_labels,
-        pred_labels,
-        os.path.join(save_dir, "superphot4_p.pdf"),
-        purity=True,
-        cmap=plt.cm.Purples
+        true_labels, pred_labels, os.path.join(save_dir, "superphot4_p.pdf"), purity=True, cmap=plt.cm.Purples
     )
-    
-        
+
     plot_confusion_matrix(
-        true_labels,
-        pred_alerce,
-        os.path.join(save_dir, "alerce_c.pdf"),
-        purity=False,
-        cmap=plt.cm.Blues
+        true_labels, pred_alerce, os.path.join(save_dir, "alerce_c.pdf"), purity=False, cmap=plt.cm.Blues
     )
     plot_confusion_matrix(
-        true_labels,
-        pred_alerce,
-        os.path.join(save_dir, "alerce_p.pdf"),
-        purity=True,
-        cmap=plt.cm.Blues
+        true_labels, pred_alerce, os.path.join(save_dir, "alerce_p.pdf"), purity=True, cmap=plt.cm.Blues
     )
 
 
@@ -152,18 +131,12 @@ def plot_true_agreement_matrix(probs_csv, probs_alerce_csv, save_dir, spec=True)
     save_dir : str
         Directory path for saving the agreement matrix plot.
     """
-    (
-        sn_names,
-        true_labels,
-        class_probs,
-        pred_labels,
-        pred_alerce
-    ) = retrieve_four_class_info(
+    (sn_names, true_labels, class_probs, pred_labels, pred_alerce) = retrieve_four_class_info(
         probs_csv,
         probs_alerce_csv,
         False,
     )
-    
+
     plot_agreement_matrix_from_arrs(pred_labels, pred_alerce, save_dir, spec=spec)
 
 
@@ -186,11 +159,7 @@ def plot_expected_agreement_matrix(probs_csv, probs_alerce_csv, save_dir, cmap=p
         class_probs,
         pred_labels,
         alerce_preds,
-    ) = retrieve_four_class_info(
-        probs_csv,
-        probs_alerce_csv,
-        False
-    )
+    ) = retrieve_four_class_info(probs_csv, probs_alerce_csv, False)
 
     cm_purity = confusion_matrix(true_labels, pred_labels, normalize="pred")
 
@@ -273,7 +242,7 @@ def plot_agreement_matrix_from_arrs(our_labels, alerce_labels, save_dir, spec=Tr
     else:
         suffix_title = "Phot."
         suffix = "phot"
-        
+
     cm = confusion_matrix(alerce_labels, our_labels, normalize="true")
     classes = unique_labels(alerce_labels, our_labels)
 
@@ -345,7 +314,7 @@ def plot_confusion_matrix(y_true, y_pred, filename, purity=False, cmap=plt.cm.Pu
     """
     y_true = np.array(y_true)
     y_pred = np.array(y_pred)
-    
+
     acc = calc_accuracy(y_pred, y_true)
     f1 = f1_score(y_pred, y_true, class_average=True)
 

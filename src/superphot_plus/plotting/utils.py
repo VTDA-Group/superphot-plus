@@ -52,8 +52,7 @@ def read_probs_csv(probs_fn, return_dataframe=False):
     return names, labels, probs, pred_classes
 
 
-def get_alerce_pred_class(ztf_name, alerce,
-                          superphot_style=False):
+def get_alerce_pred_class(ztf_name, alerce, superphot_style=False):
     """Get alerce probabilities corresponding to the four (no SN IIn)
     classes in our ZTF classifier.
 
@@ -84,97 +83,60 @@ def create_alerce_pred_csv(probs_fn, save_fn):
     """
     alerce_obj = Alerce()
 
-    names, _,_,_ = read_probs_csv(probs_fn)
+    names, _, _, _ = read_probs_csv(probs_fn)
     alerce_labels = []
     for sn_name in names:
-        alerce_labels.append(
-            get_alerce_pred_class(
-                sn_name,
-                alerce_obj,
-                superphot_style=True
-            )
-        )
-        
-    df = pd.DataFrame(
-        {
-            "name": names,
-            "alerce_label": alerce_labels
-        }
-    )
-    
+        alerce_labels.append(get_alerce_pred_class(sn_name, alerce_obj, superphot_style=True))
+
+    df = pd.DataFrame({"name": names, "alerce_label": alerce_labels})
+
     df.to_csv(save_fn, index=False)
-    
-    
+
+
 def retrieve_four_class_info(probs_csv, probs_alerce_csv, p07=False):
-    """Extract Superphot+ and ALeRCE predictions and true class info.
-    """
+    """Extract Superphot+ and ALeRCE predictions and true class info."""
     _, classes_to_labels = SnClass.get_type_maps()
-    
-    (
-        sn_names,
-        true_classes,
-        class_probs,
-        pred_classes
-    ) = read_probs_csv(probs_csv)
-    
+
+    (sn_names, true_classes, class_probs, pred_classes) = read_probs_csv(probs_csv)
+
     try:
         true_labels = np.array([classes_to_labels[x] for x in true_classes])
     except:
         true_labels = np.array([SnClass.canonicalize(x) for x in true_classes])
     pred_labels = np.array([classes_to_labels[x] for x in pred_classes])
-    
+
     # read in ALeRCE classes
     df_alerce = pd.read_csv(probs_alerce_csv)
     pred_alerce = df_alerce.alerce_label.to_numpy().astype(str)
-    
-    ignore_mask = ( pred_alerce == "None" ) | ( pred_alerce == "nan" ) | ( pred_alerce == "SKIP" )
+
+    ignore_mask = (pred_alerce == "None") | (pred_alerce == "nan") | (pred_alerce == "SKIP")
     # ignore true SNe IIn
     ignore_mask = ignore_mask | (true_labels == "SN IIn")
-    
-    (
-        sn_names,
-        true_labels,
-        class_probs,
-        pred_labels,
-        pred_alerce
-    ) = (
+
+    (sn_names, true_labels, class_probs, pred_labels, pred_alerce) = (
         sn_names[~ignore_mask],
         true_labels[~ignore_mask],
         class_probs[~ignore_mask],
         pred_labels[~ignore_mask],
-        pred_alerce[~ignore_mask]
+        pred_alerce[~ignore_mask],
     )
-    
-    
+
     # merge SN IIn predictions with SN II
     pred_labels[pred_labels == "SN IIn"] = "SN II"
-    
+
     if p07:
-        p07_mask = ( np.max(class_probs, axis=1) > 0.7 )
-        (
-            sn_names,
-            true_labels,
-            class_probs,
-            pred_labels,
-            pred_alerce
-        ) = (
+        p07_mask = np.max(class_probs, axis=1) > 0.7
+        (sn_names, true_labels, class_probs, pred_labels, pred_alerce) = (
             sn_names[p07_mask],
             true_labels[p07_mask],
             class_probs[p07_mask],
             pred_labels[p07_mask],
-            pred_alerce[p07_mask]
+            pred_alerce[p07_mask],
         )
-        
-        
-    return (
-            sn_names,
-            true_labels,
-            class_probs,
-            pred_labels,
-            pred_alerce
-        )
-    
-    
+
+    return (sn_names, true_labels, class_probs, pred_labels, pred_alerce)
+
+
 def gaussian(x, A, mu, sigma):
     """Evaluate a gaussian with params A at the values in x.
 

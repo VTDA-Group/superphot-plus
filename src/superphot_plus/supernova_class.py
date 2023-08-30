@@ -11,7 +11,7 @@ class SupernovaClass(str, Enum):
     SUPERNOVA_II = "SN II"
     SUPERNOVA_IIN = "SN IIn"
     SUPERLUMINOUS_SUPERNOVA_I = "SLSN-I"
-    #SUPERLUMINOUS_SUPERNOVA_II = "SLSN-II"
+    # SUPERLUMINOUS_SUPERNOVA_II = "SLSN-II"
 
     @classmethod
     def get_type_maps(cls, allowed_types=None):
@@ -87,7 +87,7 @@ class SupernovaClass(str, Enum):
             cls.SUPERNOVA_II.value: ["SN IIP", "SN IIL", "SNII", "SNIIP", "32", "30", "31"],
             cls.SUPERNOVA_IIN.value: ["SNIIn", "35", "SLSN-II", "SLSNII"],
             cls.SUPERLUMINOUS_SUPERNOVA_I.value: ["40", "SLSN"],
-            #cls.SUPERLUMINOUS_SUPERNOVA_II.value: [],
+            # cls.SUPERLUMINOUS_SUPERNOVA_II.value: [],
             "TDE": ["TDE", "42"],
         }
 
