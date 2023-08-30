@@ -77,6 +77,27 @@ def test_numpyro_nuts(ztf_priors, single_ztf_lightcurve_object):
     sample_mean = posterior_samples.sample_mean()
     assert np.all(np.isclose(sample_mean, expected, rtol=0.1))
 
+    # Test that on the same system and in the same environment, the same random
+    # seed produces the same results.
+    posterior_samples2 = sampler.run_single_curve(
+        single_ztf_lightcurve_object,
+        priors=ztf_priors,
+        sampler="NUTS",
+        rng_seed=4,
+    )
+    sample_mean2 = posterior_samples2.sample_mean()
+    assert np.allclose(sample_mean, sample_mean2)
+
+    # And a different random seed provides a different result.
+    posterior_samples3 = sampler.run_single_curve(
+        single_ztf_lightcurve_object,
+        priors=ztf_priors,
+        sampler="NUTS",
+        rng_seed=5,
+    )
+    sample_mean3 = posterior_samples3.sample_mean()
+    assert not np.allclose(sample_mean, sample_mean3)
+
 
 def test_numpyro_svi(ztf_priors, single_ztf_lightcurve_object):
     """Test that we generated a new file, that its samples that can be
@@ -112,3 +133,24 @@ def test_numpyro_svi(ztf_priors, single_ztf_lightcurve_object):
     ]
     sample_mean = posterior_samples.sample_mean()
     assert np.all(np.isclose(sample_mean, expected, rtol=0.1))
+
+    # Test that on the same system and in the same environment, the same random
+    # seed produces the same results.
+    posterior_samples2 = sampler.run_single_curve(
+        single_ztf_lightcurve_object,
+        priors=ztf_priors,
+        sampler="svi",
+        rng_seed=1,
+    )
+    sample_mean2 = posterior_samples2.sample_mean()
+    assert np.allclose(sample_mean, sample_mean2)
+
+    # And a different random seed provides a different result.
+    posterior_samples3 = sampler.run_single_curve(
+        single_ztf_lightcurve_object,
+        priors=ztf_priors,
+        sampler="svi",
+        rng_seed=2,
+    )
+    sample_mean3 = posterior_samples3.sample_mean()
+    assert not np.allclose(sample_mean, sample_mean3)
