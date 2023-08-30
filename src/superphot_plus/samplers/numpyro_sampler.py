@@ -330,7 +330,7 @@ def run_mcmc(lc, sampler="NUTS", priors=Survey.ZTF().priors, rng_seed=None):
     else:
         raise ValueError("'sampler' must be 'NUTS' or 'svi'")
 
-    posterior_cube, aux_bands = get_numpyro_cube(posterior_samples, max_flux, priors.aux_bands)
+    posterior_cube, _ = get_numpyro_cube(posterior_samples, max_flux, priors.aux_bands)
 
     padded_idxs = lc.flux_errors > 1e5
     red_neg_chisq = calculate_neg_chi_squareds(

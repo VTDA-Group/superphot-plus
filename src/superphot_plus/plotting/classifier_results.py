@@ -10,7 +10,6 @@ from sklearn.metrics import roc_curve
 
 from superphot_plus.file_utils import get_multiple_posterior_samples
 from superphot_plus.format_data_ztf import import_labels_only
-from superphot_plus.plotting.format_params import *
 from superphot_plus.plotting.utils import histedges_equalN, read_probs_csv
 from superphot_plus.supernova_class import SupernovaClass as SnClass
 from superphot_plus.utils import calculate_neg_chi_squareds
@@ -45,7 +44,7 @@ def save_class_fractions(spec_probs_csv, phot_probs_csv, save_path):
     )
 
     # import phot dataframe
-    names_phot, pred_label_alerce, _, pred_class_phot = read_probs_csv(phot_probs_csv)
+    _, pred_label_alerce, _, pred_class_phot = read_probs_csv(phot_probs_csv)
     pred_class_phot_alerce = np.array([labels_to_class[x] for x in pred_label_alerce])
 
     cm_p = confusion_matrix(true_class_spec, pred_class_spec, normalize="pred")
@@ -134,10 +133,10 @@ def plot_class_fractions(saved_cf_file, fig_dir, filename):
     ).T
     _, ax = plt.subplots(figsize=(11, 16))
     bar = ax.bar(labels, combined_fracs[0], width, label=classes_to_labels[0])
-    for i in range(len(combined_fracs[0])):
+    for i, fracs_i in enumerate(combined_fracs[0]):
         bari = bar.patches[i]
         ax.annotate(
-            round(combined_fracs[0][i], 3),
+            round(fracs_i, 3),
             (bari.get_x() + bari.get_width() / 2, bari.get_y() + bari.get_height() / 2),
             ha="center",
             va="center",
@@ -209,14 +208,14 @@ def generate_roc_curve(probs_csv, save_dir):
     tpr = []
 
     for ref_label in range(len(classes_to_labels)):
-        names, true_labels, probs, preds = read_probs_csv(probs_csv)
+        _, true_labels, probs, _ = read_probs_csv(probs_csv)
         y_true = np.where(true_labels == ref_label, 1, 0)
         y_score = probs[:, ref_label]
 
         f, t, threshholds = roc_curve(y_true, y_score)
         idx_50 = np.argmin((threshholds - 0.5) ** 2)
-        (l,) = ax1.plot(f, t, label="%s" % classes_to_labels[ref_label], c=colors[ref_label])
-        ax2.plot(f, t, label="%s" % classes_to_labels[ref_label], c=colors[ref_label])
+        (l,) = ax1.plot(f, t, label=classes_to_labels[ref_label], c=colors[ref_label])
+        ax2.plot(f, t, label=classes_to_labels[ref_label], c=colors[ref_label])
         legend_lines.append(l)
         # ax1.scatter(f[idx_50], t[idx_50], color=colors[ref_label], s=40)
         ax2.scatter(f[idx_50], t[idx_50], color=colors[ref_label], s=100, marker="d")
@@ -281,7 +280,7 @@ def plot_phase_vs_accuracy(phased_probs_csv, save_dir):
         bins = np.arange(-16, 52, 4)
         # bins = histedges_equalN(phase_t[phase_t > -18.], 20)
 
-        correct_hist, bin_edges, _ = binned_statistic(phase_t, correct_t, statistic="sum", bins=bins)
+        correct_hist, _, _ = binned_statistic(phase_t, correct_t, statistic="sum", bins=bins)
         all_hist, _, _ = binned_statistic(phase_t, np.ones(len(phase_t)), statistic="sum", bins=bins)
         acc_hist_t = correct_hist / all_hist
         # acc_hist_comb += acc_hist_t
@@ -301,8 +300,6 @@ def plot_phase_vs_accuracy(phased_probs_csv, save_dir):
     # bins_eq=histedges_equalN(phase[phase > -30.], 20) # all points
     bins_eq = np.arange(-16, 52, 4)
     all_hist, _, _ = binned_statistic(phase, np.ones(len(true_type)), statistic="sum", bins=bins_eq)
-
-    idxs_type = []
 
     for at in allowed_types:
         eff_num = np.zeros(len(bins_eq) - 1)  # effective numerator
@@ -360,10 +357,8 @@ def plot_redshifts_abs_mags(probs_snr_csv, save_dir):
     allowed_types = list(labels_to_classes.keys())
     allowed_classes = [str(labels_to_classes[x]) for x in allowed_types]
 
-    names, classes, redshifts = import_labels_only(
-        [
-            probs_snr_csv,
-        ],
+    _, classes, redshifts = import_labels_only(
+        [            probs_snr_csv        ],
         allowed_classes,
         needs_posteriors=False,
         redshift=True,
