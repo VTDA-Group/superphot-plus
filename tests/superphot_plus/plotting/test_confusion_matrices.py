@@ -4,6 +4,7 @@ from superphot_plus.plotting.confusion_matrices import (
     plot_confusion_matrix,
     plot_high_confidence_confusion_matrix,
     plot_snIa_confusion_matrix,
+    compare_four_class_confusion_matrices
 )
 
 
@@ -32,3 +33,11 @@ def test_plot_confusion_matrices(class_probs_csv, tmp_path):
     plot_snIa_confusion_matrix(class_probs_csv, test_filename_binary)
     assert os.path.exists(test_filename_binary + "_c.pdf")
     assert os.path.exists(test_filename_binary + "_p.pdf")
+
+    
+def test_four_class_cm(class_probs_csv, dummy_alerce_preds, tmp_path):
+    compare_four_class_confusion_matrices(class_probs_csv, dummy_alerce_preds, tmp_path, p07=False)
+    assert os.path.exists(os.path.join(tmp_path, "superphot4_c.pdf"))
+    assert os.path.exists(os.path.join(tmp_path, "alerce_c.pdf"))
+
+                          

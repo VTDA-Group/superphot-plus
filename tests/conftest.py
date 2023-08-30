@@ -2,6 +2,7 @@ import os
 import os.path
 
 import numpy as np
+import pandas as pd
 import pytest
 from jax import random
 
@@ -73,10 +74,25 @@ def ztf_priors():
 
 
 @pytest.fixture
+def test_class_frac_csv(test_data_dir):
+    return os.path.join(test_data_dir, "test_cf.csv")
+
+
+@pytest.fixture
 def classifier(test_data_dir):
     filename = os.path.join(test_data_dir, "superphot-model-ZTF23aagkgnz.pt")
     config_filename = os.path.join(test_data_dir, "superphot-config-test.json")
     return MLP.load(filename, config_filename)[0]
+
+
+@pytest.fixture
+def dummy_alerce_preds(class_probs_csv, test_data_dir):
+    names = pd.read_csv(class_probs_csv).Name
+    dummy_labels = ["SNIa"] * len(names)
+    alerce_df = pd.DataFrame({"name": names, "alerce_label": dummy_labels})
+    fn = os.path.join(test_data_dir, "test_alerce_preds.csv")
+    alerce_df.to_csv(fn)
+    return fn
 
 
 @pytest.fixture
