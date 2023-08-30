@@ -67,6 +67,10 @@ class CrossValidationTrainer:
         The type of sampler used for the lightcurve fits.
     include_redshift : bool
         If True, includes redshift data for training.
+    extract_wc : bool
+        If true, assumes all sample fit plots are saved in
+        FIT_PLOTS_FOLDER. Copies plots of wrongly classified samples to
+        separate folder for manual followup. Defaults to False.
     """
 
     def __init__(
@@ -80,12 +84,18 @@ class CrossValidationTrainer:
         classify_log_file=CLASSIFY_LOG_FILE,
         sampler="dynesty",
         include_redshift=True,
+        extract_wc=False,
     ):
+        self.best_model: SuperphotClassifier = None
+
+        self.allowed_types = ["SN Ia", "SN II", "SN IIn", "SLSN-I", "SN Ibc"]
+
         self.num_layers = num_layers
         self.neurons_per_layer = neurons_per_layer
         self.goal_per_class = goal_per_class
         self.sampler = sampler
         self.include_redshift = include_redshift
+        self.extract_wc = extract_wc
 
         self.metrics_dir = metrics_dir
         self.models_dir = models_dir
@@ -106,50 +116,97 @@ class CrossValidationTrainer:
         os.makedirs(cm_folder)
         os.makedirs(FIT_PLOTS_FOLDER)
 
-    def run(
-        self,
-        input_csvs=None,
-        num_epochs=EPOCHS,
-        num_folds=NUM_FOLDS,
-        csv_path=PROBS_FILE,
-        extract_wc=False,
-    ):
-        """Performs model training and evaluation using K-Fold cross validation.
+    def run(self, input_csvs=None, num_epochs=EPOCHS, num_folds=NUM_FOLDS, csv_path=PROBS_FILE):
+        """Performs model training, and evaluation on a test holdout set.
 
         Parameters
         ----------
         input_csvs : list of str
-            The list of training CSV files.
+            The list of training CSV files. Defaults to INPUT_CSVS.
         num_epochs : int
             Number of training epochs. Defaults to EPOCHS.
         num_folds : int
             The number for K in cross-fold validation. Defaults to NUM_FOLDS.
         csv_path : int
             The file to save test probabilities to. Defaults to PROBS_FILE.
-        extract_wc : bool
-            If true, assumes all sample fit plots are saved in
-            FIT_PLOTS_FOLDER. Copies plots of wrongly classified samples to
-            separate folder for manual followup. Defaults to False.
         """
-        allowed_types = ["SN Ia", "SN II", "SN IIn", "SLSN-I", "SN Ibc"]
-        output_dim = len(allowed_types)  # number of classes
-
+        # Load all data first
         if input_csvs is None:
             input_csvs = INPUT_CSVS
 
-        # Write output file header
-        with open(csv_path, "w+", encoding="utf-8") as probs_file:
-            probs_file.write("Name,Label,pSNIa,pSNII,pSNIIn,pSLSNI,pSNIbc\n")
-
         names, labels, redshifts = import_labels_only(
             input_csvs=input_csvs,
-            allowed_types=allowed_types,
+            allowed_types=self.allowed_types,
             fits_dir=self.fits_dir,
             sampler=self.sampler,
         )
 
+        # Create a test holdout of 10%
+        names, test_names, labels, test_labels, redshifts, test_redshifts = train_test_split(
+            names, labels, redshifts, stratify=labels, shuffle=True, test_size=0.1
+        )
+
+        # Train model on training data
+        valid_losses_avg = self.train_and_validate(
+            names=names, labels=labels, redshifts=redshifts, num_epochs=num_epochs, num_folds=num_folds
+        )
+
+        # Evaluate on test holdout set
+        true_classes, pred_classes, pred_probs, test_f1_score, test_acc = self.evaluate(
+            names=test_names,
+            labels=test_labels,
+            redshifts=test_redshifts,
+            csv_path=csv_path,
+        )
+
+        # Log test metrics
+        self.log_metrics_to_file(
+            num_epochs=num_epochs,
+            true_classes=true_classes,
+            prob_above_07=pred_probs,
+            test_f1_score=test_f1_score,
+            test_acc=test_acc,
+            val_loss_avg=valid_losses_avg,
+        )
+
+        self.plot_matrices(
+            num_epochs=num_epochs,
+            true_classes=true_classes,
+            predicted_classes=pred_classes,
+            prob_above_07=pred_probs,
+        )
+
+        if self.extract_wc:
+            extract_wrong_classifications(
+                true_classes=true_classes,
+                predicted_classes=pred_classes,
+                ztf_test_names=test_names,
+            )
+
+    def train_and_validate(self, names, labels, redshifts, num_epochs=EPOCHS, num_folds=NUM_FOLDS):
+        """Performs model training and evaluation using K-Fold cross validation.
+
+        Parameters
+        ----------
+        names : np.ndarray
+            The full list of ZTF objects.
+        labels : np.ndarray
+            The full list of supernova labels.
+        redshifts : np.ndarray
+            The redshifts for each of the ZTF objects.
+        num_epochs : int
+            Number of training epochs. Defaults to EPOCHS.
+        num_folds : int
+            The number for K in cross-fold validation. Defaults to NUM_FOLDS.
+
+        Returns
+        -------
+        tuple
+            The validation loss mean for all the folds.
+        """
         tally_each_class(labels)  # original tallies
 
+        # Stratified K-Fold on the training data
         kfold = generate_K_fold(np.zeros(len(labels)), labels, num_folds)
 
         def run_single_fold(fold_id, fold):
@@ -167,24 +224,16 @@ class CrossValidationTrainer:
             tuple
                 The fold's validation loss and accuracy.
             """
-            train_index, test_index = fold
-
-            # Separate training from test data
-            test_names = names[test_index]
-            test_labels = labels[test_index]
-            test_redshifts = redshifts[test_index]
+            # Get training / test indices
+            train_index, val_index = fold
 
             train_features, train_classes, val_features, val_classes = self.generate_train_data(
-                names=names, labels=labels, redshifts=redshifts, train_indices=train_index
-            )
-            test_features, test_classes, test_names, test_group_idxs = self.generate_test_data(
-                test_names=test_names, test_labels=test_labels, test_redshifts=test_redshifts
+                names=names, labels=labels, redshifts=redshifts, train_index=train_index, val_index=val_index
             )
 
             # Normalize features
             train_features, mean, std = normalize_features(train_features)
             val_features, mean, std = normalize_features(val_features, mean, std)
-            test_features, mean, std = normalize_features(test_features, mean, std)
 
             # Convert to Torch DataSet objects
             train_dataset = create_dataset(train_features, train_classes)
@@ -192,7 +241,7 @@ class CrossValidationTrainer:
 
             params = NetworkParams(
                 input_dim=train_features.shape[1],
-                output_dim=output_dim,
+                output_dim=len(self.allowed_types),
                 neurons_per_layer=self.neurons_per_layer,
                 num_hidden_layers=self.num_layers,
             )
@@ -206,7 +255,7 @@ class CrossValidationTrainer:
             )
 
             # Train and validate multi-layer perceptron
-            best_valid_loss, _ = model.train_and_validate(
+            best_val_loss, val_acc = model.train_and_validate(
                 train_data=TrainData(train_dataset, val_dataset),
                 run_id=f"fold-{fold_id}",
                 num_epochs=num_epochs,
@@ -215,69 +264,87 @@ class CrossValidationTrainer:
                 plot_metrics=True,
             )
 
-            # Test model on remaining data
-            test_classes, test_names, pred_classes, pred_probs = model.evaluate(
-                test_data=TestData(test_features, test_classes, test_names, test_group_idxs),
-                probs_csv_path=csv_path,
-            )
+            return model, best_val_loss, val_acc
 
-            return pred_classes, pred_probs > 0.7, test_classes, test_names, best_valid_loss
-
+        # Process each fold in parallel.
         r = Parallel(n_jobs=-1)(delayed(run_single_fold)(i, fold) for i, fold in enumerate(kfold))
-        (
-            predicted_classes_mlp,
-            prob_above_07_mlp,
-            true_classes_mlp,
-            ztf_test_names,
-            valid_loss_mlp,
-        ) = zip(*r)
 
-        predicted_classes_mlp = np.hstack(tuple(predicted_classes_mlp))
-        prob_above_07_mlp = np.hstack(tuple(prob_above_07_mlp))
-        true_classes_mlp = np.hstack(tuple(true_classes_mlp))
-        ztf_test_names = np.hstack(tuple(ztf_test_names))
-        valid_loss_avg = np.mean(valid_loss_mlp)
+        # Report metrics for the current hyperparameter set.
+        models, val_losses, _ = zip(*r)
 
-        true_classes_mlp = SnClass.get_labels_from_classes(true_classes_mlp)
-        predicted_classes_mlp = SnClass.get_labels_from_classes(predicted_classes_mlp)
+        # Store best model
+        self.best_model = models[np.argmin(val_losses)]
 
-        test_acc = calc_accuracy(predicted_classes_mlp, true_classes_mlp)
-        test_f1_score = f1_score(predicted_classes_mlp, true_classes_mlp, class_average=True)
+        return np.mean(val_losses)
 
-        self.plot_matrices(
-            num_epochs=num_epochs,
-            true_classes=true_classes_mlp,
-            predicted_classes=predicted_classes_mlp,
-            prob_above_07=prob_above_07_mlp,
+    def evaluate(self, names, labels, redshifts, csv_path=PROBS_FILE):
+        """Evaluates the model on a test holdout dataset.
+
+        Parameters
+        ----------
+        names : np.ndarray
+            The list of test ZTF objects.
+        labels : np.ndarray
+            The list of test supernova labels.
+        redshifts : np.ndarray
+            The redshifts for each of the test ZTF objects.
+        csv_path : int
+            The file to save test probabilities to. Defaults to PROBS_FILE.
+
+        Returns
+        -------
+        tuple
+            The true classes, predicted classes, predicted probabilities,
+            the f1 scores and accuracies for the test data.
+        """
+        if self.best_model is None:
+            raise ValueError("No pre-trained model was loaded for evaluation")
+
+        # Write output file header
+        with open(csv_path, "w+", encoding="utf-8") as probs_file:
+            probs_file.write("Name,Label,pSNIa,pSNII,pSNIIn,pSLSNI,pSNIbc\n")
+
+        test_features, test_classes, test_names, test_group_idxs = self.generate_test_data(
+            test_names=names,
+            test_labels=labels,
+            test_redshifts=redshifts,
         )
 
-        if extract_wc:
-            extract_wrong_classifications(
-                true_classes=true_classes_mlp,
-                predicted_classes=predicted_classes_mlp,
-                ztf_test_names=ztf_test_names,
-            )
+        # Normalize features
+        test_features, _, _ = normalize_features(test_features)
 
-        self.log_metrics_to_file(
-            num_epochs=num_epochs,
-            true_classes=true_classes_mlp,
-            prob_above_07=prob_above_07_mlp,
-            test_f1_score=test_f1_score,
-            test_acc=test_acc,
-            val_loss_avg=valid_loss_avg,
+        # Test model on remaining data
+        results = self.best_model.evaluate(
+            test_data=TestData(test_features, test_classes, test_names, test_group_idxs),
+            probs_csv_path=csv_path,
         )
 
-    def generate_train_data(self, names, labels, redshifts, train_indices):
+        true_classes, test_names, pred_classes, pred_probs = zip(results)
+
+        pred_probs = np.hstack(pred_probs) > 0.7
+        pred_classes = np.hstack(pred_classes)
+        true_classes = np.hstack(true_classes)
+        test_names = np.hstack(test_names)
+
+        true_classes = SnClass.get_labels_from_classes(true_classes)
+        pred_classes = SnClass.get_labels_from_classes(pred_classes)
+
+        test_acc = calc_accuracy(pred_classes, true_classes)
+        test_f1_score = f1_score(pred_classes, true_classes, class_average=True)
+
+        return true_classes, pred_classes, pred_probs, test_f1_score, test_acc
+
+    def generate_train_data(self, names, labels, redshifts, train_index, val_index):
         """Creates training and validation data, oversampling when needed.
 
         Parameters
         ----------
         names : np.ndarray
-            The full list of ZTF objects.
+            The training list of ZTF objects.
         labels : np.ndarray
-            The full list of supernova labels.
+            The training list of supernova labels.
         redshifts : np.ndarray
-            The redshifts for each of the ZTF objects.
+            The redshifts for each of the training ZTF objects.
         train_indices : np.ndarray
             The indices for the training data.
 
@@ -287,13 +354,6 @@ class CrossValidationTrainer:
             A tuple containing the train features and classes,
             and the validation features and classes, respectively.
         """
-        # Set a 10% validation set for the current fold,
-        # using stratification on the training classes
-        train_index, val_index = train_test_split(
-            train_indices, stratify=labels[train_indices], test_size=0.1
-        )
-
-        # Separate training into training+validation
         train_names, val_names = names[train_index], names[val_index]
         train_labels, val_labels = labels[train_index], labels[val_index]
         train_redshifts, val_redshifts = redshifts[train_index], redshifts[val_index]
@@ -349,7 +409,7 @@ class CrossValidationTrainer:
         -------
         tuple
             A tuple containing the test features, the test classes,
-            the test names and the list of groups, respectively.
+            the test names and the list of test groups, respectively.
         """
         test_features = []
         test_classes_os = []

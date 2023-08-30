@@ -4,6 +4,7 @@ import os
 import time
 
 import numpy as np
+from sklearn.model_selection import train_test_split
 import torch
 
 from superphot_plus.constants import TRAINED_MODEL_PARAMS
@@ -25,17 +26,23 @@ def test_run_classifier(tmp_path):
     normed_means = list(np.zeros(input_dim))
     normed_stds = list(np.ones(input_dim))
 
-    train_features = np.random.random((num_samples, input_dim))
-    train_labels = np.random.randint(num_output_classes, size=num_samples)
-
-    test_features = np.random.random((num_samples, input_dim))
-    test_labels = np.random.randint(num_output_classes, size=num_samples)
+    features = np.random.random((num_samples, input_dim))
+    labels = np.random.randint(num_output_classes, size=num_samples)
 
     test_names = ["ZTF-testname"]
-    test_group_idxs = [np.arange(0, 20)]
+    test_group_idxs = [np.arange(0, 10)]
 
-    train_dataset = create_dataset(train_features, train_labels)
-    val_dataset = create_dataset(test_features, test_labels)
+    # Create a test holdout of 10%
+    train_features, test_features, train_labels, test_labels = train_test_split(
+        features, labels, stratify=labels, test_size=0.1
+    )
+
+    train_features, val_features, train_labels, val_labels = train_test_split(
+        train_features, train_labels, stratify=train_labels, test_size=0.1
+    )
+
+    train_dataset = create_dataset(features, labels)
+    val_dataset = create_dataset(val_features, val_labels)
 
     network_params = NetworkParams(
         input_dim=input_dim,

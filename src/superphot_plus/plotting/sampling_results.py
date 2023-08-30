@@ -11,7 +11,6 @@ from superphot_plus.plotting.utils import gaussian
 from superphot_plus.supernova_class import SupernovaClass as SnClass
 from superphot_plus.surveys.surveys import Survey
 
-
 OVERSAMPLE_SIZE = 4000
 
 
