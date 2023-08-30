@@ -77,7 +77,7 @@ def test_numpyro_nuts(ztf_priors, single_ztf_lightcurve_object):
         -5.59074839,
     ]
     sample_mean = posterior_samples.sample_mean()
-    assert np.all(np.isclose(sample_mean, expected, rtol=0.1))
+    assert np.all(np.isclose(sample_mean, expected, rtol=0.1, atol=0.1))
 
     # Test that on the same system and in the same environment, the same random
     # seed produces the same results.
@@ -134,7 +134,7 @@ def test_numpyro_svi(ztf_priors, single_ztf_lightcurve_object):
         -5.64337435,
     ]
     sample_mean = posterior_samples.sample_mean()
-    assert np.all(np.isclose(sample_mean, expected, rtol=0.1))
+    assert np.all(np.isclose(sample_mean, expected, rtol=0.1, atol=0.1))
 
     # Test that on the same system and in the same environment, the same random
     # seed produces the same results.

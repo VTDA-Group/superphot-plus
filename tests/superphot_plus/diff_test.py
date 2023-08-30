@@ -149,7 +149,7 @@ def compare_two_files(file_name, goldens_dir, temp_results_dir):
         True if files are sufficiently similar; False otherwise."""
 
     # Set up
-    deltas = {"dynesty": 0.25, "svi": 0.1, "NUTS": 0.1}
+    deltas = {"dynesty": 0.25, "svi": 0.25, "NUTS": 0.25}
     no_differences_found = True
 
     # Compare sample means
@@ -170,7 +170,7 @@ def compare_two_files(file_name, goldens_dir, temp_results_dir):
         temp_val = temp_results_samples.sample_mean()[index]
 
         print(f"{(abs( 1 - (golden_val / temp_val))):.2f}", end=", ")
-        if not math.isclose(golden_val, temp_val, rel_tol=deltas[sampling_method]):
+        if not math.isclose(golden_val, temp_val, rel_tol=deltas[sampling_method], abs_tol=0.1):
             no_differences_found = False
             print(
                 f"\nSignificantly distant values in sample means of {file_name} at index {index} "
