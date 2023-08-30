@@ -3,13 +3,14 @@ import numpy as np
 
 from superphot_plus.constants import BIGGER_SIZE, MEDIUM_SIZE, SMALL_SIZE
 
-plt.rc("font", size=SMALL_SIZE)  # controls default text sizes
-plt.rc("axes", titlesize=BIGGER_SIZE)  # fontsize of the axes title
-plt.rc("axes", labelsize=BIGGER_SIZE)  # fontsize of the x and y labels
-plt.rc("xtick", labelsize=MEDIUM_SIZE)  # fontsize of the tick labels
-plt.rc("ytick", labelsize=MEDIUM_SIZE)  # fontsize of the tick labels
-plt.rc("legend", fontsize=MEDIUM_SIZE)  # legend fontsize
-plt.rc("figure", titlesize=BIGGER_SIZE)  # fontsize of the figure title
+def set_global_plot_formatting():
+    plt.rc("font", size=SMALL_SIZE)  # controls default text sizes
+    plt.rc("axes", titlesize=BIGGER_SIZE)  # fontsize of the axes title
+    plt.rc("axes", labelsize=BIGGER_SIZE)  # fontsize of the x and y labels
+    plt.rc("xtick", labelsize=MEDIUM_SIZE)  # fontsize of the tick labels
+    plt.rc("ytick", labelsize=MEDIUM_SIZE)  # fontsize of the tick labels
+    plt.rc("legend", fontsize=MEDIUM_SIZE)  # legend fontsize
+    plt.rc("figure", titlesize=BIGGER_SIZE)  # fontsize of the figure title
 
 
 def param_labels(aux_bands=None, ref_band=None):
