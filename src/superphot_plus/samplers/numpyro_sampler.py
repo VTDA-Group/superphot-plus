@@ -306,7 +306,7 @@ def run_mcmc(lc, rng_seed, sampler="NUTS", priors=Survey.ZTF().priors):
         num_iter = 10000
 
         # Split random key into two: one for the MCMC sampling and
-        # on to seed the numpy based campling of the params (afterward).
+        # one to seed the numpy based sampling of the params (afterward).
         rng_key = random.PRNGKey(rng_seed)
         rng_key, seed2 = random.split(rng_key)
 
