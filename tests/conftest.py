@@ -88,7 +88,7 @@ def classifier(test_data_dir):
 @pytest.fixture
 def dummy_alerce_preds(class_probs_csv, test_data_dir):
     names = pd.read_csv(class_probs_csv).Name
-    dummy_labels = ["SNIa"] * len(names)
+    dummy_labels = ["SN Ia"] * len(names)
     alerce_df = pd.DataFrame({"name": names, "alerce_label": dummy_labels})
     fn = os.path.join(test_data_dir, "test_alerce_preds.csv")
     alerce_df.to_csv(fn)
