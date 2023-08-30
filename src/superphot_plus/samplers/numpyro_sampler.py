@@ -1,6 +1,6 @@
 """MCMC sampling using numpyro."""
 
-from random import randint
+from os import urandom
 from typing import List
 
 import jax.numpy as jnp
@@ -254,11 +254,8 @@ def run_mcmc(lc, sampler="NUTS", priors=Survey.ZTF().priors, rng_seed=None):
         a numpy array. If the lightcurve does not contain any valid
         points, None is returned.
     """
-    # If no random seed is set use an unseeded random number generator
-    # to pick one so we can output it (in case we need to reproduce the
-    # run later).
     if rng_seed is None:
-        rng_seed = randint(1, 2**32 - 1)
+        rng_seed = int.from_bytes(urandom(4), "big")
     print(f"Running numpyro with seed={rng_seed}")
 
     # Require data in all bands.
