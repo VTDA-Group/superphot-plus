@@ -7,9 +7,9 @@ import numpy as np
 from sklearn.model_selection import train_test_split
 import torch
 
-from superphot_plus.constants import TRAINED_MODEL_PARAMS
+from superphot_plus.constants import BATCH_SIZE, LEARNING_RATE, TRAINED_MODEL_PARAMS
 from superphot_plus.model.classifier import SuperphotClassifier
-from superphot_plus.model.config import ModelConfig, NetworkParams
+from superphot_plus.model.config import ModelConfig
 from superphot_plus.model.data import TrainData, TestData
 from superphot_plus.supernova_class import SupernovaClass as SnClass
 from superphot_plus.utils import create_dataset, calculate_accuracy, epoch_time
@@ -44,18 +44,16 @@ def test_run_classifier(tmp_path):
     train_dataset = create_dataset(features, labels)
     val_dataset = create_dataset(val_features, val_labels)
 
-    network_params = NetworkParams(
-        input_dim=input_dim,
-        output_dim=output_dim,
-        neurons_per_layer=neurons_per_layer,
-        num_hidden_layers=num_layers,
-    )
-
     model = SuperphotClassifier.create(
         config=ModelConfig(
-            network_params=network_params,
+            input_dim=input_dim,
+            output_dim=output_dim,
+            neurons_per_layer=neurons_per_layer,
+            num_hidden_layers=num_layers,
             normalization_means=normed_means,
             normalization_stddevs=normed_stds,
+            batch_size=BATCH_SIZE,
+            learning_rate=LEARNING_RATE,
         )
     )
 

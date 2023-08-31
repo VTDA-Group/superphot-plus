@@ -4,29 +4,20 @@ from typing import List
 
 import torch
 import yaml
+from ray import tune
 from typing_extensions import Self
 
 from superphot_plus.constants import BATCH_SIZE, LEARNING_RATE
 
 
 @dataclass
-class NetworkParams:
-    """Holds the neural network configuration."""
+class ModelConfig:
+    """Holds model training configuration."""
 
     input_dim: int
     output_dim: int
     neurons_per_layer: int
     num_hidden_layers: int
-
-    def __iter__(self):
-        return iter((self.input_dim, self.output_dim, self.neurons_per_layer, self.num_hidden_layers))
-
-
-@dataclass
-class ModelConfig:
-    """Holds model training configuration."""
-
-    network_params: NetworkParams
 
     normalization_means: List[float]
     normalization_stddevs: List[float]
@@ -35,11 +26,6 @@ class ModelConfig:
     learning_rate: int = LEARNING_RATE
 
     device = torch.device("cpu")
-
-    def __post_init__(self):
-        """Coerce string dictionaries into the appropriatedata type."""
-        if isinstance(self.network_params, dict):
-            self.network_params = NetworkParams(**self.network_params)  # pylint: disable=not-a-mapping
 
     def write_to_file(self, file: str):
         """Save configuration data to a YAML file."""
@@ -54,3 +40,20 @@ class ModelConfig:
         with open(file, "r", encoding="utf-8") as file_handle:
             metadata = yaml.safe_load(file_handle)
             return cls(**metadata)
+
+
+@dataclass
+class TrainConfig:
+    """Holds information about the specific training
+    configuration of a model. The default values are
+    sampled by ray tune for parameter optimization."""
+
+    neurons_per_layer: int = tune.choice([128, 256, 512])
+    num_hidden_layers: int = tune.choice([2, 3, 4])
+    goal_per_class: int = tune.choice([100, 500, 1000])
+
+    num_folds: int = tune.choice(list(range(5, 6)))
+    num_epochs: int = tune.choice([250])
+
+    batch_size: int = tune.choice([32, 64, 128])
+    learning_rate: float = tune.loguniform(1e-4, 1e-1)

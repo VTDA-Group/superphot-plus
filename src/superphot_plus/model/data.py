@@ -6,8 +6,20 @@ from torch.utils.data import TensorDataset
 
 
 @dataclass
+class ZtfData:
+    """Holds raw ZTF object data."""
+
+    names: List[int]
+    labels: List[int]
+    redshifts: List[int]
+
+    def __iter__(self):
+        return iter((self.names, self.labels, self.redshifts))
+
+
+@dataclass
 class TrainData:
-    """Class that holds the data to train and validate."""
+    """Holds train and validation datasets."""
 
     train_dataset: TensorDataset
     val_dataset: TensorDataset
@@ -18,7 +30,7 @@ class TrainData:
 
 @dataclass
 class TestData:
-    """Class that holds the testing data."""
+    """Holds information about testing data."""
 
     test_features: np.ndarray
     test_classes: np.ndarray

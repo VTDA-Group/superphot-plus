@@ -42,23 +42,21 @@ class SuperphotClassifier(nn.Module):
         # Initialize MLP architecture
         self.config = config
 
-        input_dim, output_dim, neurons_per_layer, num_hidden_layers = config.network_params
+        n_neurons = config.neurons_per_layer
+        self.input_fc = nn.Linear(config.input_dim, n_neurons)
 
-        n_neurons = neurons_per_layer
-        self.input_fc = nn.Linear(input_dim, n_neurons)
-
-        assert num_hidden_layers >= 1
+        assert config.num_hidden_layers >= 1
 
         self.hidden_layers = nn.ModuleList()
         self.dropouts = nn.ModuleList()
         self.dropouts.append(nn.Dropout(INPUT_DROPOUT_FRAC))
 
-        for _ in range(num_hidden_layers - 1):
+        for _ in range(config.num_hidden_layers - 1):
             self.hidden_layers.append(nn.Linear(n_neurons, n_neurons))
-        for _ in range(num_hidden_layers):
+        for _ in range(config.num_hidden_layers):
             self.dropouts.append(nn.Dropout(HIDDEN_DROPOUT_FRAC))
 
-        self.output_fc = nn.Linear(n_neurons, output_dim)
+        self.output_fc = nn.Linear(n_neurons, config.output_dim)
 
         # Optimizer and criterion
         self.optimizer = optim.Adam(self.parameters(), lr=config.learning_rate)
@@ -288,6 +286,10 @@ class SuperphotClassifier(nn.Module):
             and maximum probabilities.
         """
         test_features, test_classes, test_names, test_group_idxs = test_data
+
+        # Write output file header
+        with open(probs_csv_path, "w+", encoding="utf-8") as probs_file:
+            probs_file.write("Name,Label,pSNIa,pSNII,pSNIIn,pSLSNI,pSNIbc\n")
 
         labels, pred_labels, max_probs, names = [], [], [], []
 
