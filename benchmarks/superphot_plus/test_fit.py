@@ -1,7 +1,5 @@
 """Benchmarks the available fitting methods."""
 
-import os
-
 import numpy as np
 
 from superphot_plus.lightcurve import Lightcurve

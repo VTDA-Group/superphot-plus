@@ -1,14 +1,21 @@
 import os
+import shutil
 
 import extinction
 import numpy as np
 import torch
 from astropy.coordinates import SkyCoord
-from dustmaps.config import config
+from dustmaps.config import config as dustmaps_config
 from dustmaps.sfd import SFDQuery
 from torch.utils.data import TensorDataset
 
-from superphot_plus.file_paths import PROBS_FILE, PROBS_FILE2
+from superphot_plus.file_paths import (
+    CLASSIFY_LOG_FILE,
+    FIT_PLOTS_FOLDER,
+    PROBS_FILE,
+    PROBS_FILE2,
+    WRONGLY_CLASSIFIED_FOLDER,
+)
 from superphot_plus.sfd import dust_filepath
 
 
@@ -32,7 +39,7 @@ def get_band_extinctions(ra, dec, wvs):
     ext_dict : Dict
         A dictionary mapping bands to extinction magnitudes for the given coordinates.
     """
-    config["data_dir"] = dust_filepath
+    dustmaps_config["data_dir"] = dust_filepath
     sfd = SFDQuery()
 
     # First look up the amount of mw dust at this location
@@ -389,7 +396,7 @@ def calculate_mse(cube, lightcurve, unique_bands, ref_band):
     return mse_sum / len(lightcurve.times)
 
 
-def calculate_neg_chi_squareds(cubes, t, f, ferr, b, ordered_bands=["r", "g"], ref_band="r"):
+def calculate_neg_chi_squareds(cubes, t, f, ferr, b, ordered_bands=None, ref_band="r"):
     """Gets the negative chi-squared of posterior fits from the model
     parameters and original data files.
     Parameters
@@ -410,7 +417,8 @@ def calculate_neg_chi_squareds(cubes, t, f, ferr, b, ordered_bands=["r", "g"], r
         The log likelihoods for each object.
     """
     if ordered_bands is None:
-        ordered_bands=["r", "g"]
+        ordered_bands = ["r", "g"]
+
     model_f = np.array(
         [flux_model(cube, t, b, ordered_bands, ref_band) for cube in cubes]
     )  # in future, maybe vectorize flux_model
@@ -525,3 +533,104 @@ def save_test_probabilities(
         for prob in pred_probabilities:
             probs_file.write(f",{prob:.04f}")
         probs_file.write("\n")
+
+
+def adjust_log_dists(features_orig, redshift=False):
+    """Takes log of fit parameters with log-Gaussian priors before
+    feeding into classifier. Also removes apparent amplitude and t0.
+
+    Parameters
+    ----------
+    features_orig : np.ndarray
+        Array of fit features of all samples.
+    redshift : boolean, optional
+        Whether to keep redshift data or not.
+
+    Returns
+    ---------
+    features : np.ndarray
+        Array of adjusted fit features.
+    """
+    features = np.copy(features_orig)
+    features[:, 4:7] = np.log10(features[:, 4:7])
+    features[:, 2] = np.log10(features[:, 2])
+
+    if redshift:  # keep amplitude
+        return np.delete(
+            features,
+            [
+                3,
+            ],
+            1,
+        )
+
+    return np.delete(features, [0, 3], 1)
+
+
+def write_metrics_to_file(
+    config,
+    true_classes,
+    pred_classes,
+    prob_above_07,
+    log_file=CLASSIFY_LOG_FILE,
+):
+    """Calculates the accuracy and f1 score metrics for the
+    test set and outputs them to a log file.
+
+    Parameters
+    ----------
+    config : ModelConfig
+        The configuration of the model used for evaluation.
+    true_classes : np.ndarray
+        The ground truth for the test ZTF objects.
+    pred_classes : np.ndarray
+        The predicted classes for the test ZTF objects.
+    prob_above_07 : np.ndarray
+        Indicates which predictions had a 70% confidence.
+    log_file : str
+        The file where the metrics information will be written.
+    """
+    test_acc = calc_accuracy(pred_classes, true_classes)
+    test_f1_score = f1_score(pred_classes, true_classes, class_average=True)
+
+    with open(log_file, "a+", encoding="utf-8") as the_file:
+        the_file.write(str(config.goal_per_class) + " samples per class\n")
+        the_file.write(
+            str(config.neurons_per_layer)
+            + " neurons per each of "
+            + str(config.num_hidden_layers)
+            + " layers\n"
+        )
+        the_file.write(str(config.num_epochs) + " epochs\n")
+        the_file.write(
+            "HOW MANY CERTAIN " + str(len(true_classes)) + " " + str(len(true_classes[prob_above_07])) + "\n"
+        )
+        the_file.write(f"MLP class-averaged F1-score: {test_f1_score:.04f}\n")
+        the_file.write(f"Accuracy: {test_acc:.04f}\n")
+        the_file.write(f"Best Validation Loss: {config.best_val_loss:.04f}\n\n")
+
+
+def extract_wrong_classifications(true_classes, pred_classes, ztf_test_names):
+    """Extracts the wrong model classifications and copies them to a separate folder.
+
+    Parameters
+    ----------
+    true_classes : np.ndarray
+        The ground truth for the classified samples.
+    predicted_classes : np.ndarray
+        The predictions for the classified samples.
+    ztf_test_names : np.ndarray
+        The ZTF object names for the classified samples.
+    """
+    wrongly_classified = np.where(true_classes != pred_classes)[0]
+
+    for wc_idx in wrongly_classified:
+        wc = ztf_test_names[wc_idx]
+        wc_type = true_classes[wc_idx]
+        wrong_type = pred_classes[wc_idx]
+        fn = wc + ".png"
+        fn_new = wc + "_" + wc_type + "_" + wrong_type + ".png"
+        shutil.copy(
+            os.path.join(FIT_PLOTS_FOLDER, fn),
+            os.path.join(WRONGLY_CLASSIFIED_FOLDER, wc_type + "/" + fn_new),
+        )

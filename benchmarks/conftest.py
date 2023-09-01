@@ -2,7 +2,7 @@ import os
 
 import pytest
 
-from superphot_plus.mlp import MLP
+from superphot_plus.model.classifier import SuperphotClassifier
 
 BENCHMARKS_DIR = os.path.dirname(__file__)
 
@@ -19,8 +19,8 @@ def benchmarks_data_dir():
 @pytest.fixture
 def classifier(benchmarks_data_dir):
     filename = os.path.join(benchmarks_data_dir, "superphot-model-ZTF23aagkgnz.pt")
-    config_filename = os.path.join(benchmarks_data_dir, "superphot-config-test.json")
-    return MLP.load(filename, config_filename)[0]
+    config_filename = os.path.join(benchmarks_data_dir, "superphot-config-test.yaml")
+    return SuperphotClassifier.load(filename, config_filename)[0]
 
 
 @pytest.fixture
