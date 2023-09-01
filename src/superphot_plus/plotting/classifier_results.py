@@ -358,7 +358,7 @@ def plot_redshifts_abs_mags(probs_snr_csv, save_dir):
     allowed_classes = [str(labels_to_classes[x]) for x in allowed_types]
 
     _, classes, redshifts = import_labels_only(
-        [            probs_snr_csv        ],
+        [probs_snr_csv],
         allowed_classes,
         needs_posteriors=False,
     )

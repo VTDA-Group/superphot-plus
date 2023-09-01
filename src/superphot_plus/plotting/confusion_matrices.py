@@ -439,19 +439,21 @@ def plot_matrices(
     fn_purity_07 = os.path.join(cm_folder, fn_prefix + "_p_p07.pdf")
     fn_completeness_07 = os.path.join(cm_folder, fn_prefix + "_c_p07.pdf")
 
-    # Plot full and p > 0.7 confusion matrices
+    # Plot full confusion matrices
     plot_confusion_matrix(true_classes, pred_classes, fn_purity, True)
     plot_confusion_matrix(true_classes, pred_classes, fn_completeness, False)
 
-    plot_confusion_matrix(
-        true_classes[prob_above_07],
-        pred_classes[prob_above_07],
-        fn_purity_07,
-        True,
-    )
-    plot_confusion_matrix(
-        true_classes[prob_above_07],
-        pred_classes[prob_above_07],
-        fn_completeness_07,
-        False,
-    )
+    # Plot confusion matrices for p > 0.7
+    if np.any(prob_above_07):
+        plot_confusion_matrix(
+            true_classes[prob_above_07],
+            pred_classes[prob_above_07],
+            fn_purity_07,
+            True,
+        )
+        plot_confusion_matrix(
+            true_classes[prob_above_07],
+            pred_classes[prob_above_07],
+            fn_completeness_07,
+            False,
+        )

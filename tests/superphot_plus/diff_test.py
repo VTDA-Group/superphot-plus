@@ -65,7 +65,7 @@ def generate_files(lightcurve, output_dir):
         The directory where we will save the files.
     """
     print("Generating files", end="...")
-    
+
     # Make sure our target directory exists
     if not output_dir.is_dir():
         os.makedirs(output_dir)

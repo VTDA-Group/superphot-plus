@@ -155,21 +155,21 @@ class CrossValidationTrainer:
             )
 
         # 3. Evaluate model on test dataset
-        true_classes, pred_classes, pred_probs = self.evaluate(model, test_data)
+        true_classes, pred_classes, probs_above_07 = self.evaluate(model, test_data)
 
         # 4. Log evaluation metrics
         write_metrics_to_file(
             config=best_config,
             true_classes=true_classes,
             pred_classes=pred_classes,
-            prob_above_07=pred_probs,
+            prob_above_07=probs_above_07,
             log_file=self.classify_log_file,
         )
         plot_matrices(
             config=best_config,
             true_classes=true_classes,
             pred_classes=pred_classes,
-            prob_above_07=pred_probs,
+            prob_above_07=probs_above_07,
             cm_folder=self.cm_folder,
         )
         if extract_wc:
