@@ -1,7 +1,6 @@
 """This module implements the Multi-Layer Perceptron (MLP) model for classification."""
 import csv
 import os
-import random
 import time
 
 import numpy as np
@@ -10,7 +9,7 @@ import torch.nn.functional as F
 from torch import nn, optim
 from torch.utils.data import DataLoader, TensorDataset
 
-from superphot_plus.constants import EPOCHS, HIDDEN_DROPOUT_FRAC, INPUT_DROPOUT_FRAC, SEED
+from superphot_plus.constants import EPOCHS, HIDDEN_DROPOUT_FRAC, INPUT_DROPOUT_FRAC
 from superphot_plus.file_paths import METRICS_DIR, MODELS_DIR, PROBS_FILE
 from superphot_plus.file_utils import get_posterior_samples
 from superphot_plus.format_data_ztf import normalize_features
@@ -95,7 +94,7 @@ class SuperphotClassifier(nn.Module):
     def train_and_validate(
         self,
         train_data,
-        run_id="run_0",
+        run_id="run-0",
         num_epochs=EPOCHS,
         plot_metrics=False,
         metrics_dir=METRICS_DIR,
@@ -112,7 +111,7 @@ class SuperphotClassifier(nn.Module):
         ----------
         train_data : TrainData
             The training and validation datasets.
-        run_id : int, optional
+        run_id : str, optional
             A call identifier (useful for parallel calls on cross-validation).
         num_epochs : int, optional
             The number of epochs. Defaults to EPOCHS.
@@ -128,14 +127,9 @@ class SuperphotClassifier(nn.Module):
         Returns
         -------
         tuple
-            A tuple containing the best validation loss and accuracy.
+            A tuple containing arrays of metrics for each epoch
+            (training accuracies and losses, validation accuracies and losses).
         """
-        random.seed(SEED)
-        np.random.seed(SEED)
-        torch.manual_seed(SEED)
-        torch.cuda.manual_seed(SEED)
-        torch.backends.cudnn.deterministic = True
-
         train_dataset, valid_dataset = train_data
 
         train_iterator = DataLoader(dataset=train_dataset, shuffle=True, batch_size=self.config.batch_size)
@@ -144,11 +138,7 @@ class SuperphotClassifier(nn.Module):
         metrics = ModelMetrics()
 
         # Structure to store best model in memory
-        best_model = {
-            "state_dict": None,
-            "valid_loss": float("inf"),
-            "valid_acc": float("inf"),
-        }
+        best_model = {"state_dict": None, "val_loss": float("inf")}
 
         for epoch in np.arange(0, num_epochs):
             start_time = time.monotonic()
@@ -156,10 +146,9 @@ class SuperphotClassifier(nn.Module):
             train_loss, train_acc = self.train_epoch(train_iterator)
             val_loss, val_acc = self.evaluate_epoch(valid_iterator)
 
-            if val_loss < best_model["valid_loss"]:
+            if val_loss < best_model["val_loss"]:
                 best_model["state_dict"] = self.state_dict()
-                best_model["valid_loss"] = val_loss
-                best_model["valid_acc"] = val_acc
+                best_model["val_loss"] = val_loss
 
             end_time = time.monotonic()
 
@@ -185,13 +174,16 @@ class SuperphotClassifier(nn.Module):
         # Load best model state
         self.load_state_dict(best_model["state_dict"])
 
+        # Save best validation loss
+        self.config.set_best_val_loss(best_model["val_loss"])
+
         if save_model:
             # Save model state and configuration to disk
             config_file_prefix = os.path.join(models_dir, "best-model")
             self.config.write_to_file(f"{config_file_prefix}.yaml")
             torch.save(best_model["state_dict"], f"{config_file_prefix}.pt")
 
-        return best_model["valid_loss"], best_model["valid_acc"]
+        return metrics.get_values()
 
     def train_epoch(self, iterator):
         """Does one epoch of training for a given torch model.

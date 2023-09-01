@@ -7,7 +7,6 @@ import numpy as np
 import ray
 from joblib import Parallel, delayed
 from ray import tune
-from ray.air import session
 from ray.tune import CLIReporter
 from ray.tune.search.optuna import OptunaSearch
 from sklearn.model_selection import train_test_split
@@ -39,6 +38,8 @@ from superphot_plus.utils import (
     adjust_log_dists,
     create_dataset,
     extract_wrong_classifications,
+    log_metrics_to_tensorboard,
+    report_session_metrics,
     write_metrics_to_file,
 )
 
@@ -288,7 +289,7 @@ class CrossValidationTrainer:
             )
 
             # Train and validate multi-layer perceptron
-            best_val_loss, val_acc = model.train_and_validate(
+            return model.train_and_validate(
                 train_data=TrainData(train_dataset, val_dataset),
                 run_id=f"{trial_id}-fold-{fold_id}",
                 num_epochs=config.num_epochs,
@@ -298,17 +299,14 @@ class CrossValidationTrainer:
                 save_model=False,
             )
 
-            return best_val_loss, val_acc
-
         # Process each fold in parallel.
-        results = Parallel(n_jobs=-1)(delayed(run_single_fold)(i, fold) for i, fold in enumerate(kfold))
+        fold_metrics = Parallel(n_jobs=-1)(delayed(run_single_fold)(i, fold) for i, fold in enumerate(kfold))
 
-        # Report metrics for the current hyperparameter set.
-        val_losses, val_accs = zip(*results)
-        avg_val_loss = np.mean(val_losses)
-        avg_val_acc = np.mean(val_accs)
+        # Report mean metrics for the current hyperparameter set.
+        report_session_metrics(fold_metrics)
 
-        session.report({"avg_val_loss": avg_val_loss, "avg_val_acc": avg_val_acc})
+        # Log average metrics per epoch to plot on Tensorboard.
+        log_metrics_to_tensorboard(fold_metrics, trial_id, config)
 
     def train(self, config: ModelConfig, train_data: ZtfData):
         """Trains a model with a specific set of hyperparameters.
@@ -348,7 +346,7 @@ class CrossValidationTrainer:
         model = SuperphotClassifier(config)
 
         # Train and validate multi-layer perceptron
-        best_val_loss, _ = model.train_and_validate(
+        model.train_and_validate(
             train_data=TrainData(train_dataset, val_dataset),
             run_id="final",
             num_epochs=config.num_epochs,
@@ -357,9 +355,6 @@ class CrossValidationTrainer:
             plot_metrics=True,
             save_model=True,
         )
-
-        # Set validation loss
-        config.set_best_val_loss(best_val_loss)
 
         return model, config
 

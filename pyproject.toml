@@ -53,9 +53,10 @@ dev = [
     "sphinx-autoapi==2.0.1", # Used to automatically generate api documentation
     "pylint", # Used for static linting of files
     "pytest-monitor", # Used to run benchmarks on the test suite
+    "memory_profiler", # Used to benchmark memory usage
     "ray[tune]", # Hyperparameter tuning library
     "optuna", # Optimization search algorithm
-    "memory_profiler", # Used to benchmark memory usage
+    "tensorboard", # To visualize training stats
 ]
 
 [build-system]
