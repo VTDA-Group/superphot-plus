@@ -34,6 +34,7 @@ dependencies = [
     "tensorflow_probability",
     "scikit-learn",
     "torch",
+    "ray",
 ]
 
 # On a mac, install optional dependencies with `pip install '.[dev]'` (include the single quotes)
