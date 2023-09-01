@@ -75,9 +75,7 @@ def generate_files(lightcurve, output_dir):
 
     # Generate dynesty
     sampler = DynestySampler()
-    posteriors = sampler.run_single_curve(
-        lightcurve, priors=priors, rstate=np.random.default_rng(9876)
-    )
+    posteriors = sampler.run_single_curve(lightcurve, priors=priors, rstate=np.random.default_rng(9876))
     posteriors.save_to_file(output_dir)
 
     # Generate NUTS
@@ -149,6 +147,7 @@ def compare_two_files(file_name, goldens_dir, temp_results_dir):
         True if files are sufficiently similar; False otherwise."""
 
     # Set up
+
     deltas = {"dynesty": 0.25, "svi": 0.25, "NUTS": 0.25}
     no_differences_found = True
 
@@ -196,9 +195,7 @@ def delete_temp_files(temp_dir):
         The temporary directory where we've just generated our new results.
     """
     if "temp" not in temp_dir.as_posix() and "tmp" not in temp_dir.as_posix():
-        raise ValueError(
-            "Attempted to delete directory that is not designated with 'temp' or 'tmp'."
-        )
+        raise ValueError("Attempted to delete directory that is not designated with 'temp' or 'tmp'.")
     for file in os.listdir(temp_dir):
         os.remove(Path(temp_dir, file))
     os.rmdir(temp_dir)

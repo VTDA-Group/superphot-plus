@@ -9,9 +9,8 @@ import numpy as np
 from sklearn.metrics import confusion_matrix
 from sklearn.utils.multiclass import unique_labels
 
-from superphot_plus.constants import BIGGER_SIZE, MEDIUM_SIZE, SMALL_SIZE
 from superphot_plus.file_paths import CM_FOLDER
-from superphot_plus.plotting.utils import read_probs_csv, get_alerce_pred_class
+from superphot_plus.plotting.utils import get_alerce_pred_class, read_probs_csv
 from superphot_plus.supernova_class import SupernovaClass as SnClass
 from superphot_plus.utils import calc_accuracy, f1_score
 
@@ -409,3 +408,50 @@ def plot_confusion_matrix(y_true, y_pred, filename, purity=False, cmap=plt.cm.Pu
     plt.ylim(len(classes) - 0.5, -0.5)
     plt.savefig(filename, bbox_inches="tight")
     plt.close()
+
+
+def plot_matrices(
+    config,
+    true_classes,
+    pred_classes,
+    prob_above_07,
+    cm_folder,
+):
+    """Plots confusion matrices for test set metrics.
+
+    Parameters
+    ----------
+    config : ModelConfig
+        The configuration of the model used for evaluation.
+    true_classes : np.ndarray
+        The ground truth for the test ZTF objects.
+    pred_classes : np.ndarray
+        The predicted classes for the test ZTF objects.
+    prob_above_07 : np.ndarray
+        Indicates which predictions had a 70% confidence.
+    cm_folder : str
+        The folder where the plot figures will be stored.
+    """
+    fn_prefix = f"cm_{config.goal_per_class}_{config.num_epochs}_{config.neurons_per_layer}_{config.num_hidden_layers}"
+
+    fn_purity = os.path.join(cm_folder, fn_prefix + "_p.pdf")
+    fn_completeness = os.path.join(cm_folder, fn_prefix + "_c.pdf")
+    fn_purity_07 = os.path.join(cm_folder, fn_prefix + "_p_p07.pdf")
+    fn_completeness_07 = os.path.join(cm_folder, fn_prefix + "_c_p07.pdf")
+
+    # Plot full and p > 0.7 confusion matrices
+    plot_confusion_matrix(true_classes, pred_classes, fn_purity, True)
+    plot_confusion_matrix(true_classes, pred_classes, fn_completeness, False)
+
+    plot_confusion_matrix(
+        true_classes[prob_above_07],
+        pred_classes[prob_above_07],
+        fn_purity_07,
+        True,
+    )
+    plot_confusion_matrix(
+        true_classes[prob_above_07],
+        pred_classes[prob_above_07],
+        fn_completeness_07,
+        False,
+    )
