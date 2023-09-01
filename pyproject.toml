@@ -29,6 +29,7 @@ dependencies = [
     "jaxns",
     "joblib",
     "extinction",
+    "librdkafka",
     "matplotlib",
     "numpy",
     "numpyro",
