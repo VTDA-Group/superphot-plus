@@ -572,7 +572,6 @@ def write_metrics_to_file(
     true_classes,
     pred_classes,
     prob_above_07,
-    val_loss_avg,
     log_file=CLASSIFY_LOG_FILE,
 ):
     """Calculates the accuracy and f1 score metrics for the
@@ -580,7 +579,7 @@ def write_metrics_to_file(
 
     Parameters
     ----------
-    config : TrainConfig
+    config : ModelConfig
         The configuration of the model used for evaluation.
     true_classes : np.ndarray
         The ground truth for the test ZTF objects.
@@ -588,8 +587,6 @@ def write_metrics_to_file(
         The predicted classes for the test ZTF objects.
     prob_above_07 : np.ndarray
         Indicates which predictions had a 70% confidence.
-    val_loss_avg : float
-        The training validation loss for the model.
     log_file : str
         The file where the metrics information will be written.
     """
@@ -610,7 +607,7 @@ def write_metrics_to_file(
         )
         the_file.write(f"MLP class-averaged F1-score: {test_f1_score:.04f}\n")
         the_file.write(f"Accuracy: {test_acc:.04f}\n")
-        the_file.write(f"Validation Loss: {val_loss_avg:.04f}\n\n")
+        the_file.write(f"Best Validation Loss: {config.best_val_loss:.04f}\n\n")
 
 
 def extract_wrong_classifications(true_classes, pred_classes, ztf_test_names):

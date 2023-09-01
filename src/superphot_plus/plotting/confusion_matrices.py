@@ -421,7 +421,7 @@ def plot_matrices(
 
     Parameters
     ----------
-    config : TrainConfig
+    config : ModelConfig
         The configuration of the model used for evaluation.
     true_classes : np.ndarray
         The ground truth for the test ZTF objects.

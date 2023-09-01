@@ -1,5 +1,4 @@
-"""This module implements the Multi-Layer Perceptron (MLP) model for
-classification."""
+"""This module implements the Multi-Layer Perceptron (MLP) model for classification."""
 import csv
 import os
 import random
@@ -101,7 +100,7 @@ class SuperphotClassifier(nn.Module):
         plot_metrics=False,
         metrics_dir=METRICS_DIR,
         models_dir=MODELS_DIR,
-        load_best_model=True,
+        save_model=False,
     ):
         """
         Run the MLP initialization and training.
@@ -123,14 +122,13 @@ class SuperphotClassifier(nn.Module):
             Where to store metrics.
         models_dir : str, optional
             Where to store models.
-        load_best_model : boolean, optional
-            Determines whether to load best model configuration by the end of training.
+        save_model : boolean, optional
+            If True, saves the model and respective training configuration to disk.
 
         Returns
         -------
         tuple
-            A tuple containing the labels, names, predicted labels, maximum
-            probabilities, and best validation loss.
+            A tuple containing the best validation loss and accuracy.
         """
         random.seed(SEED)
         np.random.seed(SEED)
@@ -139,11 +137,6 @@ class SuperphotClassifier(nn.Module):
         torch.backends.cudnn.deterministic = True
 
         train_dataset, valid_dataset = train_data
-
-        config_file_prefix = os.path.join(models_dir, f"superphot-config-{run_id}")
-
-        # Log model configuration
-        self.config.write_to_file(f"{config_file_prefix}.yaml")
 
         train_iterator = DataLoader(dataset=train_dataset, shuffle=True, batch_size=self.config.batch_size)
         valid_iterator = DataLoader(dataset=valid_dataset, batch_size=self.config.batch_size)
@@ -189,11 +182,14 @@ class SuperphotClassifier(nn.Module):
                 metrics_dir=metrics_dir,
             )
 
-        # Save model with the best validation score
-        torch.save(best_model["state_dict"], f"{config_file_prefix}.pt")
+        # Load best model state
+        self.load_state_dict(best_model["state_dict"])
 
-        if load_best_model:
-            self.load_state_dict(best_model["state_dict"])
+        if save_model:
+            # Save model state and configuration to disk
+            config_file_prefix = os.path.join(models_dir, "best-model")
+            self.config.write_to_file(f"{config_file_prefix}.yaml")
+            torch.save(best_model["state_dict"], f"{config_file_prefix}.pt")
 
         return best_model["valid_loss"], best_model["valid_acc"]
 
@@ -528,17 +524,16 @@ class SuperphotClassifier(nn.Module):
         Parameters
         ----------
         filename : str
-            Where the trained MLP is stored.
+            The path to the pre-trained model.
         config_filename : ModelConfig
-            Includes (in order): input_size, output_size, n_neurons, n_hidden.
-            Also includes normalization means and standard deviations.
+            The file that includes the model training configuration.
 
         Returns
         ----------
-        torch.nn.Module
-            The pre-trained MLP object.
+        tuple
+            The pre-trained classifier object and the respective model config.
         """
         config = ModelConfig.from_file(config_filename)
         model = SuperphotClassifier.create(config)  # set up empty multi-layer perceptron
         model.load_state_dict(torch.load(filename))  # load trained state dict to the MLP
-        return model, config.normalization_means, config.normalization_stddevs
+        return model, config

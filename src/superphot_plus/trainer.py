@@ -5,8 +5,6 @@ from functools import partial
 
 import numpy as np
 import ray
-import torch
-import yaml
 from joblib import Parallel, delayed
 from ray import tune
 from ray.air import session
@@ -15,7 +13,6 @@ from ray.tune.search.optuna import OptunaSearch
 from sklearn.model_selection import train_test_split
 
 from superphot_plus.file_paths import (
-    BEST_CONFIG_FILE,
     CLASSIFY_LOG_FILE,
     CM_FOLDER,
     DATA_DIR,
@@ -34,7 +31,7 @@ from superphot_plus.format_data_ztf import (
     tally_each_class,
 )
 from superphot_plus.model.classifier import SuperphotClassifier
-from superphot_plus.model.config import ModelConfig, TrainConfig
+from superphot_plus.model.config import ModelConfig
 from superphot_plus.model.data import TestData, TrainData, ZtfData
 from superphot_plus.plotting.confusion_matrices import plot_matrices
 from superphot_plus.supernova_class import SupernovaClass as SnClass
@@ -49,36 +46,29 @@ from superphot_plus.utils import (
 # pylint: disable=too-many-instance-attributes
 class CrossValidationTrainer:
     """
-    Tunes, trains and evaluates models. Tuning uses K-Fold
-    cross validation to estimate model performance.
+    Tunes, trains and evaluates models. Tuning uses K-Fold cross validation
+    to estimate model performance.
 
     Parameters
     ----------
+    model_name : str
+        The name of the pre-trained model to load. If set, tuning is skipped.
     sampler : str
         The type of sampler used for the lightcurve fits. Defaults to "dynesty".
     include_redshift : bool
         If True, includes redshift data for training.
-    extract_wc : bool
-        If true, assumes all sample fit plots are saved in
-        FIT_PLOTS_FOLDER. Copies plots of wrongly classified samples to
-        separate folder for manual followup. Defaults to False.
     probs_file : str
         The file where test probabilities are written. Defaults to PROBS_FILE.
     """
 
     def __init__(
         self,
+        model_name=None,
         sampler="dynesty",
         include_redshift=True,
-        extract_wc=False,
         probs_file=PROBS_FILE,
     ):
         self.allowed_types = ["SN Ia", "SN II", "SN IIn", "SLSN-I", "SN Ibc"]
-
-        self.sampler = sampler
-        self.include_redshift = include_redshift
-        self.extract_wc = extract_wc
-        self.probs_file = probs_file
 
         # Log folders
         self.metrics_dir = METRICS_DIR
@@ -87,10 +77,15 @@ class CrossValidationTrainer:
         self.classify_log_file = CLASSIFY_LOG_FILE
         self.fit_plots_folder = FIT_PLOTS_FOLDER
 
-        # Derive from sampler type
+        self.model_name = model_name
+        self.sampler = sampler
+        self.include_redshift = include_redshift
+        self.probs_file = probs_file
+
         self.fits_dir = f"{DATA_DIR}/{sampler}_fits"
 
-        self.reset_outputs()
+        if model_name is None:
+            self.reset_outputs()
 
     def reset_outputs(self):
         """Performs cleanup of previous model outputs."""
@@ -98,13 +93,17 @@ class CrossValidationTrainer:
             if os.path.exists(folder) and os.path.isdir(folder):
                 shutil.rmtree(folder)
 
+        for file in [self.classify_log_file, self.probs_file]:
+            if os.path.exists(file) and os.path.isfile(file):
+                os.remove(file)
+
         # Recreate output directories
         os.makedirs(self.metrics_dir)
         os.makedirs(self.models_dir)
         os.makedirs(self.cm_folder)
         os.makedirs(self.fit_plots_folder)
 
-    def run(self, input_csvs=None, num_hp_samples=10):
+    def run(self, input_csvs=None, num_hp_samples=10, extract_wc=False):
         """Runs the machine learning workflow.
 
         Performs model tuning with cross-validation to get the best set
@@ -119,6 +118,10 @@ class CrossValidationTrainer:
         num_hp_samples : int
             The number of hyperparameters sets to sample from (for model tuning).
             Defaults to 10.
+        extract_wc : bool
+            If true, assumes all sample fit plots are saved in
+            FIT_PLOTS_FOLDER. Copies plots of wrongly classified samples to
+            separate folder for manual followup. Defaults to False.
         """
         if input_csvs is None:
             input_csvs = INPUT_CSVS
@@ -134,35 +137,34 @@ class CrossValidationTrainer:
             names, labels, redshifts, stratify=labels, shuffle=True, test_size=0.1
         )
         train_data = ZtfData(names, labels, redshifts)
+        test_data = ZtfData(test_names, test_labels, test_redshifts)
 
-        # 2. Tune model to find best set of hyperparams (using CV)
-        best_config, best_val_loss = self.tune_model(train_data=train_data, num_hp_samples=num_hp_samples)
+        # 2. Load or find best model using tuning
+        model, best_config = None, None
 
-        # 3. Retrain model on training data
-        model = self.train(config=best_config, train_data=train_data, save_model=True)
+        if self.model_name is None:
+            # 2.1. Find best set of hyperparams (using CV)
+            best_config = self.tune_model(train_data, num_hp_samples)
+            # 2.2. Retrain model on training data
+            model, best_config = self.train(best_config, train_data)
+        else:
+            # 2.1. Load model and respective config from disk
+            model_path = os.path.join(self.models_dir, self.model_name)
+            model, best_config = SuperphotClassifier.load(
+                filename=f"{model_path}.pt", config_filename=f"{model_path}.yaml"
+            )
 
-        # 4. Evaluate model on test dataset
-        true_classes, pred_classes, pred_probs = self.evaluate(
-            model=model, test_data=ZtfData(test_names, test_labels, test_redshifts)
-        )
+        # 3. Evaluate model on test dataset
+        true_classes, pred_classes, pred_probs = self.evaluate(model, test_data)
 
-        # 5. Log evaluation metrics
+        # 4. Log evaluation metrics
         write_metrics_to_file(
             config=best_config,
             true_classes=true_classes,
             pred_classes=pred_classes,
             prob_above_07=pred_probs,
-            val_loss_avg=best_val_loss,
             log_file=self.classify_log_file,
         )
-
-        if self.extract_wc:
-            extract_wrong_classifications(
-                true_classes=true_classes,
-                pred_classes=pred_classes,
-                ztf_test_names=test_names,
-            )
-
         plot_matrices(
             config=best_config,
             true_classes=true_classes,
@@ -170,6 +172,12 @@ class CrossValidationTrainer:
             prob_above_07=pred_probs,
             cm_folder=self.cm_folder,
         )
+        if extract_wc:
+            extract_wrong_classifications(
+                true_classes=true_classes,
+                pred_classes=pred_classes,
+                ztf_test_names=test_names,
+            )
 
     def tune_model(self, train_data, num_hp_samples=10):
         """Invokes the Ray Tune API to start model tuning. Outputs the best
@@ -185,15 +193,14 @@ class CrossValidationTrainer:
 
         Returns
         -------
-        tuple
-            A tuple containing the best train configuration and the respective
-            validation loss (mean of all the folds).
+        ModelConfig
+            The best set of model hyperparameters found.
         """
         # Define hardware resources per trial.
         resources = {"cpu": 2, "gpu": 0}
 
         # Define the parameter search configuration.
-        config = dataclasses.asdict(TrainConfig())
+        config = dataclasses.asdict(ModelConfig.get_hp_sample())
 
         # Reporter to show on command line/output window.
         reporter = CLIReporter(metric_columns=["avg_val_loss", "avg_val_acc"])
@@ -222,12 +229,7 @@ class CrossValidationTrainer:
         print(f"Best trial config: {best_trial.config}")
         print(f"Best trial validation loss: {best_val_loss}")
 
-        # Store best config to file
-        encoded_string = yaml.dump(best_trial.config, sort_keys=False)
-        with open(BEST_CONFIG_FILE, "w", encoding="utf-8") as file_handle:
-            file_handle.write(encoded_string)
-
-        return TrainConfig(**best_trial.config), best_val_loss
+        return ModelConfig(**best_trial.config)
 
     def run_cross_validation(self, config, train_data: ZtfData):
         """Runs cross-fold validation to estimate the best set of
@@ -237,20 +239,19 @@ class CrossValidationTrainer:
         ----------
         config : Dict[str, Any]
             The configuration for model training, drawn from the default
-            TrainConfig values. Used as a Dict to comply with the Tune
+            ModelConfig values. Used as a Dict to comply with the Tune
             API requirements.
         train_data : ZtfData
             Contains the ZTF object names, classes and redshifts for training.
         """
-        # Construct training config from dict
-        config = TrainConfig(**config)
-
         trial_id = tune.get_trial_id()
 
         # Run Tune in the project's working directory.
         os.chdir(os.environ["TUNE_ORIG_WORKING_DIR"])
 
-        # Print original tallies
+        # Construct training config from dict
+        config = ModelConfig(**config)
+
         tally_each_class(train_data.labels)
 
         # Stratified K-Fold on the training data
@@ -287,7 +288,6 @@ class CrossValidationTrainer:
             )
 
             # Train and validate multi-layer perceptron
-            # TODO: Improve this, because only the last fold models will be
             best_val_loss, val_acc = model.train_and_validate(
                 train_data=TrainData(train_dataset, val_dataset),
                 run_id=f"{trial_id}-fold-{fold_id}",
@@ -295,6 +295,7 @@ class CrossValidationTrainer:
                 metrics_dir=self.metrics_dir,
                 models_dir=self.models_dir,
                 plot_metrics=False,
+                save_model=False,
             )
 
             return best_val_loss, val_acc
@@ -309,24 +310,15 @@ class CrossValidationTrainer:
 
         session.report({"avg_val_loss": avg_val_loss, "avg_val_acc": avg_val_acc})
 
-    def train(self, config: TrainConfig, train_data: ZtfData, save_model=True):
+    def train(self, config: ModelConfig, train_data: ZtfData):
         """Trains a model with a specific set of hyperparameters.
 
         Parameters
         ----------
-        config : TrainConfig
-            The configuration for model training, drawn from the default
-            TrainConfig values.
+        config : ModelConfig
+            The configuration to train the model with.
         train_data : ZtfData
             Contains the ZTF object names, classes and redshifts for training.
-        save_model : bool
-            If True, the model is saved to disk when training ends. Defaults
-            to True.
-
-        Returns
-        -------
-        model : SuperphotClassifier
-            The trained model instance.
         """
         tally_each_class(train_data.labels)  # original tallies
 
@@ -347,34 +339,29 @@ class CrossValidationTrainer:
         train_dataset = create_dataset(train_features, train_classes)
         val_dataset = create_dataset(val_features, val_classes)
 
-        model = SuperphotClassifier(
-            config=ModelConfig(
-                input_dim=train_features.shape[1],
-                output_dim=len(self.allowed_types),
-                neurons_per_layer=config.neurons_per_layer,
-                num_hidden_layers=config.num_hidden_layers,
-                batch_size=config.batch_size,
-                learning_rate=config.learning_rate,
-                normalization_means=mean.tolist(),
-                normalization_stddevs=std.tolist(),
-            )
+        config.set_non_tunable_params(
+            input_dim=train_features.shape[1],
+            output_dim=len(self.allowed_types),
+            norm_means=mean.tolist(),
+            norm_stddevs=std.tolist(),
         )
+        model = SuperphotClassifier(config)
 
         # Train and validate multi-layer perceptron
-        model.train_and_validate(
+        best_val_loss, _ = model.train_and_validate(
             train_data=TrainData(train_dataset, val_dataset),
             run_id="final",
             num_epochs=config.num_epochs,
             metrics_dir=self.metrics_dir,
             models_dir=self.models_dir,
             plot_metrics=True,
+            save_model=True,
         )
 
-        # Save best model to disk
-        if save_model:
-            torch.save(model, f"{DATA_DIR}/model.pt")
+        # Set validation loss
+        config.set_best_val_loss(best_val_loss)
 
-        return model
+        return model, config
 
     def evaluate(self, model: SuperphotClassifier, test_data: ZtfData):
         """Evaluates a pretrained model on the test holdout set.
@@ -382,7 +369,7 @@ class CrossValidationTrainer:
         Parameters
         ----------
         model : SuperphotClassifier
-            The pretrained model used for evaluation.
+            The model to be evaluated.
         test_data : ZtfData
             Contains the ZTF object names, classes and redshifts for testing.
 

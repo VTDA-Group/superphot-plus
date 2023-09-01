@@ -4,7 +4,7 @@ cross validation to estimate model performance.
 """
 from argparse import ArgumentParser, BooleanOptionalAction
 
-from superphot_plus.model.trainer import CrossValidationTrainer
+from superphot_plus.trainer import CrossValidationTrainer
 from superphot_plus.file_paths import INPUT_CSVS, PROBS_FILE
 
 if __name__ == "__main__":
@@ -15,6 +15,11 @@ if __name__ == "__main__":
         "--input_csvs",
         help="List of CSVs containing light curve data (comma separated)",
         default=",".join(INPUT_CSVS),
+    )
+    parser.add_argument(
+        "--model_name",
+        help="If set, the trainer loads this model and skips tuning",
+        default=None,
     )
     parser.add_argument(
         "--sampler",
@@ -31,7 +36,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--num_hp_samples",
         help="Name of parameter combinations to try",
-        default=1,
+        default=10,
     )
     parser.add_argument(
         "--extract_wc",
@@ -48,10 +53,14 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     trainer = CrossValidationTrainer(
+        model_name=args.model_name,
         sampler=args.sampler,
         include_redshift=args.include_redshift,
-        extract_wc=args.extract_wc,
         probs_file=args.probs_file,
     )
 
-    trainer.run(input_csvs=args.input_csvs.split(","), num_hp_samples=args.num_hp_samples)
+    trainer.run(
+        input_csvs=args.input_csvs.split(","),
+        num_hp_samples=args.num_hp_samples,
+        extract_wc=args.extract_wc,
+    )
