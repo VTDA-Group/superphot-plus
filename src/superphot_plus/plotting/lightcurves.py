@@ -133,9 +133,7 @@ def plot_sampling_lc_fit(
         custom_formatting(axis)
 
     plt.savefig(
-        os.path.join(
-            out_dir, ztf_name + "_" + sampling_method + "." + file_type
-        ), bbox_inches="tight"
+        os.path.join(out_dir, ztf_name + "_" + sampling_method + "." + file_type), bbox_inches="tight"
     )
 
     plt.close()
@@ -201,9 +199,7 @@ def plot_sampling_lc_fit_numpyro(
             ]
         )
 
-        cubes = np.array(
-            [get_numpyro_cube(single_model, max_flux[i])[0] for single_model in models]
-        )
+        cubes = np.array([get_numpyro_cube(single_model, max_flux[i])[0] for single_model in models])
         aux_bands = get_numpyro_cube(models[0], max_flux[i])[1]
 
         plot_sampling_lc_fit(
@@ -237,9 +233,7 @@ def plot_lightcurve_clipping(ztf_name, data_folder, save_dir):
     times, fluxes, flux_errs, bands, _, _ = import_lc(
         data_fn, clip_lightcurve=False
     )  # pylint: disable=unused-variable
-    t_clip, f_clip, ferr_clip, b_clip = clip_lightcurve_end(
-        times, fluxes, flux_errs, bands
-    )
+    t_clip, f_clip, ferr_clip, b_clip = clip_lightcurve_end(times, fluxes, flux_errs, bands)
 
     idx_clip = ~np.isin(times, t_clip)
     t_clip = times[idx_clip]

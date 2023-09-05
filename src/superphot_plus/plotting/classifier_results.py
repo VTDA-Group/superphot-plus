@@ -21,6 +21,7 @@ from superphot_plus.supernova_class import SupernovaClass as SnClass
 
 set_global_plot_formatting()
 
+
 def save_class_fractions(spec_probs_csv, probs_alerce_csv, phot_probs_csv, save_path):
     """Save class fractions from spectroscopic, photometric, and
     corrected photometric.
@@ -153,9 +154,9 @@ def plot_class_fractions(saved_cf_file, fig_dir, filename):
 
     for i in range(5):
         if i == 0:
-            bottom=0
+            bottom = 0
         else:
-            bottom=np.sum(combined_fracs[0:i], axis=0)
+            bottom = np.sum(combined_fracs[0:i], axis=0)
         stacked_bar = ax.bar(
             labels,
             combined_fracs[i],
@@ -180,12 +181,7 @@ def plot_class_fractions(saved_cf_file, fig_dir, filename):
 
     # Put a legend below current axis
     ax.legend(
-        loc="upper center",
-        bbox_to_anchor=(0.5, -0.05),
-        fancybox=True,
-        shadow=False,
-        ncol=5,
-        fontsize=15
+        loc="upper center", bbox_to_anchor=(0.5, -0.05), fancybox=True, shadow=False, ncol=5, fontsize=15
     )
 
     ax.tick_params(axis="both", which="major", labelsize=12)
@@ -231,25 +227,11 @@ def generate_roc_curve(probs_csv, save_dir):
 
         single_class_fpr, single_class_tpr, threshholds = roc_curve(y_true, y_score)
         idx_50 = np.argmin((threshholds - 0.5) ** 2)
-        (legend_line,) = ax1.plot(
-            single_class_fpr,
-            single_class_tpr,
-            label=ref_label,
-            c=colors[ref_class]
-        )
-        ax2.plot(
-            single_class_fpr,
-            single_class_tpr,
-            label=ref_label,
-            c=colors[ref_class]
-        )
+        (legend_line,) = ax1.plot(single_class_fpr, single_class_tpr, label=ref_label, c=colors[ref_class])
+        ax2.plot(single_class_fpr, single_class_tpr, label=ref_label, c=colors[ref_class])
         legend_lines.append(legend_line)
         ax2.scatter(
-            single_class_fpr[idx_50],
-            single_class_tpr[idx_50],
-            color=colors[ref_class],
-            s=100,
-            marker="d"
+            single_class_fpr[idx_50], single_class_tpr[idx_50], color=colors[ref_class], s=100, marker="d"
         )
         fpr.append(single_class_fpr)
         tpr.append(single_class_tpr)
@@ -312,12 +294,8 @@ def plot_phase_vs_accuracy(phased_probs_csv, save_dir):
         bins = np.arange(-16, 52, 4)
         # bins = histedges_equalN(phase_t[phase_t > -18.], 20)
 
-        correct_hist, _, _ = binned_statistic(
-            phase_t, correct_t, statistic="sum", bins=bins
-        )
-        all_hist, _, _ = binned_statistic(
-            phase_t, np.ones(len(phase_t)), statistic="sum", bins=bins
-        )
+        correct_hist, _, _ = binned_statistic(phase_t, correct_t, statistic="sum", bins=bins)
+        all_hist, _, _ = binned_statistic(phase_t, np.ones(len(phase_t)), statistic="sum", bins=bins)
         acc_hist_t = correct_hist / all_hist
         # acc_hist_comb += acc_hist_t
         (legend_line,) = ax.step(
@@ -343,9 +321,7 @@ def plot_phase_vs_accuracy(phased_probs_csv, save_dir):
 
             bins_eq = np.arange(-16, 52, 4)
 
-            true_hist, _, _ = binned_statistic(
-                phase_t, np.ones(len(phase_t)), statistic="sum", bins=bins_eq
-            )
+            true_hist, _, _ = binned_statistic(phase_t, np.ones(len(phase_t)), statistic="sum", bins=bins_eq)
             frac_hist = true_hist / all_hist  # within each bin, fraction that is that true type
 
             normed_const = 0.2 / frac_hist
@@ -365,9 +341,7 @@ def plot_phase_vs_accuracy(phased_probs_csv, save_dir):
         pred_frac = eff_num / all_hist
         pred_frac_normed = pred_frac / pred_frac[-1]
         (legend_line,) = ax2.step(
-            bins_eq, np.append(
-                pred_frac_normed, pred_frac_normed[-1]
-            ), where="post", label=allowed_type
+            bins_eq, np.append(pred_frac_normed, pred_frac_normed[-1]), where="post", label=allowed_type
         )
         legend_lines.append(legend_line)
 
@@ -376,12 +350,7 @@ def plot_phase_vs_accuracy(phased_probs_csv, save_dir):
     ax2.set_xlabel(r"Phase (days)")
     ax2.set_ylabel("Overprediction Fraction")
     ax2.set_xlim((-18.0, 48.0))
-    fig.legend(
-        legend_lines,
-        [classes_to_labels[x] for x in allowed_types],
-        loc="lower center",
-        ncol=3
-    )
+    fig.legend(legend_lines, [classes_to_labels[x] for x in allowed_types], loc="lower center", ncol=3)
     plt.savefig(os.path.join(save_dir, "phase_vs_accuracy.pdf"), bbox_inches="tight")
     plt.close()
 
@@ -412,7 +381,7 @@ def plot_redshifts_abs_mags(probs_snr_csv, training_csv, fits_dir, save_dir, sam
         fits_dir=fits_dir,
     )[-1]
 
-    #labels = np.array([classes_to_labels[int(x)] for x in classes])
+    # labels = np.array([classes_to_labels[int(x)] for x in classes])
     probs_dataframe = pd.read_csv(probs_snr_csv)
     amplitudes = probs_dataframe.Fmax.to_numpy()
     app_mags = -2.5 * np.log10(amplitudes) + 26.3
@@ -435,9 +404,7 @@ def plot_redshifts_abs_mags(probs_snr_csv, training_csv, fits_dir, save_dir, sam
         features_1_t = -abs_mags[labels == allowed_type]
         feature_hist, bin_edges = np.histogram(features_1_t, bins=bin_edges, density=True)
         cumsum = np.cumsum(feature_hist) * bin_width
-        (legend_line,) = mag_ax.step(
-            -bin_centers, cumsum, where="mid", label=allowed_type
-        )
+        (legend_line,) = mag_ax.step(-bin_centers, cumsum, where="mid", label=allowed_type)
         legend_lines.append(legend_line)
 
     mag_ax.set_xlabel("Absolute Magnitude")
@@ -451,9 +418,7 @@ def plot_redshifts_abs_mags(probs_snr_csv, training_csv, fits_dir, save_dir, sam
         features_1_t = redshifts[labels == allowed_type]
         feature_hist, bin_edges = np.histogram(features_1_t, bins=bin_edges, density=True)
         cumsum = np.cumsum(feature_hist) * bin_width
-        z_ax.step(
-            bin_centers, cumsum, where="mid", label=allowed_type
-        )
+        z_ax.step(bin_centers, cumsum, where="mid", label=allowed_type)
 
     z_ax.set_xlabel("Redshift")
     z_ax.set_ylabel("Cumulative Fraction")
@@ -550,7 +515,7 @@ def plot_snr_npoints_vs_accuracy(probs_snr_csv, save_dir):
             n_bin_edges,
             np.append(n_vs_accuracy, n_vs_accuracy[-1]),
             label=classes_to_labels[unique_type],
-            where="post"
+            where="post",
         )
 
     plt.xlim((8, 100))
@@ -699,20 +664,14 @@ def plot_chisquared_vs_accuracy(
     )
     bin_centers = (bin_edges[1:] + bin_edges[:-1]) / 2.0
 
-    all_hist, _, _ = binned_statistic(
-        train_chis, np.ones(len(train_chis)), statistic="sum", bins=bins
-    )
+    all_hist, _, _ = binned_statistic(train_chis, np.ones(len(train_chis)), statistic="sum", bins=bins)
 
     all_hist_phot, _, _ = binned_statistic(
         train_chis_phot, np.ones(len(train_chis_phot)), statistic="sum", bins=bins
     )
 
-    ax2.hist(
-        bin_centers, bin_edges, weights=all_hist, color="purple", alpha=0.5, label="Spectroscopic"
-    )
-    ax2.hist(
-        bin_centers, bin_edges, weights=all_hist_phot, color="red", alpha=0.5, label="Photometric"
-    )
+    ax2.hist(bin_centers, bin_edges, weights=all_hist, color="purple", alpha=0.5, label="Spectroscopic")
+    ax2.hist(bin_centers, bin_edges, weights=all_hist_phot, color="red", alpha=0.5, label="Photometric")
 
     ax2.set_yscale("log")
 
@@ -722,9 +681,7 @@ def plot_chisquared_vs_accuracy(
 
     idx_keep = (bin_centers < 10) & (bin_centers > 5)
     ax1.step(
-        bin_centers[idx_keep],
-        acc_hist[idx_keep],
-        where="mid", color="blue", linewidth=3, label="Accuracy"
+        bin_centers[idx_keep], acc_hist[idx_keep], where="mid", color="blue", linewidth=3, label="Accuracy"
     )
     ax1.axvline(x=10, color="black", linestyle="--", linewidth=4, label=r"Phot. $\chi^2$ cutoff")
 

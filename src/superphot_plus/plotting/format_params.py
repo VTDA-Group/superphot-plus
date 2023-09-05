@@ -5,6 +5,7 @@ import numpy as np
 
 from superphot_plus.constants import BIGGER_SIZE, MEDIUM_SIZE, SMALL_SIZE
 
+
 def set_global_plot_formatting():
     """Set formatting that affects all subsequent plots."""
     plt.rc("font", size=SMALL_SIZE)  # controls default text sizes

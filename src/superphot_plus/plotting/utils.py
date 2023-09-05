@@ -22,9 +22,7 @@ def lighten_color(color, amount=0.5):
     except:
         color_val = color
     color_hls = colorsys.rgb_to_hls(*mc.to_rgb(color_val))
-    return colorsys.hls_to_rgb(
-        color_hls[0], max(0, min(1, amount * color_hls[1])), color_hls[2]
-    )
+    return colorsys.hls_to_rgb(color_hls[0], max(0, min(1, amount * color_hls[1])), color_hls[2])
 
 
 def get_survey_fracs():

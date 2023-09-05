@@ -112,7 +112,7 @@ def classify(
     allowed_types = ["SN Ia", "SN II", "SN IIn", "SLSN-I", "SN Ibc"]
     output_dim = len(allowed_types)  # number of classes
 
-    labels_to_classes, classes_to_labels = SnClass.get_type_maps(allowed_types)
+    #labels_to_classes, classes_to_labels = SnClass.get_type_maps(allowed_types)
 
     fn_prefix = "cm_%d_%d_%d_%d" % (goal_per_class, num_epochs, neurons_per_layer, num_layers)
     fn_purity = os.path.join(cm_folder, fn_prefix + "_p.pdf")
@@ -294,12 +294,17 @@ def classify(
             + str(len(true_classes_mlp[prob_above_07_mlp]))
             + "\n"
         )
-        the_file.write(
-            "MLP class-averaged F1-score: %.04f\n"
-            % f1_score(predicted_classes_mlp, true_classes_mlp, class_average=True)
+        f1_rounded = round(
+            f1_score(predicted_classes_mlp, true_classes_mlp, class_average=True), 4
         )
-        the_file.write("Accuracy: %.04f\n" % calc_accuracy(predicted_classes_mlp, true_classes_mlp))
-        the_file.write("Validation Loss: %.04f\n\n" % valid_loss_avg)
+        acc_rounded = round(
+            calc_accuracy(predicted_classes_mlp, true_classes_mlp), 4
+        )
+        the_file.write(
+            f"MLP class-averaged F1-score: {f1_rounded}\n"
+        )
+        the_file.write(f"Accuracy: {acc_rounded}\n")
+        the_file.write(f"Validation Loss: {val_loss_avg}\n\n")
 
     # Plot full and p > 0.7 confusion matrices
     plot_confusion_matrix(true_classes_mlp, predicted_classes_mlp, fn_purity, True)
@@ -445,22 +450,21 @@ def save_phase_versus_class_probs(model, probs_csv, data_dir):
                 print("skipping import")
                 continue
 
-            mean_t0 = tarr[np.argmax(farr)]
-
             def single_loop(phase):
-                t = phase + float(mean_t0)
                 print(phase)
                 if phase > 50.0:
                     return None
 
-                # try:
-                #     # refit_posts = run_mcmc(os.path.join(data_dir, test_name + ".npz"), t)
-                # except:
-                #     print("skipping fitting")
-                #     return None
+                try:
+                    refit_posts = run_mcmc(
+                        os.path.join(data_dir, test_name + ".npz"), phase
+                    )
+                except:
+                    print("skipping fitting")
+                    return None
 
                 # normalize the log distributions
-                test_features = adjust_log_dists(test_features)
+                test_features = adjust_log_dists(refit_posts)
                 probs = model.classify_from_fit_params(test_features)
                 probs_avg = np.mean(probs.numpy(), axis=0)
                 # idx_random = np.random.choice(np.arange(len(probs)))
