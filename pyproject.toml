@@ -52,10 +52,14 @@ dev = [
     "sphinx-rtd-theme==1.2.0", # Used to render documentation
     "sphinx-autoapi==2.0.1", # Used to automatically generate api documentation
     "pylint", # Used for static linting of files
-    "pytest-monitor", # Used to run benchmarks on the test suite
+    "nbconvert", # Needed for pre-commit check to clear output from Python notebooks
+    "nbsphinx", # Used to integrate Python notebooks into Sphinx documentation
+    "ipython", # Also used in building notebooks into Sphinx
+    "matplotlib", # Used in sample notebook intro_notebook.ipynb
+    "numpy", # Used in sample notebook intro_notebook.ipynb
+    "asv", # Used to compute performance benchmarks
     "ray[tune]", # Hyperparameter tuning library
     "optuna", # Optimization search algorithm
-    "memory_profiler", # Used to benchmark memory usage
 ]
 
 [build-system]

@@ -140,7 +140,7 @@ dask-worker-space/
 # tmp directory
 tmp/
 
-# macOS
+# Mac OS
 .DS_Store
 
 # Notebook outputs
@@ -148,6 +148,3 @@ src/examples/outputs/*
 
 # PyCharm
 .idea/
-
-# Pytest monitor output
-.pymon
