@@ -42,6 +42,7 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
+          sudo apt-get install librdkafka-dev # For antares-client
           python -m pip install --upgrade pip
           pip install asv==0.5.1 virtualenv
 
