@@ -12,9 +12,7 @@ from superphot_plus.file_utils import get_multiple_posterior_samples, has_poster
 from superphot_plus.supernova_class import SupernovaClass as SnClass
 
 
-def import_labels_only(
-    input_csvs, allowed_types, fits_dir=None, needs_posteriors=True, redshift=False, sampler=None
-):
+def import_labels_only(input_csvs, allowed_types, fits_dir=None, needs_posteriors=True, sampler=None):
     """Filters CSVs for rows where label is in allowed_types and returns
     names, labels.
 
@@ -26,13 +24,15 @@ def import_labels_only(
         List of allowed types for labels.
     fits_dir : str, optional
         Directory path for FITS files. Defaults to None.
-    redshift : bool, optional
-        Whether to also return redshift values, if known.
+    needs_posteriors: boolean, optional
+        Indicates whether to load posterior samples.
+    sampler : str, optional
+        The sampler to get posteriors from.
 
     Returns
     -------
     tuple of np.ndarray
-        Tuple of names and labels (and maybe redshifts)
+        Tuple of names, labels and redshifts.
 
     Notes
     -----
@@ -41,6 +41,7 @@ def import_labels_only(
     """
     if fits_dir is None:
         fits_dir = FITS_DIR
+
     labels = []
     labels_orig = []
     repeat_ct = 0
@@ -68,17 +69,14 @@ def import_labels_only(
                     names.append(name)
                     labels.append(row_label)
                     labels_orig.append(label_orig)
-                    if redshift:
-                        redshifts.append(float(row[2]))
+                    redshifts.append(float(row[2]))
                 else:
                     repeat_ct += 1
 
     tally_each_class(labels_orig)
     print(repeat_ct)
 
-    if redshift:
-        return np.array(names), np.array(labels), np.array(redshifts)
-    return np.array(names), np.array(labels)
+    return np.array(names), np.array(labels), np.array(redshifts)
 
 
 def generate_K_fold(features, classes, num_folds):
@@ -124,7 +122,9 @@ def tally_each_class(labels):
     print()
 
 
-def oversample_using_posteriors(lc_names, labels, goal_per_class, fits_dir, sampler=None, redshifts=None):
+def oversample_using_posteriors(
+    lc_names, labels, goal_per_class, fits_dir, sampler=None, redshifts=None, oversample_redshifts=False
+):
     """Oversamples, drawing from posteriors of a certain fit.
 
     Parameters
@@ -137,19 +137,20 @@ def oversample_using_posteriors(lc_names, labels, goal_per_class, fits_dir, samp
         Number of samples per class.
     fits_dir : str
         Where fit parameters are stored.
-    sampler: str
+    sampler : str, optional
         The name of the sampler to use.
+    redshifts : list, optional
+        List of redshift values.
+    oversample_redshifts : boolean, optional
+        Indicates whether to oversample redshifts.
 
     Returns
     -------
     tuple of np.ndarray
-        Tuple containing oversampled features, labels, and chi-squared
-        values.
+        Tuple containing oversampled features, labels, and redshifts.
     """
-    inc_redshift = False
-    if redshifts is not None:
-        oversampled_redshifts = []
-        inc_redshift = True
+
+    oversampled_redshifts = []
     oversampled_labels = []
     oversampled_features = []
     labels_unique = np.unique(labels)
@@ -169,13 +170,10 @@ def oversample_using_posteriors(lc_names, labels, goal_per_class, fits_dir, samp
             sampled_features = all_posts[sampled_idx]
             oversampled_features.extend(list(sampled_features))
             oversampled_labels.extend([l] * samples_per_fit)
-            if inc_redshift:
+            if oversample_redshifts:
                 oversampled_redshifts.extend([redshifts[i]] * samples_per_fit)
 
-    if inc_redshift:
-        return np.array(oversampled_features), np.array(oversampled_labels), np.array(oversampled_redshifts)
-
-    return np.array(oversampled_features), np.array(oversampled_labels)
+    return np.array(oversampled_features), np.array(oversampled_labels), np.array(oversampled_redshifts)
 
 
 def normalize_features(features, mean=None, std=None):

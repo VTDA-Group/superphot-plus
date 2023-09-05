@@ -12,7 +12,6 @@ from superphot_plus.plotting.utils import gaussian
 from superphot_plus.supernova_class import SupernovaClass as SnClass
 from superphot_plus.surveys.surveys import Survey
 
-
 OVERSAMPLE_SIZE = 4000
 
 
@@ -41,7 +40,7 @@ def plot_corner_plot_all(
     """
     # allowed_types = SnClass.all_classes()
 
-    features, labels = oversample_using_posteriors(names, labels, OVERSAMPLE_SIZE, fits_dir)
+    features, labels, _ = oversample_using_posteriors(names, labels, OVERSAMPLE_SIZE, fits_dir)
     plotting_labels, _ = param_labels(aux_bands)
     skip_idxs = [0, 3, len(plotting_labels) - 1]
 
@@ -277,7 +276,7 @@ def plot_oversampling_1d(
     allowed_types = list(classes_to_labels.keys())
 
     goal_per_class = OVERSAMPLE_SIZE
-    features_gaussian, labels_gaussian = oversample_using_posteriors(
+    features_gaussian, labels_gaussian, _ = oversample_using_posteriors(
         names, labels, goal_per_class, fits_dir, sampler
     )
 
@@ -412,7 +411,7 @@ def plot_combined_posterior_space(
     os.makedirs(os.path.join(save_dir, "combined_2d_posteriors"), exist_ok=True)
     # pt_colors = ["r", "c", "k", "m", "g"] # keep for TODO
 
-    features, labels = oversample_using_posteriors(names, labels, OVERSAMPLE_SIZE, fits_dir)
+    features, labels, _ = oversample_using_posteriors(names, labels, OVERSAMPLE_SIZE, fits_dir)
 
     params, save_labels = param_labels(aux_bands)
 
@@ -464,7 +463,7 @@ def plot_param_distributions(
         Whether to overlay Gaussian estimate of distribution. Defaults to True.
     """
     os.makedirs(os.path.join(save_dir, "posterior_hists"), exist_ok=True)
-    posteriors, labels = oversample_using_posteriors(names, labels, OVERSAMPLE_SIZE, fit_folder)
+    posteriors, labels, _ = oversample_using_posteriors(names, labels, OVERSAMPLE_SIZE, fit_folder)
 
     params, save_labels = param_labels(aux_bands)
 

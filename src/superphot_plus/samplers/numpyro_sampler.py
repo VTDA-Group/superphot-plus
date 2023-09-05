@@ -1,5 +1,6 @@
 """MCMC sampling using numpyro."""
 
+from os import urandom
 from typing import List
 
 import jax.numpy as jnp
@@ -31,10 +32,29 @@ class NumpyroSampler(Sampler):
         pass
 
     def run_single_curve(
-        self, lightcurve: Lightcurve, priors: MultibandPriors, sampler="svi", **kwargs
+        self, lightcurve: Lightcurve, priors: MultibandPriors, rng_seed, sampler="svi", **kwargs
     ) -> PosteriorSamples:
+        """Run the sampler on a single light curve.
+
+        Parameters
+        ----------
+        lightcurve : Lightcurve
+            The lightcurve to sample.
+        priors : MultibandPriors
+            The curve priors to use.
+        rng_seed : int or None
+            The random seed to use (for testing purposes). The user should pass None in
+            cases where they want a fully random run.
+        sampler : str
+            The numpyro sampler to use. Either "NUTS" or "svi"
+
+        Returns
+        -------
+        eq_wt_samples : PosteriorSamples
+            The resulting samples.
+        """
         lightcurve.pad_bands(priors.ordered_bands, PAD_SIZE)
-        eq_wt_samples = run_mcmc(lightcurve, sampler=sampler, priors=priors)
+        eq_wt_samples = run_mcmc(lightcurve, rng_seed=rng_seed, sampler=sampler, priors=priors)
         if eq_wt_samples is None:
             return None
         return PosteriorSamples(
@@ -248,7 +268,7 @@ def create_jax_guide(priors, t=None, obsflux=None, uncertainties=None, max_flux=
         numpyro_sample("extra_sigma_" + uniq_b, b_priors.extra_sigma, 1e-3)
 
 
-def run_mcmc(lc, sampler="NUTS", priors=Survey.ZTF().priors):
+def run_mcmc(lc, rng_seed, sampler="NUTS", priors=Survey.ZTF().priors):
     """Runs MCMC using numpyro on the lightcurve to get set
     of equally weighted posteriors (sets of fit parameters).
 
@@ -256,6 +276,9 @@ def run_mcmc(lc, sampler="NUTS", priors=Survey.ZTF().priors):
     ----------
     lc : Lightcurve object
         The Lightcurve object on which to run MCMC
+    rng_seed : int or None
+        The random seed to use (for testing purposes). The user should pass None in
+        cases where they want a fully random run.
     sampler : str, optional
         The MCMC sampler to use. Defaults to "NUTS".
     priors : MultibandPriors, optional
@@ -268,7 +291,17 @@ def run_mcmc(lc, sampler="NUTS", priors=Survey.ZTF().priors):
         a numpy array. If the lightcurve does not contain any valid
         points, None is returned.
     """
+
     batch = type(lc) is list  # check if one LightCurve or multiple
+
+    if rng_seed is None:
+        rng_seed = int.from_bytes(urandom(4), "big")
+    print(f"Running numpyro with seed={rng_seed}")
+
+    # Require data in all bands.
+    for unique_band in priors.ordered_bands:
+        if lc.obs_count(unique_band) == 0:
+            return None
 
     def jax_model(t=None, obsflux=None, uncertainties=None, max_flux=None):
         create_jax_model(priors, t, obsflux, uncertainties, max_flux)
@@ -290,7 +323,7 @@ def run_mcmc(lc, sampler="NUTS", priors=Survey.ZTF().priors):
         num_samples = 300
         kernel = NUTS(jax_model, init_strategy=init_to_uniform)
 
-        rng_key = random.PRNGKey(4)
+        rng_key = random.PRNGKey(rng_seed)
         rng_key, _ = random.split(rng_key)
 
         mcmc = MCMC(
@@ -332,6 +365,7 @@ def run_mcmc(lc, sampler="NUTS", priors=Survey.ZTF().priors):
     elif sampler == "svi":
         optimizer = numpyro.optim.Adam(step_size=0.001)
         svi = SVI(jax_model, jax_guide, optimizer, loss=Trace_ELBO())
+
         num_iter = 10_000
         lax_jit = jit(lax_helper_function, static_argnums=(0, 2))
 
@@ -372,6 +406,7 @@ def run_mcmc(lc, sampler="NUTS", priors=Survey.ZTF().priors):
                 uncertainties=lc_single.flux_errors,
                 max_flux=max_flux,
             )
+
             # params = svi_result.params
             params = svi.get_params(svi_state)
             posterior_samples = {}
