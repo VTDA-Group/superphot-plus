@@ -104,7 +104,7 @@ class CrossValidationTrainer:
         os.makedirs(self.cm_folder)
         os.makedirs(self.fit_plots_folder)
 
-    def run(self, input_csvs=None, num_hp_samples=10, extract_wc=False):
+    def run(self, input_csvs=None, num_hp_samples=10, extract_wc=False, num_cpu=2, num_gpu=0):
         """Runs the machine learning workflow.
 
         Performs model tuning with cross-validation to get the best set
@@ -145,7 +145,7 @@ class CrossValidationTrainer:
 
         if self.model_name is None:
             # 2.1. Find best set of hyperparams (using CV)
-            best_config = self.tune_model(train_data, num_hp_samples)
+            best_config = self.tune_model(train_data, num_hp_samples, num_cpu, num_gpu)
             # 2.2. Retrain model on training data
             model, best_config = self.train(best_config, train_data)
         else:
@@ -180,7 +180,7 @@ class CrossValidationTrainer:
                 ztf_test_names=test_names,
             )
 
-    def tune_model(self, train_data, num_hp_samples=10):
+    def tune_model(self, train_data, num_hp_samples=10, num_cpu=2, num_gpu=0):
         """Invokes the Ray Tune API to start model tuning. Outputs the best
         model configuration to a log file for further reference.
 
@@ -198,7 +198,7 @@ class CrossValidationTrainer:
             The best set of model hyperparameters found.
         """
         # Define hardware resources per trial.
-        resources = {"cpu": 2, "gpu": 0}
+        resources = {"cpu": num_cpu, "gpu": num_gpu}
 
         # Define the parameter search configuration.
         config = dataclasses.asdict(ModelConfig.get_hp_sample())
@@ -303,10 +303,10 @@ class CrossValidationTrainer:
         fold_metrics = Parallel(n_jobs=-1)(delayed(run_single_fold)(i, fold) for i, fold in enumerate(kfold))
 
         # Report mean metrics for the current hyperparameter set.
-        report_session_metrics(fold_metrics)
+        report_session_metrics(metrics=fold_metrics)
 
         # Log average metrics per epoch to plot on Tensorboard.
-        log_metrics_to_tensorboard(fold_metrics, trial_id, config)
+        log_metrics_to_tensorboard(metrics=fold_metrics, config=config, trial_id=trial_id)
 
     def train(self, config: ModelConfig, train_data: ZtfData):
         """Trains a model with a specific set of hyperparameters.
@@ -346,7 +346,7 @@ class CrossValidationTrainer:
         model = SuperphotClassifier(config)
 
         # Train and validate multi-layer perceptron
-        model.train_and_validate(
+        metrics = model.train_and_validate(
             train_data=TrainData(train_dataset, val_dataset),
             run_id="final",
             num_epochs=config.num_epochs,
@@ -355,6 +355,9 @@ class CrossValidationTrainer:
             plot_metrics=True,
             save_model=True,
         )
+
+        # Log average metrics per epoch to plot on Tensorboard.
+        log_metrics_to_tensorboard(metrics=[metrics], config=config, trial_id="final")
 
         return model, config
 

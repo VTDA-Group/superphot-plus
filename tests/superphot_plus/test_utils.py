@@ -339,8 +339,8 @@ def test_log_metrics_to_tensorboard(tmp_path):
 
     avg_train_losses, avg_train_accs, avg_val_losses, avg_val_accs = log_metrics_to_tensorboard(
         metrics=(metrics_fold_1, metrics_fold_2),
-        trial_id=trial_id,
         config=ModelConfig(num_epochs=5),
+        trial_id=trial_id,
         base_dir=tmp_path,
     )
 
