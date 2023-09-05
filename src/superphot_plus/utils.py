@@ -8,8 +8,8 @@ from astropy.coordinates import SkyCoord
 from dustmaps.config import config as dustmaps_config
 from dustmaps.sfd import SFDQuery
 from ray.air import session
-from tensorboardX import SummaryWriter
 from torch.utils.data import TensorDataset
+from torch.utils.tensorboard import SummaryWriter
 
 from superphot_plus.file_paths import (
     CLASSIFY_LOG_FILE,
@@ -648,6 +648,11 @@ def report_session_metrics(metrics):
         Tuple containing the training accuracies and losses,
         and the validation accuracies and losses, for each
         epoch and fold.
+
+    Returns
+    -------
+    tuple
+        The mean validation loss and accuracy.
     """
     _, _, val_accs, val_losses = list(zip(*metrics))
 
@@ -658,10 +663,15 @@ def report_session_metrics(metrics):
     # Get the accuracies for the best validation losses
     val_accs = [val_accs[min_indices[i]] for i, val_accs in enumerate(val_accs)]
 
-    session.report({"avg_val_loss": np.mean(min_val_losses), "avg_val_acc": np.mean(val_accs)})
+    avg_val_loss = np.mean(min_val_losses)
+    avg_val_acc = np.mean(val_accs)
+
+    session.report({"avg_val_loss": avg_val_loss, "avg_val_acc": avg_val_acc})
+
+    return avg_val_loss, avg_val_acc
 
 
-def log_metrics_to_tensorboard(metrics, trial_id, config):
+def log_metrics_to_tensorboard(metrics, config, trial_id, base_dir="runs"):
     """Calculates the training and validation accuracies and losses
     for each epoch (by averaging each fold) and logs these metrics to
     Tensorboard using a SummaryWriter. It also stores the run
@@ -673,10 +683,13 @@ def log_metrics_to_tensorboard(metrics, trial_id, config):
         Tuple containing the training accuracies and losses,
         and the validation accuracies and losses, for each
         epoch and fold.
-    trial_id : str
-        The experiment identifier.
     config : ModelConfig
         The model's training configuration.
+    trial_id : str
+        The experiment identifier.
+    base_dir : str
+        The directory where all tensorboard metrics should be stored.
+        Defaults to "runs".
     """
     train_accs, train_losses, val_accs, val_losses = list(zip(*metrics))
 
@@ -685,7 +698,8 @@ def log_metrics_to_tensorboard(metrics, trial_id, config):
     avg_train_accs = np.array(train_accs).mean(axis=0)
     avg_val_accs = np.array(val_accs).mean(axis=0)
 
-    run_dir = f"runs/{trial_id}"
+    run_dir = os.path.join(base_dir, trial_id)
+
     writer = SummaryWriter(run_dir)
 
     for i in range(config.num_epochs):
@@ -696,3 +710,5 @@ def log_metrics_to_tensorboard(metrics, trial_id, config):
 
     # Store current config to file
     config.write_to_file(f"{run_dir}/config.yaml")
+
+    return avg_train_losses, avg_train_accs, avg_val_losses, avg_val_accs
