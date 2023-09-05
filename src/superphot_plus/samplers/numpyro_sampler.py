@@ -298,6 +298,9 @@ def run_mcmc(lc, rng_seed, sampler="NUTS", priors=Survey.ZTF().priors):
         rng_seed = int.from_bytes(urandom(4), "big")
     print(f"Running numpyro with seed={rng_seed}")
 
+    rng_key = random.PRNGKey(rng_seed)
+    rng_key, seed2 = random.split(rng_key)
+        
     # Require data in all bands.
     for unique_band in priors.ordered_bands:
         if lc.obs_count(unique_band) == 0:
@@ -412,7 +415,8 @@ def run_mcmc(lc, rng_seed, sampler="NUTS", priors=Survey.ZTF().priors):
             posterior_samples = {}
             for param in params:
                 if param[-2:] == "mu":
-                    posterior_samples[param[:-3]] = np.random.normal(
+                    rng = np.random.RandomState(seed2[0])
+                    posterior_samples[param[:-3]] = rng.normal(
                         loc=params[param], scale=params[param[:-2] + "sigma"], size=100
                     )
 

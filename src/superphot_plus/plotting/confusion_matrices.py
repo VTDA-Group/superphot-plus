@@ -33,7 +33,7 @@ def plot_high_confidence_confusion_matrix(probs_csv, filename, cutoff=0.7):
     """
     _, classes_to_labels = SnClass.get_type_maps()
 
-    _, true_classes, probs, pred_classes = read_probs_csv(probs_csv)
+    _, true_classes, probs, pred_classes, _ = read_probs_csv(probs_csv)
     high_conf_mask = np.max(probs, axis=1) > cutoff
 
     true_labels = [classes_to_labels[x] for x in true_classes[high_conf_mask]]
@@ -54,7 +54,7 @@ def plot_binary_confusion_matrix(probs_csv, filename):
     filename : str
         Base filename for saving the confusion matrix plots.
     """
-    (_, true_classes, probs, _) = read_probs_csv(probs_csv)
+    (_, true_classes, probs, _, _) = read_probs_csv(probs_csv)
     pred_binary = np.where(probs[:, 0] > 0.5, "SN Ia", "SN CC")
     true_binary = np.where(true_classes == 0, "SN Ia", "SN CC")
 
