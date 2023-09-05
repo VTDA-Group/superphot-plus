@@ -296,7 +296,7 @@ def test_report_session_metrics():
 
     # Metrics for 2 folds, 5 epochs
 
-    # min_val_loss -> 0.75
+    # min_val_loss -> 0.75, val_acc -> 0.76
     metrics_fold_1 = [
         [0.81, 0.88, 0.78, 0.79, 0.79],  # train_acc
         [0.93, 1.11, 0.87, 1.03, 0.56],  # train_loss
@@ -304,12 +304,12 @@ def test_report_session_metrics():
         [0.93, 1.11, 0.87, 1.03, 0.75],  # val_loss
     ]
 
-    # min_val_loss -> 0.55
+    # min_val_loss -> 0.59, val_acc -> 0.80
     metrics_fold_2 = [
-        [0.77, 0.78, 0.73, 0.75, 0.74],
-        [1.03, 0.32, 0.84, 1.28, 1.57],
-        [0.81, 0.84, 0.80, 0.82, 0.86],
-        [0.74, 0.75, 0.59, 0.60, 0.61],
+        [0.77, 0.78, 0.73, 0.75, 0.74],  # train_acc
+        [1.03, 0.32, 0.84, 1.28, 1.57],  # train_loss
+        [0.81, 0.84, 0.80, 0.82, 0.86],  # val_acc
+        [0.74, 0.75, 0.59, 0.60, 0.61],  # val_loss
     ]
 
     avg_val_loss, avg_val_acc = report_session_metrics(metrics=(metrics_fold_1, metrics_fold_2))
@@ -356,7 +356,6 @@ def test_log_metrics_to_tensorboard(tmp_path):
             ]
         ),
     )
-
     assert np.array_equal(
         avg_train_accs,
         np.array(
@@ -369,7 +368,6 @@ def test_log_metrics_to_tensorboard(tmp_path):
             ]
         ),
     )
-
     assert np.array_equal(
         avg_val_losses,
         np.array(
@@ -382,7 +380,6 @@ def test_log_metrics_to_tensorboard(tmp_path):
             ]
         ),
     )
-
     assert np.array_equal(
         avg_val_accs,
         np.array(
@@ -395,6 +392,5 @@ def test_log_metrics_to_tensorboard(tmp_path):
             ]
         ),
     )
-
     assert os.path.exists(os.path.join(tmp_path, trial_id))
     assert os.path.exists(os.path.join(tmp_path, trial_id, "config.yaml"))

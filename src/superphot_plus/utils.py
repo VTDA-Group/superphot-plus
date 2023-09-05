@@ -345,7 +345,7 @@ def calculate_log_likelihood(cube, lightcurve, unique_bands, ref_band):
         raise ValueError("Empty light curve provided.")
 
     # Generate points from 'cube' for comparison.
-    max_flux, max_flux_loc = lightcurve.find_max_flux(band=ref_band)
+    max_flux, _ = lightcurve.find_max_flux(band=ref_band)
     f_model = flux_model(cube, lightcurve.times, lightcurve.bands, unique_bands, ref_band)
     extra_sigma_arr = np.ones(len(lightcurve.times)) * cube[6] * max_flux
     for band_idx, ordered_band in enumerate(unique_bands):
