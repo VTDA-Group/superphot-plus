@@ -5,6 +5,7 @@ This is very time consuming as each sampler is run multiple times.
 
 import copy
 import timeit
+from os import urandom
 import numpy as np
 
 from memory_profiler import memory_usage
@@ -56,16 +57,19 @@ def create_data(num_samples: int, clean_only: bool):
             ) = create_ztf_model()
             parameters.append(np.array([A, beta, gamma, t0, tau_rise, tau_fall, es]))
             lcs.append(Lightcurve(tdata, dirty_model, sigmas, filter_data))
+
     return parameters, lcs
 
 
-def setup_sampler(sampler_name, **kwargs):
+def setup_sampler(sampler_name, seed, **kwargs):
     """Create a sampler and its kwargs from its name.
 
     Parameter
     ---------
     sampler_name : str
         The name of the sampler to use. One of "dynesty", "svi" or "NUTS".
+    seed : int
+        Random seed value used for deterministic data generation.
     kwargs : dict
         The existing keyword arguments. New keyword arguments are appended
         to a copy of this dictionary.
@@ -91,10 +95,12 @@ def setup_sampler(sampler_name, **kwargs):
     else:
         raise ValueError(f"Unknown sampler {sampler_name}")
 
+    kwargs2["rng_seed"] = seed
+
     return sampler_obj, kwargs2
 
 
-def run_one_benchmark(sampler_name, lightcurve, **kwargs):
+def run_one_benchmark(sampler_name, lightcurve, seed, **kwargs):
     """Benchmark a single sampler, lightcurve pair.
 
     Parameters
@@ -110,7 +116,7 @@ def run_one_benchmark(sampler_name, lightcurve, **kwargs):
         A list of the metrics (resulting time, memory usage, loglikelihood, and
         mean square error) for this run.
     """
-    sampler_obj, kwargs2 = setup_sampler(sampler_name, **kwargs)
+    sampler_obj, kwargs2 = setup_sampler(sampler_name, seed, **kwargs)
 
     # Do initial runs to warm up the sampler and get the accuracy results.
     posterior_samples = sampler_obj.run_single_curve(lightcurve, **kwargs2)
@@ -135,6 +141,8 @@ def run_one_benchmark(sampler_name, lightcurve, **kwargs):
 
 def run_all_benchmarks(num_samples):
     true_parameters, lightcurves = create_data(num_samples, True)
+
+    seed = int.from_bytes(urandom(4), "big")
     samplers = ["dynesty", "svi", "NUTS"]
 
     results = {}
@@ -144,7 +152,7 @@ def run_all_benchmarks(num_samples):
     for i, lc in enumerate(lightcurves):
         for sampler in samplers:
             print(f"\nTesting curve {i} with {sampler}:")
-            itr_res = run_one_benchmark(sampler, lc)
+            itr_res = run_one_benchmark(sampler, lc, seed)
             results[sampler].append(itr_res)
 
             print(f"  Itr Running Time: {itr_res[0]}")
