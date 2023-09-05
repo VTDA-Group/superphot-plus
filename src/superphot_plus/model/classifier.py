@@ -1,6 +1,7 @@
 """This module implements the Multi-Layer Perceptron (MLP) model for classification."""
 import csv
 import os
+import random
 import time
 
 import numpy as np
@@ -100,6 +101,7 @@ class SuperphotClassifier(nn.Module):
         metrics_dir=METRICS_DIR,
         models_dir=MODELS_DIR,
         save_model=False,
+        rng_seed=None,
     ):
         """
         Run the MLP initialization and training.
@@ -123,6 +125,8 @@ class SuperphotClassifier(nn.Module):
             Where to store models.
         save_model : boolean, optional
             If True, saves the model and respective training configuration to disk.
+        rng_seed : int, optional
+            Random state that is seeded. if none, use machine entropy.
 
         Returns
         -------
@@ -130,6 +134,13 @@ class SuperphotClassifier(nn.Module):
             A tuple containing arrays of metrics for each epoch
             (training accuracies and losses, validation accuracies and losses).
         """
+        if rng_seed is not None:
+            random.seed(rng_seed)
+            np.random.seed(rng_seed)
+            torch.manual_seed(rng_seed)
+            torch.cuda.manual_seed(rng_seed)
+            torch.backends.cudnn.deterministic = True
+
         train_dataset, valid_dataset = train_data
 
         train_iterator = DataLoader(dataset=train_dataset, shuffle=True, batch_size=self.config.batch_size)
