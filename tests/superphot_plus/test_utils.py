@@ -1,18 +1,22 @@
 import numpy as np
+import os
 import pytest
 
 from superphot_plus.file_utils import get_posterior_samples
 from superphot_plus.lightcurve import Lightcurve
+from superphot_plus.model.config import ModelConfig
 from superphot_plus.utils import (
     calc_accuracy,
     calculate_neg_chi_squareds,
     f1_score,
     get_band_extinctions,
     get_numpyro_cube,
+    log_metrics_to_tensorboard,
     params_valid,
     flux_model,
     calculate_log_likelihood,
     calculate_mse,
+    report_session_metrics,
 )
 
 
@@ -285,3 +289,108 @@ def test_neg_chi_squareds(single_ztf_lightcurve_compressed, test_data_dir, singl
     sn_data = [lc.times, lc.fluxes, lc.flux_errors, lc.bands]
     result = calculate_neg_chi_squareds(posts, *sn_data)
     assert np.isclose(np.mean(result), -5.43, rtol=0.1)
+
+
+def test_report_session_metrics():
+    """Checks that we compute the correct train session metrics."""
+
+    # Metrics for 2 folds, 5 epochs
+
+    # min_val_loss -> 0.75, val_acc -> 0.76
+    metrics_fold_1 = [
+        [0.81, 0.88, 0.78, 0.79, 0.79],  # train_acc
+        [0.93, 1.11, 0.87, 1.03, 0.56],  # train_loss
+        [0.86, 0.81, 0.75, 0.71, 0.76],  # val_acc
+        [0.93, 1.11, 0.87, 1.03, 0.75],  # val_loss
+    ]
+
+    # min_val_loss -> 0.59, val_acc -> 0.80
+    metrics_fold_2 = [
+        [0.77, 0.78, 0.73, 0.75, 0.74],  # train_acc
+        [1.03, 0.32, 0.84, 1.28, 1.57],  # train_loss
+        [0.81, 0.84, 0.80, 0.82, 0.86],  # val_acc
+        [0.74, 0.75, 0.59, 0.60, 0.61],  # val_loss
+    ]
+
+    avg_val_loss, avg_val_acc = report_session_metrics(metrics=(metrics_fold_1, metrics_fold_2))
+
+    assert np.mean([0.75, 0.59]) == avg_val_loss
+    assert np.mean([0.76, 0.80]) == avg_val_acc
+
+
+def test_log_metrics_to_tensorboard(tmp_path):
+    """Checks that SummaryWriter is writing the metrics to disk."""
+
+    trial_id = "test-run"
+
+    # Metrics for 2 folds, 5 epochs
+    metrics_fold_1 = [
+        [0.81, 0.88, 0.78, 0.79, 0.79],  # train_acc
+        [0.93, 1.11, 0.87, 1.03, 0.56],  # train_loss
+        [0.86, 0.81, 0.75, 0.71, 0.76],  # val_acc
+        [0.93, 1.11, 0.87, 1.03, 0.75],  # val_loss
+    ]
+    metrics_fold_2 = [
+        [0.77, 0.78, 0.73, 0.75, 0.74],  # train_acc
+        [1.03, 0.32, 0.84, 1.28, 1.57],  # train_loss
+        [0.81, 0.84, 0.80, 0.82, 0.86],  # val_acc
+        [0.74, 0.75, 0.59, 0.60, 0.61],  # val_loss
+    ]
+
+    avg_train_losses, avg_train_accs, avg_val_losses, avg_val_accs = log_metrics_to_tensorboard(
+        metrics=(metrics_fold_1, metrics_fold_2),
+        config=ModelConfig(num_epochs=5),
+        trial_id=trial_id,
+        base_dir=tmp_path,
+    )
+
+    assert np.array_equal(
+        avg_train_losses,
+        np.array(
+            [
+                np.mean([0.93, 1.03]),
+                np.mean([1.11, 0.32]),
+                np.mean([0.87, 0.84]),
+                np.mean([1.03, 1.28]),
+                np.mean([0.56, 1.57]),
+            ]
+        ),
+    )
+    assert np.array_equal(
+        avg_train_accs,
+        np.array(
+            [
+                np.mean([0.81, 0.77]),
+                np.mean([0.88, 0.78]),
+                np.mean([0.78, 0.73]),
+                np.mean([0.79, 0.75]),
+                np.mean([0.79, 0.74]),
+            ]
+        ),
+    )
+    assert np.array_equal(
+        avg_val_losses,
+        np.array(
+            [
+                np.mean([0.93, 0.74]),
+                np.mean([1.11, 0.75]),
+                np.mean([0.87, 0.59]),
+                np.mean([1.03, 0.60]),
+                np.mean([0.75, 0.61]),
+            ]
+        ),
+    )
+    assert np.array_equal(
+        avg_val_accs,
+        np.array(
+            [
+                np.mean([0.86, 0.81]),
+                np.mean([0.81, 0.84]),
+                np.mean([0.75, 0.80]),
+                np.mean([0.71, 0.82]),
+                np.mean([0.76, 0.86]),
+            ]
+        ),
+    )
+    assert os.path.exists(os.path.join(tmp_path, trial_id))
+    assert os.path.exists(os.path.join(tmp_path, trial_id, "config.yaml"))
