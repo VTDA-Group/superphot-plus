@@ -7,7 +7,6 @@ import numpy as np
 import ray
 from joblib import Parallel, delayed
 from ray import tune
-from ray.air import session
 from ray.tune import CLIReporter
 from ray.tune.search.optuna import OptunaSearch
 from sklearn.model_selection import train_test_split
@@ -39,6 +38,8 @@ from superphot_plus.utils import (
     adjust_log_dists,
     create_dataset,
     extract_wrong_classifications,
+    log_metrics_to_tensorboard,
+    report_session_metrics,
     write_metrics_to_file,
 )
 
@@ -103,7 +104,7 @@ class CrossValidationTrainer:
         os.makedirs(self.cm_folder)
         os.makedirs(self.fit_plots_folder)
 
-    def run(self, input_csvs=None, num_hp_samples=10, extract_wc=False):
+    def run(self, input_csvs=None, num_hp_samples=10, extract_wc=False, num_cpu=2, num_gpu=0):
         """Runs the machine learning workflow.
 
         Performs model tuning with cross-validation to get the best set
@@ -122,6 +123,12 @@ class CrossValidationTrainer:
             If true, assumes all sample fit plots are saved in
             FIT_PLOTS_FOLDER. Copies plots of wrongly classified samples to
             separate folder for manual followup. Defaults to False.
+        num_cpu : int
+            The number of CPUs to use in parallel for each tuning experiment.
+            Defaults to 2.
+        num_gpu : int
+            The number of GPUs to use in parallel for each tuning experiment.
+            Defaults to 0.
         """
         if input_csvs is None:
             input_csvs = INPUT_CSVS
@@ -144,7 +151,7 @@ class CrossValidationTrainer:
 
         if self.model_name is None:
             # 2.1. Find best set of hyperparams (using CV)
-            best_config = self.tune_model(train_data, num_hp_samples)
+            best_config = self.tune_model(train_data, num_hp_samples, num_cpu, num_gpu)
             # 2.2. Retrain model on training data
             model, best_config = self.train(best_config, train_data)
         else:
@@ -155,21 +162,21 @@ class CrossValidationTrainer:
             )
 
         # 3. Evaluate model on test dataset
-        true_classes, pred_classes, pred_probs = self.evaluate(model, test_data)
+        true_classes, pred_classes, probs_above_07 = self.evaluate(model, test_data)
 
         # 4. Log evaluation metrics
         write_metrics_to_file(
             config=best_config,
             true_classes=true_classes,
             pred_classes=pred_classes,
-            prob_above_07=pred_probs,
+            prob_above_07=probs_above_07,
             log_file=self.classify_log_file,
         )
         plot_matrices(
             config=best_config,
             true_classes=true_classes,
             pred_classes=pred_classes,
-            prob_above_07=pred_probs,
+            prob_above_07=probs_above_07,
             cm_folder=self.cm_folder,
         )
         if extract_wc:
@@ -179,7 +186,7 @@ class CrossValidationTrainer:
                 ztf_test_names=test_names,
             )
 
-    def tune_model(self, train_data, num_hp_samples=10):
+    def tune_model(self, train_data, num_hp_samples=10, num_cpu=2, num_gpu=0):
         """Invokes the Ray Tune API to start model tuning. Outputs the best
         model configuration to a log file for further reference.
 
@@ -190,6 +197,12 @@ class CrossValidationTrainer:
         num_hp_samples : int
             The number of hyperparameters sets to sample from (for model tuning).
             Defaults to 10.
+        num_cpu : int
+            The number of CPUs to use in parallel for each tuning experiment.
+            Defaults to 2.
+        num_gpu : int
+            The number of GPUs to use in parallel for each tuning experiment.
+            Defaults to 0.
 
         Returns
         -------
@@ -197,7 +210,7 @@ class CrossValidationTrainer:
             The best set of model hyperparameters found.
         """
         # Define hardware resources per trial.
-        resources = {"cpu": 2, "gpu": 0}
+        resources = {"cpu": num_cpu, "gpu": num_gpu}
 
         # Define the parameter search configuration.
         config = dataclasses.asdict(ModelConfig.get_hp_sample())
@@ -288,7 +301,7 @@ class CrossValidationTrainer:
             )
 
             # Train and validate multi-layer perceptron
-            best_val_loss, val_acc = model.train_and_validate(
+            return model.train_and_validate(
                 train_data=TrainData(train_dataset, val_dataset),
                 run_id=f"{trial_id}-fold-{fold_id}",
                 num_epochs=config.num_epochs,
@@ -298,17 +311,14 @@ class CrossValidationTrainer:
                 save_model=False,
             )
 
-            return best_val_loss, val_acc
-
         # Process each fold in parallel.
-        results = Parallel(n_jobs=-1)(delayed(run_single_fold)(i, fold) for i, fold in enumerate(kfold))
+        fold_metrics = Parallel(n_jobs=-1)(delayed(run_single_fold)(i, fold) for i, fold in enumerate(kfold))
 
-        # Report metrics for the current hyperparameter set.
-        val_losses, val_accs = zip(*results)
-        avg_val_loss = np.mean(val_losses)
-        avg_val_acc = np.mean(val_accs)
+        # Report mean metrics for the current hyperparameter set.
+        report_session_metrics(metrics=fold_metrics)
 
-        session.report({"avg_val_loss": avg_val_loss, "avg_val_acc": avg_val_acc})
+        # Log average metrics per epoch to plot on Tensorboard.
+        log_metrics_to_tensorboard(metrics=fold_metrics, config=config, trial_id=trial_id)
 
     def train(self, config: ModelConfig, train_data: ZtfData):
         """Trains a model with a specific set of hyperparameters.
@@ -319,6 +329,11 @@ class CrossValidationTrainer:
             The configuration to train the model with.
         train_data : ZtfData
             Contains the ZTF object names, classes and redshifts for training.
+
+        Returns
+        -------
+        tuple
+            The trained model and its configuration.
         """
         tally_each_class(train_data.labels)  # original tallies
 
@@ -348,7 +363,7 @@ class CrossValidationTrainer:
         model = SuperphotClassifier(config)
 
         # Train and validate multi-layer perceptron
-        best_val_loss, _ = model.train_and_validate(
+        metrics = model.train_and_validate(
             train_data=TrainData(train_dataset, val_dataset),
             run_id="final",
             num_epochs=config.num_epochs,
@@ -358,8 +373,8 @@ class CrossValidationTrainer:
             save_model=True,
         )
 
-        # Set validation loss
-        config.set_best_val_loss(best_val_loss)
+        # Log average metrics per epoch to plot on Tensorboard.
+        log_metrics_to_tensorboard(metrics=[metrics], config=config, trial_id="final")
 
         return model, config
 

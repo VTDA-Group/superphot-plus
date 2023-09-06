@@ -65,7 +65,7 @@ def generate_files(lightcurve, output_dir):
         The directory where we will save the files.
     """
     print("Generating files", end="...")
-    
+
     # Make sure our target directory exists
     if not output_dir.is_dir():
         os.makedirs(output_dir)
@@ -147,7 +147,6 @@ def compare_two_files(file_name, goldens_dir, temp_results_dir):
         True if files are sufficiently similar; False otherwise."""
 
     # Set up
-
     deltas = {"dynesty": 0.25, "svi": 0.25, "NUTS": 0.25}
     no_differences_found = True
 
@@ -167,6 +166,7 @@ def compare_two_files(file_name, goldens_dir, temp_results_dir):
     print(sampling_method, end=": ")
     for index, golden_val in enumerate(goldens_samples.sample_mean()):
         temp_val = temp_results_samples.sample_mean()[index]
+        print(temp_val, golden_val)
 
         print(f"{(abs( 1 - (golden_val / temp_val))):.2f}", end=", ")
         if not math.isclose(golden_val, temp_val, rel_tol=deltas[sampling_method], abs_tol=0.1):
@@ -201,16 +201,16 @@ def delete_temp_files(temp_dir):
     os.rmdir(temp_dir)
 
 
-def test_diffs(tmp_path):
+def test_diffs(test_data_dir, tmp_path):
     """Check new results against pre-generated goldens file.
 
     This is the function that is automatically run by pytest.
     """
-    data_dir = Path("tests", "data")
-    goldens_dir = Path(data_dir, "goldens")
+    # data_dir = Path("tests", "data")
+    goldens_dir = Path(test_data_dir, "goldens")
 
     lightcurve_name = "ZTF22abvdwik"
-    lightcurve = Lightcurve.from_file(Path(data_dir, lightcurve_name + ".npz").as_posix())
+    lightcurve = Lightcurve.from_file(Path(test_data_dir, lightcurve_name + ".npz").as_posix())
 
     assert check_goldens_exist(goldens_dir)
     generate_files(lightcurve, tmp_path)
@@ -219,7 +219,7 @@ def test_diffs(tmp_path):
 
 def interactive_test_diffs():
     """Tests diffs interactively, including a prompt to force regeneration of goldens."""
-    data_dir = Path("tests", "data")
+    data_dir = Path("..", "data")
     goldens_dir = Path(data_dir, "goldens")
     temp_dir = Path(data_dir, "temp_diff")
 

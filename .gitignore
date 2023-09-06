@@ -148,3 +148,12 @@ src/examples/outputs/*
 
 # PyCharm
 .idea/
+
+# Pytest monitor output
+.pymon
+
+# Training results
+data/
+
+# Tensorboard logs
+runs/

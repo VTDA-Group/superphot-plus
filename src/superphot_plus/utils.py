@@ -7,7 +7,9 @@ import torch
 from astropy.coordinates import SkyCoord
 from dustmaps.config import config as dustmaps_config
 from dustmaps.sfd import SFDQuery
+from ray.air import session
 from torch.utils.data import TensorDataset
+from torch.utils.tensorboard import SummaryWriter
 
 from superphot_plus.file_paths import (
     CLASSIFY_LOG_FILE,
@@ -343,7 +345,7 @@ def calculate_log_likelihood(cube, lightcurve, unique_bands, ref_band):
         raise ValueError("Empty light curve provided.")
 
     # Generate points from 'cube' for comparison.
-    max_flux, max_flux_loc = lightcurve.find_max_flux(band=ref_band)
+    max_flux, _ = lightcurve.find_max_flux(band=ref_band)
     f_model = flux_model(cube, lightcurve.times, lightcurve.bands, unique_bands, ref_band)
     extra_sigma_arr = np.ones(len(lightcurve.times)) * cube[6] * max_flux
     for band_idx, ordered_band in enumerate(unique_bands):
@@ -418,11 +420,11 @@ def calculate_neg_chi_squareds(cubes, t, f, ferr, b, ordered_bands=None, ref_ban
     """
     if ordered_bands is None:
         ordered_bands = ["r", "g"]
-
+        
     model_f = np.array(
         [flux_model(cube, t, b, ordered_bands, ref_band) for cube in cubes]
     )  # in future, maybe vectorize flux_model
-    extra_sigma_arr = np.ones((len(cubes), len(t))) * np.max(f[b == "r"]) * cubes[:, 6][:, np.newaxis]
+    extra_sigma_arr = np.ones((len(cubes), len(t))) * np.max(f[b == ref_band]) * cubes[:, 6][:, np.newaxis]
 
     for i, ordered_band in enumerate(ordered_bands[ordered_bands != ref_band]):
         extra_sigma_arr[:, b == ordered_band] *= cubes[:, 7 * i + 13][:, np.newaxis]
@@ -634,3 +636,84 @@ def extract_wrong_classifications(true_classes, pred_classes, ztf_test_names):
             os.path.join(FIT_PLOTS_FOLDER, fn),
             os.path.join(WRONGLY_CLASSIFIED_FOLDER, wc_type + "/" + fn_new),
         )
+
+
+def report_session_metrics(metrics):
+    """Reports the validation loss and accuracy for the hyperparameter set.
+    The best model is considered the one with the lowest validation loss.
+
+    Parameters
+    ----------
+    metrics : tuple
+        Tuple containing the training accuracies and losses, and the validation
+        accuracies and losses, for each epoch and fold.
+
+    Returns
+    -------
+    tuple
+        The mean validation loss and accuracy for the hyperparameter set.
+    """
+    _, _, val_accs, val_losses = list(zip(*metrics))
+
+    # Find min loss value in all folds
+    min_val_losses = list(map(min, val_losses))
+    # Find indices for corresponding min values
+    min_indices = [val_losses[i].index(min_val_loss) for i, min_val_loss in enumerate(min_val_losses)]
+    # Get the accuracies for the best validation losses
+    val_accs = [val_accs[min_indices[i]] for i, val_accs in enumerate(val_accs)]
+
+    avg_val_loss = np.mean(min_val_losses)
+    avg_val_acc = np.mean(val_accs)
+
+    session.report({"avg_val_loss": avg_val_loss, "avg_val_acc": avg_val_acc})
+
+    return avg_val_loss, avg_val_acc
+
+
+def log_metrics_to_tensorboard(metrics, config, trial_id, base_dir="runs"):
+    """Calculates the training and validation accuracies and losses
+    for each epoch (by averaging each fold) and logs these metrics to
+    Tensorboard using a SummaryWriter. It also stores the run
+    configuration for further reference.
+
+    Parameters
+    ----------
+    metrics : tuple
+        Tuple containing the training accuracies and losses,
+        and the validation accuracies and losses, for each
+        epoch and fold.
+    config : ModelConfig
+        The model's training configuration.
+    trial_id : str
+        The experiment identifier.
+    base_dir : str
+        The directory where all tensorboard metrics should be stored.
+        Defaults to "runs".
+
+    Returns
+    -------
+    tuple
+        The training losses and accuracies, followed by the validation
+        losses and accuracies, for each epoch.
+    """
+    train_accs, train_losses, val_accs, val_losses = list(zip(*metrics))
+
+    avg_train_losses = np.array(train_losses).mean(axis=0)
+    avg_val_losses = np.array(val_losses).mean(axis=0)
+    avg_train_accs = np.array(train_accs).mean(axis=0)
+    avg_val_accs = np.array(val_accs).mean(axis=0)
+
+    run_dir = os.path.join(base_dir, trial_id)
+
+    writer = SummaryWriter(run_dir)
+
+    for i in range(config.num_epochs):
+        writer.add_scalar("Loss/train", avg_train_losses[i], i)
+        writer.add_scalar("Loss/val", avg_val_losses[i], i)
+        writer.add_scalar("Accuracy/train", avg_train_accs[i], i)
+        writer.add_scalar("Accuracy/val", avg_val_accs[i], i)
+
+    # Store current config to file
+    config.write_to_file(f"{run_dir}/config.yaml")
+
+    return avg_train_losses, avg_train_accs, avg_val_losses, avg_val_accs

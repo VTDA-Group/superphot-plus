@@ -59,7 +59,7 @@ def test_run_classifier(tmp_path):
 
     model.train_and_validate(
         train_data=TrainData(train_dataset, val_dataset),
-        run_id="run_0",
+        run_id="run-0",
         num_epochs=num_epochs,
         plot_metrics=True,
         metrics_dir=tmp_path,
@@ -71,8 +71,8 @@ def test_run_classifier(tmp_path):
         probs_csv_path=os.path.join(tmp_path, "probs_mlp.csv"),
     )
 
-    assert os.path.exists(os.path.join(tmp_path, "accuracy_run_0.pdf"))
-    assert os.path.exists(os.path.join(tmp_path, "loss_run_0.pdf"))
+    assert os.path.exists(os.path.join(tmp_path, "accuracy_run-0.pdf"))
+    assert os.path.exists(os.path.join(tmp_path, "loss_run-0.pdf"))
     assert os.path.exists(os.path.join(tmp_path, "probs_mlp.csv"))
 
 
