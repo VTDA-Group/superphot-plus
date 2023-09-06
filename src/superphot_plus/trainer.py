@@ -123,6 +123,12 @@ class CrossValidationTrainer:
             If true, assumes all sample fit plots are saved in
             FIT_PLOTS_FOLDER. Copies plots of wrongly classified samples to
             separate folder for manual followup. Defaults to False.
+        num_cpu : int
+            The number of CPUs to use in parallel for each tuning experiment.
+            Defaults to 2.
+        num_gpu : int
+            The number of GPUs to use in parallel for each tuning experiment.
+            Defaults to 0.
         """
         if input_csvs is None:
             input_csvs = INPUT_CSVS
@@ -191,6 +197,12 @@ class CrossValidationTrainer:
         num_hp_samples : int
             The number of hyperparameters sets to sample from (for model tuning).
             Defaults to 10.
+        num_cpu : int
+            The number of CPUs to use in parallel for each tuning experiment.
+            Defaults to 2.
+        num_gpu : int
+            The number of GPUs to use in parallel for each tuning experiment.
+            Defaults to 0.
 
         Returns
         -------
@@ -317,6 +329,11 @@ class CrossValidationTrainer:
             The configuration to train the model with.
         train_data : ZtfData
             Contains the ZTF object names, classes and redshifts for training.
+
+        Returns
+        -------
+        tuple
+            The trained model and its configuration.
         """
         tally_each_class(train_data.labels)  # original tallies
 

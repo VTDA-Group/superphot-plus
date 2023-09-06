@@ -645,14 +645,13 @@ def report_session_metrics(metrics):
     Parameters
     ----------
     metrics : tuple
-        Tuple containing the training accuracies and losses,
-        and the validation accuracies and losses, for each
-        epoch and fold.
+        Tuple containing the training accuracies and losses, and the validation
+        accuracies and losses, for each epoch and fold.
 
     Returns
     -------
     tuple
-        The mean validation loss and accuracy.
+        The mean validation loss and accuracy for the hyperparameter set.
     """
     _, _, val_accs, val_losses = list(zip(*metrics))
 
@@ -690,6 +689,12 @@ def log_metrics_to_tensorboard(metrics, config, trial_id, base_dir="runs"):
     base_dir : str
         The directory where all tensorboard metrics should be stored.
         Defaults to "runs".
+
+    Returns
+    -------
+    tuple
+        The training losses and accuracies, followed by the validation
+        losses and accuracies, for each epoch.
     """
     train_accs, train_losses, val_accs, val_losses = list(zip(*metrics))
 
