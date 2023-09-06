@@ -95,3 +95,17 @@ class Survey:
         package_filepath = os.path.dirname(superphot_plus.__file__)
         yaml_file = os.path.join(package_filepath, "surveys", "ztf.yaml")
         return cls.from_file(yaml_file)
+    
+    
+    @classmethod
+    def LSST(cls) -> Self:  # pylint: disable=invalid-name
+        """Get LSST priors and wavelengths.
+
+        Returns
+        ----------
+        Survey
+            Survey object representing the Rubin Observatory's LSST.
+        """
+        package_filepath = os.path.dirname(superphot_plus.__file__)
+        yaml_file = os.path.join(package_filepath, "surveys", "lsst.yaml")
+        return cls.from_file(yaml_file)
