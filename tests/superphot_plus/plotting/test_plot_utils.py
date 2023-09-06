@@ -2,6 +2,7 @@ import os
 
 import numpy as np
 import pandas as pd
+from alerce.core import Alerce
 
 from superphot_plus.plotting.utils import (
     add_snr_to_prob_csv,
@@ -33,12 +34,12 @@ def test_histedges_equalN():
 
 def test_read_probs_csv(class_probs_csv):
     """Test reading in a probability CSV."""
-    names, labels, probs, pred_classes = read_probs_csv(class_probs_csv)
+    names, labels, probs, pred_classes, df = read_probs_csv(class_probs_csv)
 
     assert len(names) == len(labels) == len(probs) == len(pred_classes) == 500
     assert probs.shape[1] == 5
 
-    names, labels, probs, pred_classes, df = read_probs_csv(class_probs_csv, return_dataframe=True)
+    names, labels, probs, pred_classes, df = read_probs_csv(class_probs_csv)
 
     assert np.array_equal(df.Name.to_numpy(), names)
 
@@ -47,10 +48,11 @@ def test_get_alerce_pred_class(single_ztf_sn_id):
     """Test we can obtain ALeRCE predictions in both its native
     and Superphot+'s label formatting.
     """
-    label = get_alerce_pred_class(single_ztf_sn_id)
+    alerce = Alerce()
+    label = get_alerce_pred_class(single_ztf_sn_id, alerce)
     assert label in ["SNIa", "SNII", "SLSN", "SNIbc"]
 
-    label_superphot = get_alerce_pred_class(single_ztf_sn_id, superphot_style=True)
+    label_superphot = get_alerce_pred_class(single_ztf_sn_id, alerce, superphot_style=True)
     assert label_superphot in ["SN Ia", "SN II", "SLSN-I", "SN Ibc"]
 
 

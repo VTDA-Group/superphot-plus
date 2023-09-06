@@ -420,11 +420,11 @@ def calculate_neg_chi_squareds(cubes, t, f, ferr, b, ordered_bands=None, ref_ban
     """
     if ordered_bands is None:
         ordered_bands = ["r", "g"]
-
+        
     model_f = np.array(
         [flux_model(cube, t, b, ordered_bands, ref_band) for cube in cubes]
     )  # in future, maybe vectorize flux_model
-    extra_sigma_arr = np.ones((len(cubes), len(t))) * np.max(f[b == "r"]) * cubes[:, 6][:, np.newaxis]
+    extra_sigma_arr = np.ones((len(cubes), len(t))) * np.max(f[b == ref_band]) * cubes[:, 6][:, np.newaxis]
 
     for i, ordered_band in enumerate(ordered_bands[ordered_bands != ref_band]):
         extra_sigma_arr[:, b == ordered_band] *= cubes[:, 7 * i + 13][:, np.newaxis]
