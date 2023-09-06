@@ -48,6 +48,7 @@ def import_labels_only(input_csvs, allowed_types, fits_dir=None, needs_posterior
     names = []
     redshifts = []
 
+    print(input_csvs, fits_dir, sampler)
     for input_csv in input_csvs:
         with open(input_csv, newline="", encoding="utf-8") as csvfile:
             csvreader = csv.reader(csvfile)

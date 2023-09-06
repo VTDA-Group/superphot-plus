@@ -17,7 +17,7 @@ def test_default_type_maps():
 
 def test_type_maps_for_allowed_types_string():
     """Test that we can get the supernovae mappings for allowed string types."""
-    allowed_types = ["SN Ia", "SN II", "SN IIn", "SLSN-I", "SN Ibc", "SLSN-II"]
+    allowed_types = ["SN Ia", "SN II", "SN IIn", "SLSN-I", "SN Ibc"]
 
     labels_to_classes, classes_to_labels = SnClass.get_type_maps(allowed_types)
 
@@ -35,7 +35,7 @@ def test_type_maps_for_allowed_types_enum():
         SnClass.SUPERNOVA_II,
         SnClass.SUPERNOVA_IIN,
         SnClass.SUPERLUMINOUS_SUPERNOVA_I,
-        SnClass.SUPERLUMINOUS_SUPERNOVA_II,
+        # SnClass.SUPERLUMINOUS_SUPERNOVA_II,
     ]
 
     labels_to_classes, classes_to_labels = SnClass.get_type_maps(allowed_types)

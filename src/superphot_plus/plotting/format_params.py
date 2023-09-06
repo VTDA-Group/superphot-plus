@@ -1,15 +1,20 @@
+"""This module introduces uniform plot formatting and parameter label generation."""
+
 import matplotlib.pyplot as plt
 import numpy as np
 
 from superphot_plus.constants import BIGGER_SIZE, MEDIUM_SIZE, SMALL_SIZE
 
-plt.rc("font", size=SMALL_SIZE)  # controls default text sizes
-plt.rc("axes", titlesize=BIGGER_SIZE)  # fontsize of the axes title
-plt.rc("axes", labelsize=BIGGER_SIZE)  # fontsize of the x and y labels
-plt.rc("xtick", labelsize=MEDIUM_SIZE)  # fontsize of the tick labels
-plt.rc("ytick", labelsize=MEDIUM_SIZE)  # fontsize of the tick labels
-plt.rc("legend", fontsize=MEDIUM_SIZE)  # legend fontsize
-plt.rc("figure", titlesize=BIGGER_SIZE)  # fontsize of the figure title
+
+def set_global_plot_formatting():
+    """Set formatting that affects all subsequent plots."""
+    plt.rc("font", size=SMALL_SIZE)  # controls default text sizes
+    plt.rc("axes", titlesize=BIGGER_SIZE)  # fontsize of the axes title
+    plt.rc("axes", labelsize=BIGGER_SIZE)  # fontsize of the x and y labels
+    plt.rc("xtick", labelsize=MEDIUM_SIZE)  # fontsize of the tick labels
+    plt.rc("ytick", labelsize=MEDIUM_SIZE)  # fontsize of the tick labels
+    plt.rc("legend", fontsize=MEDIUM_SIZE)  # legend fontsize
+    plt.rc("figure", titlesize=BIGGER_SIZE)  # fontsize of the figure title
 
 
 def param_labels(aux_bands=None, ref_band=None):
@@ -60,27 +65,27 @@ def param_labels(aux_bands=None, ref_band=None):
     if aux_bands is None:
         aux_bands = []
 
-    for b in aux_bands:
+    for aux_b in aux_bands:
         plot_labels.extend(
             [
-                rf"$A_{{{b}}}$",
-                rf"$\beta_{{{b}}}$",
-                rf"$\gamma_{{{b}}}$",
-                rf"$t_\mathrm{{0, {b}}}$",
-                rf"$\tau_\mathrm{{rise, {b}}}$",
-                rf"$\tau_\mathrm{{fall, {b}}}$",
-                rf"$\sigma_\mathrm{{extra, {b}}}$",
+                rf"$A_{{{aux_b}}}$",
+                rf"$\beta_{{{aux_b}}}$",
+                rf"$\gamma_{{{aux_b}}}$",
+                rf"$t_\mathrm{{0, {aux_b}}}$",
+                rf"$\tau_\mathrm{{rise, {aux_b}}}$",
+                rf"$\tau_\mathrm{{fall, {aux_b}}}$",
+                rf"$\sigma_\mathrm{{extra, {aux_b}}}$",
             ]
         )
         save_labels.extend(
             [
-                f"A_{b}",
-                f"beta_{b}",
-                f"gamma_{b}",
-                f"t0_{b}",
-                f"taurise_{b}",
-                f"taufall_{b}",
-                f"extrasigma_{b}",
+                f"A_{aux_b}",
+                f"beta_{aux_b}",
+                f"gamma_{aux_b}",
+                f"t0_{aux_b}",
+                f"taurise_{aux_b}",
+                f"taufall_{aux_b}",
+                f"extrasigma_{aux_b}",
             ]
         )
 

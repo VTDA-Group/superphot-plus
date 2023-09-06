@@ -85,6 +85,7 @@ def import_lc(filename, survey=Survey.ZTF(), clip_lightcurve=True):
         if len(snr[(snr > 3.0) & (b == band)]) < 5:  # pragma: no cover
             return [None] * 6
         if (np.max(f[b == band]) - np.min(f[b == band])) < 3.0 * np.mean(ferr[b == band]):  # pragma: no cover
+            print("SKIPPED BECAUSE AMP")
             return [None] * 6
     return t, f, ferr, b, ra, dec
 
