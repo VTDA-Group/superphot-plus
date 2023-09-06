@@ -375,10 +375,9 @@ def plot_redshifts_abs_mags(probs_snr_csv, training_csv, fits_dir, save_dir, sam
             training_csv,
         ],
         allowed_types,
-        needs_posteriors=True,
-        redshift=True,
-        sampler=sampler,
         fits_dir=fits_dir,
+        needs_posteriors=True,
+        sampler=sampler,
     )[-1]
 
     # labels = np.array([classes_to_labels[int(x)] for x in classes])

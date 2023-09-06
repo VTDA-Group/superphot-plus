@@ -22,7 +22,9 @@ def test_nuts_single_file(single_ztf_lightcurve_compressed, tmp_path):
     """Benchmarks the NUTS sampler"""
     sampler = NumpyroSampler()
     lightcurve = Lightcurve.from_file(single_ztf_lightcurve_compressed)
-    posteriors = sampler.run_single_curve(lightcurve, priors=Survey.ZTF().priors, sampler="NUTS")
+    posteriors = sampler.run_single_curve(
+        lightcurve, priors=Survey.ZTF().priors, rng_seed=None, sampler="NUTS"
+    )
     posteriors.save_to_file(tmp_path)
 
 
@@ -30,5 +32,7 @@ def test_svi_single_file(single_ztf_lightcurve_compressed, tmp_path):
     """Benchmarks the svi sampler"""
     sampler = NumpyroSampler()
     lightcurve = Lightcurve.from_file(single_ztf_lightcurve_compressed)
-    posteriors = sampler.run_single_curve(lightcurve, priors=Survey.ZTF().priors, sampler="svi")
+    posteriors = sampler.run_single_curve(
+        lightcurve, priors=Survey.ZTF().priors, rng_seed=None, sampler="svi"
+    )
     posteriors.save_to_file(tmp_path)

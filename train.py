@@ -49,6 +49,16 @@ if __name__ == "__main__":
         help="File to log test probability results",
         default=PROBS_FILE,
     )
+    parser.add_argument(
+        "--num_cpu",
+        help="Number of CPUs to use in each parallel experiment",
+        default=2,
+    )
+    parser.add_argument(
+        "--num_gpu",
+        help="Number of GPUs to use in each parallel experiment",
+        default=0,
+    )
 
     args = parser.parse_args()
 
@@ -63,4 +73,6 @@ if __name__ == "__main__":
         input_csvs=args.input_csvs.split(","),
         num_hp_samples=args.num_hp_samples,
         extract_wc=args.extract_wc,
+        num_cpu=args.num_cpu,
+        num_gpu=args.num_gpu,
     )
