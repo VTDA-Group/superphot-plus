@@ -15,23 +15,11 @@ classifiers = [
 ]
 dynamic = ["version"]
 dependencies = [
-    "alerce",
-    "antares_client",
-    "arviz",
     "astropy",
-    "colorcet",
-    "corner",
-    "etils",
     "dustmaps",
-    "dynesty",
-    "imblearn",
-    "jaxns",
     "joblib",
     "extinction",
-    "matplotlib",
     "numpy",
-    "numpyro",
-    "tensorflow_probability",
     "scikit-learn",
     "torch",
 ]
@@ -52,7 +40,31 @@ dev = [
     "sphinx-autoapi==2.0.1", # Used to automatically generate api documentation
     "pylint", # Used for static linting of files
     "pytest-monitor", # Used to run benchmarks on the test suite
-    "memory_profiler" # Used to benchmark memory usage.
+    "memory_profiler", # Used to benchmark memory usage
+    "ray",
+    "ray[tune]", # Hyperparameter tuning library
+    "optuna", # Optimization search algorithm
+]
+data-generation=[
+    "alerce",
+    "antares_client",
+]
+runtime-ml = [
+    "dynesty", #runtime-ml-option
+    "numpyro",
+]
+plotting = [
+    "arviz",
+    "colorcet",
+    "corner",
+    "imblearn",
+    "matplotlib",
+]
+remove = [
+    "tensorflow_probability", #core (but try taking it out too)
+    "jaxns", # get rid of it
+    "tensorboard", # core - training dashboard (might be transitively included)
+    "etils", # maybe plotting customization? -try deleting it
 ]
 
 [build-system]
