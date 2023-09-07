@@ -131,7 +131,6 @@ def plot_sampling_lc_fit(
 
     if custom_formatting is not None:
         custom_formatting(axis)
-
     plt.savefig(
         os.path.join(out_dir, ztf_name + "_" + sampling_method + "." + file_type), bbox_inches="tight"
     )
