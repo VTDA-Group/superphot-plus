@@ -22,7 +22,6 @@ dependencies = [
     "numpy",
     "scikit-learn",
     "torch",
-    "ray",
     "tensorboard",
 ]
 
@@ -52,7 +51,7 @@ data-generation=[
     "antares_client",
 ]
 runtime-ml = [
-    "dynesty", #runtime-ml-option
+    "dynesty",
     "numpyro",
 ]
 plotting = [
@@ -61,12 +60,6 @@ plotting = [
     "corner",
     "imblearn",
     "matplotlib",
-]
-remove = [
-    "tensorflow_probability", #core (but try taking it out too)
-    "jaxns", # get rid of it
-    "tensorboard", # core - training dashboard (might be transitively included)
-    "etils", # maybe plotting customization? -try deleting it
 ]
 
 [build-system]
