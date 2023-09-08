@@ -1,13 +1,12 @@
 import os
-import os.path
 
 import numpy as np
+import pandas as pd
 import pytest
 from jax import random
 
-from superphot_plus.constants import TRAINED_MODEL_PARAMS
 from superphot_plus.lightcurve import Lightcurve
-from superphot_plus.mlp import MLP, ModelConfig
+from superphot_plus.model.classifier import SuperphotClassifier
 from superphot_plus.surveys.surveys import Survey
 
 TEST_DIR = os.path.dirname(__file__)
@@ -20,6 +19,11 @@ DATA_DIR_NAME = "data"
 @pytest.fixture
 def test_data_dir():
     return os.path.join(TEST_DIR, DATA_DIR_NAME)
+
+
+@pytest.fixture
+def training_csv(test_data_dir):
+    return os.path.join(test_data_dir, "training_set.csv")
 
 
 @pytest.fixture
@@ -68,10 +72,25 @@ def ztf_priors():
 
 
 @pytest.fixture
+def test_class_frac_csv(test_data_dir):
+    return os.path.join(test_data_dir, "test_cf.csv")
+
+
+@pytest.fixture
 def classifier(test_data_dir):
     filename = os.path.join(test_data_dir, "superphot-model-ZTF23aagkgnz.pt")
-    config_filename = os.path.join(test_data_dir, "superphot-config-test.json")
-    return MLP.load(filename, config_filename)[0]
+    config_filename = os.path.join(test_data_dir, "superphot-config-test.yaml")
+    return SuperphotClassifier.load(filename, config_filename)[0]
+
+
+@pytest.fixture
+def dummy_alerce_preds(class_probs_csv, test_data_dir):
+    names = pd.read_csv(class_probs_csv).Name
+    dummy_labels = ["SN Ia"] * len(names)
+    alerce_df = pd.DataFrame({"name": names, "alerce_label": dummy_labels})
+    fn = os.path.join(test_data_dir, "test_alerce_preds.csv")
+    alerce_df.to_csv(fn)
+    return fn
 
 
 @pytest.fixture
@@ -116,3 +135,9 @@ def dummy_posterior_sample_dict_batch():
         "extra_sigma_g",
     ]
     return {param: np.random.rand(3, 20) for param in param_list}
+
+
+@pytest.fixture
+def snana_filename(test_data_dir):
+    """Filename to SNANA ASCII File."""
+    return os.path.join(test_data_dir, "sample.snana.txt")

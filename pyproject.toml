@@ -22,6 +22,8 @@ dependencies = [
     "numpy",
     "scikit-learn",
     "torch",
+    "ray",
+    "tensorboard",
 ]
 
 # On a mac, install optional dependencies with `pip install '.[dev]'` (include the single quotes)

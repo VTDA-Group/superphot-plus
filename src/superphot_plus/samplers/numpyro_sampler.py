@@ -1,12 +1,13 @@
 """MCMC sampling using numpyro."""
 
+from os import urandom
 from typing import List
 
 import jax.numpy as jnp
 import numpy as np
 import numpyro
 import numpyro.distributions as dist
-from jax import random
+from jax import random, lax, jit
 from jax.config import config
 from numpyro.distributions import constraints
 from numpyro.infer import MCMC, NUTS, SVI, Trace_ELBO
@@ -31,19 +32,60 @@ class NumpyroSampler(Sampler):
         pass
 
     def run_single_curve(
-        self, lightcurve: Lightcurve, priors: MultibandPriors, sampler="svi", **kwargs
+        self, lightcurve: Lightcurve, priors: MultibandPriors, rng_seed, sampler="svi", **kwargs
     ) -> PosteriorSamples:
+        """Run the sampler on a single light curve.
+
+        Parameters
+        ----------
+        lightcurve : Lightcurve
+            The lightcurve to sample.
+        priors : MultibandPriors
+            The curve priors to use.
+        rng_seed : int or None
+            The random seed to use (for testing purposes). The user should pass None in
+            cases where they want a fully random run.
+        sampler : str
+            The numpyro sampler to use. Either "NUTS" or "svi"
+
+        Returns
+        -------
+        eq_wt_samples : PosteriorSamples
+            The resulting samples.
+        """
         lightcurve.pad_bands(priors.ordered_bands, PAD_SIZE)
-        eq_wt_samples = run_mcmc(lightcurve, sampler=sampler, priors=priors)
+        eq_wt_samples = run_mcmc(lightcurve, rng_seed=rng_seed, sampler=sampler, priors=priors)
         if eq_wt_samples is None:
             return None
         return PosteriorSamples(
-            eq_wt_samples, name=lightcurve.name, sampling_method=sampler, sn_class=lightcurve.sn_class
+            eq_wt_samples[0], name=lightcurve.name, sampling_method=sampler, sn_class=lightcurve.sn_class
         )
 
-    def run_multi_curve(self, lightcurves, priors, **kwargs) -> List[PosteriorSamples]:
+    def run_multi_curve(
+        self, lightcurves, priors: MultibandPriors, sampler="svi", **kwargs
+    ) -> List[PosteriorSamples]:
         """Not yet implemented."""
-        raise NotImplementedError
+
+        if len(lightcurves) == 0:
+            return []
+
+        padded_lcs = []
+        for lc in lightcurves:
+            padded_lcs.append(lc.pad_bands(priors.ordered_bands, PAD_SIZE, in_place=False))
+
+        eq_wt_samples = run_mcmc(padded_lcs, sampler=sampler, priors=priors)
+
+        post_list = []
+        for i, posts in enumerate(eq_wt_samples):
+            if posts is None:
+                continue
+            post_list.append(
+                PosteriorSamples(
+                    posts, name=lightcurves[i].name, sampling_method=sampler, sn_class=lightcurves[i].sn_class
+                )
+            )
+
+        return post_list
 
 
 def prior_helper(priors, max_flux, aux_b=None):
@@ -80,6 +122,18 @@ def prior_helper(priors, max_flux, aux_b=None):
         extra_sigma = numpyro.sample(f"extra_sigma{suffix}", trunc_norm(priors.extra_sigma))
 
     return amp, beta, gamma, t_0, tau_rise, tau_fall, extra_sigma
+
+
+def lax_helper_function(svi, svi_state, num_iters, *args, **kwargs):
+    """Helper function using LAX to speed up SVI state updates."""
+
+    @jit
+    def update_svi(s, _):
+        return svi.stable_update(s, *args, **kwargs)
+
+    u = svi_state
+    u, _ = lax.scan(update_svi, svi_state, None, length=num_iters)
+    return u
 
 
 def trunc_norm(fields: PriorFields):
@@ -122,6 +176,7 @@ def create_jax_model(
 
     amp, beta, gamma, t_0, tau_rise, tau_fall, extra_sigma = prior_helper(ref_priors, max_flux)
 
+    es_scaled = max_flux * extra_sigma
     phase = t - t_0
     flux_const = amp / (1.0 + jnp.exp(-phase / tau_rise))
     sigmoid = 1 / (1 + jnp.exp(10.0 * (gamma - phase)))
@@ -130,7 +185,7 @@ def create_jax_model(
         (1 - sigmoid) * (1 - beta * phase)
         + sigmoid * (1 - beta * gamma) * jnp.exp(-(phase - gamma) / tau_fall)
     )
-    sigma_tot = jnp.sqrt(uncertainties**2 + extra_sigma**2)
+    sigma_tot = jnp.sqrt(uncertainties**2 + es_scaled**2)
 
     # auxiliary bands
     for b_idx, uniq_b in enumerate(priors.aux_bands):
@@ -153,7 +208,7 @@ def create_jax_model(
         tau_rise_b = tau_rise * tau_rise_ratio
         tau_fall_b = tau_fall * tau_fall_ratio
 
-        inc_band_ix = np.arange(b_idx * PAD_SIZE, (b_idx + 1) * PAD_SIZE)
+        inc_band_ix = np.arange((b_idx + 1) * PAD_SIZE, (b_idx + 2) * PAD_SIZE)
 
         phase_b = (t - t0_b)[inc_band_ix]
         flux_const_b = amp_b / (1.0 + jnp.exp(-phase_b / tau_rise_b))
@@ -168,13 +223,13 @@ def create_jax_model(
         )
 
         sigma_tot = sigma_tot.at[inc_band_ix].set(
-            jnp.sqrt(uncertainties[inc_band_ix] ** 2 + extra_sigma_ratio**2 * extra_sigma**2)
+            jnp.sqrt(uncertainties[inc_band_ix] ** 2 + extra_sigma_ratio**2 * es_scaled**2)
         )
 
     _ = numpyro.sample("obs", dist.Normal(flux, sigma_tot), obs=obsflux)
 
 
-def create_jax_guide(priors):
+def create_jax_guide(priors, t=None, obsflux=None, uncertainties=None, max_flux=None):
     """JAX guide function for MCMC.
 
     Parameters
@@ -213,7 +268,7 @@ def create_jax_guide(priors):
         numpyro_sample("extra_sigma_" + uniq_b, b_priors.extra_sigma, 1e-3)
 
 
-def run_mcmc(lc, sampler="NUTS", priors=Survey.ZTF().priors):
+def run_mcmc(lc, rng_seed, sampler="NUTS", priors=Survey.ZTF().priors):
     """Runs MCMC using numpyro on the lightcurve to get set
     of equally weighted posteriors (sets of fit parameters).
 
@@ -221,6 +276,9 @@ def run_mcmc(lc, sampler="NUTS", priors=Survey.ZTF().priors):
     ----------
     lc : Lightcurve object
         The Lightcurve object on which to run MCMC
+    rng_seed : int or None
+        The random seed to use (for testing purposes). The user should pass None in
+        cases where they want a fully random run.
     sampler : str, optional
         The MCMC sampler to use. Defaults to "NUTS".
     priors : MultibandPriors, optional
@@ -233,6 +291,16 @@ def run_mcmc(lc, sampler="NUTS", priors=Survey.ZTF().priors):
         a numpy array. If the lightcurve does not contain any valid
         points, None is returned.
     """
+
+    batch = type(lc) is list  # check if one LightCurve or multiple
+
+    if rng_seed is None:
+        rng_seed = int.from_bytes(urandom(4), "big")
+    print(f"Running numpyro with seed={rng_seed}")
+
+    rng_key = random.PRNGKey(rng_seed)
+    rng_key, seed2 = random.split(rng_key)
+        
     # Require data in all bands.
     for unique_band in priors.ordered_bands:
         if lc.obs_count(unique_band) == 0:
@@ -244,13 +312,21 @@ def run_mcmc(lc, sampler="NUTS", priors=Survey.ZTF().priors):
     def jax_guide(**kwargs):  # pylint: disable=unused-argument
         create_jax_guide(priors)
 
-    max_flux, _ = lc.find_max_flux(band=priors.reference_band)
-
     if sampler == "NUTS":
+        if batch:
+            raise ValueError("Batch mode not implemented for NUTS.")
+
+        # Require data in all bands.
+        for unique_band in priors.ordered_bands:
+            if lc.obs_count(unique_band) == 0:
+                return None
+
+        max_flux, _ = lc.find_max_flux(band=priors.reference_band)
+
         num_samples = 300
         kernel = NUTS(jax_model, init_strategy=init_to_uniform)
 
-        rng_key = random.PRNGKey(4)
+        rng_key = random.PRNGKey(rng_seed)
         rng_key, _ = random.split(rng_key)
 
         mcmc = MCMC(
@@ -273,43 +349,95 @@ def run_mcmc(lc, sampler="NUTS", priors=Survey.ZTF().priors):
 
         posterior_samples = mcmc.get_samples()
 
+        posterior_cube, aux_bands = get_numpyro_cube(posterior_samples, max_flux, priors.aux_bands)
+        padded_idxs = lc.flux_errors > 1e5
+        red_neg_chisq = calculate_neg_chi_squareds(
+            posterior_cube,
+            lc.times[~padded_idxs],
+            lc.fluxes[~padded_idxs],
+            lc.flux_errors[~padded_idxs],
+            lc.bands[~padded_idxs],
+            ordered_bands=priors.ordered_bands,
+            ref_band=priors.reference_band,
+        )
+
+        posterior_cubes = [
+            np.hstack((posterior_cube, red_neg_chisq[np.newaxis, :].T)),
+        ]
+
     elif sampler == "svi":
         optimizer = numpyro.optim.Adam(step_size=0.001)
         svi = SVI(jax_model, jax_guide, optimizer, loss=Trace_ELBO())
-        num_iter = 10000
-        with numpyro.validation_enabled():
-            svi_result = svi.run(
-                random.PRNGKey(1),
+
+        num_iter = 10_000
+        lax_jit = jit(lax_helper_function, static_argnums=(0, 2))
+
+        if not batch:
+            lc = [
+                lc,
+            ]
+
+        bad_prev_fit = True
+        posterior_cubes = []
+        for i, lc_single in enumerate(lc):
+            if i % 100 == 0:
+                print(i)
+
+            # Require data in all bands.
+            for unique_band in priors.ordered_bands:
+                if lc_single.obs_count(unique_band) == 0:
+                    posterior_cubes.append(None)
+                    break
+
+            if bad_prev_fit:
+                svi_state = svi.init(
+                    random.PRNGKey(1),
+                    obsflux=lc_single.fluxes,
+                    t=lc_single.times,
+                    uncertainties=lc_single.flux_errors,
+                    max_flux=lc_single.find_max_flux(band=priors.reference_band)[0],
+                )
+
+            max_flux, _ = lc_single.find_max_flux(band=priors.reference_band)
+
+            svi_state = lax_jit(
+                svi,
+                svi_state,
                 num_iter,
-                stable_update=True,
-                obsflux=lc.fluxes,
-                t=lc.times,
-                uncertainties=lc.flux_errors,
+                obsflux=lc_single.fluxes,
+                t=lc_single.times,
+                uncertainties=lc_single.flux_errors,
                 max_flux=max_flux,
             )
-        params = svi_result.params
-        posterior_samples = {}
-        for param in params:
-            if param[-2:] == "mu":
-                posterior_samples[param[:-3]] = np.random.normal(
-                    loc=params[param], scale=params[param[:-2] + "sigma"], size=100
-                )
+
+            # params = svi_result.params
+            params = svi.get_params(svi_state)
+            posterior_samples = {}
+            for param in params:
+                if param[-2:] == "mu":
+                    rng = np.random.RandomState(seed2[0])
+                    posterior_samples[param[:-3]] = rng.normal(
+                        loc=params[param], scale=params[param[:-2] + "sigma"], size=100
+                    )
+
+            posterior_cube = get_numpyro_cube(posterior_samples, max_flux, priors.aux_bands)[0]
+            padded_idxs = lc_single.flux_errors == 1e10
+            red_neg_chisq = calculate_neg_chi_squareds(
+                posterior_cube,
+                lc_single.times[~padded_idxs],
+                lc_single.fluxes[~padded_idxs],
+                lc_single.flux_errors[~padded_idxs],
+                lc_single.bands[~padded_idxs],
+                ordered_bands=priors.ordered_bands,
+                ref_band=priors.reference_band,
+            )
+
+            bad_prev_fit = np.mean(red_neg_chisq) < -6
+
+            posterior_cube = np.hstack((posterior_cube, red_neg_chisq[np.newaxis, :].T))
+            posterior_cubes.append(posterior_cube)
 
     else:
         raise ValueError("'sampler' must be 'NUTS' or 'svi'")
 
-    posterior_cube, _ = get_numpyro_cube(posterior_samples, max_flux, priors.aux_bands)
-
-    padded_idxs = lc.flux_errors > 1e5
-    red_neg_chisq = calculate_neg_chi_squareds(
-        posterior_cube,
-        lc.times[~padded_idxs],
-        lc.fluxes[~padded_idxs],
-        lc.flux_errors[~padded_idxs],
-        lc.bands[~padded_idxs],
-        ordered_bands=priors.ordered_bands,
-        ref_band=priors.reference_band,
-    )
-
-    posterior_cube = np.hstack((posterior_cube, red_neg_chisq[np.newaxis, :].T))
-    return posterior_cube
+    return posterior_cubes

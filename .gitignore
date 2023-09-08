@@ -151,3 +151,9 @@ src/examples/outputs/*
 
 # Pytest monitor output
 .pymon
+
+# Training results
+data/
+
+# Tensorboard logs
+runs/

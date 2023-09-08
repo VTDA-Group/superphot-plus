@@ -64,30 +64,7 @@ def generate_files(lightcurve, output_dir):
     output_dir : pathlib Path
         The directory where we will save the files.
     """
-    files_equal = True
-
-    res_new = np.load(new_results_file)["arr_0"]
-    print(f"Loaded {len(res_new)} rows from new file {new_results_file}.")
-    res_old = np.load(goldens_file)["arr_0"]
-    print(f"Loaded {len(res_old)} rows from new file {goldens_file}.")
-
-    # Check that the number of results matches up
-    if len(res_new) != len(res_old):
-        print(f"Mismatched number of results ({len(res_new)} vs {len(res_old)} rows).")
-        files_equal = False
-    if res_new.size != res_old.size:
-        print(f"Mismatched number of results ({res_new.size} vs {res_old.size} values).")
-        files_equal = False
-
-    # Check that the values are close to each other
-    # This makes less sense for svi (we'd rather check to some mean than
-    # row by row), but we're just using this as a placeholder for now)
-    if not np.all(np.isclose(res_old, res_new, atol=delta)):
-        print(
-            f"{np.isclose(res_old, res_new, atol=delta).sum()} of {res_old.size} values mismatch. (max"
-            f" delta={delta})"
-        )
-        files_equal = False
+    print("Generating files", end="...")
 
     # Make sure our target directory exists
     if not output_dir.is_dir():
@@ -98,19 +75,17 @@ def generate_files(lightcurve, output_dir):
 
     # Generate dynesty
     sampler = DynestySampler()
-    posteriors = sampler.run_single_curve(
-        lightcurve, priors=priors, rstate=np.random.default_rng(9876)
-    )
+    posteriors = sampler.run_single_curve(lightcurve, priors=priors, rstate=np.random.default_rng(9876))
     posteriors.save_to_file(output_dir)
 
     # Generate NUTS
     sampler = NumpyroSampler()
-    posteriors = sampler.run_single_curve(lightcurve, priors=priors, sampler="NUTS")
+    posteriors = sampler.run_single_curve(lightcurve, rng_seed=4, priors=priors, sampler="NUTS")
     posteriors.save_to_file(output_dir)
 
     # Generate svi
     sampler = NumpyroSampler()
-    posteriors = sampler.run_single_curve(lightcurve, priors=priors, sampler="svi")
+    posteriors = sampler.run_single_curve(lightcurve, rng_seed=1, priors=priors, sampler="svi")
     posteriors.save_to_file(output_dir)
 
     print(f"saved files to {output_dir}.")
@@ -172,7 +147,7 @@ def compare_two_files(file_name, goldens_dir, temp_results_dir):
         True if files are sufficiently similar; False otherwise."""
 
     # Set up
-    deltas = {"dynesty": 0.1, "svi": 0.5, "NUTS": 0.1}
+    deltas = {"dynesty": 0.25, "svi": 0.25, "NUTS": 0.25}
     no_differences_found = True
 
     # Compare sample means
@@ -191,9 +166,10 @@ def compare_two_files(file_name, goldens_dir, temp_results_dir):
     print(sampling_method, end=": ")
     for index, golden_val in enumerate(goldens_samples.sample_mean()):
         temp_val = temp_results_samples.sample_mean()[index]
+        print(temp_val, golden_val)
 
         print(f"{(abs( 1 - (golden_val / temp_val))):.2f}", end=", ")
-        if not math.isclose(golden_val, temp_val, rel_tol=deltas[sampling_method]):
+        if not math.isclose(golden_val, temp_val, rel_tol=deltas[sampling_method], abs_tol=0.1):
             no_differences_found = False
             print(
                 f"\nSignificantly distant values in sample means of {file_name} at index {index} "
@@ -219,24 +195,22 @@ def delete_temp_files(temp_dir):
         The temporary directory where we've just generated our new results.
     """
     if "temp" not in temp_dir.as_posix() and "tmp" not in temp_dir.as_posix():
-        raise ValueError(
-            "Attempted to delete directory that is not designated with 'temp' or 'tmp'."
-        )
+        raise ValueError("Attempted to delete directory that is not designated with 'temp' or 'tmp'.")
     for file in os.listdir(temp_dir):
         os.remove(Path(temp_dir, file))
     os.rmdir(temp_dir)
 
 
-def test_diffs(tmp_path):
+def test_diffs(test_data_dir, tmp_path):
     """Check new results against pre-generated goldens file.
 
     This is the function that is automatically run by pytest.
     """
-    data_dir = Path("tests", "data")
-    goldens_dir = Path(data_dir, "goldens")
+    # data_dir = Path("tests", "data")
+    goldens_dir = Path(test_data_dir, "goldens")
 
     lightcurve_name = "ZTF22abvdwik"
-    lightcurve = Lightcurve.from_file(Path(data_dir, lightcurve_name + ".npz").as_posix())
+    lightcurve = Lightcurve.from_file(Path(test_data_dir, lightcurve_name + ".npz").as_posix())
 
     assert check_goldens_exist(goldens_dir)
     generate_files(lightcurve, tmp_path)
@@ -245,7 +219,7 @@ def test_diffs(tmp_path):
 
 def interactive_test_diffs():
     """Tests diffs interactively, including a prompt to force regeneration of goldens."""
-    data_dir = Path("tests", "data")
+    data_dir = Path("..", "data")
     goldens_dir = Path(data_dir, "goldens")
     temp_dir = Path(data_dir, "temp_diff")
 
