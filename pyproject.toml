@@ -42,7 +42,6 @@ dev = [
     "pylint", # Used for static linting of files
     "pytest-monitor", # Used to run benchmarks on the test suite
     "memory_profiler", # Used to benchmark memory usage
-    "ray",
     "ray[tune]", # Hyperparameter tuning library
     "optuna", # Optimization search algorithm
 ]
