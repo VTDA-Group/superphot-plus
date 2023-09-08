@@ -37,7 +37,7 @@ $ python -m pip install -e ".[dev]"
 ```
 
 To install all optional dependencies, including those for inference, plotting, and loading
-data from alert brokers, use `pip install .[dev,data-generation,runtime-ml,plotting]`
+data from alert brokers, use `pip install .[dev,data-generation,samplers,plotting]`
 
 You can then run `$ pytest` to verify that all dependencies are correct,
 and your environment should be ready for superphot-plussing!

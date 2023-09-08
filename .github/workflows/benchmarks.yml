@@ -27,7 +27,7 @@ jobs:
         sudo apt-get install librdkafka-dev # For antares-client
         python -m pip install --upgrade pip
         pip install .
-        pip install .[dev,data-generation,runtime-ml,plotting]
+        pip install .[dev,data-generation,samplers,plotting]
         if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
     - name: Run benchmarks with pytest and monitor plugin
       run: |
