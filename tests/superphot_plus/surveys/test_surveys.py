@@ -47,7 +47,29 @@ def test_ztf():
     ## Confirm a single prior value (to ensure chained deserialization)
     assert ztf_survey.priors.bands["r"].gamma.mean == 1.1391
 
+    
+def test_lsst():
+    """Test LSST/Rubin Survey generation."""
+    lsst_survey = Survey.LSST()
+    assert lsst_survey.name == "LSST"
+    assert len(lsst_survey.priors.bands) == 6
+    for b in "ugrizY":
+        assert b in lsst_survey.wavelengths
+        
+    # assert band order + wavelengths
+    assert np.array_equal(
+        lsst_survey.priors.ordered_bands,
+        ["u","g","r","i","z","Y"]
+    )
+    assert np.array_equal(
+        lsst_survey.get_ordered_wavelengths(),
+        [3751.20, 4741.64, 6173.23, 7500.97, 8678.90, 9711.82],
+    )
 
+    ## Confirm a single prior value (to ensure chained deserialization)
+    assert lsst_survey.priors.bands["u"].gamma.mean == 1.0075
+
+    
 def test_write_to_file(tmp_path):
     """Test that we can save survey data to a file, and fetch it later."""
     default_priors = MultibandPriors()
