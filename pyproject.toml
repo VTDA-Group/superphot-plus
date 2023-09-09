@@ -15,26 +15,13 @@ classifiers = [
 ]
 dynamic = ["version"]
 dependencies = [
-    "alerce",
-    "antares_client",
-    "arviz",
     "astropy",
-    "colorcet",
-    "corner",
-    "etils",
     "dustmaps",
-    "dynesty",
-    "imblearn",
-    "jaxns",
     "joblib",
     "extinction",
-    "matplotlib",
     "numpy",
-    "numpyro",
-    "tensorflow_probability",
     "scikit-learn",
     "torch",
-    "ray",
     "tensorboard",
 ]
 
@@ -57,6 +44,21 @@ dev = [
     "memory_profiler", # Used to benchmark memory usage
     "ray[tune]", # Hyperparameter tuning library
     "optuna", # Optimization search algorithm
+]
+data-generation=[
+    "alerce",
+    "antares_client",
+]
+samplers = [
+    "dynesty",
+    "numpyro",
+]
+plotting = [
+    "arviz",
+    "colorcet",
+    "corner",
+    "imblearn",
+    "matplotlib",
 ]
 
 [build-system]
