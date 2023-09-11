@@ -109,6 +109,10 @@ def run_one_benchmark(sampler_name, lightcurve, seed, **kwargs):
         The anme of the sampler to use. One of "dynesty", "svi" or "NUTS".
     lightcurve : Lightcurves
         The test lightcurve to use.
+    seed : int
+        Random seed value used for deterministic data generation.
+    kwargs : dict
+        The existing keyword arguments.
 
     Returns
     -------
@@ -140,7 +144,7 @@ def run_one_benchmark(sampler_name, lightcurve, seed, **kwargs):
 
 
 def run_all_benchmarks(num_samples):
-    true_parameters, lightcurves = create_data(num_samples, True)
+    _, lightcurves = create_data(num_samples, True)
 
     seed = int.from_bytes(urandom(4), "big")
     samplers = ["dynesty", "svi", "NUTS"]
