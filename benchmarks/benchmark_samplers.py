@@ -6,8 +6,8 @@ This is very time consuming as each sampler is run multiple times.
 import copy
 import timeit
 from os import urandom
-import numpy as np
 
+import numpy as np
 from memory_profiler import memory_usage
 
 from superphot_plus.data_generation.make_fake_spp_data import create_clean_models, create_ztf_model
