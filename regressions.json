@@ -1,0 +1,1 @@
+{"regressions": [["sampling_suite.SamplingSuite.time_nuts_single_file", "graphs/Cython/branch-HEAD/build/machine-gh-runner/packaging/python-3.10/sampling_suite.SamplingSuite.time_nuts_single_file.json", {}, null, 14.1245895159999, 8.70607934499958, [[null, 593, 8.73871037150002, 14.1245895159999]]]]}
