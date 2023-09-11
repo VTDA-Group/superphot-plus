@@ -1,0 +1,230 @@
+name: LSST
+wavelengths:
+  u: 3751.20
+  g: 4741.64
+  r: 6173.23
+  i: 7500.97
+  z: 8678.90
+  Y: 9711.82
+  
+priors:
+    band_order: ugrizY
+    reference_band: r
+    bands:
+        r:
+            amp:
+                clip_a: -0.2
+                clip_b: 1.2
+                mean: 0
+                std: 0.5
+            beta:
+                clip_a: 0.0
+                clip_b: 0.2
+                mean: 0.005
+                std: 0.001
+            gamma:
+                clip_a: -2.0
+                clip_b: 2.5
+                mean: 1.1
+                std: 0.5
+            t_0:
+                clip_a: -100.0
+                clip_b: 200.0
+                mean: 0
+                std: 50
+            tau_rise:
+                clip_a: -1.0
+                clip_b: 3.0
+                mean: 0.6
+                std: 0.5
+            tau_fall:
+                clip_a: 0.5
+                clip_b: 4.0
+                mean: 1.5
+                std: 1.0
+            extra_sigma:
+                clip_a: -5.0
+                clip_b: -0.5
+                mean: -1.5
+                std: 0.5
+        u:
+            amp:
+                clip_a: 0.1
+                clip_b: 5.0
+                mean: 1.0
+                std: 0.5
+            beta:
+                clip_a: 0.5
+                clip_b: 2.0
+                mean: 1.0
+                std: 0.05
+            gamma:
+                clip_a: 0.8
+                clip_b: 1.2
+                mean: 1.0075
+                std: 0.1
+            t_0:
+                clip_a: 0.999
+                clip_b: 1.001
+                mean: 1.0
+                std: 0.0005
+            tau_rise:
+                clip_a: 0.1
+                clip_b: 2.0
+                mean: 1.0
+                std: 0.5
+            tau_fall:
+                clip_a: 0.1
+                clip_b: 3.0
+                mean: 1.0
+                std: 0.5
+            extra_sigma:
+                clip_a: 0.1
+                clip_b: 3.0
+                mean: 1.0
+                std: 0.5
+        g:
+            amp:
+                clip_a: 0.1
+                clip_b: 5.0
+                mean: 1.0
+                std: 0.5
+            beta:
+                clip_a: 0.5
+                clip_b: 2.0
+                mean: 1.0
+                std: 0.05
+            gamma:
+                clip_a: 0.8
+                clip_b: 1.2
+                mean: 1.0075
+                std: 0.1
+            t_0:
+                clip_a: 0.999
+                clip_b: 1.001
+                mean: 1.0
+                std: 0.0005
+            tau_rise:
+                clip_a: 0.1
+                clip_b: 2.0
+                mean: 1.0
+                std: 0.5
+            tau_fall:
+                clip_a: 0.1
+                clip_b: 3.0
+                mean: 1.0
+                std: 0.5
+            extra_sigma:
+                clip_a: 0.1
+                clip_b: 3.0
+                mean: 1.0
+                std: 0.5
+        i:
+            amp:
+                clip_a: 0.1
+                clip_b: 5.0
+                mean: 1.0
+                std: 0.5
+            beta:
+                clip_a: 0.5
+                clip_b: 2.0
+                mean: 1.0
+                std: 0.05
+            gamma:
+                clip_a: 0.8
+                clip_b: 1.2
+                mean: 1.0075
+                std: 0.1
+            t_0:
+                clip_a: 0.999
+                clip_b: 1.001
+                mean: 1.0
+                std: 0.0005
+            tau_rise:
+                clip_a: 0.1
+                clip_b: 2.0
+                mean: 1.0
+                std: 0.5
+            tau_fall:
+                clip_a: 0.1
+                clip_b: 3.0
+                mean: 1.0
+                std: 0.5
+            extra_sigma:
+                clip_a: 0.1
+                clip_b: 3.0
+                mean: 1.0
+                std: 0.5
+        z:
+            amp:
+                clip_a: 0.1
+                clip_b: 5.0
+                mean: 1.0
+                std: 0.5
+            beta:
+                clip_a: 0.5
+                clip_b: 2.0
+                mean: 1.0
+                std: 0.05
+            gamma:
+                clip_a: 0.8
+                clip_b: 1.2
+                mean: 1.0075
+                std: 0.1
+            t_0:
+                clip_a: 0.999
+                clip_b: 1.001
+                mean: 1.0
+                std: 0.0005
+            tau_rise:
+                clip_a: 0.1
+                clip_b: 2.0
+                mean: 1.0
+                std: 0.5
+            tau_fall:
+                clip_a: 0.1
+                clip_b: 3.0
+                mean: 1.0
+                std: 0.5
+            extra_sigma:
+                clip_a: 0.1
+                clip_b: 3.0
+                mean: 1.0
+                std: 0.5
+        Y:
+            amp:
+                clip_a: 0.1
+                clip_b: 5.0
+                mean: 1.0
+                std: 0.5
+            beta:
+                clip_a: 0.5
+                clip_b: 2.0
+                mean: 1.0
+                std: 0.05
+            gamma:
+                clip_a: 0.8
+                clip_b: 1.2
+                mean: 1.0075
+                std: 0.1
+            t_0:
+                clip_a: 0.999
+                clip_b: 1.001
+                mean: 1.0
+                std: 0.0005
+            tau_rise:
+                clip_a: 0.1
+                clip_b: 2.0
+                mean: 1.0
+                std: 0.5
+            tau_fall:
+                clip_a: 0.1
+                clip_b: 3.0
+                mean: 1.0
+                std: 0.5
+            extra_sigma:
+                clip_a: 0.1
+                clip_b: 3.0
+                mean: 1.0
+                std: 0.5
+    
