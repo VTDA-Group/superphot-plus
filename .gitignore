@@ -154,3 +154,7 @@ data/
 
 # Tensorboard logs
 runs/
+
+# Airspeed Velocity performance results
+_results/
+_html/
