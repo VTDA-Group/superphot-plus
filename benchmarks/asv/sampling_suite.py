@@ -2,11 +2,12 @@ import tempfile
 
 import numpy as np
 
-from benchmarks.asv.constants import SINGLE_ZTF_LIGHTCURVE_COMPRESSED
 from superphot_plus.lightcurve import Lightcurve
 from superphot_plus.samplers.dynesty_sampler import DynestySampler
 from superphot_plus.samplers.numpyro_sampler import NumpyroSampler
 from superphot_plus.surveys.surveys import Survey
+
+from .constants import SINGLE_ZTF_LIGHTCURVE_COMPRESSED
 
 
 class SamplingSuite:

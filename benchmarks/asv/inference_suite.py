@@ -1,16 +1,12 @@
 import tempfile
 
-from benchmarks.asv.constants import (
-    CLASSIFIER_CONF,
-    CLASSIFIER_FILE,
-    SINGLE_ZTF_ID,
-    SINGLE_ZTF_LIGHTCURVE_COMPRESSED,
-)
 from superphot_plus.lightcurve import Lightcurve
 from superphot_plus.model.classifier import SuperphotClassifier
 from superphot_plus.samplers.dynesty_sampler import DynestySampler
 from superphot_plus.samplers.numpyro_sampler import NumpyroSampler
 from superphot_plus.surveys.surveys import Survey
+
+from .constants import CLASSIFIER_CONF, CLASSIFIER_FILE, SINGLE_ZTF_ID, SINGLE_ZTF_LIGHTCURVE_COMPRESSED
 
 
 class InferenceSuite:
