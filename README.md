@@ -36,8 +36,9 @@ $ source venv/bin/activate
 $ python -m pip install -e ".[dev]"
 ```
 
-To install all optional dependencies, including those for inference, plotting, and loading
-data from alert brokers, use `pip install .[dev,data-generation,samplers,plotting]`
+To install all optional dependencies, including those for inference, plotting, loading
+data from alert brokers, model training and benchmarking use 
+`pip install .[dev,data-generation,sampling,plotting,training,benchmarking]`.
 
 You can then run `$ pytest` to verify that all dependencies are correct,
 and your environment should be ready for superphot-plussing!

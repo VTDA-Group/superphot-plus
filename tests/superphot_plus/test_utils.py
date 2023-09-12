@@ -1,5 +1,6 @@
-import numpy as np
 import os
+
+import numpy as np
 import pytest
 
 from superphot_plus.file_utils import get_posterior_samples
@@ -7,16 +8,16 @@ from superphot_plus.lightcurve import Lightcurve
 from superphot_plus.model.config import ModelConfig
 from superphot_plus.utils import (
     calc_accuracy,
-    calculate_neg_chi_squareds,
-    f1_score,
-    get_band_extinctions,
-    get_numpyro_cube,
-    log_metrics_to_tensorboard,
-    params_valid,
-    flux_model,
     calculate_log_likelihood,
     calculate_mse,
-    report_session_metrics,
+    calculate_neg_chi_squareds,
+    f1_score,
+    flux_model,
+    get_band_extinctions,
+    get_numpyro_cube,
+    get_session_metrics,
+    log_metrics_to_tensorboard,
+    params_valid,
 )
 
 
@@ -291,7 +292,7 @@ def test_neg_chi_squareds(single_ztf_lightcurve_compressed, test_data_dir, singl
     assert np.isclose(np.mean(result), -5.43, rtol=0.1)
 
 
-def test_report_session_metrics():
+def test_get_session_metrics():
     """Checks that we compute the correct train session metrics."""
 
     # Metrics for 2 folds, 5 epochs
@@ -312,7 +313,7 @@ def test_report_session_metrics():
         [0.74, 0.75, 0.59, 0.60, 0.61],  # val_loss
     ]
 
-    avg_val_loss, avg_val_acc = report_session_metrics(metrics=(metrics_fold_1, metrics_fold_2))
+    avg_val_loss, avg_val_acc = get_session_metrics(metrics=(metrics_fold_1, metrics_fold_2))
 
     assert np.mean([0.75, 0.59]) == avg_val_loss
     assert np.mean([0.76, 0.80]) == avg_val_acc

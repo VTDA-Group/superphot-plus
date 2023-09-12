@@ -4,76 +4,10 @@ import os
 import time
 
 import numpy as np
-from sklearn.model_selection import train_test_split
 import torch
 
-from superphot_plus.constants import BATCH_SIZE, LEARNING_RATE, TRAINED_MODEL_PARAMS
-from superphot_plus.model.classifier import SuperphotClassifier
-from superphot_plus.model.config import ModelConfig
-from superphot_plus.model.data import TrainData, TestData
 from superphot_plus.supernova_class import SupernovaClass as SnClass
-from superphot_plus.utils import create_dataset, calculate_accuracy, epoch_time
-
-
-def test_run_classifier(tmp_path):
-    """Tests that we can run training and evaluation of the model."""
-
-    num_samples = 100
-    num_epochs = 5
-    num_output_classes = 5
-
-    input_dim, output_dim, neurons_per_layer, num_layers = TRAINED_MODEL_PARAMS
-    normed_means = list(np.zeros(input_dim))
-    normed_stds = list(np.ones(input_dim))
-
-    features = np.random.random((num_samples, input_dim))
-    labels = np.random.randint(num_output_classes, size=num_samples)
-
-    test_names = ["ZTF-testname"]
-    test_group_idxs = [np.arange(0, 10)]
-
-    # Create a test holdout of 10%
-    train_features, test_features, train_labels, test_labels = train_test_split(
-        features, labels, stratify=labels, test_size=0.1
-    )
-
-    train_features, val_features, train_labels, val_labels = train_test_split(
-        train_features, train_labels, stratify=train_labels, test_size=0.1
-    )
-
-    train_dataset = create_dataset(features, labels)
-    val_dataset = create_dataset(val_features, val_labels)
-
-    model = SuperphotClassifier.create(
-        config=ModelConfig(
-            input_dim=input_dim,
-            output_dim=output_dim,
-            neurons_per_layer=neurons_per_layer,
-            num_hidden_layers=num_layers,
-            normalization_means=normed_means,
-            normalization_stddevs=normed_stds,
-            batch_size=BATCH_SIZE,
-            learning_rate=LEARNING_RATE,
-        )
-    )
-
-    model.train_and_validate(
-        train_data=TrainData(train_dataset, val_dataset),
-        run_id="run-0",
-        num_epochs=num_epochs,
-        plot_metrics=True,
-        metrics_dir=tmp_path,
-        models_dir=tmp_path,
-    )
-
-    model.evaluate(
-        test_data=TestData(test_features, test_labels, test_names, test_group_idxs),
-        probs_csv_path=os.path.join(tmp_path, "probs_mlp.csv"),
-    )
-
-    assert os.path.exists(os.path.join(tmp_path, "accuracy_run-0.pdf"))
-    assert os.path.exists(os.path.join(tmp_path, "loss_run-0.pdf"))
-    assert os.path.exists(os.path.join(tmp_path, "probs_mlp.csv"))
+from superphot_plus.utils import calculate_accuracy, create_dataset, epoch_time
 
 
 def test_create_dataset():

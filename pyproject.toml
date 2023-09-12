@@ -20,6 +20,7 @@ dependencies = [
     "joblib",
     "extinction",
     "numpy",
+    "pandas",
     "scikit-learn",
     "torch",
     "tensorboard",
@@ -40,25 +41,29 @@ dev = [
     "sphinx-rtd-theme==1.2.0", # Used to render documentation
     "sphinx-autoapi==2.0.1", # Used to automatically generate api documentation
     "pylint", # Used for static linting of files
-    "asv==0.5.1", # Used to compute performance benchmarks
-    "memory_profiler", # Used to benchmark memory usage
-    "ray[tune]", # Hyperparameter tuning library
-    "optuna", # Optimization search algorithm
 ]
-data-generation=[
+data-generation = [
     "alerce",
     "antares_client",
 ]
-samplers = [
+sampling = [
     "dynesty",
     "numpyro",
+    "imblearn",
 ]
 plotting = [
     "arviz",
     "colorcet",
     "corner",
-    "imblearn",
     "matplotlib",
+]
+training = [
+    "ray[tune]", # Hyperparameter tuning library
+    "optuna", # Optimization search algorithm
+]
+benchmarking = [
+    "asv==0.5.1", # Used to compute performance benchmarks
+    "memory_profiler", # Used to benchmark memory usage
 ]
 
 [build-system]

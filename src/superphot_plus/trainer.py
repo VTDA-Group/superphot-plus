@@ -7,6 +7,7 @@ import numpy as np
 import ray
 from joblib import Parallel, delayed
 from ray import tune
+from ray.air import session
 from ray.tune import CLIReporter
 from ray.tune.search.optuna import OptunaSearch
 from sklearn.model_selection import train_test_split
@@ -32,14 +33,15 @@ from superphot_plus.format_data_ztf import (
 from superphot_plus.model.classifier import SuperphotClassifier
 from superphot_plus.model.config import ModelConfig
 from superphot_plus.model.data import TestData, TrainData, ZtfData
+from superphot_plus.plotting.classifier_results import plot_model_metrics
 from superphot_plus.plotting.confusion_matrices import plot_matrices
 from superphot_plus.supernova_class import SupernovaClass as SnClass
 from superphot_plus.utils import (
     adjust_log_dists,
     create_dataset,
     extract_wrong_classifications,
+    get_session_metrics,
     log_metrics_to_tensorboard,
-    report_session_metrics,
     write_metrics_to_file,
 )
 
@@ -213,7 +215,19 @@ class CrossValidationTrainer:
         resources = {"cpu": num_cpu, "gpu": num_gpu}
 
         # Define the parameter search configuration.
-        config = dataclasses.asdict(ModelConfig.get_hp_sample())
+        def get_hp_sample():
+            """Generates random set of hyperparameters for tuning."""
+            return ModelConfig(
+                neurons_per_layer=tune.choice([128, 256, 512]),
+                num_hidden_layers=tune.choice([3, 4, 5]),
+                goal_per_class=tune.choice([100, 500, 1000]),
+                num_folds=tune.choice(list(range(5, 10))),
+                num_epochs=tune.choice([250, 500, 750]),
+                batch_size=tune.choice([32, 64, 128]),
+                learning_rate=tune.loguniform(1e-4, 1e-1),
+            )
+
+        config = dataclasses.asdict(get_hp_sample())
 
         # Reporter to show on command line/output window.
         reporter = CLIReporter(metric_columns=["avg_val_loss", "avg_val_acc"])
@@ -287,7 +301,7 @@ class CrossValidationTrainer:
             train_dataset = create_dataset(train_features, train_classes)
             val_dataset = create_dataset(val_features, val_classes)
 
-            model = SuperphotClassifier(
+            model = SuperphotClassifier.create(
                 config=ModelConfig(
                     input_dim=train_features.shape[1],
                     output_dim=len(self.allowed_types),
@@ -303,19 +317,15 @@ class CrossValidationTrainer:
             # Train and validate multi-layer perceptron
             return model.train_and_validate(
                 train_data=TrainData(train_dataset, val_dataset),
-                run_id=f"{trial_id}-fold-{fold_id}",
                 num_epochs=config.num_epochs,
-                metrics_dir=self.metrics_dir,
-                models_dir=self.models_dir,
-                plot_metrics=False,
-                save_model=False,
             )
 
         # Process each fold in parallel.
         fold_metrics = Parallel(n_jobs=-1)(delayed(run_single_fold)(i, fold) for i, fold in enumerate(kfold))
 
         # Report mean metrics for the current hyperparameter set.
-        report_session_metrics(metrics=fold_metrics)
+        avg_val_loss, avg_val_acc = get_session_metrics(metrics=fold_metrics)
+        session.report({"avg_val_loss": avg_val_loss, "avg_val_acc": avg_val_acc})
 
         # Log average metrics per epoch to plot on Tensorboard.
         log_metrics_to_tensorboard(metrics=fold_metrics, config=config, trial_id=trial_id)
@@ -335,6 +345,8 @@ class CrossValidationTrainer:
         tuple
             The trained model and its configuration.
         """
+        run_id = "final"
+
         tally_each_class(train_data.labels)  # original tallies
 
         # Split data into training and validation sets
@@ -360,21 +372,26 @@ class CrossValidationTrainer:
             norm_means=mean.tolist(),
             norm_stddevs=std.tolist(),
         )
-        model = SuperphotClassifier(config)
+        model = SuperphotClassifier.create(config)
 
         # Train and validate multi-layer perceptron
         metrics = model.train_and_validate(
-            train_data=TrainData(train_dataset, val_dataset),
-            run_id="final",
+            train_data=TrainData(train_dataset, val_dataset), num_epochs=config.num_epochs
+        )
+
+        # Save model checkpoint
+        model.save(self.models_dir)
+
+        # Plot training and validation metrics
+        plot_model_metrics(
+            metrics=metrics,
             num_epochs=config.num_epochs,
+            plot_name=run_id,
             metrics_dir=self.metrics_dir,
-            models_dir=self.models_dir,
-            plot_metrics=True,
-            save_model=True,
         )
 
         # Log average metrics per epoch to plot on Tensorboard.
-        log_metrics_to_tensorboard(metrics=[metrics], config=config, trial_id="final")
+        log_metrics_to_tensorboard(metrics=[metrics], config=config, trial_id=run_id)
 
         return model, config
 

@@ -4,8 +4,8 @@ cross validation to estimate model performance.
 """
 from argparse import ArgumentParser, BooleanOptionalAction
 
-from superphot_plus.trainer import CrossValidationTrainer
 from superphot_plus.file_paths import INPUT_CSVS, PROBS_FILE
+from superphot_plus.trainer import CrossValidationTrainer
 
 if __name__ == "__main__":
     parser = ArgumentParser(
