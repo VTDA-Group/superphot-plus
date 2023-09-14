@@ -54,7 +54,8 @@ if __name__ == "__main__":
         num_cpu=args.num_cpu,
         num_gpu=args.num_gpu,
     )
-    best_config = tuner.run(
+
+    tuner.run(
         input_csvs=args.input_csvs.split(","),
         num_hp_samples=int(args.num_hp_samples),
     )
