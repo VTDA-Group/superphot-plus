@@ -518,7 +518,7 @@ class SuperphotClassifier(nn.Module):
         ----------
         filename : str
             The path to the pre-trained model.
-        config_filename : ModelConfig
+        config_filename : str
             The file that includes the model training configuration.
 
         Returns
