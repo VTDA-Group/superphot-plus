@@ -57,7 +57,7 @@ plotting = [
     "corner",
     "matplotlib",
 ]
-training = [
+tuning = [
     "ray[tune]", # Hyperparameter tuning library
     "optuna", # Optimization search algorithm
 ]

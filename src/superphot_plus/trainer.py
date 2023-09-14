@@ -30,13 +30,13 @@ class SuperphotTrainer(TrainerBase):
 
     Parameters
     ----------
+    config_name : str
+        The name of the pre-trained model configuration to load. This file should
+        be located under the specified models directory. Defaults to None.
     sampler : str
         The type of sampler used for the lightcurve fits. Defaults to "dynesty".
     include_redshift : bool
         If True, includes redshift data for training.
-    config_name : str
-        The name of the pre-trained model configuration to load. This file should
-        be located under the specified models directory. Defaults to None.
     probs_file : str
         The file where test probabilities are written. Defaults to PROBS_FILE.
     """
@@ -99,42 +99,15 @@ class SuperphotTrainer(TrainerBase):
             self.train(train_data)
 
         # Evaluate model on test dataset
-        true_classes, pred_classes, probs_above_07 = self.evaluate(test_data)
-
-        # Log evaluation metrics
-        write_metrics_to_file(
-            config=self.config,
-            true_classes=true_classes,
-            pred_classes=pred_classes,
-            prob_above_07=probs_above_07,
-            log_file=self.classify_log_file,
-        )
-        plot_matrices(
-            config=self.config,
-            true_classes=true_classes,
-            pred_classes=pred_classes,
-            prob_above_07=probs_above_07,
-            cm_folder=self.cm_folder,
-        )
-        if extract_wc:
-            extract_wrong_classifications(
-                true_classes=true_classes,
-                pred_classes=pred_classes,
-                ztf_test_names=test_data.names,
-            )
+        self.evaluate(test_data, extract_wc)
 
     def train(self, train_data: ZtfData):
-        """Trains a model with a specific set of hyperparameters.
+        """Trains the model with a specific set of hyperparameters.
 
         Parameters
         ----------
         train_data : ZtfData
             Contains the ZTF object names, classes and redshifts for training.
-
-        Returns
-        -------
-        tuple
-            The trained model and its configuration.
         """
         run_id = "final"
 
@@ -185,14 +158,17 @@ class SuperphotTrainer(TrainerBase):
         # Log average metrics per epoch to plot on Tensorboard.
         log_metrics_to_tensorboard(metrics=[metrics], config=self.config, trial_id=run_id)
 
-    def evaluate(self, test_data: ZtfData):
+    def evaluate(self, test_data: ZtfData, extract_wc=False):
         """Evaluates a pretrained model on the test holdout set.
 
         Parameters
         ----------
         test_data : ZtfData
             Contains the ZTF object names, classes and redshifts for testing.
-
+        extract_wc : bool
+            If true, assumes all sample fit plots are saved in
+            FIT_PLOTS_FOLDER. Copies plots of wrongly classified samples to
+            separate folder for manual followup. Defaults to False.
         Returns
         -------
         tuple
@@ -222,4 +198,24 @@ class SuperphotTrainer(TrainerBase):
         true_classes = SnClass.get_labels_from_classes(true_classes)
         pred_classes = SnClass.get_labels_from_classes(pred_classes)
 
-        return true_classes, pred_classes, pred_probs_above_07
+        # Log evaluation metrics
+        write_metrics_to_file(
+            config=self.config,
+            true_classes=true_classes,
+            pred_classes=pred_classes,
+            prob_above_07=pred_probs_above_07,
+            log_file=self.classify_log_file,
+        )
+        plot_matrices(
+            config=self.config,
+            true_classes=true_classes,
+            pred_classes=pred_classes,
+            prob_above_07=pred_probs_above_07,
+            cm_folder=self.cm_folder,
+        )
+        if extract_wc:
+            extract_wrong_classifications(
+                true_classes=true_classes,
+                pred_classes=pred_classes,
+                ztf_test_names=test_data.names,
+            )

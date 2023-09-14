@@ -70,7 +70,18 @@ class TrainerBase:
                 os.remove(file)
 
     def split_train_test(self, input_csvs=None):
-        """Generates training and testing data."""
+        """Reads data and splits it into training and testing sets.
+
+        Parameters
+        ----------
+        input_csvs : list of str
+            List of input CSV file paths.
+
+        Returns
+        -------
+        tuple
+            The train data and the test data.
+        """
         if input_csvs is None:
             input_csvs = INPUT_CSVS
 

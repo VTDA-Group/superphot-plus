@@ -19,7 +19,7 @@ echo "Installing package and runtime dependencies in local environment"
 pip install -e . > /dev/null
 
 echo "Installing developer dependencies in local environment"
-pip install -e .'[dev,data-generation,sampling,plotting,training,benchmarking]' > /dev/null
+pip install -e .'[dev,data-generation,sampling,plotting,tuning,benchmarking]' > /dev/null
 
 echo "Installing pre-commit"
 pre-commit install > /dev/null
