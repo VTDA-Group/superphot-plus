@@ -51,6 +51,7 @@ data-generation=[
 ]
 samplers = [
     "dynesty",
+    "flowMC",
     "numpyro",
 ]
 plotting = [
