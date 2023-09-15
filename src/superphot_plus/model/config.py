@@ -4,7 +4,6 @@ from typing import List, Optional
 
 import torch
 import yaml
-from ray import tune
 from typing_extensions import Self
 
 
@@ -58,16 +57,3 @@ class ModelConfig:
         with open(file, "r", encoding="utf-8") as file_handle:
             metadata = yaml.safe_load(file_handle)
             return cls(**metadata)
-
-    @classmethod
-    def get_hp_sample(cls) -> Self:
-        """Generates random set of hyperparameters for tuning."""
-        return ModelConfig(
-            neurons_per_layer=tune.choice([128, 256, 512]),
-            num_hidden_layers=tune.choice([3, 4, 5]),
-            goal_per_class=tune.choice([100, 500, 1000]),
-            num_folds=tune.choice(list(range(5, 10))),
-            num_epochs=tune.choice([250, 500, 750]),
-            batch_size=tune.choice([32, 64, 128]),
-            learning_rate=tune.loguniform(1e-4, 1e-1),
-        )

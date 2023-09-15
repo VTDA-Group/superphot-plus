@@ -7,7 +7,6 @@ import torch
 from astropy.coordinates import SkyCoord
 from dustmaps.config import config as dustmaps_config
 from dustmaps.sfd import SFDQuery
-from ray.air import session
 from torch.utils.data import TensorDataset
 from torch.utils.tensorboard import SummaryWriter
 
@@ -420,7 +419,7 @@ def calculate_neg_chi_squareds(cubes, t, f, ferr, b, ordered_bands=None, ref_ban
     """
     if ordered_bands is None:
         ordered_bands = ["r", "g"]
-        
+
     model_f = np.array(
         [flux_model(cube, t, b, ordered_bands, ref_band) for cube in cubes]
     )  # in future, maybe vectorize flux_model
@@ -638,8 +637,8 @@ def extract_wrong_classifications(true_classes, pred_classes, ztf_test_names):
         )
 
 
-def report_session_metrics(metrics):
-    """Reports the validation loss and accuracy for the hyperparameter set.
+def get_session_metrics(metrics):
+    """Calculates the validation loss and accuracy for the hyperparameter set.
     The best model is considered the one with the lowest validation loss.
 
     Parameters
@@ -662,12 +661,7 @@ def report_session_metrics(metrics):
     # Get the accuracies for the best validation losses
     val_accs = [val_accs[min_indices[i]] for i, val_accs in enumerate(val_accs)]
 
-    avg_val_loss = np.mean(min_val_losses)
-    avg_val_acc = np.mean(val_accs)
-
-    session.report({"avg_val_loss": avg_val_loss, "avg_val_acc": avg_val_acc})
-
-    return avg_val_loss, avg_val_acc
+    return np.mean(min_val_losses), np.mean(val_accs)
 
 
 def log_metrics_to_tensorboard(metrics, config, trial_id, base_dir="runs"):

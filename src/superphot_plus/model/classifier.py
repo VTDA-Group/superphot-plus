@@ -11,12 +11,11 @@ from torch import nn, optim
 from torch.utils.data import DataLoader, TensorDataset
 
 from superphot_plus.constants import EPOCHS, HIDDEN_DROPOUT_FRAC, INPUT_DROPOUT_FRAC
-from superphot_plus.file_paths import METRICS_DIR, MODELS_DIR, PROBS_FILE
+from superphot_plus.file_paths import PROBS_FILE
 from superphot_plus.file_utils import get_posterior_samples
 from superphot_plus.format_data_ztf import normalize_features
 from superphot_plus.model.config import ModelConfig
 from superphot_plus.model.metrics import ModelMetrics
-from superphot_plus.plotting.classifier_results import plot_model_metrics
 from superphot_plus.utils import (
     adjust_log_dists,
     calculate_accuracy,
@@ -61,6 +60,9 @@ class SuperphotClassifier(nn.Module):
         self.optimizer = optim.Adam(self.parameters(), lr=config.learning_rate)
         self.criterion = nn.CrossEntropyLoss()
 
+        # Model state dictionary
+        self.best_model = None
+
     def forward(self, x):
         """Forward pass of the Multi-Layer Perceptron model.
 
@@ -95,12 +97,7 @@ class SuperphotClassifier(nn.Module):
     def train_and_validate(
         self,
         train_data,
-        run_id="run-0",
         num_epochs=EPOCHS,
-        plot_metrics=False,
-        metrics_dir=METRICS_DIR,
-        models_dir=MODELS_DIR,
-        save_model=False,
         rng_seed=None,
     ):
         """
@@ -113,18 +110,8 @@ class SuperphotClassifier(nn.Module):
         ----------
         train_data : TrainData
             The training and validation datasets.
-        run_id : str, optional
-            A call identifier (useful for parallel calls on cross-validation).
         num_epochs : int, optional
             The number of epochs. Defaults to EPOCHS.
-        plot_metrics : bool, optional
-            Whether to plot metrics. Defaults to False.
-        metrics_dir : str, optional
-            Where to store metrics.
-        models_dir : str, optional
-            Where to store models.
-        save_model : boolean, optional
-            If True, saves the model and respective training configuration to disk.
         rng_seed : int, optional
             Random state that is seeded. if none, use machine entropy.
 
@@ -148,8 +135,8 @@ class SuperphotClassifier(nn.Module):
 
         metrics = ModelMetrics()
 
-        # Structure to store best model in memory
-        best_model = {"state_dict": None, "val_loss": float("inf")}
+        best_model = None
+        best_val_loss = float("inf")
 
         for epoch in np.arange(0, num_epochs):
             start_time = time.monotonic()
@@ -157,9 +144,9 @@ class SuperphotClassifier(nn.Module):
             train_loss, train_acc = self.train_epoch(train_iterator)
             val_loss, val_acc = self.evaluate_epoch(valid_iterator)
 
-            if val_loss < best_model["val_loss"]:
-                best_model["state_dict"] = self.state_dict()
-                best_model["val_loss"] = val_loss
+            if val_loss < best_val_loss:
+                best_val_loss = val_loss
+                best_model = self.state_dict()
 
             end_time = time.monotonic()
 
@@ -173,26 +160,12 @@ class SuperphotClassifier(nn.Module):
             if epoch % 5 == 0:
                 metrics.print_last()
 
-        # Plot training and validation metrics
-        if plot_metrics:
-            plot_model_metrics(
-                metrics=metrics.get_values(),
-                num_epochs=num_epochs,
-                plot_name=run_id,
-                metrics_dir=metrics_dir,
-            )
+        # Save best model state
+        self.best_model = best_model
+        self.load_state_dict(best_model)
 
-        # Load best model state
-        self.load_state_dict(best_model["state_dict"])
-
-        # Save best validation loss
-        self.config.set_best_val_loss(best_model["val_loss"])
-
-        if save_model:
-            # Save model state and configuration to disk
-            config_file_prefix = os.path.join(models_dir, "best-model")
-            self.config.write_to_file(f"{config_file_prefix}.yaml")
-            torch.save(best_model["state_dict"], f"{config_file_prefix}.pt")
+        # Store best validation loss
+        self.config.set_best_val_loss(best_val_loss)
 
         return metrics.get_values()
 
@@ -501,6 +474,22 @@ class SuperphotClassifier(nn.Module):
                 probs_avg = self.classify_single_light_curve(test_name, fit_dir)
                 save_test_probabilities(test_name, probs_avg, label, output_dir, save_file)
 
+    def save(self, models_dir):
+        """Stores the trained model and respective configuration.
+
+        Parameters
+        ----------
+        models_dir : str, optional
+            Where to store pretrained models and their configurations.
+        """
+        file_prefix = os.path.join(models_dir, "best-model")
+
+        # Save configuration to disk
+        self.config.write_to_file(f"{file_prefix}.yaml")
+
+        # Save Pytorch model to disk
+        torch.save(self.best_model, f"{file_prefix}.pt")
+
     @classmethod
     def create(cls, config):
         """Creates an MLP instance, optimizer and respective criterion.
@@ -529,7 +518,7 @@ class SuperphotClassifier(nn.Module):
         ----------
         filename : str
             The path to the pre-trained model.
-        config_filename : ModelConfig
+        config_filename : str
             The file that includes the model training configuration.
 
         Returns

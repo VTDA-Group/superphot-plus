@@ -15,7 +15,7 @@
         "HEAD"
     ],
     "install_command": [
-        "python -m pip install .[dev,data-generation,samplers,plotting]"
+        "python -m pip install .[dev,sampling,benchmarking]"
     ],
     "build_command": [
         "python -m build --wheel -o {build_cache_dir} {build_dir}"
