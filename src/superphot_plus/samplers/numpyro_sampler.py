@@ -268,6 +268,63 @@ def create_jax_guide(priors, t=None, obsflux=None, uncertainties=None, max_flux=
         numpyro_sample("extra_sigma_" + uniq_b, b_priors.extra_sigma, 1e-3)
 
 
+def _svi_helper_no_recompile(
+    lc_single,
+    priors,
+    svi,
+    svi_state,
+    lax_jit,
+    num_iter,
+    seed,
+):
+    """Helper function to run SVI on a single light curve with an already
+    compiled SVI sampler object."""
+    max_flux, _ = lc_single.find_max_flux(band=priors.reference_band)
+
+    if svi_state is None:
+        svi_state = svi.init(
+            random.PRNGKey(1),
+            obsflux=lc_single.fluxes,
+            t=lc_single.times,
+            uncertainties=lc_single.flux_errors,
+            max_flux=lc_single.find_max_flux(band=priors.reference_band)[0],
+        )
+    
+    svi_state = lax_jit(
+        svi,
+        svi_state,
+        num_iter,
+        obsflux=lc_single.fluxes,
+        t=lc_single.times,
+        uncertainties=lc_single.flux_errors,
+        max_flux=max_flux,
+    )
+
+    # params = svi_result.params
+    params = svi.get_params(svi_state)
+    posterior_samples = {}
+    for param in params:
+        if param[-2:] == "mu":
+            rng = np.random.RandomState(seed[0])
+            posterior_samples[param[:-3]] = rng.normal(
+                loc=params[param], scale=params[param[:-2] + "sigma"], size=100
+            )
+
+    posterior_cube = get_numpyro_cube(posterior_samples, max_flux, priors.aux_bands)[0]
+    padded_idxs = lc_single.flux_errors == 1e10
+    red_neg_chisq = calculate_neg_chi_squareds(
+        posterior_cube,
+        lc_single.times[~padded_idxs],
+        lc_single.fluxes[~padded_idxs],
+        lc_single.flux_errors[~padded_idxs],
+        lc_single.bands[~padded_idxs],
+        ordered_bands=priors.ordered_bands,
+        ref_band=priors.reference_band,
+    )
+    
+    return posterior_cube, red_neg_chisq
+        
+        
 def run_mcmc(lc, rng_seed, sampler="NUTS", priors=Survey.ZTF().priors):
     """Runs MCMC using numpyro on the lightcurve to get set
     of equally weighted posteriors (sets of fit parameters).
@@ -390,46 +447,16 @@ def run_mcmc(lc, rng_seed, sampler="NUTS", priors=Survey.ZTF().priors):
                     break
 
             if bad_prev_fit:
-                svi_state = svi.init(
-                    random.PRNGKey(1),
-                    obsflux=lc_single.fluxes,
-                    t=lc_single.times,
-                    uncertainties=lc_single.flux_errors,
-                    max_flux=lc_single.find_max_flux(band=priors.reference_band)[0],
-                )
-
-            max_flux, _ = lc_single.find_max_flux(band=priors.reference_band)
-
-            svi_state = lax_jit(
+                svi_state = None #reinitialize
+            
+            posterior_cube, red_neg_chisq = _svi_helper_no_recompile(
+                lc_single,
+                priors,
                 svi,
                 svi_state,
+                lax_jit,
                 num_iter,
-                obsflux=lc_single.fluxes,
-                t=lc_single.times,
-                uncertainties=lc_single.flux_errors,
-                max_flux=max_flux,
-            )
-
-            # params = svi_result.params
-            params = svi.get_params(svi_state)
-            posterior_samples = {}
-            for param in params:
-                if param[-2:] == "mu":
-                    rng = np.random.RandomState(seed2[0])
-                    posterior_samples[param[:-3]] = rng.normal(
-                        loc=params[param], scale=params[param[:-2] + "sigma"], size=100
-                    )
-
-            posterior_cube = get_numpyro_cube(posterior_samples, max_flux, priors.aux_bands)[0]
-            padded_idxs = lc_single.flux_errors == 1e10
-            red_neg_chisq = calculate_neg_chi_squareds(
-                posterior_cube,
-                lc_single.times[~padded_idxs],
-                lc_single.fluxes[~padded_idxs],
-                lc_single.flux_errors[~padded_idxs],
-                lc_single.bands[~padded_idxs],
-                ordered_bands=priors.ordered_bands,
-                ref_band=priors.reference_band,
+                seed2,
             )
 
             bad_prev_fit = np.mean(red_neg_chisq) < -6

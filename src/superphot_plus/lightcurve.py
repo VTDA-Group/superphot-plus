@@ -324,7 +324,7 @@ class Lightcurve:
             raise FileNotFoundError(f"ERROR: File does not exist {filename}")
 
         # Load the data as a numpy array.
-        npy_array = np.load(filename)
+        npy_array = np.load(filename, allow_pickle=True)
         arr = npy_array["lcs"]
         curve_name = npy_array["name"]
         sn_class = npy_array["sn_class"]
