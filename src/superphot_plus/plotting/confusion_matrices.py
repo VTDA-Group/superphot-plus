@@ -154,8 +154,8 @@ def plot_expected_agreement_matrix(probs_csv, probs_alerce_csv, save_dir, cmap="
 
     exp_acc /= len(alerce_preds)
 
-    title = f"Expected Agreement Matrix, Spec. ($A' = {exp_acc:.2f}$)"
-    fig, axis = plt.subplots()
+    title = f"Expected Agreement Matrix,\nSpec. ($A' = {exp_acc:.2f}$)"
+    fig, axis = plt.subplots(figsize=(6,6))
     _ = axis.imshow(cm_expected, interpolation="nearest", vmin=0.0, vmax=1.0, cmap=cmap)
 
     axis.set(
@@ -189,6 +189,7 @@ def plot_expected_agreement_matrix(probs_csv, probs_alerce_csv, save_dir, cmap="
     plt.ylim(len(classes) - 0.5, -0.5)
     plt.savefig(
         os.path.join(save_dir, "expected_agreement.pdf"),
+        bbox_inches='tight',
     )
     plt.close()
 
@@ -225,9 +226,9 @@ def plot_agreement_matrix_from_arrs(our_labels, alerce_labels, save_dir, spec=Tr
 
     exp_acc = calc_accuracy(alerce_labels, our_labels)
 
-    title = rf"True Agreement Matrix, {suffix_title} ($A' = %.2f$)" % exp_acc
+    title = "True Agreement Matrix,\n" + fr"{suffix_title} ($A' = %.2f$)" % exp_acc
 
-    fig, ax = plt.subplots()
+    fig, ax = plt.subplots(figsize=(6,6))
     _ = ax.imshow(cm, interpolation="nearest", vmin=0.0, vmax=1.0, cmap=cmap)
 
     ax.set(
@@ -265,6 +266,7 @@ def plot_agreement_matrix_from_arrs(our_labels, alerce_labels, save_dir, spec=Tr
 
     plt.savefig(
         os.path.join(save_dir, f"true_agreement_{suffix}.pdf"),
+        bbox_inches='tight'
     )
     plt.close()
 
@@ -294,15 +296,15 @@ def plot_confusion_matrix(y_true, y_pred, filename, purity=False, cmap="Purples"
 
     # plt.rcParams["figure.figsize"] = (16, 16)
     if purity:
-        title = f"Purity ($N = {len(y_pred)}, A = {acc:.2f}, F_1 = {f1_avg:.2f}$)"
+        title = f"Purity\n($N = {len(y_pred)}, A = {acc:.2f}, F_1 = {f1_avg:.2f}$)"
         cm_vals = confusion_matrix(y_true, y_pred, normalize="pred")
     else:
-        title = f"Completeness ($N = {len(y_pred)}, A = {acc:.2f}, F_1 = {f1_avg:.2f}$)"
+        title = f"Completeness\n($N = {len(y_pred)}, A = {acc:.2f}, F_1 = {f1_avg:.2f}$)"
         cm_vals = confusion_matrix(y_true, y_pred, normalize="true")
 
     classes = unique_labels(y_true, y_pred)
 
-    fig, ax = plt.subplots()
+    fig, ax = plt.subplots(figsize=(6,6))
     _ = ax.imshow(cm_vals, interpolation="nearest", vmin=0.0, vmax=1.0, cmap=cmap)
 
     ax.set(
@@ -338,7 +340,7 @@ def plot_confusion_matrix(y_true, y_pred, filename, purity=False, cmap="Purples"
     fig.tight_layout()
     plt.xlim(-0.5, len(classes) - 0.5)
     plt.ylim(len(classes) - 0.5, -0.5)
-    plt.savefig(filename)
+    plt.savefig(filename, bbox_inches='tight')
     plt.close()
 
 

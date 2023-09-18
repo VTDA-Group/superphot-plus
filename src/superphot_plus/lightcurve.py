@@ -277,7 +277,7 @@ class Lightcurve:
             raise FileExistsError(f"ERROR: File already exists {filename}")
 
         lcs = np.array([self.times, self.fluxes, self.flux_errors, self.bands])
-        np.savez_compressed(filename, lcs)
+        np.savez_compressed(filename, lcs=lcs, name=self.name, sn_class=self.sn_class)
 
     def debug_string(self):
         """Create and return a human readable debugging string.
@@ -322,11 +322,12 @@ class Lightcurve:
         """
         if not os.path.exists(filename):
             raise FileNotFoundError(f"ERROR: File does not exist {filename}")
-        curve_name = filename.split("/")[-1][:-4]
 
         # Load the data as a numpy array.
         npy_array = np.load(filename)
-        arr = npy_array["arr_0"]
+        arr = npy_array["lcs"]
+        curve_name = npy_array["name"]
+        sn_class = npy_array["sn_class"]
 
         # Keep only the rows without NaNs in the error column.
         good_rows = arr[2] != "nan"
@@ -334,7 +335,7 @@ class Lightcurve:
         fdata = arr[1][good_rows].astype(float)
         edata = arr[2][good_rows].astype(float)
         bdata = arr[3][good_rows]
-        lc = Lightcurve(tdata, fdata, edata, bdata, name=curve_name)
+        lc = Lightcurve(tdata, fdata, edata, bdata, name=curve_name, sn_class=sn_class)
 
         # Enforce the time ceiling if there is one.
         if t0_lim is not None:
