@@ -47,7 +47,7 @@ class Survey:
             ordered_wvs.append(self.wavelengths[band])
         return np.array(ordered_wvs)
 
-    def get_extinctions(self, ra, dec):
+    def get_extinctions(self, ra, dec, mwebv=None):
         """Get band extinctions at a specific coordinate.
 
         Parameters
@@ -56,6 +56,8 @@ class Survey:
             The right ascension of the object of interest, in degrees.
         dec : float
             The declination of the object of interest, in degrees.
+        mwebv : float
+            Milky Way extinction value. If given, use this directly.
 
         Returns
         ----------
@@ -64,8 +66,12 @@ class Survey:
         """
         ordered_b = self.priors.ordered_bands
         ordered_wvs = self.get_ordered_wavelengths()
-
-        ext_list = get_band_extinctions(ra, dec, ordered_wvs)
+        
+        if mwebv is not None:
+            ext_list = get_band_extinctions_from_mwebv(mwebv, ordered_wvs)
+        else:
+            ext_list = get_band_extinctions(ra, dec, ordered_wvs)
+            
         ext_dict = {ordered_b[i]: ext_list[i] for i in range(len(ext_list))}
         return ext_dict
 

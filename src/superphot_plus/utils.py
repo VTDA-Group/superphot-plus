@@ -19,6 +19,17 @@ from superphot_plus.file_paths import (
 )
 from superphot_plus.sfd import dust_filepath
 
+def get_band_extinctions_from_mwebv(mwebv, wvs):
+    """Get extinction list from MWEBV value and wavelengths.
+    """
+    Av_sfd = 2.742 * mwebv
+    band_wvs = 1.0 / (0.0001 * np.asarray(wvs))  # in inverse microns
+
+    # Now figure out how much the magnitude is affected by this dust
+    ext_list = extinction.fm07(band_wvs, Av_sfd, unit="invum")  # in magnitudes
+
+    return ext_list
+
 
 def get_band_extinctions(ra, dec, wvs):
     """Get g- and r-band extinctions in magnitudes for a single
@@ -45,14 +56,9 @@ def get_band_extinctions(ra, dec, wvs):
 
     # First look up the amount of mw dust at this location
     coords = SkyCoord(ra, dec, frame="icrs", unit="deg")
-    Av_sfd = 2.742 * sfd(coords)  # from https://dustmaps.readthedocs.io/en/latest/examples.html
-
-    band_wvs = 1.0 / (0.0001 * np.asarray(wvs))  # in inverse microns
-
-    # Now figure out how much the magnitude is affected by this dust
-    ext_list = extinction.fm07(band_wvs, Av_sfd, unit="invum")  # in magnitudes
-
-    return ext_list
+      # from https://dustmaps.readthedocs.io/en/latest/examples.html
+    mwebv = sfd(coords)
+    return get_band_extinctions_from_mwebv(mwebv, wvs)
 
 
 def calc_accuracy(pred_classes, test_labels):
