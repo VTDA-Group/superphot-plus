@@ -7,15 +7,16 @@ import time
 import numpy as np
 import torch
 import torch.nn.functional as F
-from torch import nn, optim
+from torch import nn
 from torch.utils.data import DataLoader, TensorDataset
 
-from superphot_plus.constants import EPOCHS, HIDDEN_DROPOUT_FRAC, INPUT_DROPOUT_FRAC
+from superphot_plus.constants import EPOCHS
 from superphot_plus.file_paths import PROBS_FILE
 from superphot_plus.file_utils import get_posterior_samples
 from superphot_plus.format_data_ztf import normalize_features
 from superphot_plus.model.config import ModelConfig
 from superphot_plus.model.metrics import ModelMetrics
+from superphot_plus.model.mlp import SuperphotMlp
 from superphot_plus.utils import (
     adjust_log_dists,
     calculate_accuracy,
@@ -25,74 +26,11 @@ from superphot_plus.utils import (
 )
 
 
-class SuperphotClassifier(nn.Module):
-    """The Multi-Layer Perceptron.
-
-    Parameters
-    ----------
-    config : ModelConfig
-        The MLP architecture configuration.
-    """
+class SuperphotClassifier(SuperphotMlp):
+    """Predicts supernova classes."""
 
     def __init__(self, config: ModelConfig):
-        super().__init__()
-
-        # Initialize MLP architecture
-        self.config = config
-
-        n_neurons = config.neurons_per_layer
-        self.input_fc = nn.Linear(config.input_dim, n_neurons)
-
-        assert config.num_hidden_layers >= 1
-
-        self.hidden_layers = nn.ModuleList()
-        self.dropouts = nn.ModuleList()
-        self.dropouts.append(nn.Dropout(INPUT_DROPOUT_FRAC))
-
-        for _ in range(config.num_hidden_layers - 1):
-            self.hidden_layers.append(nn.Linear(n_neurons, n_neurons))
-        for _ in range(config.num_hidden_layers):
-            self.dropouts.append(nn.Dropout(HIDDEN_DROPOUT_FRAC))
-
-        self.output_fc = nn.Linear(n_neurons, config.output_dim)
-
-        # Optimizer and criterion
-        self.optimizer = optim.Adam(self.parameters(), lr=config.learning_rate)
-        self.criterion = nn.CrossEntropyLoss()
-
-        # Model state dictionary
-        self.best_model = None
-
-    def forward(self, x):
-        """Forward pass of the Multi-Layer Perceptron model.
-
-        Parameters
-        ----------
-        x : torch.Tensor
-            The input tensor.
-
-        Returns
-        -------
-        tuple
-            A tuple containing the predicted output tensor and the
-            hidden tensor.
-        """
-        batch_size = x.shape[0]
-
-        x = x.view(batch_size, -1)
-
-        h_1 = self.dropouts[0](x)
-        h_1 = F.relu(self.input_fc(h_1))
-
-        h_hidden = h_1
-        for i, layer in enumerate(self.hidden_layers):
-            h_hidden = self.dropouts[i + 1](h_hidden)
-            h_hidden = F.relu(layer(h_hidden))
-
-        h_hidden = self.dropouts[-1](h_hidden)
-        y_pred = self.output_fc(h_hidden)
-
-        return y_pred, h_hidden
+        super().__init__(config, nn.CrossEntropyLoss())
 
     def train_and_validate(
         self,
@@ -130,8 +68,15 @@ class SuperphotClassifier(nn.Module):
 
         train_dataset, valid_dataset = train_data
 
-        train_iterator = DataLoader(dataset=train_dataset, shuffle=True, batch_size=self.config.batch_size)
-        valid_iterator = DataLoader(dataset=valid_dataset, batch_size=self.config.batch_size)
+        train_iterator = DataLoader(
+            dataset=train_dataset,
+            shuffle=True,
+            batch_size=self.config.batch_size,
+        )
+        valid_iterator = DataLoader(
+            dataset=valid_dataset,
+            batch_size=self.config.batch_size,
+        )
 
         metrics = ModelMetrics()
 
@@ -231,8 +176,8 @@ class SuperphotClassifier(nn.Module):
                 y = y.to(self.config.device)
 
                 y_pred, _ = self(x)
-                loss = self.criterion(y_pred, y)
 
+                loss = self.criterion(y_pred, y)
                 acc = calculate_accuracy(y_pred, y)
 
                 epoch_loss += loss.item()
@@ -473,22 +418,6 @@ class SuperphotClassifier(nn.Module):
 
                 probs_avg = self.classify_single_light_curve(test_name, fit_dir)
                 save_test_probabilities(test_name, probs_avg, label, output_dir, save_file)
-
-    def save(self, models_dir):
-        """Stores the trained model and respective configuration.
-
-        Parameters
-        ----------
-        models_dir : str, optional
-            Where to store pretrained models and their configurations.
-        """
-        file_prefix = os.path.join(models_dir, "best-model")
-
-        # Save configuration to disk
-        self.config.write_to_file(f"{file_prefix}.yaml")
-
-        # Save Pytorch model to disk
-        torch.save(self.best_model, f"{file_prefix}.pt")
 
     @classmethod
     def create(cls, config):

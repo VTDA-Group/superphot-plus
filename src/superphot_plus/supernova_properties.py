@@ -29,3 +29,8 @@ class SupernovaProperties:
         with open(file_path, "r", encoding="utf-8") as file_handle:
             metadata = yaml.safe_load(file_handle)
             return cls(**metadata)
+
+    @classmethod
+    def filter_property(cls, properties, name: str):
+        """Filters array of supernova properties by property name."""
+        return [getattr(p, name) for p in properties]
