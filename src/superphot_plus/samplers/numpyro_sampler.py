@@ -348,7 +348,7 @@ def _svi_helper_no_recompile(
         ref_band=priors.reference_band,
     )
     
-    return posterior_cube, red_neg_chisq
+    return posterior_cube, red_neg_chisq, svi_state
         
         
 def run_mcmc(lc, rng_seed, sampler="NUTS", priors=Survey.ZTF().priors, ref_params=None):
@@ -474,7 +474,7 @@ def run_mcmc(lc, rng_seed, sampler="NUTS", priors=Survey.ZTF().priors, ref_param
                 svi_state = None #reinitialize
             
             max_flux, _ = lc_single.find_max_flux(band=priors.reference_band)
-            posterior_cube, red_neg_chisq = _svi_helper_no_recompile(
+            posterior_cube, red_neg_chisq, svi_state = _svi_helper_no_recompile(
                 lc_single,
                 max_flux,
                 priors,
