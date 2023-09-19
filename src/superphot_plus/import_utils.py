@@ -147,28 +147,6 @@ def clip_lightcurve_end(times, fluxes, fluxerrs, bands):
     return np.array(t_clip), np.array(flux_clip), np.array(ferr_clip), np.array(b_clip)
 
 
-def save_datafile(name, times, fluxes, fluxerrs, bands, save_dir):
-    """Saves a reformatted version of data file to the output folder.
-
-    Parameters
-    ----------
-    name : str
-        Name of the data file.
-    times : np.ndarray
-        Time values of the light curve.
-    fluxes : np.ndarray
-        Flux values of the light curve.
-    fluxerrs : np.ndarray
-        Flux error values of the light curve.
-    bands : np.ndarray
-        Band information of the light curve.
-    save_dir : str
-        Path to the output folder.
-    """
-    arr = np.array([times, fluxes, fluxerrs, bands])
-    np.savez_compressed(save_dir + str(name) + ".npz", arr)
-
-
 def add_to_new_csv(name, label, redshift, output_csv):
     """Add row to CSV of included files for training.
 
