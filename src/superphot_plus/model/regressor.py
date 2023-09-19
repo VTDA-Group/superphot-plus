@@ -189,13 +189,18 @@ class SuperphotRegressor(SuperphotMlp):
 
                 y_pred, _ = self(x)
 
-                ground_truths.append(y.cpu())
-                predictions.append(y_pred.cpu())
+                ground_truths.append(y.float())
+                predictions.append(y_pred.float())
 
         ground_truths = torch.cat(ground_truths, dim=0)
         predictions = torch.cat(predictions, dim=0)
 
-        return ground_truths, predictions
+        return np.array(predictions)
+
+    def evaluate(self, test_dataset):
+        """Evaluates the model on the test dataset."""
+        test_iterator = DataLoader(dataset=test_dataset, batch_size=self.config.batch_size)
+        return self.get_predictions(test_iterator)
 
     @classmethod
     def create(cls, config):

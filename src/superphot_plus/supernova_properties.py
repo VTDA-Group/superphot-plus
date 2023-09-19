@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 import dataclasses
 import os
+import numpy as np
 from typing_extensions import Self
 
 import yaml
@@ -10,7 +11,7 @@ import yaml
 class SupernovaProperties:
     """Supernova physical parameters."""
 
-    bfield: int = 0
+    bfield: float = 0
     pspin: float = 0
     mejecta: float = 0
     vejecta: float = 0
@@ -31,6 +32,29 @@ class SupernovaProperties:
             return cls(**metadata)
 
     @classmethod
-    def filter_property(cls, properties, name: str):
-        """Filters array of supernova properties by property name."""
-        return [getattr(p, name) for p in properties]
+    def check_property_exists(cls, param):
+        """Checks if supernova property name exists.
+
+        Parameters
+        ----------
+        param : str
+            The name of the physical property.
+
+        Returns
+        -------
+        bool
+            True if property exists, false otherwise.
+        """
+        return param in [p.name for p in dataclasses.fields(SupernovaProperties)]
+
+    @classmethod
+    def get_property_by_name(cls, properties, name: str):
+        """Returns the supernovae values for a specified property.
+
+        Returns
+        -------
+        np.array
+            The bundle of property values for a set of
+            supernova properties.
+        """
+        return np.array([getattr(p, name) for p in properties])
