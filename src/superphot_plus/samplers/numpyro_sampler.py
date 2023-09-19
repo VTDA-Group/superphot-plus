@@ -32,7 +32,7 @@ class NumpyroSampler(Sampler):
         pass
 
     def run_single_curve(
-        self, lightcurve: Lightcurve, priors: MultibandPriors, rng_seed, sampler="svi", **kwargs
+        self, lightcurve: Lightcurve, priors: MultibandPriors, rng_seed, ref_params=None, sampler="svi", **kwargs
     ) -> PosteriorSamples:
         """Run the sampler on a single light curve.
 
@@ -54,11 +54,21 @@ class NumpyroSampler(Sampler):
             The resulting samples.
         """
         lightcurve.pad_bands(priors.ordered_bands, PAD_SIZE)
-        eq_wt_samples = run_mcmc(lightcurve, rng_seed=rng_seed, sampler=sampler, priors=priors)
+        eq_wt_samples = run_mcmc(
+            lightcurve,
+            rng_seed=rng_seed,
+            sampler=sampler,
+            priors=priors,
+            ref_params=ref_params,
+        )
         if eq_wt_samples is None:
             return None
+        
         return PosteriorSamples(
-            eq_wt_samples[0], name=lightcurve.name, sampling_method=sampler, sn_class=lightcurve.sn_class
+            eq_wt_samples[0],
+            name=lightcurve.name,
+            sampling_method=sampler,
+            sn_class=lightcurve.sn_class,
         )
 
     def run_multi_curve(
@@ -155,7 +165,12 @@ def trunc_norm(fields: PriorFields):
 
 
 def create_jax_model(
-    priors, t=None, obsflux=None, uncertainties=None, max_flux=None
+    priors,
+    t=None,
+    obsflux=None,
+    uncertainties=None,
+    max_flux=None,
+    ref_params=None
 ):  # pylint: disable=too-many-locals
     """Create a JAX model for MCMC.
 
@@ -174,7 +189,16 @@ def create_jax_model(
     """
     ref_priors = priors.bands[priors.reference_band]
 
-    amp, beta, gamma, t_0, tau_rise, tau_fall, extra_sigma = prior_helper(ref_priors, max_flux)
+    if ref_params is not None:
+        (
+            amp, beta, gamma, t_0,
+            tau_rise, tau_fall, extra_sigma
+        ) = ref_params
+    else:
+        (
+            amp, beta, gamma, t_0,
+            tau_rise, tau_fall, extra_sigma
+        ) = prior_helper(ref_priors, max_flux)
 
     es_scaled = max_flux * extra_sigma
     phase = t - t_0
@@ -229,7 +253,7 @@ def create_jax_model(
     _ = numpyro.sample("obs", dist.Normal(flux, sigma_tot), obs=obsflux)
 
 
-def create_jax_guide(priors, t=None, obsflux=None, uncertainties=None, max_flux=None):
+def create_jax_guide(priors, t=None, obsflux=None, uncertainties=None, max_flux=None, ref_params=None):
     """JAX guide function for MCMC.
 
     Parameters
@@ -270,24 +294,25 @@ def create_jax_guide(priors, t=None, obsflux=None, uncertainties=None, max_flux=
 
 def _svi_helper_no_recompile(
     lc_single,
+    max_flux,
     priors,
     svi,
     svi_state,
     lax_jit,
     num_iter,
     seed,
+    ref_params=None,
 ):
     """Helper function to run SVI on a single light curve with an already
     compiled SVI sampler object."""
-    max_flux, _ = lc_single.find_max_flux(band=priors.reference_band)
-
     if svi_state is None:
         svi_state = svi.init(
             random.PRNGKey(1),
             obsflux=lc_single.fluxes,
             t=lc_single.times,
             uncertainties=lc_single.flux_errors,
-            max_flux=lc_single.find_max_flux(band=priors.reference_band)[0],
+            max_flux=max_flux,
+            ref_params=ref_params,
         )
     
     svi_state = lax_jit(
@@ -298,6 +323,7 @@ def _svi_helper_no_recompile(
         t=lc_single.times,
         uncertainties=lc_single.flux_errors,
         max_flux=max_flux,
+        ref_params=ref_params,
     )
 
     # params = svi_result.params
@@ -325,7 +351,7 @@ def _svi_helper_no_recompile(
     return posterior_cube, red_neg_chisq
         
         
-def run_mcmc(lc, rng_seed, sampler="NUTS", priors=Survey.ZTF().priors):
+def run_mcmc(lc, rng_seed, sampler="NUTS", priors=Survey.ZTF().priors, ref_params=None):
     """Runs MCMC using numpyro on the lightcurve to get set
     of equally weighted posteriors (sets of fit parameters).
 
@@ -358,13 +384,9 @@ def run_mcmc(lc, rng_seed, sampler="NUTS", priors=Survey.ZTF().priors):
     rng_key = random.PRNGKey(rng_seed)
     rng_key, seed2 = random.split(rng_key)
         
-    # Require data in all bands.
-    for unique_band in priors.ordered_bands:
-        if lc.obs_count(unique_band) == 0:
-            return None
 
-    def jax_model(t=None, obsflux=None, uncertainties=None, max_flux=None):
-        create_jax_model(priors, t, obsflux, uncertainties, max_flux)
+    def jax_model(t=None, obsflux=None, uncertainties=None, max_flux=None, ref_params=None):
+        create_jax_model(priors, t, obsflux, uncertainties, max_flux, ref_params)
 
     def jax_guide(**kwargs):  # pylint: disable=unused-argument
         create_jax_guide(priors)
@@ -440,23 +462,28 @@ def run_mcmc(lc, rng_seed, sampler="NUTS", priors=Survey.ZTF().priors):
             if i % 100 == 0:
                 print(i)
 
+            """
             # Require data in all bands.
             for unique_band in priors.ordered_bands:
                 if lc_single.obs_count(unique_band) == 0:
                     posterior_cubes.append(None)
                     break
+            """
 
             if bad_prev_fit:
                 svi_state = None #reinitialize
             
+            max_flux, _ = lc_single.find_max_flux(band=priors.reference_band)
             posterior_cube, red_neg_chisq = _svi_helper_no_recompile(
                 lc_single,
+                max_flux,
                 priors,
                 svi,
                 svi_state,
                 lax_jit,
                 num_iter,
                 seed2,
+                ref_params,
             )
 
             bad_prev_fit = np.mean(red_neg_chisq) < -6
