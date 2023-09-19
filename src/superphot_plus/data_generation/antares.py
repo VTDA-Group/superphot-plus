@@ -8,7 +8,7 @@ import numpy as np
 from antares_client.search import get_by_ztf_object_id
 
 from superphot_plus.format_data_ztf import tally_each_class
-from superphot_plus.import_utils import add_to_new_csv, clip_lightcurve_end, save_datafile
+from superphot_plus.import_utils import add_to_new_csv, clip_lightcurve_end
 from superphot_plus.surveys.surveys import Survey
 from superphot_plus.utils import convert_mags_to_flux
 
@@ -98,7 +98,17 @@ def generate_files_from_antares(input_csv, output_folder, output_csv):  # pylint
             if (np.max(f[b == "r"]) - np.min(f[b == "r"])) < 3.0 * np.mean(ferr[b == "r"]):
                 continue
 
-            save_datafile(ztf_name, t, f, ferr, b, output_folder)
+            lc = Lightcurve(
+                name=ztf_name,
+                times=t,
+                fluxes=f,
+                flux_errors=ferr,
+                bands=b,
+            )
+                            
+            lc.save_to_file(
+                os.path.join(output_folder, ztf_name+".npz")
+            )
             add_to_new_csv(ztf_name, label, redshift, output_csv)
 
     tally_each_class(label_dict)
