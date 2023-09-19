@@ -536,14 +536,27 @@ def save_test_probabilities(
         probs_file.write("\n")
 
 
-def save_regression_outputs(names, param, true_values, predictions, save_file=None):
+def save_regression_outputs(names, true_values, predictions, save_file=None):
+    """Saves the regression results to a file, for a specific property.
+
+    Parameters
+    ----------
+    names : np.array
+        The light curve names.
+    true_values : np.array
+        The property ground truths for the test samples.
+    predictions : np.array
+        The model predictions for the test samples.
+    save_file : str
+        File to which we should save the outputs.
+    """
     if save_file is None:
         raise ValueError("Invalid file to save regression outputs")
 
     with open(save_file, "w+", encoding="utf-8") as preds_file:
-        preds_file.write("Name,Param,GroundTruth,Prediction\n")
+        preds_file.write("Name,GroundTruth,Prediction\n")
         for i, name in enumerate(names):
-            preds_file.write(f"{name},{param},{str(true_values[i])},{str(predictions[i])}\n")
+            preds_file.write(f"{name},{str(true_values[i])},{str(predictions[i])}\n")
 
 
 def adjust_log_dists(features_orig, redshift=False):

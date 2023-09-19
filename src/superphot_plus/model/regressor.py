@@ -77,6 +77,7 @@ class SuperphotRegressor(SuperphotMlp):
 
                 y_pred, _ = self(x)
                 loss = self.criterion(y_pred, y.float())
+
                 epoch_loss += loss.item()
 
         return epoch_loss / len(iterator)

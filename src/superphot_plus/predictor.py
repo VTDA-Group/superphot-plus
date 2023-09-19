@@ -42,6 +42,8 @@ class MosfitsPredictor(TrainerBase):
 
         self.model, self.config = None, None
 
+        self.scaler = StandardScaler()
+
     def run(self):
         """Runs the machine learning workflow, training and
         evaluating models for each physical parameter."""
@@ -57,10 +59,6 @@ class MosfitsPredictor(TrainerBase):
         for field in dataclasses.fields(SupernovaProperties):
             curr_prop = SupernovaProperties.get_property_by_name(properties, field.name)
 
-            print(f"Shape names: {np.asarray(names).shape}")
-            print(f"Shape posteriors: {np.asarray(posteriors).shape}")
-            print(f"Shape Curr_prop: {np.asarray(curr_prop).shape}")
-
             train_dataset, val_dataset = self.generate_train_data(
                 posteriors,
                 curr_prop,
@@ -68,13 +66,13 @@ class MosfitsPredictor(TrainerBase):
             )
             self.train(train_dataset, val_dataset, field.name)
 
-            test_dataset, test_names, ground_truths, scaler = self.generate_test_data(
+            test_dataset, test_names, ground_truths = self.generate_test_data(
                 names,
                 posteriors,
                 curr_prop,
                 test_index,
             )
-            self.evaluate(test_dataset, test_names, ground_truths, field.name, scaler)
+            self.evaluate(test_dataset, test_names, ground_truths, field.name)
 
     def setup_model(self):
         """Reads model configuration from disk."""
@@ -142,17 +140,12 @@ class MosfitsPredictor(TrainerBase):
 
         train_posts = adjust_log_dists(train_posts)
         val_posts = adjust_log_dists(val_posts)
-        # train_props = adjust_log_dists(train_props)
-        # val_props = adjust_log_dists(val_props)
 
         train_posts, mean, std = normalize_features(train_posts)
         val_posts, mean, std = normalize_features(val_posts, mean, std)
 
-        scaler = StandardScaler()
-        train_props = scaler.fit_transform(train_props.reshape(-1, 1))
-        val_props = scaler.fit_transform(val_props.reshape(-1, 1))
-        # train_props, mean, std = normalize_features(train_props)
-        # val_props, mean, std = normalize_features(val_props, mean, std)
+        train_props = self.scaler.fit_transform(train_props.reshape(-1, 1))
+        val_props = self.scaler.fit_transform(val_props.reshape(-1, 1))
 
         train_dataset = create_dataset(train_posts, train_props)
         val_dataset = create_dataset(val_posts, val_props)
@@ -193,12 +186,11 @@ class MosfitsPredictor(TrainerBase):
         test_posts = adjust_log_dists(test_posts)
         test_posts, _, _ = normalize_features(test_posts)
 
-        scaler = StandardScaler()
-        test_props = scaler.fit_transform(raw_test_props.reshape(-1, 1))
+        test_props = self.scaler.fit_transform(raw_test_props.reshape(-1, 1))
 
         test_dataset = create_dataset(test_posts, test_props)
 
-        return test_dataset, test_names, raw_test_props, scaler
+        return test_dataset, test_names, raw_test_props
 
     def train(self, train_dataset, val_dataset, param):
         """Trains the network to predict a physical parameter.
@@ -241,7 +233,7 @@ class MosfitsPredictor(TrainerBase):
             trial_id=run_id,
         )
 
-    def evaluate(self, test_dataset, test_names, ground_truths, param, scaler):
+    def evaluate(self, test_dataset, test_names, ground_truths, param):
         """Evaluates model on the test dataset.
 
         Parameters
@@ -259,11 +251,11 @@ class MosfitsPredictor(TrainerBase):
 
         predictions = self.model.evaluate(test_dataset=test_dataset)
 
-        predictions = scaler.inverse_transform(predictions).flatten()
+        # Revert properties transformation
+        predictions = self.scaler.inverse_transform(predictions).flatten()
 
         save_regression_outputs(
             test_names,
-            param,
             ground_truths,
             predictions,
             save_file=os.path.join(DATA_DIR, f"{param}.csv"),
