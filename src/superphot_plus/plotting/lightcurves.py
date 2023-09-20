@@ -99,17 +99,20 @@ def plot_sampling_lc_fit(
     sampling_method : str, optional
         Sampling method used for the fit. Default is "dynesty".
     """
-
+    band_order = [x for x in band_order] # convert to arrray
     trange_fine = np.linspace(np.amin(tdata), np.amax(tdata), num=500)
 
     _, axis = plt.subplots()
+    
+    prop_cycle = plt.rcParams['axes.prop_cycle']
+    colors = prop_cycle.by_key()['color']
 
-    for band in np.unique(bdata):  # TODO: handle case where band name isnt a valid color
+    for e, band in enumerate(np.unique(bdata)):  # TODO: handle case where band name isnt a valid color
         axis.errorbar(
             tdata[bdata == band],
             fdata[bdata == band],
             yerr=ferrdata[bdata == band],
-            c=band,
+            c=colors[e],
             label=band,
             fmt="o",
         )
@@ -118,7 +121,7 @@ def plot_sampling_lc_fit(
             axis.plot(
                 trange_fine,
                 flux_model(sample, trange_fine, [band] * len(trange_fine), band_order, ref_band),
-                c=band,
+                c=colors[e],
                 lw=1,
                 alpha=0.1,
             )
@@ -148,6 +151,7 @@ def plot_sampling_lc_fit_numpyro(
     max_flux,
     lcs,
     ref_band,
+    ordered_bands,
     sampling_method="svi",
     output_folder=FIT_PLOTS_FOLDER,
 ):
@@ -199,8 +203,12 @@ def plot_sampling_lc_fit_numpyro(
             ]
         )
 
-        cubes = np.array([get_numpyro_cube(single_model, max_flux[i])[0] for single_model in models])
-        aux_bands = get_numpyro_cube(models[0], max_flux[i])[1]
+        cubes = np.array([get_numpyro_cube(
+            single_model,
+            max_flux[i],
+            ref_band,
+            ordered_bands
+        )[0] for single_model in models])
 
         plot_sampling_lc_fit(
             lcs[i],
@@ -210,7 +218,7 @@ def plot_sampling_lc_fit_numpyro(
             ferrdata_i,
             bdata_i,
             cubes,
-            aux_bands,
+            ordered_bands,
             ref_band,
             sampling_method=sampling_method,
         )

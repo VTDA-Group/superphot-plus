@@ -72,7 +72,7 @@ class NumpyroSampler(Sampler):
         )
 
     def run_multi_curve(
-        self, lightcurves, priors: MultibandPriors, sampler="svi", **kwargs
+        self, lightcurves, priors: MultibandPriors, rng_seed, sampler="svi", ref_params=None, **kwargs
     ) -> List[PosteriorSamples]:
         """Not yet implemented."""
 
@@ -83,7 +83,13 @@ class NumpyroSampler(Sampler):
         for lc in lightcurves:
             padded_lcs.append(lc.pad_bands(priors.ordered_bands, PAD_SIZE, in_place=False))
 
-        eq_wt_samples = run_mcmc(padded_lcs, sampler=sampler, priors=priors)
+        eq_wt_samples = run_mcmc(
+            padded_lcs,
+            rng_seed=rng_seed,
+            sampler=sampler,
+            priors=priors,
+            ref_params=ref_params
+        )
 
         post_list = []
         for i, posts in enumerate(eq_wt_samples):
@@ -212,7 +218,10 @@ def create_jax_model(
     sigma_tot = jnp.sqrt(uncertainties**2 + es_scaled**2)
 
     # auxiliary bands
-    for b_idx, uniq_b in enumerate(priors.aux_bands):
+    for b_idx, uniq_b in enumerate(priors.ordered_bands):
+        if uniq_b == priors.reference_band:
+            continue
+            
         b_priors = priors.bands[uniq_b]
 
         (
@@ -232,7 +241,8 @@ def create_jax_model(
         tau_rise_b = tau_rise * tau_rise_ratio
         tau_fall_b = tau_fall * tau_fall_ratio
 
-        inc_band_ix = np.arange((b_idx + 1) * PAD_SIZE, (b_idx + 2) * PAD_SIZE)
+        # base inc_band_ix on ordered_bands
+        inc_band_ix = np.arange(b_idx * PAD_SIZE, (b_idx + 1) * PAD_SIZE)
 
         phase_b = (t - t0_b)[inc_band_ix]
         flux_const_b = amp_b / (1.0 + jnp.exp(-phase_b / tau_rise_b))
@@ -336,7 +346,10 @@ def _svi_helper_no_recompile(
                 loc=params[param], scale=params[param[:-2] + "sigma"], size=100
             )
 
-    posterior_cube = get_numpyro_cube(posterior_samples, max_flux, priors.aux_bands)[0]
+    posterior_cube = get_numpyro_cube(
+        posterior_samples, max_flux,
+        priors.reference_band, priors.ordered_bands
+    )[0]
     padded_idxs = lc_single.flux_errors == 1e10
     red_neg_chisq = calculate_neg_chi_squareds(
         posterior_cube,
@@ -428,7 +441,12 @@ def run_mcmc(lc, rng_seed, sampler="NUTS", priors=Survey.ZTF().priors, ref_param
 
         posterior_samples = mcmc.get_samples()
 
-        posterior_cube, aux_bands = get_numpyro_cube(posterior_samples, max_flux, priors.aux_bands)
+        posterior_cube, aux_bands = get_numpyro_cube(
+            posterior_samples,
+            max_flux,
+            priors.reference_band,
+            priors.ordered_bands
+        )
         padded_idxs = lc.flux_errors > 1e5
         red_neg_chisq = calculate_neg_chi_squareds(
             posterior_cube,
