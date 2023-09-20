@@ -50,6 +50,7 @@ sampling = [
     "dynesty",
     "numpyro",
     "imblearn",
+    "iminuit",
 ]
 plotting = [
     "arviz",
