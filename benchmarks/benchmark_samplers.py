@@ -39,14 +39,7 @@ def create_data(num_samples: int, clean_only: bool):
         if clean_only:
             p_i, lc_i = create_clean_models(1)
             parameters.append(p_i[:7])
-            lcs.append(
-                Lightcurve(
-                    np.array(lc_i[0][0], dtype=float),
-                    np.array(lc_i[0][1], dtype=float),
-                    np.array(lc_i[0][2], dtype=float),
-                    np.array(lc_i[0][3]),
-                )
-            )
+            lcs.append(lc_i[0])
         else:
             (
                 (A, beta, gamma, t0, tau_rise, tau_fall, es),
