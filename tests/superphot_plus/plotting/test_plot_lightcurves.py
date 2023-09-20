@@ -40,6 +40,7 @@ def test_plot_sampling_lc_fit_numpyro(
     posterior_samples = dummy_posterior_sample_dict
     lc = single_ztf_lightcurve_object
     ref_band = ztf_priors.reference_band
+    ordered_bands = ztf_priors.ordered_bands
     max_flux = lc.find_max_flux(band=ref_band)[0]
     lcs = [
         single_ztf_sn_id,
@@ -54,8 +55,9 @@ def test_plot_sampling_lc_fit_numpyro(
         max_flux,
         lcs,
         ref_band,
+        ordered_bands,
         "svi",
-        output_folder=tmp_path,
+        output_folder=tmp_path
     )
 
     out_fn = os.path.join(tmp_path, single_ztf_sn_id + "_svi.pdf")

@@ -19,6 +19,17 @@ from superphot_plus.file_paths import (
 )
 from superphot_plus.sfd import dust_filepath
 
+def get_band_extinctions_from_mwebv(mwebv, wvs):
+    """Get extinction list from MWEBV value and wavelengths.
+    """
+    Av_sfd = 2.742 * mwebv
+    band_wvs = 1.0 / (0.0001 * np.asarray(wvs))  # in inverse microns
+
+    # Now figure out how much the magnitude is affected by this dust
+    ext_list = extinction.fm07(band_wvs, Av_sfd, unit="invum")  # in magnitudes
+
+    return ext_list
+
 
 def get_band_extinctions(ra, dec, wvs):
     """Get g- and r-band extinctions in magnitudes for a single
@@ -45,14 +56,9 @@ def get_band_extinctions(ra, dec, wvs):
 
     # First look up the amount of mw dust at this location
     coords = SkyCoord(ra, dec, frame="icrs", unit="deg")
-    Av_sfd = 2.742 * sfd(coords)  # from https://dustmaps.readthedocs.io/en/latest/examples.html
-
-    band_wvs = 1.0 / (0.0001 * np.asarray(wvs))  # in inverse microns
-
-    # Now figure out how much the magnitude is affected by this dust
-    ext_list = extinction.fm07(band_wvs, Av_sfd, unit="invum")  # in magnitudes
-
-    return ext_list
+      # from https://dustmaps.readthedocs.io/en/latest/examples.html
+    mwebv = sfd(coords)
+    return get_band_extinctions_from_mwebv(mwebv, wvs)
 
 
 def calc_accuracy(pred_classes, test_labels):
@@ -187,6 +193,7 @@ def flux_model(cube, t_data, b_data, ordered_bands, ref_band):
     start_idx = ref_band_idx * 7
 
     amp, beta, gamma, t_0, tau_rise, tau_fall, _ = cube[start_idx : start_idx + 7]
+    
     phase = t_data - t_0
     f_model = (
         amp / (1.0 + np.exp(-phase / tau_rise)) * (1.0 - beta * gamma) * np.exp((gamma - phase) / tau_fall)
@@ -254,7 +261,7 @@ def params_valid(beta, gamma, tau_rise, tau_fall):
     return True
 
 
-def get_numpyro_cube(params, max_flux, aux_bands=None):
+def get_numpyro_cube(params, max_flux, ref_band, ordered_bands):
     """
     Convert output param dict from numpyro sampler to match that
     of dynesty.
@@ -276,12 +283,6 @@ def get_numpyro_cube(params, max_flux, aux_bands=None):
     aux_bands : np.ndarray
         Auxiliary bands, including those inferred if input arg was None.
     """
-    if aux_bands is None:
-        aux_bands = []
-        for k in params:
-            if k[:4] == "beta" and k != "beta":
-                aux_bands.append(k[5:])
-
     logA, beta, log_gamma = params["logA"], params["beta"], params["log_gamma"]
     t0, log_tau_rise, log_tau_fall, log_extra_sigma = (
         params["t0"],
@@ -296,21 +297,30 @@ def get_numpyro_cube(params, max_flux, aux_bands=None):
     tau_fall = 10**log_tau_fall
     extra_sigma = 10**log_extra_sigma  # pylint: disable=unused-variable
 
-    cube = [A, beta, gamma, t0, tau_rise, tau_fall, extra_sigma]
+    cube = []
+    #cube = [A, beta, gamma, t0, tau_rise, tau_fall, extra_sigma]
 
-    for b in aux_bands:
-        cube.extend(
+    for b in ordered_bands:
+        if b == ref_band:
+            cube.extend(
             [
-                params[f"A_{b}"],
-                params[f"beta_{b}"],
-                params[f"gamma_{b}"],
-                params[f"t0_{b}"],
-                params[f"tau_rise_{b}"],
-                params[f"tau_fall_{b}"],
-                params[f"extra_sigma_{b}"],
+                A, beta, gamma, t0,
+                tau_rise, tau_fall, extra_sigma
             ]
         )
-    return np.array(cube).T, np.array(aux_bands)
+        else:
+            cube.extend(
+                [
+                    params[f"A_{b}"],
+                    params[f"beta_{b}"],
+                    params[f"gamma_{b}"],
+                    params[f"t0_{b}"],
+                    params[f"tau_rise_{b}"],
+                    params[f"tau_fall_{b}"],
+                    params[f"extra_sigma_{b}"],
+                ]
+            )
+    return np.array(cube).T, np.array(ordered_bands)
 
 
 def calculate_log_likelihood(cube, lightcurve, unique_bands, ref_band):
