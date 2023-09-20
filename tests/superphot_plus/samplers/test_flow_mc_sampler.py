@@ -1,16 +1,15 @@
 import numpy as np
 
-from superphot_plus.samplers.flow_mc import flowMC_single_file
+from superphot_plus.samplers.flow_mc import FlowMCSampler
 
 
-def test_flow_mc_single_file(single_ztf_lightcurve_compressed, ztf_priors, tmp_path):
+def test_flow_mc_single_file(single_ztf_lightcurve_object, ztf_priors, tmp_path):
     """Just test that we generated a new file with fits"""
-    sample_mean = flowMC_single_file(single_ztf_lightcurve_compressed, tmp_path)
+    sampler = FlowMCSampler()
+    posterior_samples = sampler.run_single_curve(single_ztf_lightcurve_object, priors=ztf_priors, rng_seed=4)
 
-    # sample_mean = posterior_samples.sample_mean()
+    sample_mean = posterior_samples.sample_mean()
     assert len(sample_mean) == 14
-
-    print("sample_mean", sample_mean)
 
     # Check that the same means the same order of magnitude (within 50% relative value).
     # Despite setting the the random seed, we still need to account (so far) unexplained
@@ -34,5 +33,4 @@ def test_flow_mc_single_file(single_ztf_lightcurve_compressed, ztf_priors, tmp_p
     assert len(expected) == len(sample_mean)
     assert np.all(np.isclose(sample_mean, expected, rtol=0.5))
 
-    # ## could be between ~600 and ~800, and can vary based on hardware.
-    # assert 600 <= len(posterior_samples.samples) <= 800
+    assert len(posterior_samples.samples) == 400

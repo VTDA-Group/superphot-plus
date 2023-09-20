@@ -1,36 +1,30 @@
+"""Sampling using FlowMC"""
+
 from functools import partialmethod
-from typing import Callable
+from typing import Callable, List
 
 import jax
 import jax.config as config
 import jax.numpy as jnp
+import numpy as np
+from flowMC.nfmodel.rqSpline import MaskedCouplingRQSpline
 from flowMC.sampler.LocalSampler_Base import LocalSamplerBase
+from flowMC.sampler.Sampler import Sampler as FlowSampler
+from flowMC.utils.PRNG_keys import initialize_rng_keys
+from jax import jit
+from jax.config import config
 from jax.scipy.stats import multivariate_normal
 from tqdm import tqdm
+
+from superphot_plus.constants import *
+from superphot_plus.lightcurve import Lightcurve
+from superphot_plus.posterior_samples import PosteriorSamples
+from superphot_plus.samplers.sampler import Sampler
+from superphot_plus.surveys.fitting_priors import MultibandPriors
 
 # MODIFIED FROM FLOWMC'S MALA TO HANDLE ARRAY OF DIFFERENT TIME STEPS PER PARAM
 config.update("jax_enable_x64", True)
 config.update("jax_debug_nans", True)
-
-import os
-
-import corner
-import jax
-import jax.numpy as jnp
-import matplotlib.pyplot as plt
-import numpy as np
-from flowMC.nfmodel.realNVP import RealNVP
-from flowMC.nfmodel.rqSpline import MaskedCouplingRQSpline
-from flowMC.sampler.HMC import HMC
-from flowMC.sampler.Sampler import Sampler
-from flowMC.utils.PRNG_keys import initialize_rng_keys
-from jax import jit
-from jax.config import config
-
-from superphot_plus.constants import *
-
-NCHAINS = 4
-SEED = 42
 
 
 class MALA(LocalSamplerBase):
@@ -166,131 +160,6 @@ class MALA(LocalSamplerBase):
         self.sampler = mala_sampler
         return mala_sampler
 
-    def mala_sampler_autotune(self, rng_key, initial_position, log_prob, data, params, max_iter=30):
-        """
-        Tune the step size of the MALA kernel using the acceptance rate.
-
-        Args:
-            mala_kernel_vmap (Callable): A MALA kernel
-            rng_key: Jax PRNGKey
-            initial_position (n_chains, n_dim): initial position of the chains
-            log_prob (n_chains, ): log-probability of the initial position
-            params (dict): parameters of the MALA kernel
-            max_iter (int): maximal number of iterations to tune the step size
-        """
-
-        tqdm.__init__ = partialmethod(tqdm.__init__, disable=True)
-
-        counter = 0
-        position, log_prob, do_accept = self.kernel_vmap(rng_key, initial_position, log_prob, data, params)
-        acceptance_rate = jnp.mean(do_accept)
-        while (acceptance_rate <= 0.3) or (acceptance_rate >= 0.5):
-            if counter > max_iter:
-                print("Maximal number of iterations reached. Existing tuning with current parameters.")
-                break
-            if acceptance_rate <= 0.3:
-                params["step_size"] *= 0.8
-            elif acceptance_rate >= 0.5:
-                params["step_size"] *= 1.25
-            counter += 1
-            position, log_prob, do_accept = self.kernel_vmap(
-                rng_key, initial_position, log_prob, data, params
-            )
-            acceptance_rate = jnp.mean(do_accept)
-        tqdm.__init__ = partialmethod(tqdm.__init__, disable=False)
-        return params
-
-
-def import_data(filename, t0_lim=None):
-    """Import the data file.
-
-    Parameters
-    ----------
-    filename : str
-        The name of the data file to import.
-    t0_lim : float or None, optional
-        The upper time limit for the data. If provided, only data points
-        with time values less than or equal to t0_lim will be included.
-        Defaults to None.
-
-    Returns
-    -------
-    tuple of np.ndarray or None
-        A tuple containing the padded time, flux, flux error, and band
-        arrays, respectively. If the input data does not contain any
-        valid points, None is returned.
-
-    """
-    npy_array = np.load(filename)
-    arr = npy_array["arr_0"]
-
-    ferr = arr[2]
-    t = arr[0][ferr != "nan"].astype(float)
-    f = arr[1][ferr != "nan"].astype(float)
-    b = arr[3][ferr != "nan"]
-    ferr = ferr[ferr != "nan"].astype(float)
-
-    if t0_lim is not None:
-        f = f[t <= t0_lim]
-        b = b[t <= t0_lim]
-        ferr = ferr[t <= t0_lim]
-        t = t[t <= t0_lim]
-
-    if (t[b == "r"] is None) or (len(t[b == "r"]) == 0):
-        return None
-    if (t[b == "g"] is None) or (len(t[b == "g"]) == 0):
-        return None
-
-    b = np.where(b == "r", 1, 0)  # change to integers
-
-    # sort
-    sort_idx = np.argsort(t)
-    t = t[sort_idx]
-    f = f[sort_idx]
-    ferr = ferr[sort_idx]
-    b = b[sort_idx]
-
-    max_flux_loc = t[b == 1][np.argmax(f[b == 1] - np.abs(ferr[b == 1]))]
-
-    t -= max_flux_loc  # make relative
-
-    # separate r and g band points
-    # necessary for static indexing for jax
-
-    # pad data
-    t_padded, f_padded, ferr_padded, b_padded = (
-        np.array([]),
-        np.array([]),
-        np.array([]),
-        np.array([]),
-    )
-
-    for b_int in [0, 1]:
-        len_b = len(b[b == b_int])
-        t_s = t[b == b_int]
-        f_s = f[b == b_int]
-        ferr_s = ferr[b == b_int]
-        b_s = b[b == b_int]
-
-        if len_b > PAD_SIZE:
-            t_padded = np.append(t_padded, t_s[:PAD_SIZE])
-            f_padded = np.append(f_padded, f_s[:PAD_SIZE])
-            ferr_padded = np.append(ferr_padded, ferr_s[:PAD_SIZE])
-            b_padded = np.append(b_padded, b_s[:PAD_SIZE])
-        else:
-            t_padded = np.append(t_padded, t_s)
-            f_padded = np.append(f_padded, f_s)
-            ferr_padded = np.append(ferr_padded, ferr_s)
-            b_padded = np.append(b_padded, b_s)
-
-            t_padded = np.append(t_padded, [5000] * (PAD_SIZE - len_b))
-            f_padded = np.append(f_padded, [0.0] * (PAD_SIZE - len_b))
-            ferr_padded = np.append(ferr_padded, [1e10] * (PAD_SIZE - len_b))
-            b_padded = np.append(b_padded, [b_int] * (PAD_SIZE - len_b))
-
-    return t_padded, f_padded, ferr_padded, b_padded
-
-
 @jit
 def prior_eval(cube, _):
     """
@@ -384,51 +253,37 @@ def posterior_eval(cube, data_stacked):
     )
 
 
-def run_flowMC(lc_filename):
+def run_flowMC(lightcurve, priors, n_chains=4, rseed=42):
     """
     Run flowMC on one light curve.
     """
-    tdata, fdata, ferrdata, bdata = import_data(lc_filename, t0_lim=None)
-
-    if tdata is None:
+    if lightcurve.times is None:
         return None
 
-    max_flux = np.max(fdata - ferrdata)
-    print(max_flux)
-    data_stacked = jnp.array([tdata, fdata, ferrdata])
+    data_stacked = jnp.array([lightcurve.times, lightcurve.fluxes, lightcurve.flux_errors])
 
-    n_chains = NCHAINS
-    rng_key_set = initialize_rng_keys(n_chains, seed=SEED)
-    n_dim = 14
-    initial_position = jnp.tile(PRIOR_MEANS, (n_chains, 1))
-    # initial_position[:,0] = max_flux * 10.0**initial_position[:,0]
-    # initial_position[:,[2,4,5,6]] = 10.0**initial_position[:,[2,4,5,6]]
+    all_priors = priors.to_numpy().T
+    rng_key_set = initialize_rng_keys(n_chains, seed=rseed)
+    n_dim = len(all_priors.T)
+    initial_position = jnp.tile(all_priors[2], (n_chains, 1))
 
     print(jax.value_and_grad(prior_eval)(initial_position[0], None))
     print(jax.value_and_grad(posterior_eval)(initial_position[0], data_stacked))
-    # return
 
-    n_layer = 10  # number of coupling layers
-    n_hidden = 128  # with of hidden layers in MLPs parametrizing coupling layers
-
-    # model = RealNVP(n_layer, n_dim, n_hidden, jax.random.PRNGKey(10))
     model = MaskedCouplingRQSpline(n_dim, 4, [32, 32], 8, jax.random.PRNGKey(10))
-    step_size = 1e-1
 
     n_loop_training = 10
     n_loop_production = 10
     n_local_steps = 100
     n_global_steps = 100
-    num_epochs = 10
+    num_epochs = 1
 
     learning_rate = 0.005
     momentum = 0.9
     batch_size = 500
-    max_samples = 500
 
-    sampler = MALA(posterior_eval, True, {"step_size": PRIOR_SIGMAS / 100.0}, use_autotune=True)  # {"})
-    # sampler = HMC(posterior_eval, True, {"step_size": 0.1, "n_leapfrog": 4, "inverse_metric": 1}, verbose=True)
-    nf_sampler = Sampler(
+    sampler = MALA(posterior_eval, True, {"step_size": all_priors[3] / 100.0}, use_autotune=True)  # {"})
+    nf_sampler = FlowSampler(
         n_dim=n_dim,
         rng_key_set=rng_key_set,
         local_sampler=sampler,
@@ -445,86 +300,30 @@ def run_flowMC(lc_filename):
         batch_size=batch_size,
         use_global=True,
     )
-
     nf_sampler.sample(initial_position, data_stacked)
 
     out_prod = nf_sampler.get_sampler_state()  # default training=False
-    out_train = nf_sampler.get_sampler_state(training=True)
     chains = np.reshape(out_prod["chains"][:, -100:], (100 * n_chains, n_dim))
-
-    # all_chains = np.array(out_train["chains"])
-    # print(all_chains)
-    # global_accs = np.array(out_train["global_accs"])
-    # local_accs = np.array(out_train["local_accs"])
-    # loss_vals = np.array(out_train["loss_vals"])
-    # nf_samples = np.array(nf_sampler.sample_flow(1000)[1])
-
-    # # Plot 2 chains in the plane of 2 coordinates for first visual check
-    # plt.figure(figsize=(6, 6))
-    # axs = [plt.subplot(2, 2, i + 1) for i in range(4)]
-    # plt.sca(axs[0])
-    # plt.title("2d proj of 2 chains")
-
-    # plt.plot(all_chains[0, :, 0], all_chains[0, :, 1], "o-", alpha=0.5, ms=2)
-    # plt.plot(all_chains[1, :, 0], all_chains[1, :, 1], "o-", alpha=0.5, ms=2)
-    # plt.xlabel("$x_1$")
-    # plt.ylabel("$x_2$")
-
-    # plt.sca(axs[1])
-    # plt.title("NF loss")
-    # plt.plot(loss_vals.reshape(-1))
-    # plt.xlabel("iteration")
-
-    # plt.sca(axs[2])
-    # plt.title("Local Acceptance")
-    # plt.plot(local_accs.mean(0))
-    # plt.xlabel("iteration")
-
-    # plt.sca(axs[3])
-    # plt.title("Global Acceptance")
-    # plt.plot(global_accs.mean(0))
-    # plt.xlabel("iteration")
-    # plt.tight_layout()
-    # plt.savefig("../../../test_1.png")
-    # plt.close()
-
-    # labels = ["$x_1$", "$x_2$", "$x_3$", "$x_4$", "$x_5$"]
-    # # Plot all chains
-    # figure = corner.corner(all_chains.reshape(-1, n_dim), labels=labels)
-    # figure.set_size_inches(7, 7)
-    # figure.suptitle("Visualize samples")
-    # plt.savefig("../../../test_2.png")
-    # plt.close()
-
-    # # Plot Nf samples
-    # figure = corner.corner(nf_samples, labels=labels)
-    # figure.set_size_inches(7, 7)
-    # figure.suptitle("Visualize NF samples")
-    # plt.savefig("../../../test_3.png")
-    # plt.close()
 
     return chains
 
+class FlowMCSampler(Sampler):
+    """Sampling using FlowMC."""
 
-def flowMC_single_file(filename, output_dir):
-    """
-    Run flowMC on a single light curve.
-    """
-    os.makedirs(output_dir, exist_ok=True)
+    def __init__(self):
+        pass
 
-    eq_samples = run_flowMC(filename)
+    def run_single_curve(
+        self, lightcurve: Lightcurve, priors: MultibandPriors, rng_seed=None, **kwargs
+    ) -> PosteriorSamples:
+        lightcurve.pad_bands(priors.ordered_bands, PAD_SIZE)
+        eq_wt_samples = run_flowMC(lightcurve, rseed=rng_seed, priors=priors)
+        if eq_wt_samples is None:
+            return None
+        return PosteriorSamples(
+            eq_wt_samples, name=lightcurve.name, sampling_method="flowMC", sn_class=lightcurve.sn_class
+        )
 
-    if eq_samples is None:
-        return None
-
-    mean = np.mean(eq_samples, axis=0)
-    prefix = filename.split("/")[-1][:-4]
-
-    np.savez_compressed(os.path.join(output_dir, f"{prefix}_eqwt_flowMC.npz"), eq_samples)
-
-    return mean
-
-
-if __name__ == "__main__":
-    test_fn = "../../tests/data/ZTF22abvdwik.npz"
-    flowMC_single_file(test_fn, "../../..")
+    def run_multi_curve(self, lightcurves, priors, **kwargs) -> List[PosteriorSamples]:
+        """Not yet implemented."""
+        raise NotImplementedError
