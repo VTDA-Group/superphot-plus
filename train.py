@@ -36,7 +36,7 @@ def extract_cmd_args():
     parser.add_argument(
         "--probs_file",
         help="File to log test probability results",
-        default=PROBS_FILE,
+        default="probs_new.csv",
     )
     parser.add_argument(
         "--config_name",

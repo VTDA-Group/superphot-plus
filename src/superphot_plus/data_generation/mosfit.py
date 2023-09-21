@@ -2,7 +2,7 @@ import json
 import os
 import numpy as np
 
-from superphot_plus.file_paths import DATA_DIR
+from superphot_plus.file_paths import MOSFIT_DIR, MOSFIT_INPUT_JSON
 from superphot_plus.lightcurve import Lightcurve
 from superphot_plus.samplers.numpyro_sampler import NumpyroSampler
 from superphot_plus.surveys.surveys import Survey
@@ -52,12 +52,12 @@ def import_slsn_mosfit(mosfit_fn, realization):
     return t, flux, err, b, bfield, pspin, mejecta, vejecta
 
 
-def generate_mosfits_data(data_file, out_dir, num_realizations):
-    """Generates the light curve posteriors and stores the mosfits dictionaries
+def generate_mosfit_data(data_file, out_dir, num_realizations):
+    """Generates the light curve posteriors and stores the mosfit dictionaries
     with the physical parameters for each.
 
     There are 10000 lightcurves:
-        -> ~40MB mosfits files
+        -> ~40MB mosfit files
         -> ~120MB posterior files (SVI)
     """
     posteriors_out_dir = os.path.join(out_dir, "posteriors")
@@ -68,10 +68,10 @@ def generate_mosfits_data(data_file, out_dir, num_realizations):
 
     for realization in np.arange(1, num_realizations + 1):
         lc_name = f"lc_{realization}"
-        mosfits_file = os.path.join(properties_out_dir, lc_name)
+        mosfit_file = os.path.join(properties_out_dir, lc_name)
 
         # Skip existent files
-        if os.path.exists(mosfits_file):
+        if os.path.exists(mosfit_file):
             print(f"Skipping realization {realization}")
             continue
 
@@ -98,20 +98,20 @@ def generate_mosfits_data(data_file, out_dir, num_realizations):
         )
         posterior_samples.save_to_file(posteriors_out_dir)
 
-        mosfits = SupernovaProperties(
+        mosfit = SupernovaProperties(
             bfield,
             pspin,
             mejecta,
             vejecta,
         )
-        mosfits.write_to_file(mosfits_file)
+        mosfit.write_to_file(mosfit_file)
 
         print(f"Progress {(realization/num_realizations*100):.02f}%")
 
 
 if __name__ == "__main__":
-    generate_mosfits_data(
-        data_file=os.path.join(DATA_DIR, "slsn.json"),
-        out_dir=os.path.join(DATA_DIR, "mosfits"),
+    generate_mosfit_data(
+        data_file=MOSFIT_INPUT_JSON,
+        out_dir=MOSFIT_DIR,
         num_realizations=1000,
     )

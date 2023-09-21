@@ -1,13 +1,11 @@
-import dataclasses
 import os
 
 import numpy as np
 from sklearn.discriminant_analysis import StandardScaler
 from sklearn.model_selection import train_test_split
 
-from superphot_plus.file_paths import DATA_DIR
+from superphot_plus.file_paths import MOSFIT_DIR
 from superphot_plus.format_data_ztf import normalize_features
-from superphot_plus.model.config import ModelConfig
 from superphot_plus.model.data import TrainData
 from superphot_plus.model.regressor import SuperphotRegressor
 from superphot_plus.plotting.regressor_results import plot_model_metrics
@@ -23,31 +21,39 @@ from superphot_plus.utils import (
 )
 
 
-class MosfitsPredictor(TrainerBase):
+class MosfitTrainer(TrainerBase):
     """Infers supernovae physical parameters."""
 
     def __init__(
         self,
-        config_name,
+        parameter,
         sampler="svi",
-        include_redshift=True,
+        mosfit_dir=MOSFIT_DIR,
     ):
-        super().__init__(sampler, include_redshift)
+        super().__init__(
+            sampler=sampler,
+            fits_dir=os.path.join(mosfit_dir, "posteriors"),
+            models_dir=os.path.join(mosfit_dir, "models"),
+            metrics_dir=os.path.join(mosfit_dir, "metrics"),
+            output_file=os.path.join(mosfit_dir, f"{parameter}.csv"),
+            log_file=os.path.join(mosfit_dir, f"{parameter}_log.txt"),
+        )
 
-        self.config_name = config_name
-
-        self.fits_dir = f"{DATA_DIR}/mosfits/posteriors"
-        self.params_dir = f"{DATA_DIR}/mosfits/params"
-        self.models_dir = f"{DATA_DIR}/mosfits/models"
-
-        self.model, self.config = None, None
-
+        # Regression specific
+        self.parameter = parameter
+        self.params_dir = os.path.join(mosfit_dir, "params")
         self.scaler = StandardScaler()
 
-    def run(self):
-        """Runs the machine learning workflow, training and
-        evaluating models for each physical parameter."""
-        self.setup_model()
+        # Restart output files
+        self.clean_outputs()
+
+    def run(self, load_checkpoint=False):
+        # Load parameter specific model
+        self.setup_model(
+            SuperphotRegressor,
+            config_name=self.parameter,
+            load_checkpoint=load_checkpoint,
+        )
 
         names, posteriors, properties = self.read_data()
 
@@ -56,28 +62,23 @@ class MosfitsPredictor(TrainerBase):
         train_index, test_index = train_test_split(np.arange(0, len(names)), test_size=0.1)
 
         # Train regression models for all parameters
-        for field in dataclasses.fields(SupernovaProperties):
-            curr_prop = SupernovaProperties.get_property_by_name(properties, field.name)
+        curr_prop = SupernovaProperties.get_property_by_name(properties, self.parameter)
 
+        if not load_checkpoint:
             train_dataset, val_dataset = self.generate_train_data(
                 posteriors,
                 curr_prop,
                 train_index,
             )
-            self.train(train_dataset, val_dataset, field.name)
+            self.train(train_dataset, val_dataset)
 
-            test_dataset, test_names, ground_truths = self.generate_test_data(
-                names,
-                posteriors,
-                curr_prop,
-                test_index,
-            )
-            self.evaluate(test_dataset, test_names, ground_truths, field.name)
-
-    def setup_model(self):
-        """Reads model configuration from disk."""
-        path = os.path.join(self.models_dir, self.config_name)
-        self.config = ModelConfig.from_file(f"{path}.yaml")
+        test_dataset, test_names, ground_truths = self.generate_test_data(
+            names,
+            posteriors,
+            curr_prop,
+            test_index,
+        )
+        self.evaluate(test_dataset, test_names, ground_truths)
 
     def read_data(self):
         """Reads posteriors and supernova physical properties
@@ -192,7 +193,7 @@ class MosfitsPredictor(TrainerBase):
 
         return test_dataset, test_names, raw_test_props
 
-    def train(self, train_dataset, val_dataset, param):
+    def train(self, train_dataset, val_dataset):
         """Trains the network to predict a physical parameter.
 
         Parameters
@@ -204,7 +205,7 @@ class MosfitsPredictor(TrainerBase):
         param : str
             The target parameter the model will predict.
         """
-        run_id = f"regression_{param}"
+        run_id = f"regression_{self.parameter}"
 
         # Create regression model
         self.model = SuperphotRegressor.create(self.config)
@@ -216,7 +217,7 @@ class MosfitsPredictor(TrainerBase):
         )
 
         # Save model checkpoint
-        self.model.save(self.models_dir, name=param)
+        self.model.save(self.models_dir, name=self.parameter)
 
         # Plot training and validation metrics
         plot_model_metrics(
@@ -233,7 +234,7 @@ class MosfitsPredictor(TrainerBase):
             trial_id=run_id,
         )
 
-    def evaluate(self, test_dataset, test_names, ground_truths, param):
+    def evaluate(self, test_dataset, test_names, ground_truths):
         """Evaluates model on the test dataset.
 
         Parameters
@@ -246,8 +247,8 @@ class MosfitsPredictor(TrainerBase):
         if self.model is None:
             raise ValueError("Cannot evaluate uninitialized model.")
 
-        if not SupernovaProperties.check_property_exists(param):
-            raise ValueError(f"Invalid physical parameter {param}.")
+        if not SupernovaProperties.check_property_exists(self.parameter):
+            raise ValueError(f"Invalid physical parameter {self.parameter}.")
 
         predictions = self.model.evaluate(test_dataset=test_dataset)
 
@@ -258,16 +259,12 @@ class MosfitsPredictor(TrainerBase):
             test_names,
             ground_truths,
             predictions,
-            save_file=os.path.join(DATA_DIR, f"{param}.csv"),
+            save_file=self.output_file,
         )
 
         write_regression_metrics_to_file(
             config=self.config,
             true_outputs=ground_truths,
             pred_outputs=predictions,
-            log_file=os.path.join(DATA_DIR, f"{param}_log.txt"),
+            log_file=self.log_file,
         )
-
-
-if __name__ == "__main__":
-    MosfitsPredictor(config_name="best-config").run()
