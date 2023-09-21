@@ -4,9 +4,10 @@
 
 [DOI]: TODO
 [![PyPI](https://img.shields.io/pypi/v/superphot-plus?color=blue&logo=pypi&logoColor=white)](https://pypi.org/project/superphot-plus/)
-[![GitHub Workflow Status](https://img.shields.io/github/actions/workflow/status/lincc-frameworks/superphot-plus/smoke-test.yml)](https://github.com/lincc-frameworks/superphot-plus/actions/workflows/smoke-test.yml)
-[![codecov](https://codecov.io/gh/lincc-frameworks/superphot-plus/branch/main/graph/badge.svg)](https://codecov.io/gh/lincc-frameworks/superphot-plus)
+[![GitHub Workflow Status](https://img.shields.io/github/actions/workflow/status/vtda-group/superphot-plus/smoke-test.yml)](https://github.com/vtda-group/superphot-plus/actions/workflows/smoke-test.yml)
+[![codecov](https://codecov.io/gh/vtda-group/superphot-plus/branch/main/graph/badge.svg)](https://codecov.io/gh/vtda-group/superphot-plus)
 [![Read the Docs](https://img.shields.io/readthedocs/superphot-plus)](https://superphot-plus.readthedocs.io/)
+[![benchmarks](https://img.shields.io/github/actions/workflow/status/vtda-group/superphot-plus/asv-main.yml?label=benchmarks)](https://vtda-group.github.io/superphot-plus/)
 
 Superphot+ is an end-to-end package that imports supernova photometry, fits light curves to an empirical model, and performs subsequent classification and source parameter estimation. It dramatically expands on the functionalities of the package Superphot<sup>[1](#note1)</sup>, with multiple implemented sampling alternatives, including dynesty, stochastic variational inference, and NUTS. Superphot+ takes advantage of the JAX backend to speed up runtime.
 
@@ -29,7 +30,7 @@ See [ReadTheDocs](https://superphot-plus.readthedocs.io/) for more information.
 To install this package for development use:
 
 ```
-$ git clone http://github.com/lincc-frameworks/superphot-plus
+$ git clone http://github.com/vtda-group/superphot-plus
 $ cd superphot-plus
 $ python3 -m venv venv
 $ source venv/bin/activate
@@ -45,6 +46,6 @@ and your environment should be ready for superphot-plussing!
 
 ## Contributing
 
-[![GitHub issue custom search in repo](https://img.shields.io/github/issues-search/lincc-frameworks/superphot-plus?color=purple&label=Good%20first%20issues&query=is%3Aopen%20label%3A%22good%20first%20issue%22)](https://github.com/lincc-frameworks/superphot-plus/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22)
+[![GitHub issue custom search in repo](https://img.shields.io/github/issues-search/vtda-group/superphot-plus?color=purple&label=Good%20first%20issues&query=is%3Aopen%20label%3A%22good%20first%20issue%22)](https://github.com/vtda-group/superphot-plus/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22)
 
 See the [contribution guide](https://superphot-plus.readthedocs.io/en/latest/contributing.html) on ReadTheDocs.
