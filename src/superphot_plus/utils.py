@@ -721,6 +721,27 @@ def get_session_metrics(metrics):
     return np.mean(min_val_losses), np.mean(val_accs)
 
 
+def get_regression_session_metrics(metrics):
+    """Calculates the validation loss and accuracy for the hyperparameter set.
+    The best model is considered the one with the lowest validation loss.
+
+    Parameters
+    ----------
+    metrics : tuple
+        Tuple containing the training accuracies and losses, and the validation
+        accuracies and losses, for each epoch and fold.
+
+    Returns
+    -------
+    tuple
+        The mean validation loss and accuracy for the hyperparameter set.
+    """
+    _, val_losses = list(zip(*metrics))
+    # Find min loss value in all folds
+    min_val_losses = list(map(min, val_losses))
+    return np.mean(min_val_losses)
+
+
 def log_metrics_to_tensorboard(metrics, config, trial_id, base_dir="runs"):
     """Calculates the training and validation accuracies and losses
     for each epoch (by averaging each fold) and logs these metrics to

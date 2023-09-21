@@ -11,7 +11,7 @@ from superphot_plus.model.regressor import SuperphotRegressor
 from superphot_plus.plotting.regressor_results import plot_model_metrics
 from superphot_plus.posterior_samples import PosteriorSamples
 from superphot_plus.supernova_properties import SupernovaProperties
-from superphot_plus.base_trainer import BaseTrainer
+from superphot_plus.trainers.base_trainer import BaseTrainer
 from superphot_plus.utils import (
     adjust_log_dists,
     create_dataset,
@@ -65,20 +65,13 @@ class MosfitTrainer(BaseTrainer):
         curr_prop = SupernovaProperties.get_property_by_name(properties, self.parameter)
 
         if not load_checkpoint:
-            train_dataset, val_dataset = self.generate_train_data(
-                posteriors,
-                curr_prop,
-                train_index,
+            self.train(
+                posteriors=posteriors,
+                curr_prop=curr_prop,
+                train_index=train_index,
             )
-            self.train(train_dataset, val_dataset)
 
-        test_dataset, test_names, ground_truths = self.generate_test_data(
-            names,
-            posteriors,
-            curr_prop,
-            test_index,
-        )
-        self.evaluate(test_dataset, test_names, ground_truths)
+        self.evaluate(names, posteriors, curr_prop, test_index)
 
     def read_data(self):
         """Reads posteriors and supernova physical properties
@@ -114,7 +107,7 @@ class MosfitTrainer(BaseTrainer):
 
         return np.array(all_names), np.array(all_posteriors), np.array(all_params)
 
-    def generate_train_data(self, posteriors, curr_props, train_index):
+    def generate_train_data(self, posteriors, curr_props, train_index, val_index):
         """Splits data to create training and validation datasets
         and applies all the pre-processing transformations.
 
@@ -132,8 +125,6 @@ class MosfitTrainer(BaseTrainer):
         tuple of TorchDataset
             The training and validation datasets.
         """
-        train_index, val_index = train_test_split(train_index, shuffle=True, test_size=0.1)
-
         train_posts = posteriors[train_index]
         val_posts = posteriors[val_index]
         train_props = curr_props[train_index]
@@ -142,23 +133,10 @@ class MosfitTrainer(BaseTrainer):
         train_posts = adjust_log_dists(train_posts)
         val_posts = adjust_log_dists(val_posts)
 
-        train_posts, mean, std = normalize_features(train_posts)
-        val_posts, mean, std = normalize_features(val_posts, mean, std)
-
         train_props = self.scaler.fit_transform(train_props.reshape(-1, 1))
         val_props = self.scaler.fit_transform(val_props.reshape(-1, 1))
 
-        train_dataset = create_dataset(train_posts, train_props)
-        val_dataset = create_dataset(val_posts, val_props)
-
-        self.config.set_non_tunable_params(
-            input_dim=train_posts.shape[1],
-            output_dim=1,
-            norm_means=mean.tolist(),
-            norm_stddevs=std.tolist(),
-        )
-
-        return train_dataset, val_dataset
+        return train_posts, train_props, val_posts, val_props
 
     def generate_test_data(self, names, posteriors, curr_props, test_index):
         """Applies pre-processing transformations and creates
@@ -193,7 +171,7 @@ class MosfitTrainer(BaseTrainer):
 
         return test_dataset, test_names, raw_test_props
 
-    def train(self, train_dataset, val_dataset):
+    def train(self, posteriors, curr_prop, train_index):
         """Trains the network to predict a physical parameter.
 
         Parameters
@@ -206,6 +184,25 @@ class MosfitTrainer(BaseTrainer):
             The target parameter the model will predict.
         """
         run_id = f"regression_{self.parameter}"
+
+        train_index, val_index = train_test_split(train_index, shuffle=True, test_size=0.1)
+
+        train_posts, train_props, val_posts, val_props = self.generate_train_data(
+            posteriors, curr_prop, train_index, val_index
+        )
+
+        train_posts, mean, std = normalize_features(train_posts)
+        val_posts, mean, std = normalize_features(val_posts, mean, std)
+
+        train_dataset = create_dataset(train_posts, train_props)
+        val_dataset = create_dataset(val_posts, val_props)
+
+        self.config.set_non_tunable_params(
+            input_dim=train_posts.shape[1],
+            output_dim=1,
+            norm_means=mean.tolist(),
+            norm_stddevs=std.tolist(),
+        )
 
         # Create regression model
         self.model = SuperphotRegressor.create(self.config)
@@ -234,7 +231,13 @@ class MosfitTrainer(BaseTrainer):
             trial_id=run_id,
         )
 
-    def evaluate(self, test_dataset, test_names, ground_truths):
+    def evaluate(
+        self,
+        names,
+        posteriors,
+        curr_prop,
+        test_index,
+    ):
         """Evaluates model on the test dataset.
 
         Parameters
@@ -249,6 +252,13 @@ class MosfitTrainer(BaseTrainer):
 
         if not SupernovaProperties.check_property_exists(self.parameter):
             raise ValueError(f"Invalid physical parameter {self.parameter}.")
+
+        test_dataset, test_names, ground_truths = self.generate_test_data(
+            names,
+            posteriors,
+            curr_prop,
+            test_index,
+        )
 
         predictions = self.model.evaluate(test_dataset=test_dataset)
 

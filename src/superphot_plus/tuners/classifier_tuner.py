@@ -14,11 +14,11 @@ from superphot_plus.format_data_ztf import generate_K_fold, normalize_features, 
 from superphot_plus.model.classifier import SuperphotClassifier
 from superphot_plus.model.config import ModelConfig
 from superphot_plus.model.data import TrainData, ZtfData
-from superphot_plus.base_trainer import BaseTrainer
+from superphot_plus.trainers.classifier_trainer import ClassifierTrainer
 from superphot_plus.utils import create_dataset, get_session_metrics, log_metrics_to_tensorboard
 
 
-class ClassifierTuner(BaseTrainer):
+class ClassifierTuner(ClassifierTrainer):
     """
     Tunes models using Ray and K-Fold cross validation.
 
@@ -36,29 +36,14 @@ class ClassifierTuner(BaseTrainer):
         Defaults to 0.
     """
 
-    def __init__(
-        self,
-        sampler="dynesty",
-        include_redshift=True,
-        num_cpu=2,
-        num_gpu=0,
-    ):
-        super().__init__(sampler, include_redshift)
+    def __init__(self, include_redshift=True, num_cpu=2, num_gpu=0):
+        super().__init__()
+
+        # Classification specific
+        self.include_redshift = include_redshift
+
         self.num_cpu = num_cpu
         self.num_gpu = num_gpu
-        self.create_output_dirs(delete_prev=True)
-
-    def generate_hp_sample(self):
-        """Generates random set of hyperparameters for tuning."""
-        return ModelConfig(
-            neurons_per_layer=tune.choice([128, 256, 512]),
-            num_hidden_layers=tune.choice([3, 4, 5]),
-            goal_per_class=tune.choice([100, 500, 1000]),
-            num_folds=tune.choice(list(range(5, 10))),
-            num_epochs=tune.choice([250, 500, 750]),
-            batch_size=tune.choice([32, 64, 128]),
-            learning_rate=tune.loguniform(1e-4, 1e-1),
-        )
 
     def run(self, input_csvs=None, num_hp_samples=10):
         """Performs model tuning with cross-validation to get
@@ -76,6 +61,18 @@ class ClassifierTuner(BaseTrainer):
         best_config = self.tune_model(train_data, num_hp_samples)
         best_config.write_to_file(os.path.join(self.models_dir, "best-config.yaml"))
         return best_config
+
+    def generate_hp_sample(self):
+        """Generates random set of hyperparameters for tuning."""
+        return ModelConfig(
+            neurons_per_layer=tune.choice([128, 256, 512]),
+            num_hidden_layers=tune.choice([3, 4, 5]),
+            goal_per_class=tune.choice([100, 500, 1000]),
+            num_folds=tune.choice(list(range(5, 10))),
+            num_epochs=tune.choice([250, 500, 750]),
+            batch_size=tune.choice([32, 64, 128]),
+            learning_rate=tune.loguniform(1e-4, 1e-1),
+        )
 
     def tune_model(self, train_data, num_hp_samples=10):
         """Invokes the Ray Tune API to start model tuning. Outputs the best
@@ -154,7 +151,9 @@ class ClassifierTuner(BaseTrainer):
 
         # Stratified K-Fold on the training data
         kfold = generate_K_fold(
-            features=np.zeros(len(train_data.labels)), classes=train_data.labels, num_folds=config.num_folds
+            features=np.zeros(len(train_data.labels)),
+            num_folds=config.num_folds,
+            classes=train_data.labels,
         )
 
         def run_single_fold(fold):

@@ -1,8 +1,7 @@
 """Entry point to model tuning using K-Fold cross validation."""
-from argparse import ArgumentParser, BooleanOptionalAction
+from argparse import ArgumentParser
 
-from superphot_plus.file_paths import INPUT_CSVS
-from superphot_plus.tuners.classifier_tuner import ClassifierTuner
+from superphot_plus.tuners.mosfit_tuner import MosfitTuner
 
 
 def extract_cmd_args():
@@ -11,15 +10,9 @@ def extract_cmd_args():
         description="Model tuning using K-Fold cross validation",
     )
     parser.add_argument(
-        "--input_csvs",
-        help="List of CSVs containing light curve data (comma separated)",
-        default=",".join(INPUT_CSVS),
-    )
-    parser.add_argument(
-        "--include_redshift",
-        help="If flag is set, include redshift data for training",
-        default=True,
-        action=BooleanOptionalAction,
+        "--parameter",
+        help="Name of the physical parameter to tune model on",
+        required=True,
     )
     parser.add_argument(
         "--num_hp_samples",
@@ -42,13 +35,10 @@ def extract_cmd_args():
 if __name__ == "__main__":
     args = extract_cmd_args()
 
-    tuner = ClassifierTuner(
-        include_redshift=args.include_redshift,
+    tuner = MosfitTuner(
+        parameter=args.parameter,
         num_cpu=args.num_cpu,
         num_gpu=args.num_gpu,
     )
 
-    tuner.run(
-        input_csvs=args.input_csvs.split(","),
-        num_hp_samples=int(args.num_hp_samples),
-    )
+    tuner.run(num_hp_samples=int(args.num_hp_samples))

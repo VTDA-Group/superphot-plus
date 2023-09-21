@@ -15,7 +15,7 @@ from superphot_plus.model.data import TestData, TrainData, ZtfData
 from superphot_plus.plotting.classifier_results import plot_model_metrics
 from superphot_plus.plotting.confusion_matrices import plot_matrices
 from superphot_plus.supernova_class import SupernovaClass as SnClass
-from superphot_plus.base_trainer import BaseTrainer
+from superphot_plus.trainers.base_trainer import BaseTrainer
 from superphot_plus.utils import (
     create_dataset,
     extract_wrong_classifications,
@@ -51,10 +51,10 @@ class ClassifierTrainer(BaseTrainer):
 
     def __init__(
         self,
-        config_name,
+        config_name=None,
         sampler="dynesty",
         include_redshift=True,
-        probs_file=PROBS_FILE,
+        probs_file="probs_new.csv",
         classification_dir=CLASSIFICATION_DIR,
     ):
         super().__init__(
@@ -104,6 +104,9 @@ class ClassifierTrainer(BaseTrainer):
         load_checkpoint : bool
             If true, load pretrained model checkpoint.
         """
+        if self.config_name is None:
+            raise ValueError("Could not read model configuration.")
+
         # Loads model and config
         self.setup_model(
             SuperphotClassifier,

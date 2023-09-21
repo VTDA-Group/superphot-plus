@@ -5,7 +5,7 @@ import csv
 
 import numpy as np
 from imblearn.over_sampling import SMOTE
-from sklearn.model_selection import StratifiedKFold
+from sklearn.model_selection import KFold, StratifiedKFold
 
 from superphot_plus.file_paths import FITS_DIR
 from superphot_plus.file_utils import get_multiple_posterior_samples, has_posterior_samples
@@ -79,7 +79,7 @@ def import_labels_only(input_csvs, allowed_types, fits_dir=None, needs_posterior
     return np.array(names), np.array(labels), np.array(redshifts)
 
 
-def generate_K_fold(features, classes, num_folds):
+def generate_K_fold(features, num_folds, classes=None, stratified=True):
     """Generates set of K test sets and corresponding training sets.
 
     Parameters
@@ -96,11 +96,13 @@ def generate_K_fold(features, classes, num_folds):
     generator
         Generator yielding the indices for training and test sets.
     """
-    if num_folds == -1:
-        kf = StratifiedKFold(n_splits=len(features), shuffle=True)  # cross-one out validation
+    num_splits = len(features) if num_folds == -1 else num_folds
+    if stratified:
+        kf = StratifiedKFold(n_splits=num_splits, shuffle=True)
+        return kf.split(features, classes)
     else:
-        kf = StratifiedKFold(n_splits=num_folds, shuffle=True)
-    return kf.split(features, classes)
+        kf = KFold(n_splits=num_splits, shuffle=True)
+        return kf.split(features)
 
 
 def tally_each_class(labels):
