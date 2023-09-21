@@ -86,6 +86,11 @@ class MultibandPriors:
         return np.array(bands_ordered)
 
     @property
+    def ref_band_index(self):
+        """Returns index of reference band."""
+        return np.argmax(self.ordered_bands == self.reference_band)
+    
+    @property
     def aux_bands(self):
         """Returns auxilliary (non-reference) bands in band_order."""
         bands_ordered = []

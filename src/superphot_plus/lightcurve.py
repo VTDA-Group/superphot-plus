@@ -7,7 +7,7 @@ import numpy as np
 class Lightcurve:
     """A class for storing and manipulating a light curve."""
 
-    def __init__(self, times, fluxes, flux_errors, bands, name=None, sn_class=None):
+    def __init__(self, times, fluxes, flux_errors, bands, name=None, sn_class=None, **kwargs):
         """A class for storing and manipulating a light curve.
 
         Parameters
@@ -38,6 +38,7 @@ class Lightcurve:
         self.bands = bands
         self.name = name
         self.sn_class = sn_class
+        self.extra_properties = kwargs
 
     def _reindex(self, indices, in_place=True):
         """Rearrange or subset the values in each array to match
@@ -277,7 +278,7 @@ class Lightcurve:
             raise FileExistsError(f"ERROR: File already exists {filename}")
 
         lcs = np.array([self.times, self.fluxes, self.flux_errors, self.bands])
-        np.savez_compressed(filename, lcs=lcs, name=self.name, sn_class=self.sn_class)
+        np.savez_compressed(filename, lcs=lcs, name=self.name, sn_class=self.sn_class, **self.extra_properties)
 
     def debug_string(self):
         """Create and return a human readable debugging string.
@@ -325,9 +326,13 @@ class Lightcurve:
 
         # Load the data as a numpy array.
         npy_array = np.load(filename, allow_pickle=True)
-        arr = npy_array["lcs"]
-        curve_name = npy_array["name"]
-        sn_class = npy_array["sn_class"]
+        arr = None
+        property_dict = {}
+        for k in npy_array.files:
+            if k == "lcs":
+                arr = npy_array[k]
+            else:
+                property_dict[k] = npy_array[k]
 
         # Keep only the rows without NaNs in the error column.
         good_rows = arr[2] != "nan"
@@ -335,7 +340,10 @@ class Lightcurve:
         fdata = arr[1][good_rows].astype(float)
         edata = arr[2][good_rows].astype(float)
         bdata = arr[3][good_rows]
-        lc = Lightcurve(tdata, fdata, edata, bdata, name=curve_name, sn_class=sn_class)
+        lc = Lightcurve(
+            tdata, fdata, edata, bdata,
+            **property_dict
+        )
 
         # Enforce the time ceiling if there is one.
         if t0_lim is not None:
