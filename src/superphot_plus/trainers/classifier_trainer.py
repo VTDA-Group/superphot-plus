@@ -15,7 +15,7 @@ from superphot_plus.model.data import TestData, TrainData, ZtfData
 from superphot_plus.plotting.classifier_results import plot_model_metrics
 from superphot_plus.plotting.confusion_matrices import plot_matrices
 from superphot_plus.supernova_class import SupernovaClass as SnClass
-from superphot_plus.trainer_base import TrainerBase
+from superphot_plus.base_trainer import BaseTrainer
 from superphot_plus.utils import (
     create_dataset,
     extract_wrong_classifications,
@@ -28,7 +28,7 @@ from superphot_plus.utils import adjust_log_dists
 from superphot_plus.file_utils import get_posterior_samples
 
 
-class SuperphotTrainer(TrainerBase):
+class ClassifierTrainer(BaseTrainer):
     """
     Trains and evaluates models using K-Fold cross validation.
 

@@ -11,7 +11,7 @@ from superphot_plus.model.regressor import SuperphotRegressor
 from superphot_plus.plotting.regressor_results import plot_model_metrics
 from superphot_plus.posterior_samples import PosteriorSamples
 from superphot_plus.supernova_properties import SupernovaProperties
-from superphot_plus.trainer_base import TrainerBase
+from superphot_plus.base_trainer import BaseTrainer
 from superphot_plus.utils import (
     adjust_log_dists,
     create_dataset,
@@ -21,7 +21,7 @@ from superphot_plus.utils import (
 )
 
 
-class MosfitTrainer(TrainerBase):
+class MosfitTrainer(BaseTrainer):
     """Infers supernovae physical parameters."""
 
     def __init__(

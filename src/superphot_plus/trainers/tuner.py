@@ -14,11 +14,11 @@ from superphot_plus.format_data_ztf import generate_K_fold, normalize_features, 
 from superphot_plus.model.classifier import SuperphotClassifier
 from superphot_plus.model.config import ModelConfig
 from superphot_plus.model.data import TrainData, ZtfData
-from superphot_plus.trainer_base import TrainerBase
+from superphot_plus.base_trainer import BaseTrainer
 from superphot_plus.utils import create_dataset, get_session_metrics, log_metrics_to_tensorboard
 
 
-class SuperphotTuner(TrainerBase):
+class ClassifierTuner(BaseTrainer):
     """
     Tunes models using Ray and K-Fold cross validation.
 

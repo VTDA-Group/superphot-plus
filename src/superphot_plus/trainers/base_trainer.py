@@ -5,7 +5,7 @@ from superphot_plus.model.config import ModelConfig
 from superphot_plus.model.mlp import SuperphotMlp
 
 
-class TrainerBase:
+class BaseTrainer:
     """Trainer base class."""
 
     def __init__(
