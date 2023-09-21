@@ -326,12 +326,8 @@ class Lightcurve:
 
         # Load the data as a numpy array.
         npy_array = np.load(filename, allow_pickle=True)
-        arr = npy_array["lcs"]
+        arr = None
         property_dict = {}
-        
-        name = None
-        sn_class = None
-        
         for k in npy_array.files:
             if k == "lcs":
                 arr = npy_array[k]
