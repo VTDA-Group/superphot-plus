@@ -12,7 +12,7 @@ MIN_PER_FILTER = 5
 # pylint: disable=global-variable-not-assigned
 
 
-def add_stamp_column(input_filename, output_filename):
+def add_stamp_column(input_filename, output_filename):  # pragma: no cover
     """Checks whether stamp classifier categorizes each lightcurve in
     spreadsheet as a supernova-like transient, and adds as additional
     column.
