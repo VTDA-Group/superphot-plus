@@ -57,7 +57,7 @@ class MosfitTrainer(BaseTrainer):
 
         # Regression specific
         self.parameter = parameter
-        self.params_dir = os.path.join(mosfit_dir, "params")
+        self.params_dir = os.path.join(mosfit_dir, "properties")
         self.scaler = StandardScaler()
 
         # Restart output files
