@@ -53,7 +53,7 @@ def add_stamp_column(input_filename, output_filename):  # pragma: no cover
                 csv_writer.writerow([*row, "None"])
 
 
-def get_all_unclassified_samples(save_csv):
+def get_all_unclassified_samples(save_csv):  # pragma: no cover
     """Get all unclassified samples and save them to a CSV file.
 
     Parameters
@@ -122,7 +122,7 @@ def get_all_unclassified_samples(save_csv):
         i += 1
 
 
-def generate_flux_files(master_csv, save_folder):
+def generate_flux_files(master_csv, save_folder):  # pragma: no cover
     """Generates flux files for all ZTF samples in the master CSV file,
     using ALeRCE's API.
 
