@@ -27,7 +27,7 @@ Most folks use conda for virtual environments. You may want to as well.
 
 .. code-block:: bash
 
-    $ git clone https://github.com/lincc-frameworks/superphot-plus
+    $ git clone https://github.com/VTDA-Group/superphot-plus
     $ cd superphot-plus
     $ pip install -e .
 
@@ -43,7 +43,7 @@ Most folks use conda for virtual environments. You may want to as well.
 
         $ conda config --add channels conda-forge
         $ conda install healpy
-        $ git clone https://github.com/lincc-frameworks/superphot-plus
+        $ git clone https://github.com/VTDA-Group/superphot-plus
         $ cd superphot-plus
         $ pip install -e .
         
