@@ -44,6 +44,57 @@ data from alert brokers, model tuning and benchmarking use
 You can then run `$ pytest` to verify that all dependencies are correct,
 and your environment should be ready for superphot-plussing!
 
+## Working with the models
+
+Inside the `scripts` directory you can find four scripts which focus on the training and tuning of the supernovae classifier and the physical parameter regressor.
+
+Below is a brief guide on how to get started with model training and tuning. To get a full specification of any of the available scripts, run `$ python <script_name.py> --help`.
+
+### Classifier
+
+Both workflows assume training data is loaded from `training_set.csv` (unless specified using the **--input_csvs** argument) and that the respective posterior fits are located under the classification directory, on a subdirectory named `{sampler}_fits`.
+
+To train the classifier run `train_classifier.py`.
+
+```
+$ python train_classifier.py --config_name superphot-plus
+```
+
+Specify a configuration file name. This file is in the YAML format and contains the configuration of the neural network, as specified in [ModelConfig](https://github.com/VTDA-Group/superphot-plus/blob/main/src/superphot_plus/model/config.py). It should be placed in the classification directory, under "models". Here is a very simple configuration example:
+
+```yaml
+neurons_per_layer: 256
+num_hidden_layers: 10
+goal_per_class: 100
+num_epochs: 500
+batch_size: 32
+learning_rate: 0.0001
+```
+
+To get an optimized set of hyperparameters run `tune_classifier.py` and specify the number of neural network configurations to be sampled by Ray.
+
+```
+$ python tune_classifier.py --num_hp_samples 5
+```
+
+### Regressor
+
+Both workflows assume the posterior samples and supernovae property data are located under the mosfit directory, on subdirectories named `posteriors` and `properties`, respectively. 
+
+To train the regressor run `train_mosfit.py`.
+
+```
+$ python train_mosfit.py --parameter bfield
+```
+
+You will need to specify the physical property name. Similarly to what is described for the classification task, there should be a file in the mosfit directory, under "models", specifying the desired neural network configuration. This file must be named after the physical parameter.
+
+To get an optimized set of hyperparameters specify the physical property name and the number of neural network configurations to be sampled by Ray.
+
+```
+$ python tune_mosfit.py --parameter bfield --num_hp_samples 10
+```
+
 ## Contributing
 
 [![GitHub issue custom search in repo](https://img.shields.io/github/issues-search/vtda-group/superphot-plus?color=purple&label=Good%20first%20issues&query=is%3Aopen%20label%3A%22good%20first%20issue%22)](https://github.com/vtda-group/superphot-plus/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22)
