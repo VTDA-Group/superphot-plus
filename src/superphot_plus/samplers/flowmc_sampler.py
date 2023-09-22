@@ -25,99 +25,97 @@ from superphot_plus.surveys.fitting_priors import MultibandPriors
 config.update("jax_enable_x64", True)
 config.update("jax_debug_nans", True)
 
-@jit
-def prior_eval(cube, _):
+
+def generate_posterior_function(all_priors):
     """
-    From a parameter cube, evaluates the associated
-    prior probability.
+    Takes in MultibandPriors object.
     """
-    return -0.5 * jnp.sum((cube - PRIOR_MEANS) ** 2 / PRIOR_SIGMAS**2)
+    prior_means = all_priors[2]
+    prior_stddevs = all_priors[3]
+    
+    @jit
+    def posterior_eval(cube, data_stacked):
+        """
+        Extracts the parameter cube and evaluates
+        the associated likelihood.
+        """
+        #-0.5 * jnp.linalg.norm((cube - PRIOR_MEANS - 1.)/PRIOR_SIGMAS)
 
+        t, obsflux, uncertainties = data_stacked
 
-@jit
-def posterior_eval(cube, data_stacked):
-    """
-    Extracts the parameter cube and evaluates
-    the associated likelihood.
-    """
-    # return -0.5 * jnp.linalg.norm((cube - PRIOR_MEANS - 1.)/PRIOR_SIGMAS)
-    if data_stacked.shape[0] != 3:
-        return -50. * jnp.linalg.norm(cube - 100.)
+        # return -50. * jnp.linalg.norm(cube - 100.)
 
-    t, obsflux, uncertainties = data_stacked
+        max_flux = np.max(obsflux - uncertainties)
 
-    # return -50. * jnp.linalg.norm(cube - 100.)
+        # return prior_eval(cube, max_flux)
 
-    max_flux = np.max(obsflux - uncertainties)
+        (
+            A,
+            beta,
+            gamma,
+            t0,
+            tau_rise,
+            tau_fall,
+            extra_sigma,
+            A_g,
+            beta_g,
+            gamma_g,
+            t0_g,
+            tau_rise_g,
+            tau_fall_g,
+            extra_sigma_g,
+        ) = cube * prior_stddevs + prior_means # cube is normalized between 0 and 1
 
-    # return prior_eval(cube, max_flux)
+        A = max_flux * 10**A
+        gamma = 10**gamma
+        tau_rise = 10**tau_rise
+        tau_fall = 10**tau_fall
+        extra_sigma = 10**extra_sigma
 
-    (
-        A,
-        beta,
-        gamma,
-        t0,
-        tau_rise,
-        tau_fall,
-        extra_sigma,
-        A_g,
-        beta_g,
-        gamma_g,
-        t0_g,
-        tau_rise_g,
-        tau_fall_g,
-        extra_sigma_g,
-    ) = cube
+        phase = t - t0
+        flux_const = A / (1.0 + jnp.exp(-phase / tau_rise))
 
-    A = max_flux * 10**A
-    gamma = 10**gamma
-    tau_rise = 10**tau_rise
-    tau_fall = 10**tau_fall
-    extra_sigma = 10**extra_sigma
+        sigmoid = 1 / (1 + jnp.exp(10.0 * (gamma - phase)))
 
-    phase = t - t0
-    flux_const = A / (1.0 + jnp.exp(-phase / tau_rise))
-
-    sigmoid = 1 / (1 + jnp.exp(10.0 * (gamma - phase)))
-
-    # return -jnp.sum( (obsflux[:14] - flux_const)**2 )
-    flux = flux_const * (
-        (1 - sigmoid) * (1 - beta * phase)
-        + sigmoid * (1 - beta * gamma) * jnp.exp(-(phase - gamma) / tau_fall)
-    )
-
-    inc_band_ix = np.arange(0, PAD_SIZE)
-
-    A_b = A * A_g  # pylint: disable=unused-variable
-    beta_b = beta * beta_g
-    gamma_b = gamma * gamma_g
-    t0_b = t0 * t0_g
-    tau_rise_b = tau_rise * tau_rise_g
-    tau_fall_b = tau_fall * tau_fall_g
-
-    # g band
-    phase_b = (t - t0_b)[inc_band_ix]
-    flux_const_b = A / (1.0 + jnp.exp(-phase_b / tau_rise_b))
-    sigmoid_b = 1 / (1 + jnp.exp(10.0 * (gamma_b - phase_b)))
-
-    flux = flux.at[inc_band_ix].set(
-        flux_const_b
-        * (
-            (1 - sigmoid_b) * (1 - beta_b * phase_b)
-            + sigmoid_b * (1 - beta_b * gamma_b) * jnp.exp(-(phase_b - gamma_b) / tau_fall_b)
+        # return -jnp.sum( (obsflux[:14] - flux_const)**2 )
+        flux = flux_const * (
+            (1 - sigmoid) * (1 - beta * phase)
+            + sigmoid * (1 - beta * gamma) * jnp.exp(-(phase - gamma) / tau_fall)
         )
-    )
 
-    sigma_tot = jnp.sqrt(uncertainties**2 + extra_sigma**2)
-    sigma_tot = sigma_tot.at[inc_band_ix].set(
-        jnp.sqrt(uncertainties[inc_band_ix] ** 2 + extra_sigma_g**2 * extra_sigma**2)
-    )
+        inc_band_ix = np.arange(0, PAD_SIZE)
 
-    return (
-        prior_eval(cube, None)
-        - 0.5 * jnp.sum((flux - obsflux) ** 2 / sigma_tot**2)
-        - jnp.sum(jnp.log(jnp.sqrt(2 * jnp.pi) * sigma_tot))
-    )
+        A_b = A * A_g  # pylint: disable=unused-variable
+        beta_b = beta * beta_g
+        gamma_b = gamma * gamma_g
+        t0_b = t0 * t0_g
+        tau_rise_b = tau_rise * tau_rise_g
+        tau_fall_b = tau_fall * tau_fall_g
+
+        # g band
+        phase_b = (t - t0_b)[inc_band_ix]
+        flux_const_b = A / (1.0 + jnp.exp(-phase_b / tau_rise_b))
+        sigmoid_b = 1 / (1 + jnp.exp(10.0 * (gamma_b - phase_b)))
+
+        flux = flux.at[inc_band_ix].set(
+            flux_const_b
+            * (
+                (1 - sigmoid_b) * (1 - beta_b * phase_b)
+                + sigmoid_b * (1 - beta_b * gamma_b) * jnp.exp(-(phase_b - gamma_b) / tau_fall_b)
+            )
+        )
+
+        sigma_tot = jnp.sqrt(uncertainties**2 + extra_sigma**2)
+        sigma_tot = sigma_tot.at[inc_band_ix].set(
+            jnp.sqrt(uncertainties[inc_band_ix] ** 2 + extra_sigma_g**2 * extra_sigma**2)
+        )
+
+        return (
+            #prior_eval(cube, None)
+            - 0.5 * jnp.sum((flux - obsflux) ** 2 / sigma_tot**2)
+            - jnp.sum(jnp.log(jnp.sqrt(2 * jnp.pi) * sigma_tot))
+        )
+    return posterior_eval
 
 
 def run_flowMC(lightcurve, priors, n_chains=4, rseed=42):
@@ -133,10 +131,10 @@ def run_flowMC(lightcurve, priors, n_chains=4, rseed=42):
     rng_key_set = initialize_rng_keys(n_chains, seed=rseed)
     n_dim = len(all_priors.T)
     print("n_dim", n_dim)
-    initial_position = jnp.tile(all_priors[2], (n_chains, 1))
+    initial_position = jnp.zeros((n_chains, all_priors.shape[1]))
 
-    print(jax.value_and_grad(prior_eval)(initial_position[0], None))
-    print(jax.value_and_grad(posterior_eval)(initial_position[0], data_stacked))
+    #print(jax.value_and_grad(prior_eval)(initial_position[0], None))
+    #print(jax.value_and_grad(posterior_eval)(initial_position[0], data_stacked))
 
     model = MaskedCouplingRQSpline(n_dim, 4, [32, 32], 8, jax.random.PRNGKey(10))
 
@@ -150,7 +148,11 @@ def run_flowMC(lightcurve, priors, n_chains=4, rseed=42):
     momentum = 0.9
     batch_size = 500
 
-    sampler = MALA(posterior_eval, True, {"step_size": all_priors[3] / 100.0})#, use_autotune=True)  # {"})
+    sampler = MALA(
+        generate_posterior_function(all_priors),
+        True,
+        {"step_size": 0.01}
+    )#, use_autotune=True)  # {"})
     nf_sampler = FlowSampler(
         n_dim=n_dim,
         rng_key_set=rng_key_set,
