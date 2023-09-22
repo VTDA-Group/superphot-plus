@@ -11,10 +11,10 @@ def test_generate_clean_data():
     assert len(params) == 10
     assert len(lcs) == 10
     for i in range(10):
-        assert lcs[i].shape == (4, 50)
-        assert "r" in lcs[i][3]
-        assert "g" in lcs[i][3]
-        assert "i" not in lcs[i][3]
+        assert lcs[i].obs_count() == 50
+        assert lcs[i].obs_count("r") > 0
+        assert lcs[i].obs_count("g") > 0
+        assert lcs[i].obs_count("i") == 0
         assert len(params[i]) == 14
 
     # Generate 5 light curves with 10 time steps each and 3 bands
@@ -22,10 +22,10 @@ def test_generate_clean_data():
     assert len(params) == 5
     assert len(lcs) == 5
     for i in range(5):
-        assert lcs[i].shape == (4, 10)
-        assert "r" in lcs[i][3]
-        assert "g" in lcs[i][3]
-        assert "i" in lcs[i][3]
+        assert lcs[i].obs_count() == 10
+        assert lcs[i].obs_count("r") > 0
+        assert lcs[i].obs_count("g") > 0
+        assert lcs[i].obs_count("i") > 0
         assert len(params[i]) == 21
 
 
@@ -34,5 +34,5 @@ def test_generate_ztf_data():
     (A, beta, gamma, t0, tau_rise, tau_fall, es), tdata, filter_data, dirty_model, sigmas = create_ztf_model()
     print((A, beta, gamma, t0, tau_rise, tau_fall, es))
     print(tdata, filter_data, dirty_model, sigmas)
-    #assert np.isclose(beta, 0.0039, rtol=0.5)
-    #assert np.isclose(es, 0.0099, rtol=0.5, atol=0.1)
+    # assert np.isclose(beta, 0.0039, rtol=0.5)
+    # assert np.isclose(es, 0.0099, rtol=0.5, atol=0.1)

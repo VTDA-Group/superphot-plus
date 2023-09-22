@@ -32,7 +32,7 @@ class NumpyroSampler(Sampler):
         pass
 
     def run_single_curve(
-        self, lightcurve: Lightcurve, priors: MultibandPriors, rng_seed, sampler="svi", **kwargs
+        self, lightcurve: Lightcurve, priors: MultibandPriors, rng_seed, ref_params=None, sampler="svi", **kwargs
     ) -> PosteriorSamples:
         """Run the sampler on a single light curve.
 
@@ -54,15 +54,25 @@ class NumpyroSampler(Sampler):
             The resulting samples.
         """
         lightcurve.pad_bands(priors.ordered_bands, PAD_SIZE)
-        eq_wt_samples = run_mcmc(lightcurve, rng_seed=rng_seed, sampler=sampler, priors=priors)
+        eq_wt_samples = run_mcmc(
+            lightcurve,
+            rng_seed=rng_seed,
+            sampler=sampler,
+            priors=priors,
+            ref_params=ref_params,
+        )
         if eq_wt_samples is None:
             return None
+        
         return PosteriorSamples(
-            eq_wt_samples[0], name=lightcurve.name, sampling_method=sampler, sn_class=lightcurve.sn_class
+            eq_wt_samples[0],
+            name=lightcurve.name,
+            sampling_method=sampler,
+            sn_class=lightcurve.sn_class,
         )
 
     def run_multi_curve(
-        self, lightcurves, priors: MultibandPriors, sampler="svi", **kwargs
+        self, lightcurves, priors: MultibandPriors, rng_seed, sampler="svi", ref_params=None, **kwargs
     ) -> List[PosteriorSamples]:
         """Not yet implemented."""
 
@@ -73,7 +83,13 @@ class NumpyroSampler(Sampler):
         for lc in lightcurves:
             padded_lcs.append(lc.pad_bands(priors.ordered_bands, PAD_SIZE, in_place=False))
 
-        eq_wt_samples = run_mcmc(padded_lcs, sampler=sampler, priors=priors)
+        eq_wt_samples = run_mcmc(
+            padded_lcs,
+            rng_seed=rng_seed,
+            sampler=sampler,
+            priors=priors,
+            ref_params=ref_params
+        )
 
         post_list = []
         for i, posts in enumerate(eq_wt_samples):
@@ -155,7 +171,12 @@ def trunc_norm(fields: PriorFields):
 
 
 def create_jax_model(
-    priors, t=None, obsflux=None, uncertainties=None, max_flux=None
+    priors,
+    t=None,
+    obsflux=None,
+    uncertainties=None,
+    max_flux=None,
+    ref_params=None
 ):  # pylint: disable=too-many-locals
     """Create a JAX model for MCMC.
 
@@ -174,7 +195,16 @@ def create_jax_model(
     """
     ref_priors = priors.bands[priors.reference_band]
 
-    amp, beta, gamma, t_0, tau_rise, tau_fall, extra_sigma = prior_helper(ref_priors, max_flux)
+    if ref_params is not None:
+        (
+            amp, beta, gamma, t_0,
+            tau_rise, tau_fall, extra_sigma
+        ) = ref_params
+    else:
+        (
+            amp, beta, gamma, t_0,
+            tau_rise, tau_fall, extra_sigma
+        ) = prior_helper(ref_priors, max_flux)
 
     es_scaled = max_flux * extra_sigma
     phase = t - t_0
@@ -188,7 +218,10 @@ def create_jax_model(
     sigma_tot = jnp.sqrt(uncertainties**2 + es_scaled**2)
 
     # auxiliary bands
-    for b_idx, uniq_b in enumerate(priors.aux_bands):
+    for b_idx, uniq_b in enumerate(priors.ordered_bands):
+        if uniq_b == priors.reference_band:
+            continue
+            
         b_priors = priors.bands[uniq_b]
 
         (
@@ -208,7 +241,8 @@ def create_jax_model(
         tau_rise_b = tau_rise * tau_rise_ratio
         tau_fall_b = tau_fall * tau_fall_ratio
 
-        inc_band_ix = np.arange((b_idx + 1) * PAD_SIZE, (b_idx + 2) * PAD_SIZE)
+        # base inc_band_ix on ordered_bands
+        inc_band_ix = np.arange(b_idx * PAD_SIZE, (b_idx + 1) * PAD_SIZE)
 
         phase_b = (t - t0_b)[inc_band_ix]
         flux_const_b = amp_b / (1.0 + jnp.exp(-phase_b / tau_rise_b))
@@ -229,7 +263,7 @@ def create_jax_model(
     _ = numpyro.sample("obs", dist.Normal(flux, sigma_tot), obs=obsflux)
 
 
-def create_jax_guide(priors, t=None, obsflux=None, uncertainties=None, max_flux=None):
+def create_jax_guide(priors, t=None, obsflux=None, uncertainties=None, max_flux=None, ref_params=None):
     """JAX guide function for MCMC.
 
     Parameters
@@ -268,7 +302,69 @@ def create_jax_guide(priors, t=None, obsflux=None, uncertainties=None, max_flux=
         numpyro_sample("extra_sigma_" + uniq_b, b_priors.extra_sigma, 1e-3)
 
 
-def run_mcmc(lc, rng_seed, sampler="NUTS", priors=Survey.ZTF().priors):
+def _svi_helper_no_recompile(
+    lc_single,
+    max_flux,
+    priors,
+    svi,
+    svi_state,
+    lax_jit,
+    num_iter,
+    seed,
+    ref_params=None,
+):
+    """Helper function to run SVI on a single light curve with an already
+    compiled SVI sampler object."""
+    if svi_state is None:
+        svi_state = svi.init(
+            random.PRNGKey(1),
+            obsflux=lc_single.fluxes,
+            t=lc_single.times,
+            uncertainties=lc_single.flux_errors,
+            max_flux=max_flux,
+            ref_params=ref_params,
+        )
+    
+    svi_state = lax_jit(
+        svi,
+        svi_state,
+        num_iter,
+        obsflux=lc_single.fluxes,
+        t=lc_single.times,
+        uncertainties=lc_single.flux_errors,
+        max_flux=max_flux,
+        ref_params=ref_params,
+    )
+
+    # params = svi_result.params
+    params = svi.get_params(svi_state)
+    posterior_samples = {}
+    for param in params:
+        if param[-2:] == "mu":
+            rng = np.random.RandomState(seed[0])
+            posterior_samples[param[:-3]] = rng.normal(
+                loc=params[param], scale=params[param[:-2] + "sigma"], size=100
+            )
+
+    posterior_cube = get_numpyro_cube(
+        posterior_samples, max_flux,
+        priors.reference_band, priors.ordered_bands
+    )[0]
+    padded_idxs = lc_single.flux_errors == 1e10
+    red_neg_chisq = calculate_neg_chi_squareds(
+        posterior_cube,
+        lc_single.times[~padded_idxs],
+        lc_single.fluxes[~padded_idxs],
+        lc_single.flux_errors[~padded_idxs],
+        lc_single.bands[~padded_idxs],
+        ordered_bands=priors.ordered_bands,
+        ref_band=priors.reference_band,
+    )
+    
+    return posterior_cube, red_neg_chisq, svi_state
+        
+        
+def run_mcmc(lc, rng_seed, sampler="NUTS", priors=Survey.ZTF().priors, ref_params=None):
     """Runs MCMC using numpyro on the lightcurve to get set
     of equally weighted posteriors (sets of fit parameters).
 
@@ -301,13 +397,9 @@ def run_mcmc(lc, rng_seed, sampler="NUTS", priors=Survey.ZTF().priors):
     rng_key = random.PRNGKey(rng_seed)
     rng_key, seed2 = random.split(rng_key)
         
-    # Require data in all bands.
-    for unique_band in priors.ordered_bands:
-        if lc.obs_count(unique_band) == 0:
-            return None
 
-    def jax_model(t=None, obsflux=None, uncertainties=None, max_flux=None):
-        create_jax_model(priors, t, obsflux, uncertainties, max_flux)
+    def jax_model(t=None, obsflux=None, uncertainties=None, max_flux=None, ref_params=None):
+        create_jax_model(priors, t, obsflux, uncertainties, max_flux, ref_params)
 
     def jax_guide(**kwargs):  # pylint: disable=unused-argument
         create_jax_guide(priors)
@@ -349,7 +441,12 @@ def run_mcmc(lc, rng_seed, sampler="NUTS", priors=Survey.ZTF().priors):
 
         posterior_samples = mcmc.get_samples()
 
-        posterior_cube, aux_bands = get_numpyro_cube(posterior_samples, max_flux, priors.aux_bands)
+        posterior_cube, aux_bands = get_numpyro_cube(
+            posterior_samples,
+            max_flux,
+            priors.reference_band,
+            priors.ordered_bands
+        )
         padded_idxs = lc.flux_errors > 1e5
         red_neg_chisq = calculate_neg_chi_squareds(
             posterior_cube,
@@ -383,53 +480,28 @@ def run_mcmc(lc, rng_seed, sampler="NUTS", priors=Survey.ZTF().priors):
             if i % 100 == 0:
                 print(i)
 
+            """
             # Require data in all bands.
             for unique_band in priors.ordered_bands:
                 if lc_single.obs_count(unique_band) == 0:
                     posterior_cubes.append(None)
                     break
+            """
 
             if bad_prev_fit:
-                svi_state = svi.init(
-                    random.PRNGKey(1),
-                    obsflux=lc_single.fluxes,
-                    t=lc_single.times,
-                    uncertainties=lc_single.flux_errors,
-                    max_flux=lc_single.find_max_flux(band=priors.reference_band)[0],
-                )
-
+                svi_state = None #reinitialize
+            
             max_flux, _ = lc_single.find_max_flux(band=priors.reference_band)
-
-            svi_state = lax_jit(
+            posterior_cube, red_neg_chisq, svi_state = _svi_helper_no_recompile(
+                lc_single,
+                max_flux,
+                priors,
                 svi,
                 svi_state,
+                lax_jit,
                 num_iter,
-                obsflux=lc_single.fluxes,
-                t=lc_single.times,
-                uncertainties=lc_single.flux_errors,
-                max_flux=max_flux,
-            )
-
-            # params = svi_result.params
-            params = svi.get_params(svi_state)
-            posterior_samples = {}
-            for param in params:
-                if param[-2:] == "mu":
-                    rng = np.random.RandomState(seed2[0])
-                    posterior_samples[param[:-3]] = rng.normal(
-                        loc=params[param], scale=params[param[:-2] + "sigma"], size=100
-                    )
-
-            posterior_cube = get_numpyro_cube(posterior_samples, max_flux, priors.aux_bands)[0]
-            padded_idxs = lc_single.flux_errors == 1e10
-            red_neg_chisq = calculate_neg_chi_squareds(
-                posterior_cube,
-                lc_single.times[~padded_idxs],
-                lc_single.fluxes[~padded_idxs],
-                lc_single.flux_errors[~padded_idxs],
-                lc_single.bands[~padded_idxs],
-                ordered_bands=priors.ordered_bands,
-                ref_band=priors.reference_band,
+                seed2,
+                ref_params,
             )
 
             bad_prev_fit = np.mean(red_neg_chisq) < -6

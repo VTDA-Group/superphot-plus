@@ -8,7 +8,7 @@ from superphot_plus.file_utils import get_posterior_filename, get_posterior_samp
 class PosteriorSamples:
     """Container for posterior samples from lightcurve fitting"""
 
-    def __init__(self, samples, name=None, sampling_method=None, sn_class=None):
+    def __init__(self, samples, name=None, sampling_method=None, sn_class=None, sample_mean=None):
         """A class for storing an manipulating posterior samples from a lightcurve.
 
         Parameters
@@ -24,6 +24,10 @@ class PosteriorSamples:
         self.name = name
         self.sampling_method = sampling_method
         self.sn_class = sn_class
+        self._sample_mean = sample_mean
+        
+        if self._sample_mean is None:
+            self._sample_mean = np.mean(self.samples, axis=0)
 
     def sample_mean(self):
         """Convenience method to get some summary statistics about the posterior samples.
@@ -33,7 +37,7 @@ class PosteriorSamples:
         sample_mean: np.array
             Mean of samples along the 0 axis.
         """
-        return np.mean(self.samples, axis=0)
+        return self._sample_mean
 
     def save_to_file(self, output_dir):
         """Save the posterior samples to a directory, using the lightcurve's name.

@@ -153,7 +153,7 @@ def compare_oversampling(
     _, classes_to_labels = SnClass.get_type_maps()
     labels = np.array([classes_to_labels[x] for x in labels])
 
-    features_gaussian, labels_gaussian = oversample_using_posteriors(
+    features_gaussian, labels_gaussian, _ = oversample_using_posteriors(
         names, labels, OVERSAMPLE_SIZE, fits_dir, sampler
     )
 
@@ -194,7 +194,7 @@ def compare_oversampling(
             if j in [0, 3, len(params)]:
                 continue
 
-            _, axes = plt.subplots(2, 1, sharex=True, figsize=(8, 12), gridspec_kw={"hspace": 0})
+            _, axes = plt.subplots(2, 1, sharex=True, figsize=(6, 8), gridspec_kw={"hspace": 0})
 
             smote_ax = axes[0]
             gauss_ax = axes[1]
@@ -239,6 +239,21 @@ def compare_oversampling(
                     label=allowed_t, alpha=0.2, s=1
                 )
 
+            # annotate with labels
+            smote_ax.text(
+                0.99, 0.99, "SMOTE",
+                horizontalalignment='right',
+                verticalalignment='top',
+                c="black",
+                transform=smote_ax.transAxes,
+            )
+            gauss_ax.text(
+                0.99, 0.99, "Oversampling\nMultiple Fits\nPer Lightcurve",
+                horizontalalignment='right',
+                verticalalignment='top',
+                c="black",
+                transform=gauss_ax.transAxes,
+            )
             smote_ax.set_title("Oversampling using SMOTE vs Multiple Fits")
             gauss_ax.set_xlabel(param_1)
             gauss_ax.set_ylabel(param_2)

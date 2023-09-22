@@ -86,6 +86,11 @@ class MultibandPriors:
         return np.array(bands_ordered)
 
     @property
+    def ref_band_index(self):
+        """Returns index of reference band."""
+        return np.argmax(self.ordered_bands == self.reference_band)
+    
+    @property
     def aux_bands(self):
         """Returns auxilliary (non-reference) bands in band_order."""
         bands_ordered = []
@@ -95,6 +100,28 @@ class MultibandPriors:
 
         return np.array(bands_ordered)
 
+    def filter_by_band(self, band_list, in_place=True):
+        """Return MultibandPriors object with only some bands.
+        """
+        assert self.reference_band in band_list
+        
+        bands_filtered = {band: self.bands[band] for band in band_list}
+        band_order = ""
+        for band in self.band_order:
+            if band in band_list:
+                band_order += band
+        
+        if in_place:
+            self.bands = bands_filtered
+            self.band_order = band_order
+            return self
+        
+        return MultibandPriors(
+            bands=bands_filtered,
+            band_order=band_order,
+            reference_band=self.reference_band
+        )        
+        
     def to_numpy(self):
         """Fields as a (7*bands)x4 numpy array"""
         priors = []

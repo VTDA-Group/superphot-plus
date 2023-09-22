@@ -2,6 +2,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from scipy.stats import truncnorm
 
+from superphot_plus.lightcurve import Lightcurve
 from superphot_plus.utils import flux_model, params_valid
 
 DEFAULT_MAX_FLUX = 1.0
@@ -168,7 +169,7 @@ def create_clean_models(nmodels, num_times=100, bands=None, ref_band="r"):
         params.append(cube)
 
         f_model = flux_model(cube, tdata, bdata, bands, ref_band)
-        lcs.append(np.array([tdata, f_model, edata, bdata]))
+        lcs.append(Lightcurve(tdata, f_model, edata, bdata))
 
     return params, lcs
 

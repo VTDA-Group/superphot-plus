@@ -119,15 +119,20 @@ def test_params_valid():
     assert not params_valid(1.0, 0.0, 1.0, 2.1)
 
 
-def test_get_numpyro_cube():
+def test_get_numpyro_cube(ztf_priors):
     """Test converting numpyro param dict to an array of all
     sampled parameter vectors.
     """
     dummy_param_dict = generate_dummy_posterior_sample_dict(batch=False)
-    cube, aux_bands = get_numpyro_cube(dummy_param_dict, 1e3)
+    cube, ordered_bands = get_numpyro_cube(
+        dummy_param_dict,
+        1e3,
+        ref_band=ztf_priors.reference_band,
+        ordered_bands=ztf_priors.ordered_bands,
+    )
 
     assert cube.shape == (20, 14)
-    assert len(aux_bands) == 1
+    assert len(ordered_bands) == 2
     assert np.mean(cube[:, 1]) == np.mean(dummy_param_dict["beta"])
 
 

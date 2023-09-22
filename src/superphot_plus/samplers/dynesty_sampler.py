@@ -154,7 +154,7 @@ def run_mcmc(lightcurve, priors=Survey.ZTF().priors, rstate=None):
             Log-likelihood value.
         """
         f_model = flux_model(cube, lightcurve.times, lightcurve.bands, unique_bands, ref_band)
-        extra_sigma_arr = np.ones(len(lightcurve.times)) * cube[6] * max_flux
+        extra_sigma_arr = np.ones(len(lightcurve.times)) * cube[7*ref_band_idx + 6] * max_flux
 
         for band_idx, ordered_band in enumerate(unique_bands):
             if ordered_band == ref_band:
