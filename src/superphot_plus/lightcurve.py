@@ -329,7 +329,7 @@ class Lightcurve:
         arr = None
         property_dict = {}
         for k in npy_array.files:
-            if k == "lcs":
+            if k == "lcs" or k == "arr_0": #hotfix to handle old LC format
                 arr = npy_array[k]
             else:
                 property_dict[k] = npy_array[k]
