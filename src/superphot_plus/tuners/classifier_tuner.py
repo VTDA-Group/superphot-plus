@@ -19,24 +19,22 @@ from superphot_plus.utils import create_dataset, get_session_metrics, log_metric
 
 
 class ClassifierTuner(ClassifierTrainer):
-    """
-    Tunes models using Ray and K-Fold cross validation.
-
-    Parameters
-    ----------
-    sampler : str
-        The type of sampler used for the lightcurve fits. Defaults to "dynesty".
-    include_redshift : bool
-        If True, includes redshift data for training.
-    num_cpu : int
-        The number of CPUs to use in parallel for each tuning experiment.
-        Defaults to 2.
-    num_gpu : int
-        The number of GPUs to use in parallel for each tuning experiment.
-        Defaults to 0.
-    """
+    """Tunes classifier using Ray and Stratified K-Fold cross validation."""
 
     def __init__(self, include_redshift=True, num_cpu=2, num_gpu=0):
+        """Tunes models using Ray and K-Fold cross validation.
+
+        Parameters
+        ----------
+        include_redshift : bool
+            If True, includes redshift data for training.
+        num_cpu : int
+            The number of CPUs to use in parallel for each tuning experiment.
+            Defaults to 2.
+        num_gpu : int
+            The number of GPUs to use in parallel for each tuning experiment.
+            Defaults to 0.
+        """
         super().__init__()
 
         # Classification specific
@@ -60,10 +58,15 @@ class ClassifierTuner(ClassifierTrainer):
         train_data, _ = self.split_train_test(input_csvs)
         best_config = self.tune_model(train_data, num_hp_samples)
         best_config.write_to_file(os.path.join(self.models_dir, "best-config.yaml"))
-        return best_config
 
     def generate_hp_sample(self):
-        """Generates random set of hyperparameters for tuning."""
+        """Generates a random set of hyperparameters for regressor tuning.
+
+        Returns
+        -------
+        ModelConfig
+            Generated classifier hyperparameters.
+        """
         return ModelConfig(
             neurons_per_layer=tune.choice([128, 256, 512]),
             num_hidden_layers=tune.choice([3, 4, 5]),

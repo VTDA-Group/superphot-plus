@@ -19,6 +19,7 @@ from superphot_plus.utils import (
     save_regression_outputs,
     write_regression_metrics_to_file,
 )
+from torch.utils.data import DataLoader
 
 
 class MosfitTrainer(BaseTrainer):
@@ -30,6 +31,21 @@ class MosfitTrainer(BaseTrainer):
         sampler="svi",
         mosfit_dir=MOSFIT_DIR,
     ):
+        """Trains and evaluates regressor on a specific supernova property.
+
+        The model may be trained from scratch using a specified configuration
+        or be loaded from a previous checkpoint stored on disk. In both scenarios
+        the model is evaluated on a test holdout set and metrics are generated.
+
+        Parameters
+        ----------
+        parameter : str
+            The name of the supernova property to train the model on.
+        sampler : str, optional
+            The type of sampler used for the lightcurve fits. Defaults to "svi".
+        mosfits_dir : str, optional
+            The base directory where mosfit outputs should be logged.
+        """
         super().__init__(
             sampler=sampler,
             fits_dir=os.path.join(mosfit_dir, "posteriors"),
@@ -48,6 +64,16 @@ class MosfitTrainer(BaseTrainer):
         self.clean_outputs()
 
     def run(self, load_checkpoint=False):
+        """Runs the machine learning workflow.
+
+        Trains the model on the whole training set and evaluates it on a
+        test holdout set. Metrics are plotted and logged to files.
+
+        Parameters
+        ----------
+        load_checkpoint : bool
+            If true, load pretrained model checkpoint.
+        """
         # Load parameter specific model
         self.setup_model(
             SuperphotRegressor,
@@ -55,14 +81,14 @@ class MosfitTrainer(BaseTrainer):
             load_checkpoint=load_checkpoint,
         )
 
+        # Read posteriors and light curve samples
         names, posteriors, properties = self.read_data()
 
-        # Splitting data using indices for datasets to coincide
-        # in the training of each model
-        train_index, test_index = train_test_split(np.arange(0, len(names)), test_size=0.1)
-
-        # Train regression models for all parameters
+        # Extract desired supernova property
         curr_prop = SupernovaProperties.get_property_by_name(properties, self.parameter)
+
+        # Split data into training and testing sets
+        train_index, test_index = train_test_split(np.arange(0, len(names)), test_size=0.1)
 
         if not load_checkpoint:
             self.train(
@@ -80,8 +106,8 @@ class MosfitTrainer(BaseTrainer):
         Returns
         -------
         tuple of np.array
-            The posterior samples and the physical parameters
-            for all the light curves.
+            The names, the posterior samples and the physical
+            parameters for each of the light curves.
         """
         all_names = []
         all_posteriors = []
@@ -118,12 +144,15 @@ class MosfitTrainer(BaseTrainer):
         curr_props : str
             The current property values.
         train_index : list of int
-            The indices for the training samples.
+            The indices of the training samples.
+        val_index : list of int
+            The indices of the validation samples.
 
         Returns
         -------
         tuple of TorchDataset
-            The training and validation datasets.
+            The training posteriors and properties, and the validation
+            posteriors and properties.
         """
         train_posts = posteriors[train_index]
         val_posts = posteriors[val_index]
@@ -156,7 +185,8 @@ class MosfitTrainer(BaseTrainer):
         Returns
         -------
         tuple
-            The test dataset and the respective light curve test names.
+            The test dataset, the respective light curve test names
+            and the list of unscaled properties.
         """
         test_names = names[test_index]
         test_posts = posteriors[test_index]
@@ -176,12 +206,12 @@ class MosfitTrainer(BaseTrainer):
 
         Parameters
         ----------
-        train_dataset : TorchDataset
-            The training dataset.
-        val_dataset : TorchDataset
-            The validation dataset.
-        param : str
-            The target parameter the model will predict.
+        posteriors : np.ndarray
+            The array of posterior samples for the light curves.
+        curr_prop : str
+            The current property values for the light curves.
+        train_index : list of int
+            The indices of the training samples.
         """
         run_id = f"regression_{self.parameter}"
 
@@ -242,10 +272,14 @@ class MosfitTrainer(BaseTrainer):
 
         Parameters
         ----------
-        test_dataset : TorchDataset
-            The test dataset.
-        param : str
-            The name of the physical parameter.
+        names : np.ndarray
+            The array of light curve names.
+        posteriors : np.ndarray
+            The array of posterior samples for the light curves.
+        curr_props : str
+            The current property values for the light curves.
+        test_index : list of int
+            The indices for the test samples.
         """
         if self.model is None:
             raise ValueError("Cannot evaluate uninitialized model.")
@@ -260,9 +294,10 @@ class MosfitTrainer(BaseTrainer):
             test_index,
         )
 
-        predictions = self.model.evaluate(test_dataset=test_dataset)
-
-        # Revert properties transformation
+        # Run model inference and obtain predictions
+        test_iterator = DataLoader(dataset=test_dataset, batch_size=self.config.batch_size)
+        predictions = self.model.get_predictions(test_iterator)
+        # Revert predictions transformation
         predictions = self.scaler.inverse_transform(predictions).flatten()
 
         save_regression_outputs(

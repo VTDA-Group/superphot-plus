@@ -17,70 +17,17 @@ from superphot_plus.model.mlp import SuperphotMlp
 
 
 class SuperphotRegressor(SuperphotMlp):
-    """Estimates supernova physical parameters."""
+    """Implements regression MLP to estimate supernova physical parameters."""
 
     def __init__(self, config: ModelConfig):
+        """Implements regression MLP to estimate supernova physical parameters.
+
+        Parameters
+        ----------
+        config : ModelConfig
+            The neural network specification.
+        """
         super().__init__(config, nn.MSELoss())
-
-    def train_epoch(self, iterator):
-        """Does one epoch of training for a given torch model.
-
-        Parameters
-        ----------
-        iterator : torch.utils.DataLoader
-            The data iterator.
-
-        Returns
-        -------
-        tuple
-            A tuple containing the epoch loss and epoch accuracy.
-        """
-        epoch_loss = 0
-
-        self.train()
-
-        for x, y in iterator:
-            x = x.to(self.config.device)
-            y = y.to(self.config.device)
-
-            self.optimizer.zero_grad()
-            y_pred, _ = self(x)
-            loss = self.criterion(y_pred, y.float())
-
-            loss.backward()
-            self.optimizer.step()
-            epoch_loss += loss.item()
-
-        return epoch_loss / len(iterator)
-
-    def evaluate_epoch(self, iterator):
-        """Evaluates the model for the validation set.
-
-        Parameters
-        ----------
-        iterator : torch.utils.DataLoader
-            The data iterator.
-
-        Returns
-        -------
-        tuple
-            A tuple containing the epoch loss and epoch accuracy.
-        """
-        epoch_loss = 0
-
-        self.eval()
-
-        with torch.no_grad():
-            for x, y in iterator:
-                x = x.to(self.config.device)
-                y = y.to(self.config.device)
-
-                y_pred, _ = self(x)
-                loss = self.criterion(y_pred, y.float())
-
-                epoch_loss += loss.item()
-
-        return epoch_loss / len(iterator)
 
     def train_and_validate(
         self,
@@ -88,8 +35,7 @@ class SuperphotRegressor(SuperphotMlp):
         num_epochs=EPOCHS,
         rng_seed=None,
     ):
-        """
-        Run the MLP initialization and training.
+        """Runs training for the regressor.
 
         Closely follows the demo
         https://colab.research.google.com/github/bentrevett/pytorch-image-classification/blob/master/1_mlp.ipynb
@@ -106,8 +52,7 @@ class SuperphotRegressor(SuperphotMlp):
         Returns
         -------
         tuple
-            A tuple containing arrays of metrics for each epoch
-            (training accuracies and losses, validation accuracies and losses).
+            Training and validation losses, for each epoch.
         """
         if rng_seed is not None:
             random.seed(rng_seed)
@@ -164,6 +109,69 @@ class SuperphotRegressor(SuperphotMlp):
 
         return metrics.get_values()
 
+    def train_epoch(self, iterator):
+        """Does one epoch of training for a given model.
+
+        Parameters
+        ----------
+        iterator : torch.utils.DataLoader
+            The data iterator.
+
+        Returns
+        -------
+        tuple
+            A tuple containing the epoch training loss.
+        """
+        epoch_loss = 0
+
+        self.train()
+
+        for x, y in iterator:
+            x = x.to(self.config.device)
+            y = y.to(self.config.device)
+
+            self.optimizer.zero_grad()
+
+            y_pred, _ = self(x)
+
+            loss = self.criterion(y_pred, y.float())
+
+            loss.backward()
+            self.optimizer.step()
+            epoch_loss += loss.item()
+
+        return epoch_loss / len(iterator)
+
+    def evaluate_epoch(self, iterator):
+        """Does one epoch of validation for a given model.
+
+        Parameters
+        ----------
+        iterator : torch.utils.DataLoader
+            The data iterator.
+
+        Returns
+        -------
+        tuple
+            A tuple containing the epoch validation loss.
+        """
+        epoch_loss = 0
+
+        self.eval()
+
+        with torch.no_grad():
+            for x, y in iterator:
+                x = x.to(self.config.device)
+                y = y.to(self.config.device)
+
+                y_pred, _ = self(x)
+
+                loss = self.criterion(y_pred, y.float())
+
+                epoch_loss += loss.item()
+
+        return epoch_loss / len(iterator)
+
     def get_predictions(self, iterator):
         """Given a trained model, returns the physical
         parameter predictions across all the test labels.
@@ -176,32 +184,23 @@ class SuperphotRegressor(SuperphotMlp):
         Returns
         -------
         tuple
-            A tuple containing the ground truths and the
-            respective model predictions.
+            A tuple containing the model predictions.
         """
         self.eval()
 
-        ground_truths = []
         predictions = []
 
         with torch.no_grad():
-            for x, y in iterator:
+            for x, _ in iterator:
                 x = x.to(self.config.device)
 
                 y_pred, _ = self(x)
 
-                ground_truths.append(y.float())
                 predictions.append(y_pred.float())
 
-        ground_truths = torch.cat(ground_truths, dim=0)
         predictions = torch.cat(predictions, dim=0)
 
         return np.array(predictions)
-
-    def evaluate(self, test_dataset):
-        """Evaluates the model on the test dataset."""
-        test_iterator = DataLoader(dataset=test_dataset, batch_size=self.config.batch_size)
-        return self.get_predictions(test_iterator)
 
     @classmethod
     def create(cls, config):

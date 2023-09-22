@@ -1,4 +1,3 @@
-"""This module implements the Multi-Layer Perceptron (MLP) model for classification."""
 import csv
 import os
 import random
@@ -27,9 +26,16 @@ from superphot_plus.utils import (
 
 
 class SuperphotClassifier(SuperphotMlp):
-    """Predicts supernova classes."""
+    """Implements classifier MLP to predict supernova classes."""
 
     def __init__(self, config: ModelConfig):
+        """Implements classifier MLP to predict supernova classes.
+
+        Parameters
+        ----------
+        config : ModelConfig
+            The neural network specification.
+        """
         super().__init__(config, nn.CrossEntropyLoss())
 
     def train_and_validate(
@@ -38,8 +44,7 @@ class SuperphotClassifier(SuperphotMlp):
         num_epochs=EPOCHS,
         rng_seed=None,
     ):
-        """
-        Run the MLP initialization and training.
+        """Runs training for the classifier.
 
         Closely follows the demo
         https://colab.research.google.com/github/bentrevett/pytorch-image-classification/blob/master/1_mlp.ipynb
@@ -68,15 +73,8 @@ class SuperphotClassifier(SuperphotMlp):
 
         train_dataset, valid_dataset = train_data
 
-        train_iterator = DataLoader(
-            dataset=train_dataset,
-            shuffle=True,
-            batch_size=self.config.batch_size,
-        )
-        valid_iterator = DataLoader(
-            dataset=valid_dataset,
-            batch_size=self.config.batch_size,
-        )
+        train_iterator = DataLoader(dataset=train_dataset, shuffle=True, batch_size=self.config.batch_size)
+        valid_iterator = DataLoader(dataset=valid_dataset, batch_size=self.config.batch_size)
 
         metrics = ModelMetrics()
 
@@ -115,7 +113,7 @@ class SuperphotClassifier(SuperphotMlp):
         return metrics.get_values()
 
     def train_epoch(self, iterator):
-        """Does one epoch of training for a given torch model.
+        """Does one epoch of training for a given model.
 
         Parameters
         ----------
@@ -153,7 +151,7 @@ class SuperphotClassifier(SuperphotMlp):
         return epoch_loss / len(iterator), epoch_acc / len(iterator)
 
     def evaluate_epoch(self, iterator):
-        """Evaluates the model for the validation set.
+        """Does one epoch of validation for a given model.
 
         Parameters
         ----------

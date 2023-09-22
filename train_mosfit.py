@@ -1,7 +1,7 @@
 from argparse import ArgumentParser, BooleanOptionalAction
 
 from superphot_plus.file_paths import MOSFIT_DIR
-from superphot_plus.predictor import MosfitTrainer
+from superphot_plus.trainers.mosfit_trainer import MosfitTrainer
 
 
 def extract_cmd_args():
@@ -11,7 +11,7 @@ def extract_cmd_args():
     )
     parser.add_argument(
         "--parameter",
-        help="Name of the physical parameter to train model on",
+        help="Name of the physical property to train model on",
         required=True,
     )
     parser.add_argument(

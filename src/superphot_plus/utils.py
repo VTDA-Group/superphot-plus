@@ -16,6 +16,8 @@ from superphot_plus.file_paths import (
     PROBS_FILE,
     PROBS_FILE2,
     WRONGLY_CLASSIFIED_FOLDER,
+    TENSORBOARD_CLASSIFICATION_DIR,
+    TENSORBOARD_REGRESSION_DIR,
 )
 from superphot_plus.sfd import dust_filepath
 
@@ -546,9 +548,9 @@ def save_regression_outputs(names, true_values, predictions, save_file=None):
     true_values : np.array
         The property ground truths for the test samples.
     predictions : np.array
-        The model predictions for the test samples.
-    save_file : str
-        File to which we should save the outputs.
+        The property predictions for the test samples.
+    save_file : str, optional
+        File to which we should save the outputs. Defaults to None.
     """
     if save_file is None:
         raise ValueError("Invalid file to save regression outputs")
@@ -653,6 +655,7 @@ def write_regression_metrics_to_file(
         The model predictions.
     log_file : str
         The file where the metrics information will be written.
+        Defaults to CLASSIFY_LOG_FILE.
     """
     mse = np.square(true_outputs - pred_outputs).mean(axis=0).mean()
 
@@ -722,19 +725,19 @@ def get_session_metrics(metrics):
 
 
 def get_regression_session_metrics(metrics):
-    """Calculates the validation loss and accuracy for the hyperparameter set.
+    """Calculates the validation loss for the hyperparameter set.
     The best model is considered the one with the lowest validation loss.
 
     Parameters
     ----------
     metrics : tuple
-        Tuple containing the training accuracies and losses, and the validation
-        accuracies and losses, for each epoch and fold.
+        Tuple containing the training and validation losses,
+        for each epoch and fold.
 
     Returns
     -------
-    tuple
-        The mean validation loss and accuracy for the hyperparameter set.
+    float
+        The mean validation loss for the hyperparameter set.
     """
     _, val_losses = list(zip(*metrics))
     # Find min loss value in all folds
@@ -742,7 +745,12 @@ def get_regression_session_metrics(metrics):
     return np.mean(min_val_losses)
 
 
-def log_metrics_to_tensorboard(metrics, config, trial_id, base_dir="runs"):
+def log_metrics_to_tensorboard(
+    metrics,
+    config,
+    trial_id,
+    base_dir=TENSORBOARD_CLASSIFICATION_DIR,
+):
     """Calculates the training and validation accuracies and losses
     for each epoch (by averaging each fold) and logs these metrics to
     Tensorboard using a SummaryWriter. It also stores the run
@@ -760,7 +768,7 @@ def log_metrics_to_tensorboard(metrics, config, trial_id, base_dir="runs"):
         The experiment identifier.
     base_dir : str
         The directory where all tensorboard metrics should be stored.
-        Defaults to "runs".
+        Defaults to TENSORBOARD_CLASSIFICATION_DIR.
 
     Returns
     -------
@@ -791,31 +799,33 @@ def log_metrics_to_tensorboard(metrics, config, trial_id, base_dir="runs"):
     return avg_train_losses, avg_train_accs, avg_val_losses, avg_val_accs
 
 
-def log_regressor_metrics_to_tensorboard(metrics, config, trial_id, base_dir="runs"):
-    """Calculates the training and validation accuracies and losses
-    for each epoch (by averaging each fold) and logs these metrics to
-    Tensorboard using a SummaryWriter. It also stores the run
-    configuration for further reference.
+def log_regressor_metrics_to_tensorboard(
+    metrics,
+    config,
+    trial_id,
+    base_dir=TENSORBOARD_REGRESSION_DIR,
+):
+    """Calculates the training and validation losses for each epoch
+    (by averaging each fold) and logs this metric to Tensorboard using
+    a SummaryWriter. It also stores the run configuration for further reference.
 
     Parameters
     ----------
     metrics : tuple
-        Tuple containing the training accuracies and losses,
-        and the validation accuracies and losses, for each
-        epoch and fold.
+        Tuple containing the training and validation losses,
+        for each epoch and fold.
     config : ModelConfig
         The model's training configuration.
     trial_id : str
         The experiment identifier.
     base_dir : str
         The directory where all tensorboard metrics should be stored.
-        Defaults to "runs".
+        Defaults to TENSORBOARD_REGRESSION_DIR.
 
     Returns
     -------
     tuple
-        The training losses and accuracies, followed by the validation
-        losses and accuracies, for each epoch.
+        The training and validation losses, for each epoch.
     """
     train_losses, val_losses = list(zip(*metrics))
 

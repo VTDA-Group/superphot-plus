@@ -11,7 +11,7 @@ def extract_cmd_args():
     )
     parser.add_argument(
         "--parameter",
-        help="Name of the physical parameter to tune model on",
+        help="Name of the physical property to tune model on",
         required=True,
     )
     parser.add_argument(

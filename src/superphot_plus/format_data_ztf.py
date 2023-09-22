@@ -86,10 +86,13 @@ def generate_K_fold(features, num_folds, classes=None, stratified=True):
     ----------
     features: list
         Input features.
-    classes: list
-        Input classes.
     num_folds : int
         Number of folds. If -1, sets num_folds=len(features).
+    classes: list
+        Input classes (for classification data). Defaults to None.
+    stratified : bool
+        If True, executes stratified k-fold. If false, performs
+        standard k-Fold split.
 
     Returns
     -------
@@ -97,7 +100,7 @@ def generate_K_fold(features, num_folds, classes=None, stratified=True):
         Generator yielding the indices for training and test sets.
     """
     num_splits = len(features) if num_folds == -1 else num_folds
-    if stratified:
+    if stratified and classes is not None:
         kf = StratifiedKFold(n_splits=num_splits, shuffle=True)
         return kf.split(features, classes)
     else:

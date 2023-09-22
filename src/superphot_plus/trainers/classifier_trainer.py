@@ -29,25 +29,7 @@ from superphot_plus.file_utils import get_posterior_samples
 
 
 class ClassifierTrainer(BaseTrainer):
-    """
-    Trains and evaluates models using K-Fold cross validation.
-
-    The model may be trained from scratch using a specified configuration
-    or be loaded from a previous checkpoint stored on disk. In both scenarios
-    the model is evaluated on a test holdout set and metrics are generated.
-
-    Parameters
-    ----------
-    config_name : str
-        The name of the pre-trained model configuration to load. This file should
-        be located under the specified models directory. Defaults to None.
-    sampler : str
-        The type of sampler used for the lightcurve fits. Defaults to "dynesty".
-    include_redshift : bool
-        If True, includes redshift data for training.
-    probs_file : str
-        The file where test probabilities are written. Defaults to PROBS_FILE.
-    """
+    """Trains and evaluates classifier using K-Fold cross validation."""
 
     def __init__(
         self,
@@ -57,6 +39,26 @@ class ClassifierTrainer(BaseTrainer):
         probs_file="probs_new.csv",
         classification_dir=CLASSIFICATION_DIR,
     ):
+        """Trains and evaluates classifier.
+
+        The model may be trained from scratch using a specified configuration
+        or be loaded from a previous checkpoint stored on disk. In both scenarios
+        the model is evaluated on a test holdout set and metrics are generated.
+
+        Parameters
+        ----------
+        config_name : str
+            The name of the pre-trained model configuration to load. This file should
+            be located under the specified models directory. Defaults to None.
+        sampler : str, optional
+            The type of sampler used for the lightcurve fits. Defaults to "dynesty".
+        include_redshift : bool
+            If True, includes redshift data for training. Defaults to True.
+        probs_file : str, optional
+            The file where test probabilities are written. Defaults to "probs_new.csv".
+        classification_dir : str, optional
+            The base directory where classification outputs should be logged.
+        """
         super().__init__(
             sampler=sampler,
             fits_dir=os.path.join(classification_dir, f"{sampler}_fits"),
@@ -96,7 +98,7 @@ class ClassifierTrainer(BaseTrainer):
         Parameters
         ----------
         input_csvs : list of str
-            The list of training CSV files. Defaults to INPUT_CSVS.
+            The list of training CSV files. Defaults to None.
         extract_wc : bool
             If true, assumes all sample fit plots are saved in
             FIT_PLOTS_FOLDER. Copies plots of wrongly classified samples to
@@ -335,12 +337,6 @@ class ClassifierTrainer(BaseTrainer):
             If true, assumes all sample fit plots are saved in
             FIT_PLOTS_FOLDER. Copies plots of wrongly classified samples to
             separate folder for manual followup. Defaults to False.
-        Returns
-        -------
-        tuple
-            A tuple containing the test ground truths, the respective
-            predicted classes and the predicted classes for which
-            classification confidence exceeded 70%.
         """
         if self.model is None:
             raise ValueError("Cannot evaluate uninitialized model.")

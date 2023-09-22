@@ -10,17 +10,18 @@ from superphot_plus.model.config import ModelConfig
 
 
 class SuperphotMlp(nn.Module):
-    """The Multi-Layer Perceptron.
-
-    Parameters
-    ----------
-    config : ModelConfig
-        The neural network specification.
-    criterion : _Loss
-        The loss function.
-    """
+    """The base class for the Multi-Layer Perceptron."""
 
     def __init__(self, config: ModelConfig, criterion: _Loss):
+        """The base class for the Multi-Layer Perceptron.
+
+        Parameters
+        ----------
+        config : ModelConfig
+            The neural network specification.
+        criterion : _Loss
+            The loss function.
+        """
         super().__init__()
         self.config = config
         self.init_nn()

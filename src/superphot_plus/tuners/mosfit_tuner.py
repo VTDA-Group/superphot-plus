@@ -27,24 +27,22 @@ from src.superphot_plus.model.regressor import SuperphotRegressor
 
 
 class MosfitTuner(MosfitTrainer):
-    """
-    Tunes models using Ray and K-Fold cross validation.
-
-    Parameters
-    ----------
-    sampler : str
-        The type of sampler used for the lightcurve fits. Defaults to "dynesty".
-    include_redshift : bool
-        If True, includes redshift data for training.
-    num_cpu : int
-        The number of CPUs to use in parallel for each tuning experiment.
-        Defaults to 2.
-    num_gpu : int
-        The number of GPUs to use in parallel for each tuning experiment.
-        Defaults to 0.
-    """
+    """Tunes mosfit regressor using Ray and K-Fold cross validation."""
 
     def __init__(self, parameter, num_cpu=2, num_gpu=0):
+        """Tunes models using Ray and K-Fold cross validation.
+
+        Parameters
+        ----------
+        parameter : str
+            The name of the supernova property to tune the model on.
+        num_cpu : int
+            The number of CPUs to use in parallel for each tuning experiment.
+            Defaults to 2.
+        num_gpu : int
+            The number of GPUs to use in parallel for each tuning experiment.
+            Defaults to 0.
+        """
         super().__init__(parameter=parameter)
         self.num_cpu = num_cpu
         self.num_gpu = num_gpu
@@ -55,28 +53,36 @@ class MosfitTuner(MosfitTrainer):
 
         Parameters
         ----------
-        input_csvs : list of str
-            The list of training CSV files. Defaults to INPUT_CSVS.
         num_hp_samples : int
             The number of hyperparameters sets to sample from (for model tuning).
             Defaults to 10.
         """
+        # Read and generate training data
         names, posteriors, properties = self.read_data()
         names, _, posteriors, _, properties, _ = train_test_split(
             names, posteriors, properties, shuffle=True, test_size=0.1
         )
         curr_prop = SupernovaProperties.get_property_by_name(properties, self.parameter)
+
+        # Run model tuning
         best_config = self.tune_model(
             posteriors=posteriors,
             curr_prop=curr_prop,
             num_hp_samples=num_hp_samples,
         )
+
+        # Store best model configuration
         best_config_file = os.path.join(self.models_dir, f"{self.parameter}_best-config.yaml")
         best_config.write_to_file(best_config_file)
-        return best_config
 
     def generate_hp_sample(self):
-        """Generates random set of hyperparameters for tuning."""
+        """Generates random set of hyperparameters for classifier tuning.
+
+        Returns
+        -------
+        ModelConfig
+            Generated regressor hyperparameters.
+        """
         return ModelConfig(
             neurons_per_layer=tune.choice([128, 256, 512]),
             num_hidden_layers=tune.choice([3, 4, 5]),
@@ -92,8 +98,10 @@ class MosfitTuner(MosfitTrainer):
 
         Parameters
         ----------
-        train_data : ZtfData
-            Contains the ZTF object names, classes and redshifts for training.
+        posteriors : np.ndarray
+            The array of posterior samples for the light curve.
+        curr_prop : str
+            The current property values.
         num_hp_samples : int
             The number of hyperparameters sets to sample from (for model tuning).
             Defaults to 10.
@@ -148,8 +156,10 @@ class MosfitTuner(MosfitTrainer):
             The configuration for model training, drawn from the default
             ModelConfig values. Used as a Dict to comply with the Tune
             API requirements.
-        train_data : ZtfData
-            Contains the ZTF object names, classes and redshifts for training.
+        posteriors : np.ndarray
+            The array of posterior samples for the light curve.
+        curr_prop : str
+            The current property values.
         """
         trial_id = tune.get_trial_id()
 

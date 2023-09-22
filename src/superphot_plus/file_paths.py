@@ -27,6 +27,10 @@ CLASSIFY_LOG_FILE = f"{CLASSIFICATION_DIR}/classification_log.txt"
 PROBS_FILE = f"{CLASSIFICATION_DIR}/probs_new.csv"
 PROBS_FILE2 = f"{CLASSIFICATION_DIR}/probs_phased.csv"
 
+# Tensorboard log directories
+TENSORBOARD_CLASSIFICATION_DIR = f"{CLASSIFICATION_DIR}/runs"
+TENSORBOARD_REGRESSION_DIR = f"{MOSFIT_DIR}/runs"
+
 # Pretrained model
 # glob.glob("models_saved/*ZTF23aagkgnz.pt")[0]
 TRAINED_MODEL_FN = "../../tests/data/superphot-model-ZTF23aagkgnz.pt"

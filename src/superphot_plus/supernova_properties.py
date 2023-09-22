@@ -32,12 +32,12 @@ class SupernovaProperties:
             return cls(**metadata)
 
     @classmethod
-    def check_property_exists(cls, param):
+    def check_property_exists(cls, parameter):
         """Checks if supernova property name exists.
 
         Parameters
         ----------
-        param : str
+        parameter : str
             The name of the physical property.
 
         Returns
@@ -45,7 +45,7 @@ class SupernovaProperties:
         bool
             True if property exists, false otherwise.
         """
-        return param in [p.name for p in dataclasses.fields(SupernovaProperties)]
+        return parameter in [p.name for p in dataclasses.fields(SupernovaProperties)]
 
     @classmethod
     def get_property_by_name(cls, properties, name: str):
@@ -54,7 +54,6 @@ class SupernovaProperties:
         Returns
         -------
         np.array
-            The bundle of property values for a set of
-            supernova properties.
+            The bundle of property values for a set of property objects.
         """
         return np.array([getattr(p, name) for p in properties])
