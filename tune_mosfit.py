@@ -15,11 +15,6 @@ def extract_cmd_args():
         required=True,
     )
     parser.add_argument(
-        "--num_hp_samples",
-        help="Name of parameter combinations to try",
-        default=10,
-    )
-    parser.add_argument(
         "--num_cpu",
         help="Number of CPUs to use in each parallel experiment",
         default=2,
@@ -28,6 +23,11 @@ def extract_cmd_args():
         "--num_gpu",
         help="Number of GPUs to use in each parallel experiment",
         default=0,
+    )
+    parser.add_argument(
+        "--num_hp_samples",
+        help="Name of parameter combinations to try",
+        default=10,
     )
     return parser.parse_args()
 

@@ -1,6 +1,7 @@
+import os
+
 import matplotlib.pyplot as plt
 import numpy as np
-import os
 
 
 def plot_model_metrics(metrics, num_epochs, plot_name, metrics_dir):

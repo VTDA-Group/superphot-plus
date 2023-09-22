@@ -9,21 +9,19 @@ from ray import tune
 from ray.air import session
 from ray.tune import CLIReporter
 from ray.tune.search.optuna import OptunaSearch
-from sklearn.model_selection import KFold, train_test_split
+from sklearn.model_selection import train_test_split
 
-from superphot_plus.format_data_ztf import generate_K_fold, normalize_features, tally_each_class
-from superphot_plus.model.classifier import SuperphotClassifier
+from src.superphot_plus.model.regressor import SuperphotRegressor
+from superphot_plus.format_data_ztf import generate_K_fold, normalize_features
 from superphot_plus.model.config import ModelConfig
-from superphot_plus.model.data import TrainData, ZtfData
+from superphot_plus.model.data import TrainData
+from superphot_plus.supernova_properties import SupernovaProperties
 from superphot_plus.trainers.mosfit_trainer import MosfitTrainer
 from superphot_plus.utils import (
     create_dataset,
     get_regression_session_metrics,
     log_regressor_metrics_to_tensorboard,
 )
-from superphot_plus.supernova_properties import SupernovaProperties
-
-from src.superphot_plus.model.regressor import SuperphotRegressor
 
 
 class MosfitTuner(MosfitTrainer):

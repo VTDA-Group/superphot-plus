@@ -1,10 +1,10 @@
-from dataclasses import dataclass
 import dataclasses
 import os
-import numpy as np
-from typing_extensions import Self
+from dataclasses import dataclass
 
+import numpy as np
 import yaml
+from typing_extensions import Self
 
 
 @dataclass

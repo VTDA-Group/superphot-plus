@@ -5,15 +5,13 @@ import time
 import numpy as np
 import torch
 from torch import nn
-
 from torch.utils.data import DataLoader
 
 from superphot_plus.constants import EPOCHS
 from superphot_plus.model.config import ModelConfig
 from superphot_plus.model.metrics import RegressorMetrics
-from superphot_plus.utils import epoch_time
-
 from superphot_plus.model.mlp import SuperphotMlp
+from superphot_plus.utils import epoch_time
 
 
 class SuperphotRegressor(SuperphotMlp):

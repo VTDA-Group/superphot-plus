@@ -11,20 +11,10 @@ def extract_cmd_args():
         description="Model tuning using K-Fold cross validation",
     )
     parser.add_argument(
-        "--input_csvs",
-        help="List of CSVs containing light curve data (comma separated)",
-        default=",".join(INPUT_CSVS),
-    )
-    parser.add_argument(
         "--include_redshift",
         help="If flag is set, include redshift data for training",
         default=True,
         action=BooleanOptionalAction,
-    )
-    parser.add_argument(
-        "--num_hp_samples",
-        help="Name of parameter combinations to try",
-        default=10,
     )
     parser.add_argument(
         "--num_cpu",
@@ -35,6 +25,16 @@ def extract_cmd_args():
         "--num_gpu",
         help="Number of GPUs to use in each parallel experiment",
         default=0,
+    )
+    parser.add_argument(
+        "--input_csvs",
+        help="List of CSVs containing light curve data (comma separated)",
+        default=",".join(INPUT_CSVS),
+    )
+    parser.add_argument(
+        "--num_hp_samples",
+        help="Name of parameter combinations to try",
+        default=10,
     )
     return parser.parse_args()
 

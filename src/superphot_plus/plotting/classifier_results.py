@@ -6,17 +6,15 @@ import os
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-
-from sklearn.metrics import roc_curve, confusion_matrix
-from matplotlib.ticker import AutoMinorLocator
-
 from astropy.cosmology import Planck13 as cosmo
+from matplotlib.ticker import AutoMinorLocator
 from scipy.stats import binned_statistic
+from sklearn.metrics import confusion_matrix, roc_curve
 
-from superphot_plus.plotting.format_params import set_global_plot_formatting
 from superphot_plus.file_utils import get_multiple_posterior_samples
 from superphot_plus.format_data_ztf import import_labels_only
-from superphot_plus.plotting.utils import histedges_equalN, read_probs_csv, get_survey_fracs
+from superphot_plus.plotting.format_params import set_global_plot_formatting
+from superphot_plus.plotting.utils import get_survey_fracs, histedges_equalN, read_probs_csv
 from superphot_plus.supernova_class import SupernovaClass as SnClass
 
 set_global_plot_formatting()
@@ -377,7 +375,7 @@ def plot_redshifts_abs_mags(probs_snr_csv, training_csv, fits_dir, save_dir, sam
         allowed_types,
         needs_posteriors=True,
         sampler=sampler,
-        fits_dir=fits_dir
+        fits_dir=fits_dir,
     )[-1]
 
     # labels = np.array([classes_to_labels[int(x)] for x in classes])

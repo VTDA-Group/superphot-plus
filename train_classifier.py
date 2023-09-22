@@ -1,8 +1,8 @@
 """Entry point to model training and evaluation."""
 from argparse import ArgumentParser, BooleanOptionalAction
 
-from superphot_plus.file_paths import INPUT_CSVS, PROBS_FILE
-from superphot_plus.trainer import SuperphotTrainer
+from superphot_plus.file_paths import CLASSIFICATION_DIR, INPUT_CSVS
+from superphot_plus.trainers.classifier_trainer import ClassifierTrainer
 
 
 def extract_cmd_args():
@@ -11,9 +11,9 @@ def extract_cmd_args():
         description="Entry point to train and evaluate models using K-Fold cross validation",
     )
     parser.add_argument(
-        "--input_csvs",
-        help="List of CSVs containing light curve data (comma separated)",
-        default=",".join(INPUT_CSVS),
+        "--config_name",
+        help="The name of the file containing the model configuration",
+        required=True,
     )
     parser.add_argument(
         "--sampler",
@@ -28,20 +28,20 @@ def extract_cmd_args():
         action=BooleanOptionalAction,
     )
     parser.add_argument(
+        "--classification_dir",
+        help="Directory where classification data is stored",
+        default=CLASSIFICATION_DIR,
+    )
+    parser.add_argument(
+        "--input_csvs",
+        help="List of CSVs containing light curve data (comma separated)",
+        default=",".join(INPUT_CSVS),
+    )
+    parser.add_argument(
         "--extract_wc",
         help="If flag is set, extract wrongly classified samples",
         default=False,
         action=BooleanOptionalAction,
-    )
-    parser.add_argument(
-        "--probs_file",
-        help="File to log test probability results",
-        default="probs_new.csv",
-    )
-    parser.add_argument(
-        "--config_name",
-        help="The name of the file containing the model configuration",
-        required=True,
     )
     parser.add_argument(
         "--load_checkpoint",
@@ -55,11 +55,11 @@ def extract_cmd_args():
 if __name__ == "__main__":
     args = extract_cmd_args()
 
-    trainer = SuperphotTrainer(
+    trainer = ClassifierTrainer(
+        config_name=args.config_name,
         sampler=args.sampler,
         include_redshift=args.include_redshift,
-        config_name=args.config_name,
-        probs_file=args.probs_file,
+        classification_dir=args.classification_dir,
     )
 
     trainer.run(

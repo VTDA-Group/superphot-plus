@@ -3,6 +3,7 @@ import os
 import numpy as np
 from sklearn.discriminant_analysis import StandardScaler
 from sklearn.model_selection import train_test_split
+from torch.utils.data import DataLoader
 
 from superphot_plus.file_paths import MOSFIT_DIR
 from superphot_plus.format_data_ztf import normalize_features
@@ -19,7 +20,6 @@ from superphot_plus.utils import (
     save_regression_outputs,
     write_regression_metrics_to_file,
 )
-from torch.utils.data import DataLoader
 
 
 class MosfitTrainer(BaseTrainer):
@@ -51,8 +51,8 @@ class MosfitTrainer(BaseTrainer):
             fits_dir=os.path.join(mosfit_dir, "posteriors"),
             models_dir=os.path.join(mosfit_dir, "models"),
             metrics_dir=os.path.join(mosfit_dir, "metrics"),
-            output_file=os.path.join(mosfit_dir, f"{parameter}.csv"),
-            log_file=os.path.join(mosfit_dir, f"{parameter}_log.txt"),
+            output_file=os.path.join(mosfit_dir, f"{parameter}_preds.csv"),
+            log_file=os.path.join(mosfit_dir, f"{parameter}_logs.txt"),
         )
 
         # Regression specific

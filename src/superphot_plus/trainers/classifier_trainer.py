@@ -1,15 +1,16 @@
 import os
+
 import numpy as np
 from sklearn.model_selection import train_test_split
 
-from superphot_plus.file_paths import (
-    CM_FOLDER,
-    FIT_PLOTS_FOLDER,
-    INPUT_CSVS,
-    PROBS_FILE,
-    CLASSIFICATION_DIR,
+from superphot_plus.file_paths import CLASSIFICATION_DIR, CM_FOLDER, FIT_PLOTS_FOLDER, INPUT_CSVS
+from superphot_plus.file_utils import get_posterior_samples
+from superphot_plus.format_data_ztf import (
+    import_labels_only,
+    normalize_features,
+    oversample_using_posteriors,
+    tally_each_class,
 )
-from superphot_plus.format_data_ztf import normalize_features, tally_each_class
 from superphot_plus.model.classifier import SuperphotClassifier
 from superphot_plus.model.data import TestData, TrainData, ZtfData
 from superphot_plus.plotting.classifier_results import plot_model_metrics
@@ -17,15 +18,12 @@ from superphot_plus.plotting.confusion_matrices import plot_matrices
 from superphot_plus.supernova_class import SupernovaClass as SnClass
 from superphot_plus.trainers.base_trainer import BaseTrainer
 from superphot_plus.utils import (
+    adjust_log_dists,
     create_dataset,
     extract_wrong_classifications,
     log_metrics_to_tensorboard,
     write_metrics_to_file,
 )
-
-from superphot_plus.format_data_ztf import import_labels_only, oversample_using_posteriors
-from superphot_plus.utils import adjust_log_dists
-from superphot_plus.file_utils import get_posterior_samples
 
 
 class ClassifierTrainer(BaseTrainer):
@@ -36,7 +34,6 @@ class ClassifierTrainer(BaseTrainer):
         config_name=None,
         sampler="dynesty",
         include_redshift=True,
-        probs_file="probs_new.csv",
         classification_dir=CLASSIFICATION_DIR,
     ):
         """Trains and evaluates classifier.
@@ -54,8 +51,6 @@ class ClassifierTrainer(BaseTrainer):
             The type of sampler used for the lightcurve fits. Defaults to "dynesty".
         include_redshift : bool
             If True, includes redshift data for training. Defaults to True.
-        probs_file : str, optional
-            The file where test probabilities are written. Defaults to "probs_new.csv".
         classification_dir : str, optional
             The base directory where classification outputs should be logged.
         """
@@ -64,8 +59,8 @@ class ClassifierTrainer(BaseTrainer):
             fits_dir=os.path.join(classification_dir, f"{sampler}_fits"),
             models_dir=os.path.join(classification_dir, "models"),
             metrics_dir=os.path.join(classification_dir, "metrics"),
-            output_file=os.path.join(classification_dir, probs_file),
-            log_file=os.path.join(classification_dir, "classification_log.txt"),
+            output_file=os.path.join(classification_dir, "probs.csv"),
+            log_file=os.path.join(classification_dir, "logs.txt"),
         )
 
         # Classification specific

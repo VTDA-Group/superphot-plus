@@ -2,7 +2,6 @@ import os
 import shutil
 
 from superphot_plus.model.config import ModelConfig
-from superphot_plus.model.mlp import SuperphotMlp
 
 
 class BaseTrainer:

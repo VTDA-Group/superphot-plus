@@ -15,9 +15,9 @@ from superphot_plus.file_paths import (
     FIT_PLOTS_FOLDER,
     PROBS_FILE,
     PROBS_FILE2,
-    WRONGLY_CLASSIFIED_FOLDER,
     TENSORBOARD_CLASSIFICATION_DIR,
     TENSORBOARD_REGRESSION_DIR,
+    WRONGLY_CLASSIFIED_FOLDER,
 )
 from superphot_plus.sfd import dust_filepath
 
