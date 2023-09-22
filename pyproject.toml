@@ -49,6 +49,7 @@ data-generation = [
 sampling = [
     "dynesty",
     "numpyro",
+    "flowMC",
     "imblearn",
 ]
 plotting = [
