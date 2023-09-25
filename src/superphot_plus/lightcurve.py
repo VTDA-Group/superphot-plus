@@ -340,6 +340,11 @@ class Lightcurve:
         fdata = arr[1][good_rows].astype(float)
         edata = arr[2][good_rows].astype(float)
         bdata = arr[3][good_rows]
+
+        if 'name' not in property_dict:
+            file_prefix = filename.split("/")[-1].split(".")[0]
+            property_dict['name'] = file_prefix
+
         lc = Lightcurve(
             tdata, fdata, edata, bdata,
             **property_dict
