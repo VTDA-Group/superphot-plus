@@ -172,8 +172,8 @@ def get_realizations(num_realizations):
     skipped_realizations = []
 
     for realization in np.arange(1, num_realizations + 1):
-        lc_name = f"lc_{realization}"
-        posteriors_fn = f"lc_{realization}_eqwt_svi.npz"
+        lc_name = format_realization_name(realization)
+        posteriors_fn = f"{lc_name}_eqwt_svi.npz"
 
         properties_file = os.path.join(properties_dir, lc_name)
         posteriors_file = os.path.join(posteriors_dir, posteriors_fn)
