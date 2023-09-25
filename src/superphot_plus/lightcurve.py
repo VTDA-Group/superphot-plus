@@ -329,7 +329,7 @@ class Lightcurve:
         arr = None
         property_dict = {}
         for k in npy_array.files:
-            if k == "lcs":
+            if k == "lcs" or k == "arr_0": #hotfix to handle old LC format
                 arr = npy_array[k]
             else:
                 property_dict[k] = npy_array[k]
@@ -340,6 +340,11 @@ class Lightcurve:
         fdata = arr[1][good_rows].astype(float)
         edata = arr[2][good_rows].astype(float)
         bdata = arr[3][good_rows]
+
+        if 'name' not in property_dict:
+            file_prefix = filename.split("/")[-1].split(".")[0]
+            property_dict['name'] = file_prefix
+
         lc = Lightcurve(
             tdata, fdata, edata, bdata,
             **property_dict
