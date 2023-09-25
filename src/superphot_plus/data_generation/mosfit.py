@@ -8,6 +8,7 @@ from tqdm import tqdm
 from superphot_plus.file_paths import MOSFIT_DIR, MOSFIT_INPUT_JSON
 from superphot_plus.lightcurve import Lightcurve
 from superphot_plus.samplers.numpyro_sampler import NumpyroSampler
+from superphot_plus.supernova_class import SupernovaClass
 from superphot_plus.supernova_properties import SupernovaProperties
 from superphot_plus.surveys.surveys import Survey
 
@@ -45,7 +46,7 @@ def format_realization_name(realization):
     str
         The name of the light curve realization.
     """
-    return f"lc_{realization}"
+    return "lc_" + str(realization).zfill(6)  # extra zero for good measure
 
 
 def import_slsn_realization(data, realization):
@@ -101,6 +102,7 @@ def import_slsn_realization(data, realization):
         err,
         b,
         name=format_realization_name(realization),
+        sn_class=SupernovaClass.SUPERLUMINOUS_SUPERNOVA_I,
     )
 
     properties = SupernovaProperties(

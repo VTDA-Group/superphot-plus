@@ -60,7 +60,7 @@ class BaseTrainer:
         additional_dirs : list of str
             List of additional directories to create.
         additional_files : list of str
-            List of additional directories to create.
+            List of additional files to create.
         delete_prev : bool
             If true, erases previously created directories and files.
         """
@@ -91,7 +91,7 @@ class BaseTrainer:
 
         Parameters
         ----------
-        cls: SuperphotMlp
+        cls: SuperphotMLP
             The type of network to load. May currently be
             SuperphotClassifier or SuperphotRegressor.
         config_name : str

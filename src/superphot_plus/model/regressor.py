@@ -10,11 +10,11 @@ from torch.utils.data import DataLoader
 from superphot_plus.constants import EPOCHS
 from superphot_plus.model.config import ModelConfig
 from superphot_plus.model.metrics import RegressorMetrics
-from superphot_plus.model.mlp import SuperphotMlp
+from superphot_plus.model.mlp import SuperphotMLP
 from superphot_plus.utils import epoch_time
 
 
-class SuperphotRegressor(SuperphotMlp):
+class SuperphotRegressor(SuperphotMLP):
     """Implements regression MLP to estimate supernova physical parameters."""
 
     def __init__(self, config: ModelConfig):
@@ -34,9 +34,6 @@ class SuperphotRegressor(SuperphotMlp):
         rng_seed=None,
     ):
         """Runs training for the regressor.
-
-        Closely follows the demo
-        https://colab.research.google.com/github/bentrevett/pytorch-image-classification/blob/master/1_mlp.ipynb
 
         Parameters
         ----------
@@ -223,7 +220,7 @@ class SuperphotRegressor(SuperphotMlp):
 
     @classmethod
     def load(cls, filename, config_filename):
-        """Load a trained MLP for subsequent classification of new objects.
+        """Load a trained MLP for subsequent regression of new objects.
 
         Parameters
         ----------
@@ -235,7 +232,7 @@ class SuperphotRegressor(SuperphotMlp):
         Returns
         ----------
         tuple
-            The pre-trained classifier object and the respective model config.
+            The pre-trained regressor object and the respective model config.
         """
         config = ModelConfig.from_file(config_filename)
         model = SuperphotRegressor.create(config)  # set up empty multi-layer perceptron

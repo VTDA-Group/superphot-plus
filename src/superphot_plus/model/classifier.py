@@ -15,7 +15,7 @@ from superphot_plus.file_utils import get_posterior_samples
 from superphot_plus.format_data_ztf import normalize_features
 from superphot_plus.model.config import ModelConfig
 from superphot_plus.model.metrics import ModelMetrics
-from superphot_plus.model.mlp import SuperphotMlp
+from superphot_plus.model.mlp import SuperphotMLP
 from superphot_plus.utils import (
     adjust_log_dists,
     calculate_accuracy,
@@ -25,7 +25,7 @@ from superphot_plus.utils import (
 )
 
 
-class SuperphotClassifier(SuperphotMlp):
+class SuperphotClassifier(SuperphotMLP):
     """Implements classifier MLP to predict supernova classes."""
 
     def __init__(self, config: ModelConfig):

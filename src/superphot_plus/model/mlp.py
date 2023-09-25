@@ -9,7 +9,7 @@ from superphot_plus.constants import HIDDEN_DROPOUT_FRAC, INPUT_DROPOUT_FRAC
 from superphot_plus.model.config import ModelConfig
 
 
-class SuperphotMlp(nn.Module):
+class SuperphotMLP(nn.Module):
     """The base class for the Multi-Layer Perceptron."""
 
     def __init__(self, config: ModelConfig, criterion: _Loss):

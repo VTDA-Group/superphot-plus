@@ -33,7 +33,7 @@ def extract_cmd_args():
     )
     parser.add_argument(
         "--num_hp_samples",
-        help="Name of parameter combinations to try",
+        help="Number of parameter combinations to try",
         default=10,
     )
     return parser.parse_args()

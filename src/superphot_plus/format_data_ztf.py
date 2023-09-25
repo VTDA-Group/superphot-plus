@@ -91,7 +91,7 @@ def generate_K_fold(features, num_folds, classes=None, stratified=True):
     classes: list
         Input classes (for classification data). Defaults to None.
     stratified : bool
-        If True, executes stratified k-fold. If false, performs
+        If True, executes stratified k-fold. If False, performs
         standard k-Fold split.
 
     Returns
