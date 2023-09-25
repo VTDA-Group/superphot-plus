@@ -6,7 +6,6 @@ wavelengths:
   i: 7500.97
   z: 8678.90
   Y: 9711.82
-  
 priors:
     band_order: ugrizY
     reference_band: r
@@ -227,4 +226,4 @@ priors:
                 clip_b: 3.0
                 mean: 1.0
                 std: 0.5
-    
+zero_point: 26.3

@@ -75,7 +75,7 @@ def import_lc(filename, survey=Survey.ZTF(), clip_lightcurve=True):
     b = b[merr != np.nan]
     merr = merr[merr != np.nan]
 
-    f, ferr = convert_mags_to_flux(m, merr, 26.3)
+    f, ferr = convert_mags_to_flux(m, merr, survey.zero_point)
 
     if clip_lightcurve:
         t, f, ferr, b = clip_lightcurve_end(t, f, ferr, b)

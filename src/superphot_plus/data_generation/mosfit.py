@@ -11,6 +11,7 @@ from superphot_plus.samplers.numpyro_sampler import NumpyroSampler
 from superphot_plus.supernova_class import SupernovaClass
 from superphot_plus.supernova_properties import SupernovaProperties
 from superphot_plus.surveys.surveys import Survey
+from superphot_plus.utils import convert_mags_to_flux
 
 
 def read_mosfit_file(mosfit_file):
@@ -49,7 +50,7 @@ def format_realization_name(realization):
     return "lc_" + str(realization).zfill(6)  # extra zero for good measure
 
 
-def import_slsn_realization(data, realization):
+def import_slsn_realization(data, realization, survey):
     """Imports SLSN specific data from mosfit.
 
     Parameters
@@ -58,6 +59,8 @@ def import_slsn_realization(data, realization):
         Dictionary containing the mosfit file contents.
     realization : int
         The realization / light curve to import.
+    survey : Survey
+        Survey to which data belongs to.
 
     Returns
     -------
@@ -65,8 +68,8 @@ def import_slsn_realization(data, realization):
         The light curve and the respective properties.
     """
     t = []
-    flux = []
-    err = []
+    mag = []
+    merr = []
     b = []
 
     for datum in data["photometry"]:
@@ -75,8 +78,8 @@ def import_slsn_realization(data, realization):
             if "upperlimit" in datum:
                 continue
             t.append(float(datum["time"]))
-            flux.append(10.0 ** ((float(datum["magnitude"]) + 48.6) / -2.5))
-            err.append(flux[-1] * float(datum["e_magnitude"]))
+            mag.append(float(datum["magnitude"]))
+            merr.append(mag[-1] * float(datum["e_magnitude"]))
             b.append(datum["band"])
 
     # Also grab parameters...
@@ -89,10 +92,11 @@ def import_slsn_realization(data, realization):
             vejecta = my_realization["parameters"]["vejecta"]["value"]
 
     t = np.asarray(t, dtype=float)
-    flux = np.asarray(flux, dtype=float)
-    err = np.asarray(err, dtype=float)
+    mag = np.asarray(mag, dtype=float)
+    merr = np.asarray(merr, dtype=float)
     b = np.asarray(b, dtype=str)
 
+    flux, err = convert_mags_to_flux(mag, merr, survey.zero_point)
     err = err / np.max(flux)
     flux = flux / np.max(flux)
 
@@ -115,7 +119,7 @@ def import_slsn_realization(data, realization):
     return lc, properties
 
 
-def generate_mosfit_data(mosfit_file):
+def generate_mosfit_data(mosfit_file, survey):
     """Generates the light curve posteriors and stores the mosfit dictionaries
     with the physical parameters for each.
 
@@ -123,20 +127,20 @@ def generate_mosfit_data(mosfit_file):
     ----------
     mosfit_file : str
         The mosfit file path.
+    survey : Survey
+        The survey to which data belongs to.
     """
     # Read mosfit content
     data = read_mosfit_file(mosfit_file)
 
-    priors = Survey.ZTF().priors
-
     for i, realization in enumerate(tqdm(realizations)):
-        lc, properties = import_slsn_realization(data, realization=int(i + 1))
+        lc, properties = import_slsn_realization(data, realization=int(i + 1), survey=survey)
 
         sampler = NumpyroSampler()
         posterior_samples = sampler.run_single_curve(
             lc,
             rng_seed=4,
-            priors=priors,
+            priors=survey.priors,
             sampler="svi",
         )
 
@@ -188,6 +192,11 @@ def extract_cmd_args():
         description="Parses mosfit data and generates posteriors and physical property files",
     )
     parser.add_argument(
+        "--survey",
+        help="Survey to which data belongs to",
+        default=Survey.ZTF(),
+    )
+    parser.add_argument(
         "--num_realizations",
         help="The number of realizations to generate",
         default=10000,
@@ -215,4 +224,4 @@ if __name__ == "__main__":
     print(f"Skipping {len(skipped)} realizations...")
     print(f"Generating {len(realizations)} missing realizations...")
 
-    generate_mosfit_data(mosfit_file=MOSFIT_INPUT_JSON)
+    generate_mosfit_data(mosfit_file=MOSFIT_INPUT_JSON, survey=args.survey)

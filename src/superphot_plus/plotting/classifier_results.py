@@ -16,6 +16,7 @@ from superphot_plus.format_data_ztf import import_labels_only
 from superphot_plus.plotting.format_params import set_global_plot_formatting
 from superphot_plus.plotting.utils import get_survey_fracs, histedges_equalN, read_probs_csv
 from superphot_plus.supernova_class import SupernovaClass as SnClass
+from superphot_plus.surveys.surveys import Survey
 
 set_global_plot_formatting()
 
@@ -381,7 +382,7 @@ def plot_redshifts_abs_mags(probs_snr_csv, training_csv, fits_dir, save_dir, sam
     # labels = np.array([classes_to_labels[int(x)] for x in classes])
     probs_dataframe = pd.read_csv(probs_snr_csv)
     amplitudes = probs_dataframe.Fmax.to_numpy()
-    app_mags = -2.5 * np.log10(amplitudes) + 26.3
+    app_mags = -2.5 * np.log10(amplitudes) + Survey.ZTF().zero_point
 
     k_correction = 2.5 * np.log10(1.0 + redshifts)
     dist = cosmo.luminosity_distance([redshifts]).value[0]  # returns dist in Mpc
@@ -551,7 +552,9 @@ def plot_snr_hist(probs_snr_csv, save_dir):
     plt.close()
 
 
-def compare_mag_distributions(probs_classified, probs_unclassified, save_dir, zeropoint=26.3):
+def compare_mag_distributions(
+    probs_classified, probs_unclassified, save_dir, zeropoint=Survey.ZTF().zero_point
+):
     """
     Generate overlaid magnitude distributions of the classified and unclassified datasets.
     Assumes that unclassified LCs that did not pass the chi-squared cut are marked as "SKIP".
@@ -565,7 +568,7 @@ def compare_mag_distributions(probs_classified, probs_unclassified, save_dir, ze
     save_dir : str
         Where to save figure.
     zeropoint : float, optional
-        Zeropoint used when converting mags to fluxes. Defaults to 26.3.
+        Zeropoint used when converting mags to fluxes. Defaults to ZTF's zero point (26.3).
     """
     classified_df = pd.read_csv(probs_classified)
     max_flux = classified_df.Fmax.to_numpy()
