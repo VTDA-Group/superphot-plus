@@ -18,7 +18,7 @@ from superphot_plus.surveys.surveys import Survey
 class PosteriorsGenerator:
     """Generates posterior samples using multi-core parallelization."""
 
-    def __init__(self, sampler_name, lightcurves_dir, survey, num_workers):
+    def __init__(self, sampler_name, lightcurves_dir, survey, num_workers, output_dir):
         """Generates posterior samples using multi-core parallelization.
 
         Parameters
@@ -31,18 +31,26 @@ class PosteriorsGenerator:
             The survey to which data belongs to.
         num_workers : int
             Number of workers to run in parallel.
+        output_dir : str
+            Base directory for classification outputs.
         """
         self.sampler_name = sampler_name
         self.lightcurves_dir = lightcurves_dir
-        self.survey = survey
+        self.survey = Survey.ZTF() if survey == "ZTF" else Survey.LSST()
         self.num_workers = num_workers
 
         # Initialize posteriors directory
-        self.posteriors_dir = os.path.join(CLASSIFICATION_DIR, f"{sampler_name}_fits")
+        self.posteriors_dir = os.path.join(output_dir, f"{sampler_name}_fits")
         os.makedirs(self.posteriors_dir, exist_ok=True)
 
-    def generate_data(self):
-        """Distributes data generation between available workers."""
+    def generate_data(self, seed):
+        """Distributes data generation between available workers.
+
+        Parameters
+        ----------
+        seed : int
+            Random seed value for deterministic data generation.
+        """
         # Determine which posterior files to generate
         posteriors = self.get_posteriors_to_generate()
 
@@ -50,7 +58,7 @@ class PosteriorsGenerator:
         splits = np.array_split(posteriors, self.num_workers)
 
         # Initialize sampler
-        sampler, kwargs = self.setup_sampler(self.sampler_name)
+        sampler, kwargs = self.setup_sampler(self.sampler_name, seed)
 
         with ProcessPoolExecutor(self.num_workers) as executor:
             for i, split in enumerate(splits):
@@ -81,7 +89,7 @@ class PosteriorsGenerator:
 
         return missing_posteriors
 
-    def setup_sampler(self, sampler_name):
+    def setup_sampler(self, sampler_name, seed):
         """Creates a sampler and its kwargs from its name.
 
         Parameter
@@ -89,6 +97,8 @@ class PosteriorsGenerator:
         sampler_name : str
             The name of the sampler to use. One of "dynesty", "svi",
             "NUTS", "iminuit", "licu-ceres" or "licu-mcmc-ceres".
+        seed : int
+            Random seed value used for deterministic data generation.
 
         Returns
         -------
@@ -189,12 +199,18 @@ def extract_cmd_args():
     parser.add_argument(
         "--survey",
         help="Survey to which data belongs to",
-        default=Survey.ZTF(),
+        choices=["ZTF", "LSST"],
+        default="ZTF",
     )
     parser.add_argument(
         "--num_workers",
         help="Number of workers for multi-core processing",
         default=3,
+    )
+    parser.add_argument(
+        "--output_dir",
+        help="Base directory for classification outputs",
+        default=CLASSIFICATION_DIR,
     )
     return parser.parse_args()
 
@@ -202,12 +218,10 @@ def extract_cmd_args():
 if __name__ == "__main__":
     args = extract_cmd_args()
 
-    # Random seed for deterministic data generation.
-    seed = int.from_bytes(urandom(4), "big")
-
     PosteriorsGenerator(
         sampler_name=args.sampler,
         lightcurves_dir=args.lightcurves_dir,
         survey=args.survey,
         num_workers=int(args.num_workers),
-    ).generate_data()
+        output_dir=args.output_dir,
+    ).generate_data(seed=int.from_bytes(urandom(4), "big"))

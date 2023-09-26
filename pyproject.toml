@@ -79,6 +79,10 @@ build-backend = "setuptools.build_meta"
 write_to = "src/superphot_plus/_version.py"
 
 [tool.pytest.ini_options]
+pythonpath = [
+    "src", 
+    "scripts",
+]
 testpaths = [
     "tests",
 ]
