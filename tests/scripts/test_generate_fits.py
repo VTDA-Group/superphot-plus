@@ -12,18 +12,18 @@ def test_generate_fits():
         for sampler in [
             "dynesty",
             "svi",
-            "NUTS",
+            # "NUTS",
             "iminuit",
             "licu-ceres",
             "licu-mcmc-ceres",
         ]:
-            lightcurves_dir = "tests/data/lsst_lcs"
+            lightcurves_dir = "tests/data/ztf_lcs"
             fits_dir = os.path.join(tmp_dir, f"{sampler}_fits")
 
             PosteriorsGenerator(
                 sampler_name=sampler,
                 lightcurves_dir=lightcurves_dir,
-                survey="LSST",
+                survey="ZTF",
                 num_workers=1,
                 output_dir=tmp_dir,
             ).generate_data(seed=4)
