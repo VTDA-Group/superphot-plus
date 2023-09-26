@@ -5,15 +5,12 @@ from concurrent.futures import ProcessPoolExecutor
 from os import urandom
 
 import numpy as np
-from superphot_plus.samplers.sampler import Sampler
 from tqdm import tqdm
 
 from superphot_plus.file_paths import MOSFIT_DIR, MOSFIT_INPUT_JSON
 from superphot_plus.lightcurve import Lightcurve
-from superphot_plus.samplers.dynesty_sampler import DynestySampler
-from superphot_plus.samplers.iminuit_sampler import IminuitSampler
-from superphot_plus.samplers.licu_sampler import LiCuSampler
-from superphot_plus.samplers.numpyro_sampler import NumpyroSampler
+from superphot_plus.samplers.sampler import Sampler
+from superphot_plus.samplers.utils import setup_sampler
 from superphot_plus.supernova_class import SupernovaClass
 from superphot_plus.supernova_properties import SupernovaProperties
 from superphot_plus.surveys.surveys import Survey
@@ -73,7 +70,11 @@ class MosfitGenerator:
         splits = np.array_split(realizations, self.num_workers)
 
         # Initialize sampler
-        sampler, kwargs = self.setup_sampler(self.sampler_name, seed)
+        sampler, kwargs = setup_sampler(
+            sampler_name=self.sampler_name,
+            priors=self.survey.priors,
+            seed=seed,
+        )
 
         with ProcessPoolExecutor(int(self.num_workers)) as executor:
             for i, split in enumerate(splits):
@@ -126,49 +127,6 @@ class MosfitGenerator:
                 missing_realizations.append(realization)
 
         return np.array(missing_realizations), np.array(skipped_realizations)
-
-    def setup_sampler(self, sampler_name, seed):
-        """Creates a sampler and its kwargs from its name.
-
-        Parameter
-        ---------
-        sampler_name : str
-            The name of the sampler to use. One of "dynesty", "svi",
-            "NUTS", "iminuit", "licu-ceres" or "licu-mcmc-ceres".
-        seed : int
-            Random seed value used for deterministic data generation.
-
-        Returns
-        -------
-        sampler : Sampler
-            The sampler object.
-        kwargs : dict
-            The sampler specific arguments.
-        """
-        kwargs = {}
-
-        kwargs["priors"] = self.survey.priors
-
-        if sampler_name == "dynesty":
-            sampler_obj = DynestySampler()
-        elif sampler_name == "svi":
-            sampler_obj = NumpyroSampler()
-            kwargs["sampler"] = "svi"
-        elif sampler_name == "NUTS":
-            sampler_obj = NumpyroSampler()
-            kwargs["sampler"] = "NUTS"
-        elif sampler_name == "iminuit":
-            sampler_obj = IminuitSampler()
-        elif sampler_name == "licu-ceres":
-            sampler_obj = LiCuSampler(algorithm="ceres")
-        elif sampler_name == "licu-mcmc-ceres":
-            sampler_obj = LiCuSampler(algorithm="mcmc-ceres", mcmc_niter=10_000)
-        else:
-            raise ValueError(f"Unknown sampler {sampler_name}")
-
-        kwargs["rng_seed"] = seed
-
-        return sampler_obj, kwargs
 
     def generate_mosfit_data(self, sampler, kwargs, data, realizations, worker_id):
         """Generates the light curve posteriors and stores the mosfit dictionaries
