@@ -1,11 +1,12 @@
 import os
 from argparse import ArgumentParser
 from concurrent.futures import ProcessPoolExecutor
+from os import urandom
 
 import numpy as np
 from tqdm import tqdm
 
-from superphot_plus.file_paths import DATA_DIR
+from superphot_plus.file_paths import CLASSIFICATION_DIR, DATA_DIR
 from superphot_plus.lightcurve import Lightcurve
 from superphot_plus.samplers.dynesty_sampler import DynestySampler
 from superphot_plus.samplers.iminuit_sampler import IminuitSampler
@@ -37,11 +38,11 @@ class PosteriorsGenerator:
         self.num_workers = num_workers
 
         # Initialize posteriors directory
-        self.posteriors_dir = os.path.join(DATA_DIR, f"{sampler_name}_fits")
+        self.posteriors_dir = os.path.join(CLASSIFICATION_DIR, f"{sampler_name}_fits")
         os.makedirs(self.posteriors_dir, exist_ok=True)
 
     def generate_data(self):
-        """Generates fits using multi-core processing."""
+        """Distributes data generation between available workers."""
         # Determine which posterior files to generate
         posteriors = self.get_posteriors_to_generate()
 
@@ -62,7 +63,7 @@ class PosteriorsGenerator:
                 )
 
     def get_posteriors_to_generate(self):
-        """Determines which files to generate.
+        """Determines which fit files to generate.
 
         Returns
         -------
@@ -81,12 +82,13 @@ class PosteriorsGenerator:
         return missing_posteriors
 
     def setup_sampler(self, sampler_name):
-        """Create a sampler and its kwargs from its name.
+        """Creates a sampler and its kwargs from its name.
 
         Parameter
         ---------
         sampler_name : str
-            The name of the sampler to use. One of "dynesty", "svi" or "NUTS".
+            The name of the sampler to use. One of "dynesty", "svi",
+            "NUTS", "iminuit", "licu-ceres" or "licu-mcmc-ceres".
 
         Returns
         -------
@@ -116,7 +118,7 @@ class PosteriorsGenerator:
         else:
             raise ValueError(f"Unknown sampler {sampler_name}")
 
-        kwargs["rng_seed"] = 4
+        kwargs["rng_seed"] = seed
 
         return sampler_obj, kwargs
 
@@ -127,6 +129,8 @@ class PosteriorsGenerator:
         ----------
         sampler : Sampler
             The sampler object.
+        kwargs : dict
+            The sampler specific arguments.
         lightcurves : list
             The list of light curve file names.
         worker_id : int
@@ -197,6 +201,9 @@ def extract_cmd_args():
 
 if __name__ == "__main__":
     args = extract_cmd_args()
+
+    # Random seed for deterministic data generation.
+    seed = int.from_bytes(urandom(4), "big")
 
     PosteriorsGenerator(
         sampler_name=args.sampler,
