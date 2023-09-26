@@ -11,7 +11,7 @@ from ray.tune import CLIReporter
 from ray.tune.search.optuna import OptunaSearch
 from sklearn.model_selection import train_test_split
 
-from src.superphot_plus.model.regressor import SuperphotRegressor
+from superphot_plus.model.regressor import SuperphotRegressor
 from superphot_plus.format_data_ztf import generate_K_fold, normalize_features
 from superphot_plus.model.config import ModelConfig
 from superphot_plus.model.data import TrainData
@@ -27,7 +27,7 @@ from superphot_plus.utils import (
 class MosfitTuner(MosfitTrainer):
     """Tunes mosfit regressor using Ray and K-Fold cross validation."""
 
-    def __init__(self, parameter, num_cpu=2, num_gpu=0):
+    def __init__(self, parameter, sampler, num_cpu=2, num_gpu=0):
         """Tunes models using Ray and K-Fold cross validation.
 
         Parameters
@@ -41,7 +41,7 @@ class MosfitTuner(MosfitTrainer):
             The number of GPUs to use in parallel for each tuning experiment.
             Defaults to 0.
         """
-        super().__init__(parameter=parameter)
+        super().__init__(parameter=parameter, sampler=sampler)
         self.num_cpu = num_cpu
         self.num_gpu = num_gpu
 

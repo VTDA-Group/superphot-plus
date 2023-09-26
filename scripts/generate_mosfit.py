@@ -1,13 +1,18 @@
-from concurrent.futures import ProcessPoolExecutor
 import json
 import os
 from argparse import ArgumentParser
+from concurrent.futures import ProcessPoolExecutor
+from os import urandom
 
 import numpy as np
+from superphot_plus.samplers.sampler import Sampler
 from tqdm import tqdm
 
 from superphot_plus.file_paths import MOSFIT_DIR, MOSFIT_INPUT_JSON
 from superphot_plus.lightcurve import Lightcurve
+from superphot_plus.samplers.dynesty_sampler import DynestySampler
+from superphot_plus.samplers.iminuit_sampler import IminuitSampler
+from superphot_plus.samplers.licu_sampler import LiCuSampler
 from superphot_plus.samplers.numpyro_sampler import NumpyroSampler
 from superphot_plus.supernova_class import SupernovaClass
 from superphot_plus.supernova_properties import SupernovaProperties
@@ -15,14 +20,16 @@ from superphot_plus.surveys.surveys import Survey
 from superphot_plus.utils import convert_mags_to_flux
 
 
-class MosfitDataGenerator:
+class MosfitGenerator:
     """Generates mosfit data using multi-core paralellization."""
 
-    def __init__(self, mosfit_file, survey, num_realizations, num_workers, mosfit_dir):
+    def __init__(self, sampler_name, mosfit_file, survey, num_realizations, num_workers, mosfit_dir):
         """Generates mosfit data using multi-core paralellization.
 
         Parameters
         ----------
+        sampler_name : str
+            The method used for fitting.
         mosfit_file : str
             The path to the mosfit input JSON.
         survey : Survey
@@ -34,20 +41,26 @@ class MosfitDataGenerator:
         mosfit_dir : str
             Directory where mosfit data is stored.
         """
+        self.sampler_name = sampler_name
         self.mosfit_file = mosfit_file
         self.survey = survey
         self.num_realizations = num_realizations
         self.num_workers = num_workers
 
         # Initialize output directories
-        self.posteriors_dir = os.path.join(mosfit_dir, "posts")
-        self.properties_dir = os.path.join(mosfit_dir, "props")
+        self.posteriors_dir = os.path.join(mosfit_dir, sampler_name, "fits")
+        self.properties_dir = os.path.join(mosfit_dir, sampler_name, "properties")
         os.makedirs(self.posteriors_dir, exist_ok=True)
         os.makedirs(self.properties_dir, exist_ok=True)
 
-    def generate_data(self):
-        """Generates data using multi-core processing."""
+    def generate_data(self, seed):
+        """Distributes data generation between available workers.
 
+        Parameters
+        ----------
+        seed : int
+            Random seed value for deterministic data generation.
+        """
         # Read mosfit content
         data = self.read_mosfit_file()
 
@@ -59,10 +72,15 @@ class MosfitDataGenerator:
         # Split realizations evenly between workers
         splits = np.array_split(realizations, self.num_workers)
 
+        # Initialize sampler
+        sampler, kwargs = self.setup_sampler(self.sampler_name, seed)
+
         with ProcessPoolExecutor(int(self.num_workers)) as executor:
             for i, split in enumerate(splits):
                 executor.submit(
                     self.generate_mosfit_data,
+                    sampler=sampler,
+                    kwargs=kwargs,
                     data=data,
                     realizations=split,
                     worker_id=i,
@@ -114,12 +132,57 @@ class MosfitDataGenerator:
 
         return np.array(missing_realizations), np.array(skipped_realizations)
 
-    def generate_mosfit_data(self, data, realizations, worker_id):
+    def setup_sampler(self, sampler_name, seed):
+        """Creates a sampler and its kwargs from its name.
+        Parameter
+        ---------
+        sampler_name : str
+            The name of the sampler to use. One of "dynesty", "svi",
+            "NUTS", "iminuit", "licu-ceres" or "licu-mcmc-ceres".
+        seed : int
+            Random seed value used for deterministic data generation.
+        Returns
+        -------
+        sampler : Sampler
+            The sampler object.
+        kwargs : dict
+            The sampler specific arguments.
+        """
+        kwargs = {}
+
+        kwargs["priors"] = self.survey.priors
+
+        if sampler_name == "dynesty":
+            sampler_obj = DynestySampler()
+        elif sampler_name == "svi":
+            sampler_obj = NumpyroSampler()
+            kwargs["sampler"] = "svi"
+        elif sampler_name == "NUTS":
+            sampler_obj = NumpyroSampler()
+            kwargs["sampler"] = "NUTS"
+        elif sampler_name == "iminuit":
+            sampler_obj = IminuitSampler()
+        elif sampler_name == "licu-ceres":
+            sampler_obj = LiCuSampler(algorithm="ceres")
+        elif sampler_name == "licu-mcmc-ceres":
+            sampler_obj = LiCuSampler(algorithm="mcmc-ceres", mcmc_niter=10_000)
+        else:
+            raise ValueError(f"Unknown sampler {sampler_name}")
+
+        kwargs["rng_seed"] = seed
+
+        return sampler_obj, kwargs
+
+    def generate_mosfit_data(self, sampler, kwargs, data, realizations, worker_id):
         """Generates the light curve posteriors and stores the mosfit dictionaries
         with the physical parameters for each.
 
         Parameters
         ----------
+        sampler : Sampler
+            The sampler object.
+        kwargs : dict
+            The sampler specific arguments.
         data : Dict
             Dictionary containing the mosfit file content.
         realizations : np.array
@@ -130,24 +193,16 @@ class MosfitDataGenerator:
         print(f"Worker {worker_id} has started")
 
         pbar = tqdm(realizations)
+        pbar.set_description(f"Worker {worker_id}")
 
         for i, realization in enumerate(pbar):
-            pbar.set_description(f"Worker {worker_id}")
-
             lc, properties = self.import_slsn_realization(data, realization=int(i + 1))
 
-            sampler = NumpyroSampler()
-            posterior_samples = sampler.run_single_curve(
-                lc,
-                rng_seed=4,
-                priors=self.survey.priors,
-                sampler="svi",
-            )
-
-            # Save posteriors
+            # Generate and save posteriors
+            posterior_samples = sampler.run_single_curve(lc, **kwargs)
             posterior_samples.save_to_file(self.posteriors_dir)
 
-            # Save properties
+            # Generate and save properties
             realization_name = self.format_realization_name(realization)
             properties_file = os.path.join(self.properties_dir, realization_name)
             properties.write_to_file(properties_file)
@@ -240,6 +295,12 @@ def extract_cmd_args():
         description="Parses mosfit data and generates posteriors and physical property files",
     )
     parser.add_argument(
+        "--sampler",
+        help="The sampler to use for fitting",
+        choices=Sampler.CHOICES,
+        default="dynesty",
+    )
+    parser.add_argument(
         "--mosfit_file",
         help="The input JSON file containing mosfit data",
         default=MOSFIT_INPUT_JSON,
@@ -270,10 +331,11 @@ def extract_cmd_args():
 if __name__ == "__main__":
     args = extract_cmd_args()
 
-    MosfitDataGenerator(
+    MosfitGenerator(
+        sampler_name=args.sampler,
         mosfit_file=args.mosfit_file,
         survey=args.survey,
         num_realizations=int(args.num_realizations),
         num_workers=int(args.num_workers),
         mosfit_dir=args.mosfit_dir,
-    ).generate_data()
+    ).generate_data(seed=int.from_bytes(urandom(4), "big"))

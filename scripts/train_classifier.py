@@ -2,6 +2,7 @@
 from argparse import ArgumentParser, BooleanOptionalAction
 
 from superphot_plus.file_paths import CLASSIFICATION_DIR, INPUT_CSVS
+from superphot_plus.samplers.sampler import Sampler
 from superphot_plus.trainers.classifier_trainer import ClassifierTrainer
 
 
@@ -18,7 +19,7 @@ def extract_cmd_args():
     parser.add_argument(
         "--sampler",
         help="Name of the sampler to load fits from",
-        choices=["dynesty", "nuts", "svi"],
+        choices=Sampler.CHOICES,
         default="dynesty",
     )
     parser.add_argument(

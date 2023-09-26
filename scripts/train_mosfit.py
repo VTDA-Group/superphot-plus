@@ -1,6 +1,7 @@
 from argparse import ArgumentParser, BooleanOptionalAction
 
 from superphot_plus.file_paths import MOSFIT_DIR
+from superphot_plus.samplers.sampler import Sampler
 from superphot_plus.trainers.mosfit_trainer import MosfitTrainer
 
 
@@ -13,6 +14,12 @@ def extract_cmd_args():
         "--parameter",
         help="Name of the physical property to train model on",
         required=True,
+    )
+    parser.add_argument(
+        "--sampler",
+        help="Name of the sampler to load fits from",
+        choices=Sampler.CHOICES,
+        default="dynesty",
     )
     parser.add_argument(
         "--mosfit_dir",
@@ -33,6 +40,7 @@ if __name__ == "__main__":
 
     trainer = MosfitTrainer(
         parameter=args.parameter,
+        sampler=args.sampler,
         mosfit_dir=args.mosfit_dir,
     )
 

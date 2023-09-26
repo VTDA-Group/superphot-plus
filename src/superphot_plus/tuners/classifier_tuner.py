@@ -21,7 +21,7 @@ from superphot_plus.utils import create_dataset, get_session_metrics, log_metric
 class ClassifierTuner(ClassifierTrainer):
     """Tunes classifier using Ray and Stratified K-Fold cross validation."""
 
-    def __init__(self, include_redshift=True, num_cpu=2, num_gpu=0):
+    def __init__(self, sampler, include_redshift=True, num_cpu=2, num_gpu=0):
         """Tunes models using Ray and K-Fold cross validation.
 
         Parameters
@@ -35,7 +35,7 @@ class ClassifierTuner(ClassifierTrainer):
             The number of GPUs to use in parallel for each tuning experiment.
             Defaults to 0.
         """
-        super().__init__()
+        super().__init__(sampler=sampler)
 
         # Classification specific
         self.include_redshift = include_redshift

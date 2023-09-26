@@ -48,7 +48,7 @@ class MosfitTrainer(BaseTrainer):
         """
         super().__init__(
             sampler=sampler,
-            fits_dir=os.path.join(mosfit_dir, "posteriors"),
+            fits_dir=os.path.join(mosfit_dir, sampler, "fits"),
             models_dir=os.path.join(mosfit_dir, "models"),
             metrics_dir=os.path.join(mosfit_dir, "metrics"),
             output_file=os.path.join(mosfit_dir, f"{parameter}_preds.csv"),
@@ -57,7 +57,7 @@ class MosfitTrainer(BaseTrainer):
 
         # Regression specific
         self.parameter = parameter
-        self.params_dir = os.path.join(mosfit_dir, "properties")
+        self.params_dir = os.path.join(mosfit_dir, sampler, "properties")
         self.scaler = StandardScaler()
 
         # Restart output files

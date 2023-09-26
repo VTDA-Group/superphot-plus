@@ -1,5 +1,6 @@
 """Entry point to model tuning using K-Fold cross validation."""
 from argparse import ArgumentParser
+from superphot_plus.samplers.sampler import Sampler
 
 from superphot_plus.tuners.mosfit_tuner import MosfitTuner
 
@@ -8,6 +9,12 @@ def extract_cmd_args():
     """Extracts the script command-line arguments."""
     parser = ArgumentParser(
         description="Model tuning using K-Fold cross validation",
+    )
+    parser.add_argument(
+        "--sampler",
+        help="Name of the sampler to load fits from",
+        choices=Sampler.CHOICES,
+        default="dynesty",
     )
     parser.add_argument(
         "--parameter",
@@ -37,6 +44,7 @@ if __name__ == "__main__":
 
     tuner = MosfitTuner(
         parameter=args.parameter,
+        sampler=args.sampler,
         num_cpu=args.num_cpu,
         num_gpu=args.num_gpu,
     )
