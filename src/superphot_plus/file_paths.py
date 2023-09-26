@@ -19,9 +19,6 @@ FIT_PLOTS_FOLDER = f"{CLASSIFICATION_DIR}/figs/fits_good"
 CM_FOLDER = f"{CLASSIFICATION_DIR}/figs/hp_cm"
 WRONGLY_CLASSIFIED_FOLDER = f"{CLASSIFICATION_DIR}/figs/wrongly_classified"
 
-# Directory to store classification models
-MODELS_DIR = f"{CLASSIFICATION_DIR}/models"
-
 # Classification output files
 CLASSIFY_LOG_FILE = f"{CLASSIFICATION_DIR}/classification_log.txt"
 PROBS_FILE = f"{CLASSIFICATION_DIR}/probs_new.csv"

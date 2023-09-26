@@ -13,7 +13,9 @@ from superphot_plus.surveys.surveys import Survey
 from superphot_plus.utils import convert_mags_to_flux
 
 
-def generate_files_from_antares(input_csv, output_folder, output_csv):  # pylint: disable=too-many-statements
+def generate_files_from_antares(
+    input_csv, output_folder, output_csv
+):  # pylint: disable=too-many-statements; # pragma: no cover
     """Generates flux files for all ZTF samples in the master CSV file,
     using ANTARES' API.
 
@@ -105,10 +107,8 @@ def generate_files_from_antares(input_csv, output_folder, output_csv):  # pylint
                 flux_errors=ferr,
                 bands=b,
             )
-                            
-            lc.save_to_file(
-                os.path.join(output_folder, ztf_name+".npz")
-            )
+
+            lc.save_to_file(os.path.join(output_folder, ztf_name + ".npz"))
             add_to_new_csv(ztf_name, label, redshift, output_csv)
 
     tally_each_class(label_dict)
