@@ -44,9 +44,23 @@ data from alert brokers, model tuning and benchmarking use
 You can then run `$ pytest` to verify that all dependencies are correct,
 and your environment should be ready for superphot-plussing!
 
+## Generating posterior samples
+
+Training a network to classify supernova light curves requires their corresponding posterior samples. To generate them run:
+
+```
+$ python scripts/generate_fits.py \
+    --lightcurves_dir <lightcurves_dir> \
+    --sampler <sampler_name>
+```
+
+The `lightcurves_dir` argument is the path to folder containing the compressed light curve files (by default `data/training_lcs`). The sampler name, `sampler`, is one of the following choices: dynesty, svi, NUTS, iminuit, licu-ceres, licu-mcmc-ceres. 
+
+The generator will output the posteriors to a directory named `{sampler}_fits` under the classification data directory (by default, `data/classification`).
+
 ## Processing MOSFiT data
 
-To generate posterior samples and extract physical properties for a light curve dataset, run:
+When the goal is to train a regression model to predict supernova physical parameters you need to generate the posterior samples but also to extract the physical properties for each of the light curves in the dataset. For that, run:
 
 ```
 $ python scripts/generate_mosfit.py \
@@ -54,19 +68,17 @@ $ python scripts/generate_mosfit.py \
     --sampler <sampler_name>
 ```
 
-The `mosfit_file` argument represents the path to the mosfit JSON file (by default `data/slsn.json`) and `sampler` is one of the following choices: dynesty, svi, NUTS, iminuit, licu-ceres, licu-mcmc-ceres. 
+The `mosfit_file` argument is the path to the MOSFiT JSON file (by default, `data/slsn.json`). The sampler name, `sampler`, is one of the following choices: dynesty, svi, NUTS, iminuit, licu-ceres, licu-mcmc-ceres. 
 
-The generator will create a directory for the sampler (by default `data/mosfit/{sampler}`) and output the "fits" and "properties" for the lightcurves to separate subdirectories.
+The generator will output the "fits" and "properties" for the lightcurves to separate subdirectories, under the mosfit data directory (by default, `data/mosfit/{sampler}`). 
 
 ## Training and tuning the models
 
-Inside the `scripts` directory you can also find four scripts which focus on the training and tuning of the supernovae classifier and the physical parameter regressor.
-
-Below is a brief guide on how to get started with model training and tuning. To get a full specification of any of the available scripts, run `$ python <script_name.py> --help`.
+Inside the `scripts` directory you can also find four scripts which focus on the training and tuning of the supernovae classifier and the physical parameter regressor. Below is a brief guide on how to get started with model training and tuning.
 
 ### Classifier
 
-Both workflows assume training data is loaded from `training_set.csv` (unless specified using the **--input_csvs** argument) and that the respective posterior fits are located under the classification directory, on a subdirectory named `{sampler}_fits`.
+Both workflows assume training data is loaded from `training_set.csv` (unless specified using the **--input_csvs** argument) and that the respective posterior fits are located under the classification data directory, on a subdirectory named `{sampler}_fits`.
 
 To train the classifier run `train_classifier.py`.
 
@@ -93,7 +105,7 @@ $ python tune_classifier.py --num_hp_samples 5
 
 ### Regressor
 
-Both workflows assume the posterior samples and supernovae property data are located under the mosfit directory, on subdirectories named `posteriors` and `properties`, respectively. 
+Both workflows assume the posterior samples and supernovae property data are located under the mosfit data directory, on subdirectories named `posteriors` and `properties`, respectively. 
 
 To train the regressor run `train_mosfit.py`.
 
@@ -101,13 +113,15 @@ To train the regressor run `train_mosfit.py`.
 $ python train_mosfit.py --parameter bfield
 ```
 
-You will need to specify the physical property name. Similarly to what is described for the classification task, there should be a file in the mosfit directory, under "models", specifying the desired neural network configuration. This file must be named after the physical parameter.
+You will need to specify the physical property name. Similarly to what is described for the classification task, there should be a file in the mosfit directory, under "models", specifying the desired neural network configuration. This file must be named after the physical property.
 
 To get an optimized set of hyperparameters specify the physical property name and the number of neural network configurations to be sampled by Ray.
 
 ```
 $ python tune_mosfit.py --parameter bfield --num_hp_samples 10
 ```
+
+To get the full specification of a script run `$ python <script_name.py> --help`.
 
 ## Contributing
 
