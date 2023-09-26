@@ -13,6 +13,8 @@ from memory_profiler import memory_usage
 from superphot_plus.data_generation.make_fake_spp_data import create_clean_models, create_ztf_model
 from superphot_plus.lightcurve import Lightcurve
 from superphot_plus.samplers.dynesty_sampler import DynestySampler
+from superphot_plus.samplers.iminuit_sampler import IminuitSampler
+from superphot_plus.samplers.licu_sampler import LiCuSampler
 from superphot_plus.samplers.numpyro_sampler import NumpyroSampler
 from superphot_plus.surveys.surveys import Survey
 from superphot_plus.utils import calculate_log_likelihood, calculate_mse
@@ -85,6 +87,12 @@ def setup_sampler(sampler_name, seed, **kwargs):
     elif sampler_name == "NUTS":
         sampler_obj = DynestySampler()
         kwargs2["sampler"] = "NUTS"
+    elif sampler_name == "iminuit":
+        sampler_obj = IminuitSampler()
+    elif sampler_name == "licu-ceres":
+        sampler_obj = LiCuSampler(algorithm="ceres")
+    elif sampler_name == "licu-mcmc-ceres":
+        sampler_obj = LiCuSampler(algorithm="mcmc-ceres", mcmc_niter=10_000)
     else:
         raise ValueError(f"Unknown sampler {sampler_name}")
 
@@ -140,7 +148,7 @@ def run_all_benchmarks(num_samples):
     _, lightcurves = create_data(num_samples, True)
 
     seed = int.from_bytes(urandom(4), "big")
-    samplers = ["dynesty", "svi", "NUTS"]
+    samplers = ["dynesty", "svi", "NUTS", "iminuit", "licu-ceres", "licu-mcmc-ceres"]
 
     results = {}
     for sampler in samplers:

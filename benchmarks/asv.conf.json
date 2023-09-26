@@ -5,7 +5,7 @@
     // The name of the project being benchmarked.
     "project": "superphot-plus",
     // The project's homepage.
-    "project_url": "https://github.com/lincc-frameworks/superphot-plus",
+    "project_url": "https://github.com/VTDA-Group/superphot-plus",
     // The URL or local path of the source code repository for the
     // project being benchmarked.
     "repo": "..",
@@ -32,7 +32,7 @@
     // variable.
     "environment_type": "virtualenv",
     // the base URL to show a commit for the project.
-    "show_commit_url": "https://github.com/lincc-frameworks/superphot-plus/commit/",
+    "show_commit_url": "https://github.com/VTDA-Group/superphot-plus/commit/",
     // The Pythons you'd like to test against. If not provided, defaults
     // to the current version of Python used to run `asv`.
     "pythons": [

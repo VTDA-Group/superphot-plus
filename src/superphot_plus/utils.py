@@ -251,6 +251,11 @@ def params_valid(beta, gamma, tau_rise, tau_fall):
     bool
         True if parameters are valid, False otherwise.
     """
+    if np.any(np.isnan(
+        [beta, gamma, tau_rise, tau_fall]
+    )):
+        return False
+    
     if tau_fall > 1.0 / beta:
         return False
 
