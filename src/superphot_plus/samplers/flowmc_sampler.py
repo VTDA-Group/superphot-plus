@@ -32,14 +32,14 @@ def generate_posterior_function(all_priors):
     """
     prior_means = all_priors[2]
     prior_stddevs = all_priors[3]
-    
+
     @jit
     def posterior_eval(cube, data_stacked):
         """
         Extracts the parameter cube and evaluates
         the associated likelihood.
         """
-        #-0.5 * jnp.linalg.norm((cube - PRIOR_MEANS - 1.)/PRIOR_SIGMAS)
+        # -0.5 * jnp.linalg.norm((cube - PRIOR_MEANS - 1.)/PRIOR_SIGMAS)
 
         t, obsflux, uncertainties = data_stacked
 
@@ -64,7 +64,9 @@ def generate_posterior_function(all_priors):
             tau_rise_g,
             tau_fall_g,
             extra_sigma_g,
-        ) = cube * prior_stddevs + prior_means # cube is normalized between 0 and 1
+        ) = (
+            cube * prior_stddevs + prior_means
+        )  # cube is normalized between 0 and 1
 
         A = max_flux * 10**A
         gamma = 10**gamma
@@ -111,14 +113,28 @@ def generate_posterior_function(all_priors):
         )
 
         return (
-            #prior_eval(cube, None)
-            - 0.5 * jnp.sum((flux - obsflux) ** 2 / sigma_tot**2)
+            # prior_eval(cube, None)
+            -0.5 * jnp.sum((flux - obsflux) ** 2 / sigma_tot**2)
             - jnp.sum(jnp.log(jnp.sqrt(2 * jnp.pi) * sigma_tot))
         )
+
     return posterior_eval
 
 
-def run_flowMC(lightcurve, priors, n_chains=4, rseed=42):
+def run_flowMC(
+    lightcurve,
+    priors,
+    rseed=42,
+    n_chains=4,
+    n_loop_training=10,
+    n_loop_production=10,
+    n_local_steps=100,
+    n_global_steps=100,
+    num_epochs=10,
+    learning_rate=0.005,
+    momentum=0.9,
+    batch_size=500,
+):
     """
     Run flowMC on one light curve.
     """
@@ -130,35 +146,15 @@ def run_flowMC(lightcurve, priors, n_chains=4, rseed=42):
     all_priors = priors.to_numpy().T
     rng_key_set = initialize_rng_keys(n_chains, seed=rseed)
     n_dim = len(all_priors.T)
-    print("n_dim", n_dim)
     initial_position = jnp.zeros((n_chains, all_priors.shape[1]))
-
-    #print(jax.value_and_grad(prior_eval)(initial_position[0], None))
-    #print(jax.value_and_grad(posterior_eval)(initial_position[0], data_stacked))
 
     model = MaskedCouplingRQSpline(n_dim, 4, [32, 32], 8, jax.random.PRNGKey(10))
 
-    n_loop_training = 10
-    n_loop_production = 10
-    n_local_steps = 100
-    n_global_steps = 100
-    num_epochs = 1
-
-    learning_rate = 0.005
-    momentum = 0.9
-    batch_size = 500
-
-    sampler = MALA(
-        generate_posterior_function(all_priors),
-        True,
-        {"step_size": 0.01}
-    )#, use_autotune=True)  # {"})
+    sampler = MALA(generate_posterior_function(all_priors), True, {"step_size": 0.01})
     nf_sampler = FlowSampler(
         n_dim=n_dim,
         rng_key_set=rng_key_set,
         local_sampler=sampler,
-        # data = jnp.zeros(n_dim),
-        # data=lightcurve.times,
         data=data_stacked,
         nf_model=model,
         n_loop_training=n_loop_training,
@@ -174,10 +170,11 @@ def run_flowMC(lightcurve, priors, n_chains=4, rseed=42):
     )
     nf_sampler.sample(initial_position, data_stacked)
 
-    out_prod = nf_sampler.get_sampler_state()  # default training=False
+    out_prod = nf_sampler.get_sampler_state()
     chains = np.reshape(out_prod["chains"][:, -100:], (100 * n_chains, n_dim))
 
     return chains
+
 
 class FlowMCSampler(Sampler):
     """Sampling using FlowMC."""
@@ -189,7 +186,7 @@ class FlowMCSampler(Sampler):
         self, lightcurve: Lightcurve, priors: MultibandPriors, rng_seed=None, **kwargs
     ) -> PosteriorSamples:
         lightcurve.pad_bands(priors.ordered_bands, PAD_SIZE)
-        eq_wt_samples = run_flowMC(lightcurve, rseed=rng_seed, priors=priors)
+        eq_wt_samples = run_flowMC(lightcurve, rseed=rng_seed, priors=priors, **kwargs)
         if eq_wt_samples is None:
             return None
         return PosteriorSamples(
