@@ -44,9 +44,23 @@ data from alert brokers, model tuning and benchmarking use
 You can then run `$ pytest` to verify that all dependencies are correct,
 and your environment should be ready for superphot-plussing!
 
-## Working with the models
+## Processing MOSFiT data
 
-Inside the `scripts` directory you can find four scripts which focus on the training and tuning of the supernovae classifier and the physical parameter regressor.
+To generate posterior samples and extract physical properties for a light curve dataset, run:
+
+```
+$ python scripts/generate_mosfit.py \
+    --mosfit_file <mosfit_filepath> \
+    --sampler <sampler_name>
+```
+
+The `mosfit_file` argument represents the path to the mosfit JSON file (by default `data/slsn.json`) and `sampler` is one of the following choices: dynesty, svi, NUTS, iminuit, licu-ceres, licu-mcmc-ceres. 
+
+The generator will create a directory for the sampler (by default `data/mosfit/{sampler}`) and output the "fits" and "properties" for the lightcurves to separate subdirectories.
+
+## Training and tuning the models
+
+Inside the `scripts` directory you can also find four scripts which focus on the training and tuning of the supernovae classifier and the physical parameter regressor.
 
 Below is a brief guide on how to get started with model training and tuning. To get a full specification of any of the available scripts, run `$ python <script_name.py> --help`.
 

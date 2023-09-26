@@ -103,11 +103,6 @@ class MosfitGenerator:
     def get_realizations(self):
         """Determines which realizations should be generated.
 
-        Parameters
-        ----------
-        num_realizations: int
-            The maximum number of realizations to have.
-
         Returns
         -------
         tuple of np.array
@@ -134,6 +129,7 @@ class MosfitGenerator:
 
     def setup_sampler(self, sampler_name, seed):
         """Creates a sampler and its kwargs from its name.
+
         Parameter
         ---------
         sampler_name : str
@@ -141,6 +137,7 @@ class MosfitGenerator:
             "NUTS", "iminuit", "licu-ceres" or "licu-mcmc-ceres".
         seed : int
             Random seed value used for deterministic data generation.
+
         Returns
         -------
         sampler : Sampler
