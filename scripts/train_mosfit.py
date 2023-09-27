@@ -1,5 +1,7 @@
+"""Entry point to regressor training and evaluation."""
 from argparse import ArgumentParser, BooleanOptionalAction
 
+from superphot_plus.load_data import read_mosfit_data
 from superphot_plus.file_paths import MOSFIT_DIR
 from superphot_plus.samplers.sampler import Sampler
 from superphot_plus.trainers.mosfit_trainer import MosfitTrainer
@@ -43,5 +45,12 @@ if __name__ == "__main__":
         sampler=args.sampler,
         mosfit_dir=args.mosfit_dir,
     )
-
-    trainer.run(load_checkpoint=args.load_checkpoint)
+    data = read_mosfit_data(
+        sampler=trainer.sampler,
+        params_dir=trainer.params_dir,
+        fits_dir=trainer.fits_dir,
+    )
+    trainer.run(
+        data=data,
+        load_checkpoint=args.load_checkpoint,
+    )

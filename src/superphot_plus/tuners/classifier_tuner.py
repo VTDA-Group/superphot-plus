@@ -9,6 +9,7 @@ from ray import tune
 from ray.air import session
 from ray.tune import CLIReporter
 from ray.tune.search.optuna import OptunaSearch
+from sklearn.model_selection import train_test_split
 
 from superphot_plus.format_data_ztf import generate_K_fold, normalize_features, tally_each_class
 from superphot_plus.model.classifier import SuperphotClassifier
@@ -43,7 +44,7 @@ class ClassifierTuner(ClassifierTrainer):
         self.num_cpu = num_cpu
         self.num_gpu = num_gpu
 
-    def run(self, input_csvs=None, num_hp_samples=10):
+    def run(self, data, num_hp_samples=10):
         """Performs model tuning with cross-validation to get
         the best set of hyperparameters.
 
@@ -55,8 +56,14 @@ class ClassifierTuner(ClassifierTrainer):
             The number of hyperparameters sets to sample from (for model tuning).
             Defaults to 10.
         """
-        train_data, _ = self.split_train_test(input_csvs)
-        best_config = self.tune_model(train_data, num_hp_samples)
+        if data is None:
+            raise ValueError("No data has been provided.")
+
+        names, labels, redshifts = data
+        names, _, labels, _, redshifts, _ = train_test_split(
+            names, labels, redshifts, stratify=labels, shuffle=True, test_size=0.1
+        )
+        best_config = self.tune_model(ZtfData(names, labels, redshifts), num_hp_samples)
         best_config.write_to_file(os.path.join(self.models_dir, "best-config.yaml"))
 
     def generate_hp_sample(self):
@@ -102,9 +109,6 @@ class ClassifierTuner(ClassifierTrainer):
 
         # Reporter to show on command line/output window.
         reporter = CLIReporter(metric_columns=["avg_val_loss", "avg_val_acc"])
-
-        # Init Ray cluster.
-        ray.init()
 
         # Start hyperparameter search.
         result = tune.run(

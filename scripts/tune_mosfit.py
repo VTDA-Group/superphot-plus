@@ -1,7 +1,8 @@
-"""Entry point to model tuning using K-Fold cross validation."""
+"""Entry point to regressor tuning using K-Fold cross validation."""
 from argparse import ArgumentParser
 from superphot_plus.samplers.sampler import Sampler
 
+from superphot_plus.load_data import read_mosfit_data
 from superphot_plus.tuners.mosfit_tuner import MosfitTuner
 
 
@@ -49,4 +50,13 @@ if __name__ == "__main__":
         num_gpu=args.num_gpu,
     )
 
-    tuner.run(num_hp_samples=int(args.num_hp_samples))
+    data = read_mosfit_data(
+        sampler=tuner.sampler,
+        params_dir=tuner.params_dir,
+        fits_dir=tuner.fits_dir,
+    )
+
+    tuner.run(
+        data=data,
+        num_hp_samples=int(args.num_hp_samples),
+    )

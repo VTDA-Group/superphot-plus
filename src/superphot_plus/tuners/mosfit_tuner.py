@@ -27,7 +27,7 @@ from superphot_plus.utils import (
 class MosfitTuner(MosfitTrainer):
     """Tunes mosfit regressor using Ray and K-Fold cross validation."""
 
-    def __init__(self, parameter, sampler, num_cpu=2, num_gpu=0):
+    def __init__(self, parameter, sampler, mosfit_dir, num_cpu=2, num_gpu=0):
         """Tunes models using Ray and K-Fold cross validation.
 
         Parameters
@@ -41,11 +41,15 @@ class MosfitTuner(MosfitTrainer):
             The number of GPUs to use in parallel for each tuning experiment.
             Defaults to 0.
         """
-        super().__init__(parameter=parameter, sampler=sampler)
+        super().__init__(
+            parameter=parameter,
+            sampler=sampler,
+            mosfit_dir=mosfit_dir,
+        )
         self.num_cpu = num_cpu
         self.num_gpu = num_gpu
 
-    def run(self, num_hp_samples=10):
+    def run(self, data, num_hp_samples=10):
         """Performs model tuning with cross-validation to get
         the best set of hyperparameters.
 
@@ -55,8 +59,11 @@ class MosfitTuner(MosfitTrainer):
             The number of hyperparameters sets to sample from (for model tuning).
             Defaults to 10.
         """
+        if data is None:
+            raise ValueError("No data has been provided.")
+
         # Read and generate training data
-        names, posteriors, properties = self.read_data()
+        names, posteriors, properties = data
         names, _, posteriors, _, properties, _ = train_test_split(
             names, posteriors, properties, shuffle=True, test_size=0.1
         )
@@ -70,7 +77,7 @@ class MosfitTuner(MosfitTrainer):
         )
 
         # Store best model configuration
-        best_config_file = os.path.join(self.models_dir, f"{self.parameter}_best-config.yaml")
+        best_config_file = os.path.join(self.models_dir, f"{self.parameter}.yaml")
         best_config.write_to_file(best_config_file)
 
     def generate_hp_sample(self):
@@ -117,9 +124,6 @@ class MosfitTuner(MosfitTrainer):
 
         # Reporter to show on command line/output window.
         reporter = CLIReporter(metric_columns=["avg_val_loss"])
-
-        # Init Ray cluster.
-        ray.init()
 
         # Start hyperparameter search.
         result = tune.run(

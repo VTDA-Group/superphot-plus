@@ -63,7 +63,7 @@ class MosfitTrainer(BaseTrainer):
         # Restart output files
         self.clean_outputs()
 
-    def run(self, load_checkpoint=False):
+    def run(self, data, load_checkpoint=False):
         """Runs the machine learning workflow.
 
         Trains the model on the whole training set and evaluates it on a
@@ -71,9 +71,15 @@ class MosfitTrainer(BaseTrainer):
 
         Parameters
         ----------
+        data : tuple of np.array
+            The names, the posterior samples and the physical properties
+            for each light curve.
         load_checkpoint : bool
             If true, load pretrained model checkpoint.
         """
+        if data is None:
+            raise ValueError("No data has been provided.")
+
         # Load parameter specific model
         self.setup_model(
             SuperphotRegressor,
@@ -82,7 +88,7 @@ class MosfitTrainer(BaseTrainer):
         )
 
         # Read posteriors and light curve samples
-        names, posteriors, properties = self.read_data()
+        names, posteriors, properties = data
 
         # Extract desired supernova property
         curr_prop = SupernovaProperties.get_property_by_name(properties, self.parameter)
@@ -98,40 +104,6 @@ class MosfitTrainer(BaseTrainer):
             )
 
         self.evaluate(names, posteriors, curr_prop, test_index)
-
-    def read_data(self):
-        """Reads posteriors and supernova physical properties
-        for all the light curves stored on disk.
-
-        Returns
-        -------
-        tuple of np.array
-            The names, the posterior samples and the physical
-            parameters for each of the light curves.
-        """
-        all_names = []
-        all_posteriors = []
-        all_params = []
-
-        for file in os.listdir(self.params_dir):
-            filename = file.split(".")[0]
-
-            all_names.append(filename)
-
-            properties = SupernovaProperties.from_file(
-                input_dir=self.params_dir,
-                name=filename,
-            )
-            all_params.append(properties)
-
-            posteriors = PosteriorSamples.from_file(
-                input_dir=self.fits_dir,
-                name=filename,
-                sampling_method=self.sampler,
-            )
-            all_posteriors.append(posteriors.sample_mean())
-
-        return np.array(all_names), np.array(all_posteriors), np.array(all_params)
 
     def generate_train_data(self, posteriors, curr_props, train_index, val_index):
         """Splits data to create training and validation datasets

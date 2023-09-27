@@ -1,6 +1,7 @@
-"""Entry point to model training and evaluation."""
+"""Entry point to classifier training and evaluation."""
 from argparse import ArgumentParser, BooleanOptionalAction
 
+from superphot_plus.load_data import read_classification_data
 from superphot_plus.file_paths import CLASSIFICATION_DIR, INPUT_CSVS
 from superphot_plus.samplers.sampler import Sampler
 from superphot_plus.trainers.classifier_trainer import ClassifierTrainer
@@ -62,9 +63,14 @@ if __name__ == "__main__":
         include_redshift=args.include_redshift,
         classification_dir=args.classification_dir,
     )
-
-    trainer.run(
+    data = read_classification_data(
         input_csvs=args.input_csvs.split(","),
+        sampler=trainer.sampler,
+        fits_dir=trainer.fits_dir,
+        allowed_types=trainer.allowed_types,
+    )
+    trainer.run(
+        data=data,
         extract_wc=args.extract_wc,
         load_checkpoint=args.load_checkpoint,
     )

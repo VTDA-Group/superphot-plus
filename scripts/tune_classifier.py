@@ -1,6 +1,7 @@
-"""Entry point to model tuning using K-Fold cross validation."""
+"""Entry point to classifier tuning using K-Fold cross validation."""
 from argparse import ArgumentParser, BooleanOptionalAction
 
+from superphot_plus.load_data import read_classification_data
 from superphot_plus.file_paths import INPUT_CSVS
 from superphot_plus.samplers.sampler import Sampler
 from superphot_plus.tuners.classifier_tuner import ClassifierTuner
@@ -55,8 +56,13 @@ if __name__ == "__main__":
         num_cpu=args.num_cpu,
         num_gpu=args.num_gpu,
     )
-
-    tuner.run(
+    data = read_classification_data(
         input_csvs=args.input_csvs.split(","),
+        sampler=tuner.sampler,
+        fits_dir=tuner.fits_dir,
+        allowed_types=tuner.allowed_types,
+    )
+    tuner.run(
+        data=data,
         num_hp_samples=int(args.num_hp_samples),
     )

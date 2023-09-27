@@ -84,7 +84,7 @@ class ClassifierTrainer(BaseTrainer):
             ]
         )
 
-    def run(self, input_csvs=None, extract_wc=False, load_checkpoint=False):
+    def run(self, data, extract_wc=False, load_checkpoint=False):
         """Runs the machine learning workflow.
 
         Trains the model on the whole training set and evaluates it on a
@@ -92,8 +92,8 @@ class ClassifierTrainer(BaseTrainer):
 
         Parameters
         ----------
-        input_csvs : list of str
-            The list of training CSV files. Defaults to None.
+        data : tuple of np.array
+            The names, the labels and the redshifts for each light curve.
         extract_wc : bool
             If true, assumes all sample fit plots are saved in
             FIT_PLOTS_FOLDER. Copies plots of wrongly classified samples to
@@ -101,6 +101,9 @@ class ClassifierTrainer(BaseTrainer):
         load_checkpoint : bool
             If true, load pretrained model checkpoint.
         """
+        if data is None:
+            raise ValueError("No data has been provided.")
+
         if self.config_name is None:
             raise ValueError("Could not read model configuration.")
 
@@ -111,44 +114,19 @@ class ClassifierTrainer(BaseTrainer):
             load_checkpoint=load_checkpoint,
         )
 
-        train_data, test_data = self.split_train_test(input_csvs)
-
-        if self.model is None:
-            self.train(train_data)
-
-        # Evaluate model on test dataset
-        self.evaluate(test_data, extract_wc)
-
-    def split_train_test(self, input_csvs=None):
-        """Reads data and splits it into training and testing sets.
-
-        Parameters
-        ----------
-        input_csvs : list of str
-            List of input CSV file paths.
-
-        Returns
-        -------
-        tuple
-            The train data and the test data.
-        """
-        if input_csvs is None:
-            input_csvs = INPUT_CSVS
-
-        # Load train and test data (holdout of 10%)
-        names, labels, redshifts = import_labels_only(
-            input_csvs=input_csvs,
-            allowed_types=self.allowed_types,
-            fits_dir=self.fits_dir,
-            sampler=self.sampler,
-        )
+        # Split data into training and test sets
+        names, labels, redshifts = data
         names, test_names, labels, test_labels, redshifts, test_redshifts = train_test_split(
             names, labels, redshifts, stratify=labels, shuffle=True, test_size=0.1
         )
         train_data = ZtfData(names, labels, redshifts)
         test_data = ZtfData(test_names, test_labels, test_redshifts)
 
-        return train_data, test_data
+        if self.model is None:
+            self.train(train_data)
+
+        # Evaluate model on test dataset
+        self.evaluate(test_data, extract_wc)
 
     def generate_train_data(self, train_data, goal_per_class, train_index, val_index):
         """Extracts and processes the data for training and validation.
