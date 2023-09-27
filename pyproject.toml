@@ -37,9 +37,9 @@ dev = [
     "pytest",
     "pytest-cov", # Used to report total code coverage
     "pre-commit", # Used to run checks before finalizing a git commit
-    "sphinx==6.1.3", # Used to automatically generate documentation
-    "sphinx-rtd-theme==1.2.0", # Used to render documentation
-    "sphinx-autoapi==2.0.1", # Used to automatically generate api documentation
+    "sphinx", # Used to automatically generate documentation
+    "sphinx-rtd-theme", # Used to render documentation
+    "sphinx-autoapi", # Used to automatically generate api documentation
     "pylint", # Used for static linting of files
 ]
 data-generation = [
@@ -51,6 +51,8 @@ sampling = [
     "numpyro",
     "flowMC",
     "imblearn",
+    "iminuit",
+    "light-curve>=0.8,<0.9",
 ]
 plotting = [
     "arviz",
@@ -78,6 +80,10 @@ build-backend = "setuptools.build_meta"
 write_to = "src/superphot_plus/_version.py"
 
 [tool.pytest.ini_options]
+pythonpath = [
+    "src", 
+    "scripts",
+]
 testpaths = [
     "tests",
 ]

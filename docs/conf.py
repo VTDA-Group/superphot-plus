@@ -12,6 +12,7 @@ import autoapi
 
 # Define path to the code to be documented **relative to where conf.py (this file) is kept**
 sys.path.insert(0, os.path.abspath("../src/"))
+sys.path.insert(0, os.path.abspath("../scripts/"))
 
 # -- Project information -----------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
@@ -39,7 +40,7 @@ html_show_sourcelink = False  # Remove 'view source code' from top of page (for 
 add_module_names = False  # Remove namespaces from class/method signatures
 
 autoapi_type = "python"
-autoapi_dirs = ["../src"]
+autoapi_dirs = ["../src", "../scripts"]
 autoapi_ignore = ["*/__main__.py", "*/_version.py"]
 autoapi_add_toc_tree_entry = False
 autoapi_member_order = "bysource"

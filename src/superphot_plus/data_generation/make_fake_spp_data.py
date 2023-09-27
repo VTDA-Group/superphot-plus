@@ -204,23 +204,20 @@ def create_ztf_model(plot=False):
     tdata = np.random.uniform(-100, 100, num_observations)
     filter_data = np.random.choice(["g", "r"], size=num_observations)
 
-    cube = create_prior(cube)
-    A, beta, gamma, t0, tau_rise, tau_fall, es = cube[:7]  # pylint: disable=unused-variable
-
     found_valid = False
     num_tried = 0
 
     # Now re-attempts to regenerate until it gets a "good" model
     while not found_valid and num_tried < 100:
-        cube = create_prior(cube)
-        A, beta, gamma, t0, tau_rise, tau_fall, es = cube[:7]  # pylint: disable=unused-variable
+        params = create_prior(np.copy(cube))
+        A, beta, gamma, t0, tau_rise, tau_fall, es = params[:7]  # pylint: disable=unused-variable
         found_valid = params_valid(beta, gamma, tau_rise, tau_fall)
         num_tried += 1
 
     if not found_valid:
         return "Failure"
 
-    f_model = flux_model(cube, tdata, filter_data, ["g", "r"], "r")
+    f_model = flux_model(params, tdata, filter_data, ["r", "g"], "r")
     snr = ztf_noise_model(f_model, filter_data)
 
     gind = np.where(snr > 3)  # any points with SNR < 3 are ignored
@@ -238,7 +235,9 @@ def create_ztf_model(plot=False):
         plt.xlabel("Time (days)")
         plt.ylabel("Flux (arbitrary units)")
         plt.show()
-    return cube[:7], tdata, filter_data, dirty_model, sigmas
+    return params[:7], tdata, filter_data, dirty_model, sigmas
 
 
 # Can run this with create_model(plot=True)
+if __name__ == "__main__":
+    create_ztf_model(plot=True)

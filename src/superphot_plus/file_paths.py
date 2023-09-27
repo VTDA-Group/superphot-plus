@@ -8,6 +8,8 @@ DATA_DIRS = [
 ]
 INPUT_CSVS = [f"{DATA_DIR}/training_set.csv"]  # ["../data/training_set_combined_05_09_2023.csv"]
 
+CLASSIFICATION_DIR = f"{DATA_DIR}/classification"
+
 # Directory to store models
 MODELS_DIR = f"{DATA_DIR}/models"
 
