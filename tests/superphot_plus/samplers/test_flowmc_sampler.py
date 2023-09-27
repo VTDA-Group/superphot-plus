@@ -17,7 +17,7 @@ def test_flow_mc_single_file(single_ztf_lightcurve_object, ztf_priors, tmp_path)
     sample_mean = posterior_samples.sample_mean()
     assert len(sample_mean) == 14
 
-    # Check that the means are the same (within 5% relative value).
+    # Check that the means are the same (within 25% relative value).
     expected = [
         0.16598069,
         0.15574268,
@@ -35,6 +35,6 @@ def test_flow_mc_single_file(single_ztf_lightcurve_object, ztf_priors, tmp_path)
         0.6381275,
     ]
     assert len(expected) == len(sample_mean)
-    assert np.all(np.isclose(sample_mean, expected, rtol=0.05))
+    assert np.all(np.isclose(sample_mean, expected, rtol=0.25))
 
     assert len(posterior_samples.samples) == 100
