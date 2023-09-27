@@ -111,7 +111,7 @@ class Lightcurve:
         ----------
         error_coeff : float
             The multiplicative constant to use when accounting for
-            error. Default = -1.0 for flux - |error|.
+            error. Default = -1.0 for flux - abs(error).
         band : str, optional
             The band to check.  Use None to find the maximum over
             all bands.
