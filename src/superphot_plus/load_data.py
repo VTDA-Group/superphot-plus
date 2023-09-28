@@ -72,8 +72,7 @@ def read_mosfit_data(sampler, params_dir, fits_dir):
     posteriors = []
     properties = []
 
-    for file in os.listdir(params_dir):
-        filename = file.split(".")[0]
+    for filename in os.listdir(params_dir):
         names.append(filename)
 
         posts = PosteriorSamples.from_file(

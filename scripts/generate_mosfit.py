@@ -116,7 +116,7 @@ class MosfitGenerator:
 
         for realization in np.arange(1, self.num_realizations + 1):
             lc_name = self.format_realization_name(realization)
-            posteriors_fn = f"{lc_name}_eqwt_svi.npz"
+            posteriors_fn = f"{lc_name}_eqwt_{self.sampler_name}.npz"
 
             properties_file = os.path.join(self.properties_dir, lc_name)
             posteriors_file = os.path.join(self.posteriors_dir, posteriors_fn)
