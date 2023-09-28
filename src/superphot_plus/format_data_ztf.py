@@ -8,7 +8,7 @@ from imblearn.over_sampling import SMOTE
 from sklearn.model_selection import KFold, StratifiedKFold
 
 from superphot_plus.file_paths import FITS_DIR
-from superphot_plus.file_utils import get_multiple_posterior_samples, has_posterior_samples
+from superphot_plus.file_utils import has_posterior_samples
 from superphot_plus.supernova_class import SupernovaClass as SnClass
 
 
@@ -128,7 +128,12 @@ def tally_each_class(labels):
 
 
 def oversample_using_posteriors(
-    lc_names, labels, goal_per_class, fits_dir, sampler=None, redshifts=None, oversample_redshifts=False
+    lc_names,
+    labels,
+    posterior_samples,
+    goal_per_class,
+    redshifts=None,
+    oversample_redshifts=False,
 ):
     """Oversamples, drawing from posteriors of a certain fit.
 
@@ -138,12 +143,10 @@ def oversample_using_posteriors(
         Lightcurve names.
     labels : list
         List of labels.
+    posterior_samples : Dict
+        Dictionary with the posteriors for each light curve.
     goal_per_class : int
         Number of samples per class.
-    fits_dir : str
-        Where fit parameters are stored.
-    sampler : str, optional
-        The name of the sampler to use.
     redshifts : list, optional
         List of redshift values.
     oversample_redshifts : boolean, optional
@@ -161,8 +164,6 @@ def oversample_using_posteriors(
     labels_unique = np.unique(labels)
 
     labels = np.array(labels)
-
-    posterior_samples = get_multiple_posterior_samples(lc_names, fits_dir, sampler)
 
     for l in labels_unique:
         idxs_in_class = np.asarray(labels == l).nonzero()[0]

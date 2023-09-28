@@ -2,6 +2,7 @@
 from argparse import ArgumentParser
 from superphot_plus.samplers.sampler import Sampler
 
+from superphot_plus.file_paths import MOSFIT_DIR
 from superphot_plus.load_data import read_mosfit_data
 from superphot_plus.tuners.mosfit_tuner import MosfitTuner
 
@@ -12,15 +13,20 @@ def extract_cmd_args():
         description="Model tuning using K-Fold cross validation",
     )
     parser.add_argument(
+        "--parameter",
+        help="Name of the physical property to tune model on",
+        required=True,
+    )
+    parser.add_argument(
         "--sampler",
         help="Name of the sampler to load fits from",
         choices=Sampler.CHOICES,
         default="dynesty",
     )
     parser.add_argument(
-        "--parameter",
-        help="Name of the physical property to tune model on",
-        required=True,
+        "--mosfit_dir",
+        help="Directory where mosfit data is stored",
+        default=MOSFIT_DIR,
     )
     parser.add_argument(
         "--num_cpu",
@@ -46,6 +52,7 @@ if __name__ == "__main__":
     tuner = MosfitTuner(
         parameter=args.parameter,
         sampler=args.sampler,
+        mosfit_dir=args.mosfit_dir,
         num_cpu=args.num_cpu,
         num_gpu=args.num_gpu,
     )

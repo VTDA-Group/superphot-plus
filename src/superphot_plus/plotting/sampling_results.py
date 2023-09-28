@@ -12,6 +12,8 @@ from superphot_plus.plotting.utils import gaussian
 from superphot_plus.supernova_class import SupernovaClass as SnClass
 from superphot_plus.surveys.surveys import Survey
 
+from superphot_plus.file_utils import get_multiple_posterior_samples
+
 OVERSAMPLE_SIZE = 4000
 
 
@@ -40,14 +42,13 @@ def plot_corner_plot_all(
     """
     # allowed_types = SnClass.all_classes()
 
-    features, labels, _ = oversample_using_posteriors(names, labels, OVERSAMPLE_SIZE, fits_dir)
+    posteriors = get_multiple_posterior_samples(names, fits_dir)
+    features, labels, _ = oversample_using_posteriors(names, labels, posteriors, OVERSAMPLE_SIZE)
     plotting_labels, _ = param_labels(aux_bands)
     skip_idxs = [0, 3, len(plotting_labels) - 1]
 
     # remove A, t0, and chisquared
-    plotting_labels = [
-        x for i, x in enumerate(plotting_labels) if i not in skip_idxs
-    ]
+    plotting_labels = [x for i, x in enumerate(plotting_labels) if i not in skip_idxs]
 
     figure = corner.corner(
         np.delete(features[:, :-1], [0, 3], axis=1),
@@ -153,8 +154,9 @@ def compare_oversampling(
     _, classes_to_labels = SnClass.get_type_maps()
     labels = np.array([classes_to_labels[x] for x in labels])
 
+    posteriors = get_multiple_posterior_samples(names, fits_dir, sampler)
     features_gaussian, labels_gaussian, _ = oversample_using_posteriors(
-        names, labels, OVERSAMPLE_SIZE, fits_dir, sampler
+        names, labels, posteriors, OVERSAMPLE_SIZE
     )
 
     feature_means = []
@@ -169,9 +171,7 @@ def compare_oversampling(
 
         for enum, name in enumerate(names_t):
             ## FIXME - e and name are unused - why is this a loop?
-            feature_means.append(
-                np.mean(features_gaussian[start_idx : start_idx + samples_per_fit], axis=0)
-            )
+            feature_means.append(np.mean(features_gaussian[start_idx : start_idx + samples_per_fit], axis=0))
             start_idx += samples_per_fit
 
     feature_means = np.array(feature_means)
@@ -221,36 +221,28 @@ def compare_oversampling(
                 features_gauss_t1 = features_1_gauss[labels_gaussian == allowed_t]
                 features_gauss_t2 = features_2_gauss[labels_gaussian == allowed_t]
 
-                smote_ax.scatter(
-                    features_smote_t1, features_smote_t2,
-                    label=allowed_t, alpha=0.2, s=1
-                )
-                smote_ax.scatter(
-                    feature_means_t1, feature_means_t2,
-                    label=allowed_t, s=3, c="black"
-                )
+                smote_ax.scatter(features_smote_t1, features_smote_t2, label=allowed_t, alpha=0.2, s=1)
+                smote_ax.scatter(feature_means_t1, feature_means_t2, label=allowed_t, s=3, c="black")
 
-                gauss_ax.scatter(
-                    feature_means_t1, feature_means_t2,
-                    label=allowed_t, s=3, c="black"
-                )
-                gauss_ax.scatter(
-                    features_gauss_t1, features_gauss_t2,
-                    label=allowed_t, alpha=0.2, s=1
-                )
+                gauss_ax.scatter(feature_means_t1, feature_means_t2, label=allowed_t, s=3, c="black")
+                gauss_ax.scatter(features_gauss_t1, features_gauss_t2, label=allowed_t, alpha=0.2, s=1)
 
             # annotate with labels
             smote_ax.text(
-                0.99, 0.99, "SMOTE",
-                horizontalalignment='right',
-                verticalalignment='top',
+                0.99,
+                0.99,
+                "SMOTE",
+                horizontalalignment="right",
+                verticalalignment="top",
                 c="black",
                 transform=smote_ax.transAxes,
             )
             gauss_ax.text(
-                0.99, 0.99, "Oversampling\nMultiple Fits\nPer Lightcurve",
-                horizontalalignment='right',
-                verticalalignment='top',
+                0.99,
+                0.99,
+                "Oversampling\nMultiple Fits\nPer Lightcurve",
+                horizontalalignment="right",
+                verticalalignment="top",
                 c="black",
                 transform=gauss_ax.transAxes,
             )
@@ -266,10 +258,7 @@ def compare_oversampling(
             plt.close()
 
 
-def plot_oversampling_1d(
-    names, labels, fits_dir, save_dir,
-    priors=Survey.ZTF().priors, sampler="dynesty"
-):
+def plot_oversampling_1d(names, labels, fits_dir, save_dir, priors=Survey.ZTF().priors, sampler="dynesty"):
     """
     Save all 1d oversampled histograms for each parameter, in one plot.
     Overlays prior distributions.
@@ -290,9 +279,9 @@ def plot_oversampling_1d(
     labels_to_classes, classes_to_labels = SnClass.get_type_maps()
     allowed_types = list(classes_to_labels.keys())
 
-    goal_per_class = OVERSAMPLE_SIZE
+    posteriors = get_multiple_posterior_samples(names, fits_dir, sampler)
     features_gaussian, labels_gaussian, _ = oversample_using_posteriors(
-        names, labels, goal_per_class, fits_dir, sampler
+        names, labels, posteriors, OVERSAMPLE_SIZE
     )
 
     params, _ = param_labels(priors.aux_bands, priors.reference_band)
@@ -350,16 +339,12 @@ def plot_oversampling_1d(
             current_area = np.sum(bin_width * feature_hist)
             feature_hist = (1.0 / current_area) * feature_hist
             feature_hist[np.abs(feature_hist) > 1e5] = 0
-            (legend_line,) = axes[ax_num].step(
-                bin_centers, feature_hist, where="mid", label=allowed_label
-            )
+            (legend_line,) = axes[ax_num].step(bin_centers, feature_hist, where="mid", label=allowed_label)
             leg_lines.append(legend_line)
 
         ax = axes[ax_num]
         (legend_line,) = ax.step(
-            bin_centers,
-            feature_hist_all,
-            where="mid", c="k", label="Combined", linewidth=2
+            bin_centers, feature_hist_all, where="mid", c="k", label="Combined", linewidth=2
         )
         leg_lines.append(legend_line)
 
@@ -374,9 +359,7 @@ def plot_oversampling_1d(
             prior_dist = gaussian(bins_fine, amp, prior_means[i], prior_stddevs[i])
 
         (legend_line,) = ax.plot(
-            bins_fine, prior_dist,
-            linestyle="dashed", linewidth=2,
-            label="Prior", c="magenta"
+            bins_fine, prior_dist, linestyle="dashed", linewidth=2, label="Prior", c="magenta"
         )
         leg_lines.append(legend_line)
         ax.set_xlabel(param_1)
@@ -405,10 +388,7 @@ def plot_oversampling_1d(
     plt.close()
 
 
-def plot_combined_posterior_space(
-    names, labels, fits_dir, save_dir,
-    aux_bands=Survey.ZTF().priors.aux_bands
-):
+def plot_combined_posterior_space(names, labels, fits_dir, save_dir, aux_bands=Survey.ZTF().priors.aux_bands):
     """
     Plot 2D scatterplots for each pair
     of fit parameters, to identify clustering
@@ -426,7 +406,8 @@ def plot_combined_posterior_space(
     os.makedirs(os.path.join(save_dir, "combined_2d_posteriors"), exist_ok=True)
     # pt_colors = ["r", "c", "k", "m", "g"] # keep for TODO
 
-    features, labels, _ = oversample_using_posteriors(names, labels, OVERSAMPLE_SIZE, fits_dir)
+    posteriors = get_multiple_posterior_samples(names, fits_dir)
+    features, labels, _ = oversample_using_posteriors(names, labels, posteriors, OVERSAMPLE_SIZE)
 
     params, save_labels = param_labels(aux_bands)
 
@@ -462,8 +443,7 @@ def plot_combined_posterior_space(
 
 
 def plot_param_distributions(
-    names, labels, fit_folder, save_dir, overlay_gaussians=True,
-    aux_bands=Survey.ZTF().priors.aux_bands
+    names, labels, fit_folder, save_dir, overlay_gaussians=True, aux_bands=Survey.ZTF().priors.aux_bands
 ):
     """
     Plot the parameter distributions to get better priors for fitting.
@@ -478,7 +458,9 @@ def plot_param_distributions(
         Whether to overlay Gaussian estimate of distribution. Defaults to True.
     """
     os.makedirs(os.path.join(save_dir, "posterior_hists"), exist_ok=True)
-    posteriors, labels, _ = oversample_using_posteriors(names, labels, OVERSAMPLE_SIZE, fit_folder)
+
+    posteriors = get_multiple_posterior_samples(names, fit_folder)
+    posteriors, labels, _ = oversample_using_posteriors(names, labels, posteriors, OVERSAMPLE_SIZE)
 
     params, save_labels = param_labels(aux_bands)
 
@@ -500,17 +482,9 @@ def plot_param_distributions(
             mean_est = np.mean(feat_i)
             stddev_est = np.std(feat_i)
             amp_est = np.max(num_per_bin)
-            plt.plot(
-                bin_centers,
-                gaussian(bin_centers, amp_est, mean_est, stddev_est),
-                lw=2
-            )
+            plt.plot(bin_centers, gaussian(bin_centers, amp_est, mean_est, stddev_est), lw=2)
 
         plt.xlabel(params[i])
         plt.ylabel("Count")
-        plt.savefig(
-            os.path.join(
-                save_dir, "posterior_hists", f"{save_labels[i]}.pdf"
-            ), bbox_inches="tight"
-        )
+        plt.savefig(os.path.join(save_dir, "posterior_hists", f"{save_labels[i]}.pdf"), bbox_inches="tight")
         plt.close()

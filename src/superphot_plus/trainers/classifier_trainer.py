@@ -4,15 +4,13 @@ import numpy as np
 from sklearn.model_selection import train_test_split
 
 from superphot_plus.file_paths import CLASSIFICATION_DIR, CM_FOLDER, FIT_PLOTS_FOLDER, INPUT_CSVS
-from superphot_plus.file_utils import get_posterior_samples
 from superphot_plus.format_data_ztf import (
-    import_labels_only,
     normalize_features,
     oversample_using_posteriors,
     tally_each_class,
 )
 from superphot_plus.model.classifier import SuperphotClassifier
-from superphot_plus.model.data import TestData, TrainData, ZtfData
+from superphot_plus.model.data import TestData, TrainData
 from superphot_plus.plotting.classifier_results import plot_model_metrics
 from superphot_plus.plotting.confusion_matrices import plot_matrices
 from superphot_plus.supernova_class import SupernovaClass as SnClass
@@ -115,12 +113,12 @@ class ClassifierTrainer(BaseTrainer):
         )
 
         # Split data into training and test sets
-        names, labels, redshifts = data
+        names, labels, redshifts, posteriors = data
         names, test_names, labels, test_labels, redshifts, test_redshifts = train_test_split(
             names, labels, redshifts, stratify=labels, shuffle=True, test_size=0.1
         )
-        train_data = ZtfData(names, labels, redshifts)
-        test_data = ZtfData(test_names, test_labels, test_redshifts)
+        train_data = (names, labels, redshifts, posteriors)
+        test_data = (test_names, test_labels, test_redshifts, posteriors)
 
         if self.model is None:
             self.train(train_data)
@@ -135,8 +133,9 @@ class ClassifierTrainer(BaseTrainer):
 
         Parameters
         ----------
-        train_data : ZtfData
-            Contains the ZTF object names, classes and redshifts for training.
+        train_data : tuple
+            Contains the ZTF object names, classes, redshifts and
+            posterior samples for training.
         goal_per_class : int
             The number of samples for each supernova class (for oversampling).
         train_index : np.ndarray
@@ -150,7 +149,7 @@ class ClassifierTrainer(BaseTrainer):
             A tuple containing the final training features and respective classes,
             and validation features and respective classes.
         """
-        names, labels, redshifts = train_data
+        names, labels, redshifts, posteriors = train_data
 
         train_names, val_names = names[train_index], names[val_index]
         train_labels, val_labels = labels[train_index], labels[val_index]
@@ -162,19 +161,17 @@ class ClassifierTrainer(BaseTrainer):
 
         train_features, train_classes, train_redshifts = oversample_using_posteriors(
             lc_names=train_names,
+            posterior_samples=posteriors,
             labels=train_classes,
             goal_per_class=goal_per_class,
-            fits_dir=self.fits_dir,
-            sampler=self.sampler,
             redshifts=train_redshifts,
             oversample_redshifts=self.include_redshift,
         )
         val_features, val_classes, val_redshifts = oversample_using_posteriors(
             lc_names=val_names,
+            posterior_samples=posteriors,
             labels=val_classes,
             goal_per_class=round(0.1 * goal_per_class),
-            fits_dir=self.fits_dir,
-            sampler=self.sampler,
             redshifts=val_redshifts,
             oversample_redshifts=self.include_redshift,
         )
@@ -191,14 +188,15 @@ class ClassifierTrainer(BaseTrainer):
 
         return train_features, train_classes, val_features, val_classes
 
-    def generate_test_data(self, test_data: ZtfData):
+    def generate_test_data(self, test_data):
         """Extracts and processes the data for testing, adjusting the
         features to their log distributions.
 
         Parameters
         ----------
-        test_data : ZtfData
-            Contains the ZTF object names, classes and redshifts for testing.
+        test_data : tuple
+            Contains the ZTF object names, classes, redshifts and
+            posterior samples for testing.
 
         Returns
         -------
@@ -206,7 +204,7 @@ class ClassifierTrainer(BaseTrainer):
             A tuple containing the final test features and respective classes,
             the corresponding test ZTF object names and test group indices.
         """
-        test_names, test_labels, test_redshifts = test_data
+        test_names, test_labels, test_redshifts, posteriors = test_data
 
         test_features = []
         test_classes_os = []
@@ -217,7 +215,7 @@ class ClassifierTrainer(BaseTrainer):
         test_classes = SnClass.get_classes_from_labels(test_labels)
 
         for i, test_name in enumerate(test_names):
-            test_posts = get_posterior_samples(test_name, self.fits_dir, self.sampler)
+            test_posts = posteriors[test_name]
             test_features.extend(test_posts)
             test_classes_os.extend([test_classes[i]] * len(test_posts))
             test_names_os.extend([test_names[i]] * len(test_posts))
@@ -242,22 +240,22 @@ class ClassifierTrainer(BaseTrainer):
 
         return test_features, test_classes, test_names, test_group_idxs
 
-    def train(self, train_data: ZtfData):
+    def train(self, train_data):
         """Trains the model with a specific set of hyperparameters.
 
         Parameters
         ----------
-        train_data : ZtfData
-            Contains the ZTF object names, classes and redshifts for training.
+        train_data : tuple
+            Contains the ZTF object names, classes, redshifts and
+            posterior samples for training.
         """
         run_id = "final"
 
-        tally_each_class(train_data.labels)  # original tallies
+        _, labels, _, _ = train_data
+        tally_each_class(labels)  # original tallies
 
         # Split data into training and validation sets
-        train_index, val_index = train_test_split(
-            np.arange(0, len(train_data.labels)), stratify=train_data.labels, test_size=0.1
-        )
+        train_index, val_index = train_test_split(np.arange(0, len(labels)), stratify=labels, test_size=0.1)
 
         train_features, train_classes, val_features, val_classes = self.generate_train_data(
             train_data=train_data,
@@ -282,7 +280,8 @@ class ClassifierTrainer(BaseTrainer):
 
         # Train and validate multi-layer perceptron
         metrics = self.model.train_and_validate(
-            train_data=TrainData(train_dataset, val_dataset), num_epochs=self.config.num_epochs
+            train_data=TrainData(train_dataset, val_dataset),
+            num_epochs=self.config.num_epochs,
         )
 
         # Save model checkpoint
@@ -299,13 +298,14 @@ class ClassifierTrainer(BaseTrainer):
         # Log average metrics per epoch to plot on Tensorboard.
         log_metrics_to_tensorboard(metrics=[metrics], config=self.config, trial_id=run_id)
 
-    def evaluate(self, test_data: ZtfData, extract_wc=False):
+    def evaluate(self, test_data, extract_wc=False):
         """Evaluates a pretrained model on the test holdout set.
 
         Parameters
         ----------
-        test_data : ZtfData
-            Contains the ZTF object names, classes and redshifts for testing.
+        test_data : tuple
+            Contains the ZTF object names, classes, redshifts and
+            posterior samples for testing.
         extract_wc : bool
             If true, assumes all sample fit plots are saved in
             FIT_PLOTS_FOLDER. Copies plots of wrongly classified samples to
@@ -314,6 +314,7 @@ class ClassifierTrainer(BaseTrainer):
         if self.model is None:
             raise ValueError("Cannot evaluate uninitialized model.")
 
+        names, _, _, _ = test_data
         test_features, test_classes, test_names, test_group_idxs = self.generate_test_data(
             test_data=test_data
         )
@@ -352,5 +353,5 @@ class ClassifierTrainer(BaseTrainer):
             extract_wrong_classifications(
                 true_classes=true_classes,
                 pred_classes=pred_classes,
-                ztf_test_names=test_data.names,
+                ztf_test_names=names,
             )

@@ -2,6 +2,7 @@ import os
 import numpy as np
 
 from superphot_plus.file_paths import INPUT_CSVS
+from superphot_plus.file_utils import get_multiple_posterior_samples
 from superphot_plus.format_data_ztf import import_labels_only
 from superphot_plus.supernova_properties import SupernovaProperties
 from superphot_plus.posterior_samples import PosteriorSamples
@@ -24,8 +25,9 @@ def read_classification_data(sampler, allowed_types, fits_dir, input_csvs=None):
 
     Returns
     -------
-    tuple of np.array
-        The names, the labels and the redshifts for each light curve.
+    tuple
+        The names, the labels, the redshifts, and a dictionary
+        containing the posterior samples for each light curve.
     """
     if input_csvs is None:
         input_csvs = INPUT_CSVS
@@ -37,10 +39,13 @@ def read_classification_data(sampler, allowed_types, fits_dir, input_csvs=None):
         sampler=sampler,
     )
 
+    posterior_samples = get_multiple_posterior_samples(names, fits_dir, sampler)
+
     return (
         np.array(names),
         np.array(labels),
         np.array(redshifts),
+        posterior_samples,  # Dict of light curve posteriors
     )
 
 

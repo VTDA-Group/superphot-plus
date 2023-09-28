@@ -127,7 +127,11 @@ class MosfitTuner(MosfitTrainer):
 
         # Start hyperparameter search.
         result = tune.run(
-            partial(self.run_cross_validation, posteriors=posteriors, curr_prop=curr_prop),
+            tune.with_parameters(
+                self.run_cross_validation,
+                posteriors=posteriors,
+                curr_prop=curr_prop,
+            ),
             config=config,
             search_alg=OptunaSearch(),
             resources_per_trial=resources,

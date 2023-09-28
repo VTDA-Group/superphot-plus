@@ -2,7 +2,7 @@
 from argparse import ArgumentParser, BooleanOptionalAction
 
 from superphot_plus.load_data import read_classification_data
-from superphot_plus.file_paths import INPUT_CSVS
+from superphot_plus.file_paths import CLASSIFICATION_DIR, INPUT_CSVS
 from superphot_plus.samplers.sampler import Sampler
 from superphot_plus.tuners.classifier_tuner import ClassifierTuner
 
@@ -23,6 +23,11 @@ def extract_cmd_args():
         help="If flag is set, include redshift data for training",
         default=True,
         action=BooleanOptionalAction,
+    )
+    parser.add_argument(
+        "--classification_dir",
+        help="Directory where classification data is stored",
+        default=CLASSIFICATION_DIR,
     )
     parser.add_argument(
         "--num_cpu",
@@ -53,6 +58,7 @@ if __name__ == "__main__":
     tuner = ClassifierTuner(
         sampler=args.sampler,
         include_redshift=args.include_redshift,
+        classification_dir=args.classification_dir,
         num_cpu=args.num_cpu,
         num_gpu=args.num_gpu,
     )

@@ -6,18 +6,6 @@ from torch.utils.data import TensorDataset
 
 
 @dataclass
-class ZtfData:
-    """Holds raw ZTF object data."""
-
-    names: List[int]
-    labels: List[int]
-    redshifts: List[int]
-
-    def __iter__(self):
-        return iter((self.names, self.labels, self.redshifts))
-
-
-@dataclass
 class TrainData:
     """Holds train and validation datasets."""
 

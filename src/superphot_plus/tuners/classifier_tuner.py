@@ -14,7 +14,7 @@ from sklearn.model_selection import train_test_split
 from superphot_plus.format_data_ztf import generate_K_fold, normalize_features, tally_each_class
 from superphot_plus.model.classifier import SuperphotClassifier
 from superphot_plus.model.config import ModelConfig
-from superphot_plus.model.data import TrainData, ZtfData
+from superphot_plus.model.data import TrainData
 from superphot_plus.trainers.classifier_trainer import ClassifierTrainer
 from superphot_plus.utils import create_dataset, get_session_metrics, log_metrics_to_tensorboard
 
@@ -22,13 +22,15 @@ from superphot_plus.utils import create_dataset, get_session_metrics, log_metric
 class ClassifierTuner(ClassifierTrainer):
     """Tunes classifier using Ray and Stratified K-Fold cross validation."""
 
-    def __init__(self, sampler, include_redshift=True, num_cpu=2, num_gpu=0):
+    def __init__(self, sampler, classification_dir, include_redshift=True, num_cpu=2, num_gpu=0):
         """Tunes models using Ray and K-Fold cross validation.
 
         Parameters
         ----------
         include_redshift : bool
             If True, includes redshift data for training.
+        classification_dir : str
+            The base directory where classification outputs should be logged.
         num_cpu : int
             The number of CPUs to use in parallel for each tuning experiment.
             Defaults to 2.
@@ -36,7 +38,7 @@ class ClassifierTuner(ClassifierTrainer):
             The number of GPUs to use in parallel for each tuning experiment.
             Defaults to 0.
         """
-        super().__init__(sampler=sampler)
+        super().__init__(sampler=sampler, classification_dir=classification_dir)
 
         # Classification specific
         self.include_redshift = include_redshift
@@ -59,11 +61,14 @@ class ClassifierTuner(ClassifierTrainer):
         if data is None:
             raise ValueError("No data has been provided.")
 
-        names, labels, redshifts = data
+        names, labels, redshifts, posteriors = data
         names, _, labels, _, redshifts, _ = train_test_split(
             names, labels, redshifts, stratify=labels, shuffle=True, test_size=0.1
         )
-        best_config = self.tune_model(ZtfData(names, labels, redshifts), num_hp_samples)
+        best_config = self.tune_model(
+            train_data=(names, labels, redshifts, posteriors),
+            num_hp_samples=num_hp_samples,
+        )
         best_config.write_to_file(os.path.join(self.models_dir, "best-config.yaml"))
 
     def generate_hp_sample(self):
@@ -90,8 +95,9 @@ class ClassifierTuner(ClassifierTrainer):
 
         Parameters
         ----------
-        train_data : ZtfData
-            Contains the ZTF object names, classes and redshifts for training.
+        train_data : tuple
+            Contains the ZTF object names, classes, redshifts and
+            posterior samples for training.
         num_hp_samples : int
             The number of hyperparameters sets to sample from (for model tuning).
             Defaults to 10.
@@ -112,7 +118,7 @@ class ClassifierTuner(ClassifierTrainer):
 
         # Start hyperparameter search.
         result = tune.run(
-            partial(self.run_cross_validation, train_data=train_data),
+            tune.with_parameters(self.run_cross_validation, train_data=train_data),
             config=config,
             search_alg=OptunaSearch(),
             resources_per_trial=resources,
@@ -133,7 +139,7 @@ class ClassifierTuner(ClassifierTrainer):
 
         return ModelConfig(**best_trial.config)
 
-    def run_cross_validation(self, config, train_data: ZtfData):
+    def run_cross_validation(self, config, train_data):
         """Runs cross-fold validation to estimate the best set of
         hyperparameters for the model.
 
@@ -143,8 +149,9 @@ class ClassifierTuner(ClassifierTrainer):
             The configuration for model training, drawn from the default
             ModelConfig values. Used as a Dict to comply with the Tune
             API requirements.
-        train_data : ZtfData
-            Contains the ZTF object names, classes and redshifts for training.
+        train_data : tuple
+            Contains the ZTF object names, classes, redshifts and
+            posterior samples for training.
         """
         trial_id = tune.get_trial_id()
 
@@ -154,13 +161,15 @@ class ClassifierTuner(ClassifierTrainer):
         # Construct training config from dict
         config = ModelConfig(**config)
 
-        tally_each_class(train_data.labels)
+        # Deconstruct data
+        _, labels, _, _ = train_data
+        tally_each_class(labels)
 
         # Stratified K-Fold on the training data
         kfold = generate_K_fold(
-            features=np.zeros(len(train_data.labels)),
+            features=np.zeros(len(labels)),
             num_folds=config.num_folds,
-            classes=train_data.labels,
+            classes=labels,
         )
 
         def run_single_fold(fold):

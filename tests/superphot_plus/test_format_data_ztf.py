@@ -4,6 +4,7 @@ from pathlib import Path
 
 import numpy as np
 
+from superphot_plus.file_utils import get_multiple_posterior_samples
 from superphot_plus.format_data_ztf import import_labels_only, normalize_features, oversample_using_posteriors
 from superphot_plus.supernova_class import SupernovaClass
 
@@ -56,12 +57,14 @@ def test_oversample_using_posteriors(test_data_dir, single_ztf_sn_id):
 
     # Oversampling from a set of unique supernova classes.
     classes = [4, 1, 2]  # Classes for "Sn Ibc", "SN II" and "SN IIn"
+
+    posteriors = get_multiple_posterior_samples(names, test_data_dir)
+
     features, labels, oversampled_redshifts = oversample_using_posteriors(
         lc_names=names,
         labels=classes,
+        posterior_samples=posteriors,
         goal_per_class=goal_per_class,
-        fits_dir=test_data_dir,
-        sampler=None,
         redshifts=redshifts,
         oversample_redshifts=False,
     )
@@ -73,12 +76,14 @@ def test_oversample_using_posteriors(test_data_dir, single_ztf_sn_id):
 
     # Oversampling from a set with repeated supernova classes.
     classes = [4, 1, 1]  # Classes for "Sn Ibc" and "SN II"
+
+    posteriors = get_multiple_posterior_samples(names, test_data_dir)
+
     features, labels, oversampled_redshifts = oversample_using_posteriors(
         lc_names=names,
         labels=classes,
+        posterior_samples=posteriors,
         goal_per_class=goal_per_class,
-        fits_dir=test_data_dir,
-        sampler=None,
         redshifts=redshifts,
         oversample_redshifts=True,
     )
