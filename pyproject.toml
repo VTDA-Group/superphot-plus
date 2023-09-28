@@ -49,6 +49,7 @@ data-generation = [
 sampling = [
     "dynesty",
     "numpyro",
+    "flowMC",
     "imblearn",
     "iminuit",
     "light-curve>=0.8,<0.9",
