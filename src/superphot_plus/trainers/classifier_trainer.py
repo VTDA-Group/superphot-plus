@@ -3,12 +3,8 @@ import os
 import numpy as np
 from sklearn.model_selection import train_test_split
 
-from superphot_plus.file_paths import CLASSIFICATION_DIR, CM_FOLDER, FIT_PLOTS_FOLDER, INPUT_CSVS
-from superphot_plus.format_data_ztf import (
-    normalize_features,
-    oversample_using_posteriors,
-    tally_each_class,
-)
+from superphot_plus.file_paths import CLASSIFICATION_DIR, CM_FOLDER, FIT_PLOTS_FOLDER
+from superphot_plus.format_data_ztf import normalize_features, oversample_using_posteriors, tally_each_class
 from superphot_plus.model.classifier import SuperphotClassifier
 from superphot_plus.model.data import TestData, TrainData
 from superphot_plus.plotting.classifier_results import plot_model_metrics

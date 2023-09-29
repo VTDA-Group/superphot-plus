@@ -1,9 +1,7 @@
 import dataclasses
 import os
-from functools import partial
 
 import numpy as np
-import ray
 from joblib import Parallel, delayed
 from ray import tune
 from ray.air import session
@@ -11,10 +9,10 @@ from ray.tune import CLIReporter
 from ray.tune.search.optuna import OptunaSearch
 from sklearn.model_selection import train_test_split
 
-from superphot_plus.model.regressor import SuperphotRegressor
 from superphot_plus.format_data_ztf import generate_K_fold, normalize_features
 from superphot_plus.model.config import ModelConfig
 from superphot_plus.model.data import TrainData
+from superphot_plus.model.regressor import SuperphotRegressor
 from superphot_plus.supernova_properties import SupernovaProperties
 from superphot_plus.trainers.mosfit_trainer import MosfitTrainer
 from superphot_plus.utils import (
@@ -34,6 +32,10 @@ class MosfitTuner(MosfitTrainer):
         ----------
         parameter : str
             The name of the supernova property to tune the model on.
+        sampler : str
+            Name of the method to fit light curves.
+        mosfit_dir : str
+            Name of the directory where to store outputs.
         num_cpu : int
             The number of CPUs to use in parallel for each tuning experiment.
             Defaults to 2.
@@ -55,6 +57,9 @@ class MosfitTuner(MosfitTrainer):
 
         Parameters
         ----------
+        data : tuple of np.array
+            The names, the posterior samples and the physical properties
+            for each light curve.
         num_hp_samples : int
             The number of hyperparameters sets to sample from (for model tuning).
             Defaults to 10.

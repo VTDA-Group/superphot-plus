@@ -1,9 +1,9 @@
 """Entry point to regressor tuning using K-Fold cross validation."""
 from argparse import ArgumentParser
-from superphot_plus.samplers.sampler import Sampler
 
 from superphot_plus.file_paths import MOSFIT_DIR
 from superphot_plus.load_data import read_mosfit_data
+from superphot_plus.samplers.sampler import Sampler
 from superphot_plus.tuners.mosfit_tuner import MosfitTuner
 
 

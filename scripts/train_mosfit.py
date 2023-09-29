@@ -1,8 +1,8 @@
 """Entry point to regressor training and evaluation."""
 from argparse import ArgumentParser, BooleanOptionalAction
 
-from superphot_plus.load_data import read_mosfit_data
 from superphot_plus.file_paths import MOSFIT_DIR
+from superphot_plus.load_data import read_mosfit_data
 from superphot_plus.samplers.sampler import Sampler
 from superphot_plus.trainers.mosfit_trainer import MosfitTrainer
 

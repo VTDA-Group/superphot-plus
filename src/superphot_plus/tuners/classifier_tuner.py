@@ -27,10 +27,12 @@ class ClassifierTuner(ClassifierTrainer):
 
         Parameters
         ----------
-        include_redshift : bool
-            If True, includes redshift data for training.
+        sampler : str
+            Name of the method to fit light curves.
         classification_dir : str
             The base directory where classification outputs should be logged.
+        include_redshift : bool
+            If True, includes redshift data for training.
         num_cpu : int
             The number of CPUs to use in parallel for each tuning experiment.
             Defaults to 2.
@@ -52,8 +54,8 @@ class ClassifierTuner(ClassifierTrainer):
 
         Parameters
         ----------
-        input_csvs : list of str
-            The list of training CSV files. Defaults to INPUT_CSVS.
+        data : tuple of np.array
+            The names, the labels and the redshifts for each light curve.
         num_hp_samples : int
             The number of hyperparameters sets to sample from (for model tuning).
             Defaults to 10.

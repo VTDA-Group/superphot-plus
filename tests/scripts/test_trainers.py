@@ -4,12 +4,12 @@ import tempfile
 import numpy as np
 import pytest
 
+from superphot_plus.supernova_class import SupernovaClass as SnClass
 from superphot_plus.supernova_properties import SupernovaProperties
 from superphot_plus.trainers.classifier_trainer import ClassifierTrainer
-from superphot_plus.tuners.classifier_tuner import ClassifierTuner
 from superphot_plus.trainers.mosfit_trainer import MosfitTrainer
+from superphot_plus.tuners.classifier_tuner import ClassifierTuner
 from superphot_plus.tuners.mosfit_tuner import MosfitTuner
-from superphot_plus.supernova_class import SupernovaClass as SnClass
 
 
 @pytest.mark.asyncio

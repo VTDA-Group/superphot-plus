@@ -1,12 +1,13 @@
 import os
+
 import numpy as np
 
 from superphot_plus.file_paths import INPUT_CSVS
 from superphot_plus.file_utils import get_multiple_posterior_samples
 from superphot_plus.format_data_ztf import import_labels_only
-from superphot_plus.supernova_properties import SupernovaProperties
 from superphot_plus.posterior_samples import PosteriorSamples
 from superphot_plus.supernova_class import SupernovaClass as SnClass
+from superphot_plus.supernova_properties import SupernovaProperties
 
 
 def read_classification_data(sampler, allowed_types, fits_dir, input_csvs=None):

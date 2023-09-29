@@ -1,8 +1,8 @@
 """Entry point to classifier tuning using K-Fold cross validation."""
 from argparse import ArgumentParser, BooleanOptionalAction
 
-from superphot_plus.load_data import read_classification_data
 from superphot_plus.file_paths import CLASSIFICATION_DIR, INPUT_CSVS
+from superphot_plus.load_data import read_classification_data
 from superphot_plus.samplers.sampler import Sampler
 from superphot_plus.tuners.classifier_tuner import ClassifierTuner
 

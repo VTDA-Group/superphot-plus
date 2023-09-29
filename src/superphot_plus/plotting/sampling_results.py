@@ -6,13 +6,12 @@ import corner
 import matplotlib.pyplot as plt
 import numpy as np
 
+from superphot_plus.file_utils import get_multiple_posterior_samples
 from superphot_plus.format_data_ztf import oversample_smote, oversample_using_posteriors
 from superphot_plus.plotting.format_params import param_labels
 from superphot_plus.plotting.utils import gaussian
 from superphot_plus.supernova_class import SupernovaClass as SnClass
 from superphot_plus.surveys.surveys import Survey
-
-from superphot_plus.file_utils import get_multiple_posterior_samples
 
 OVERSAMPLE_SIZE = 4000
 
