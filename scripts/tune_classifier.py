@@ -1,8 +1,10 @@
-"""Entry point to model tuning using K-Fold cross validation."""
+"""Entry point to classifier tuning using K-Fold cross validation."""
 from argparse import ArgumentParser, BooleanOptionalAction
 
-from superphot_plus.file_paths import INPUT_CSVS
-from superphot_plus.tuner import SuperphotTuner
+from superphot_plus.file_paths import CLASSIFICATION_DIR, INPUT_CSVS
+from superphot_plus.load_data import read_classification_data
+from superphot_plus.samplers.sampler import Sampler
+from superphot_plus.tuners.classifier_tuner import ClassifierTuner
 
 
 def extract_cmd_args():
@@ -11,14 +13,9 @@ def extract_cmd_args():
         description="Model tuning using K-Fold cross validation",
     )
     parser.add_argument(
-        "--input_csvs",
-        help="List of CSVs containing light curve data (comma separated)",
-        default=",".join(INPUT_CSVS),
-    )
-    parser.add_argument(
         "--sampler",
         help="Name of the sampler to load fits from",
-        choices=["dynesty", "nuts", "svi"],
+        choices=Sampler.CHOICES,
         default="dynesty",
     )
     parser.add_argument(
@@ -28,9 +25,9 @@ def extract_cmd_args():
         action=BooleanOptionalAction,
     )
     parser.add_argument(
-        "--num_hp_samples",
-        help="Name of parameter combinations to try",
-        default=10,
+        "--classification_dir",
+        help="Directory where classification data is stored",
+        default=CLASSIFICATION_DIR,
     )
     parser.add_argument(
         "--num_cpu",
@@ -42,20 +39,36 @@ def extract_cmd_args():
         help="Number of GPUs to use in each parallel experiment",
         default=0,
     )
+    parser.add_argument(
+        "--input_csvs",
+        help="List of CSVs containing light curve data (comma separated)",
+        default=",".join(INPUT_CSVS),
+    )
+    parser.add_argument(
+        "--num_hp_samples",
+        help="Number of parameter combinations to try",
+        default=10,
+    )
     return parser.parse_args()
 
 
 if __name__ == "__main__":
     args = extract_cmd_args()
 
-    tuner = SuperphotTuner(
+    tuner = ClassifierTuner(
         sampler=args.sampler,
         include_redshift=args.include_redshift,
+        classification_dir=args.classification_dir,
         num_cpu=args.num_cpu,
         num_gpu=args.num_gpu,
     )
-
-    tuner.run(
+    data = read_classification_data(
         input_csvs=args.input_csvs.split(","),
+        sampler=tuner.sampler,
+        fits_dir=tuner.fits_dir,
+        allowed_types=tuner.allowed_types,
+    )
+    tuner.run(
+        data=data,
         num_hp_samples=int(args.num_hp_samples),
     )

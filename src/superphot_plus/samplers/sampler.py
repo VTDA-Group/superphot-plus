@@ -8,6 +8,15 @@ from superphot_plus.posterior_samples import PosteriorSamples
 class Sampler(abc.ABC):
     """Base class for sampling algorithms."""
 
+    CHOICES = [
+        "dynesty",
+        "svi",
+        "NUTS",
+        "iminuit",
+        "licu-ceres",
+        "licu-mcmc-ceres",
+    ]
+
     @abc.abstractmethod
     def run_single_curve(self, lightcurve, priors, **kwargs) -> PosteriorSamples:
         """Docstring"""

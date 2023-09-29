@@ -3,7 +3,6 @@
 This is very time consuming as each sampler is run multiple times.
 """
 
-import copy
 import timeit
 from os import urandom
 
@@ -12,10 +11,7 @@ from memory_profiler import memory_usage
 
 from superphot_plus.data_generation.make_fake_spp_data import create_clean_models, create_ztf_model
 from superphot_plus.lightcurve import Lightcurve
-from superphot_plus.samplers.dynesty_sampler import DynestySampler
-from superphot_plus.samplers.iminuit_sampler import IminuitSampler
-from superphot_plus.samplers.licu_sampler import LiCuSampler
-from superphot_plus.samplers.numpyro_sampler import NumpyroSampler
+from superphot_plus.samplers.utils import setup_sampler
 from superphot_plus.surveys.surveys import Survey
 from superphot_plus.utils import calculate_log_likelihood, calculate_mse
 
@@ -56,51 +52,6 @@ def create_data(num_samples: int, clean_only: bool):
     return parameters, lcs
 
 
-def setup_sampler(sampler_name, seed, **kwargs):
-    """Create a sampler and its kwargs from its name.
-
-    Parameter
-    ---------
-    sampler_name : str
-        The name of the sampler to use. One of "dynesty", "svi" or "NUTS".
-    seed : int
-        Random seed value used for deterministic data generation.
-    kwargs : dict
-        The existing keyword arguments. New keyword arguments are appended
-        to a copy of this dictionary.
-
-    Returns
-    -------
-    sampler : Sampler
-        The sampler object.
-    kwargs2 : dict
-        The sampler specific arguments.
-    """
-    kwargs2 = copy.copy(kwargs)
-    kwargs2["priors"] = priors = Survey.ZTF().priors
-
-    if sampler_name == "dynesty":
-        sampler_obj = DynestySampler()
-    elif sampler_name == "svi":
-        sampler_obj = NumpyroSampler()
-        kwargs2["sampler"] = "svi"
-    elif sampler_name == "NUTS":
-        sampler_obj = DynestySampler()
-        kwargs2["sampler"] = "NUTS"
-    elif sampler_name == "iminuit":
-        sampler_obj = IminuitSampler()
-    elif sampler_name == "licu-ceres":
-        sampler_obj = LiCuSampler(algorithm="ceres")
-    elif sampler_name == "licu-mcmc-ceres":
-        sampler_obj = LiCuSampler(algorithm="mcmc-ceres", mcmc_niter=10_000)
-    else:
-        raise ValueError(f"Unknown sampler {sampler_name}")
-
-    kwargs2["rng_seed"] = seed
-
-    return sampler_obj, kwargs2
-
-
 def run_one_benchmark(sampler_name, lightcurve, seed, **kwargs):
     """Benchmark a single sampler, lightcurve pair.
 
@@ -121,7 +72,12 @@ def run_one_benchmark(sampler_name, lightcurve, seed, **kwargs):
         A list of the metrics (resulting time, memory usage, loglikelihood, and
         mean square error) for this run.
     """
-    sampler_obj, kwargs2 = setup_sampler(sampler_name, seed, **kwargs)
+    sampler_obj, kwargs2 = setup_sampler(
+        sampler_name=sampler_name,
+        priors=Survey.ZTF().priors,
+        seed=seed,
+        **kwargs,
+    )
 
     # Do initial runs to warm up the sampler and get the accuracy results.
     posterior_samples = sampler_obj.run_single_curve(lightcurve, **kwargs2)

@@ -15,6 +15,8 @@ from superphot_plus.file_paths import (
     FIT_PLOTS_FOLDER,
     PROBS_FILE,
     PROBS_FILE2,
+    TENSORBOARD_CLASSIFICATION_DIR,
+    TENSORBOARD_REGRESSION_DIR,
     WRONGLY_CLASSIFIED_FOLDER,
 )
 from superphot_plus.sfd import dust_filepath
@@ -551,6 +553,29 @@ def save_test_probabilities(
         probs_file.write("\n")
 
 
+def save_regression_outputs(names, true_values, predictions, save_file=None):
+    """Saves the regression results to a file, for a specific property.
+
+    Parameters
+    ----------
+    names : np.array
+        The light curve names.
+    true_values : np.array
+        The property ground truths for the test samples.
+    predictions : np.array
+        The property predictions for the test samples.
+    save_file : str, optional
+        File to which we should save the outputs. Defaults to None.
+    """
+    if save_file is None:
+        raise ValueError("Invalid file to save regression outputs")
+
+    with open(save_file, "w+", encoding="utf-8") as preds_file:
+        preds_file.write("Name,GroundTruth,Prediction\n")
+        for i, name in enumerate(names):
+            preds_file.write(f"{name},{str(true_values[i])},{str(predictions[i])}\n")
+
+
 def adjust_log_dists(features_orig, redshift=False):
     """Takes log of fit parameters with log-Gaussian priors before
     feeding into classifier. Also removes apparent amplitude and t0.
@@ -626,6 +651,41 @@ def write_metrics_to_file(
         the_file.write(f"Best Validation Loss: {config.best_val_loss:.04f}\n\n")
 
 
+def write_regression_metrics_to_file(
+    config,
+    true_outputs,
+    pred_outputs,
+    log_file=CLASSIFY_LOG_FILE,
+):
+    """Calculates the accuracy and f1 score metrics for the
+    test set and outputs them to a log file.
+
+    Parameters
+    ----------
+    config : ModelConfig
+        The configuration of the model used for evaluation.
+    true_outputs : np.ndarray
+        The ground truth for the predicted samples.
+    pred_outputs : np.ndarray
+        The model predictions.
+    log_file : str
+        The file where the metrics information will be written.
+        Defaults to CLASSIFY_LOG_FILE.
+    """
+    mse = np.square(true_outputs - pred_outputs).mean(axis=0).mean()
+
+    with open(log_file, "a+", encoding="utf-8") as the_file:
+        the_file.write(
+            str(config.neurons_per_layer)
+            + " neurons per each of "
+            + str(config.num_hidden_layers)
+            + " layers\n"
+        )
+        the_file.write(str(config.num_epochs) + " epochs\n")
+        the_file.write(f"MLP mean squared error: {mse:.04f}\n")
+        the_file.write(f"Best Validation Loss: {config.best_val_loss:.04f}\n\n")
+
+
 def extract_wrong_classifications(true_classes, pred_classes, ztf_test_names):
     """Extracts the wrong model classifications and copies them to a separate folder.
 
@@ -679,7 +739,33 @@ def get_session_metrics(metrics):
     return np.mean(min_val_losses), np.mean(val_accs)
 
 
-def log_metrics_to_tensorboard(metrics, config, trial_id, base_dir="runs"):
+def get_regression_session_metrics(metrics):
+    """Calculates the validation loss for the hyperparameter set.
+    The best model is considered the one with the lowest validation loss.
+
+    Parameters
+    ----------
+    metrics : tuple
+        Tuple containing the training and validation losses,
+        for each epoch and fold.
+
+    Returns
+    -------
+    float
+        The mean validation loss for the hyperparameter set.
+    """
+    _, val_losses = list(zip(*metrics))
+    # Find min loss value in all folds
+    min_val_losses = list(map(min, val_losses))
+    return np.mean(min_val_losses)
+
+
+def log_metrics_to_tensorboard(
+    metrics,
+    config,
+    trial_id,
+    base_dir=TENSORBOARD_CLASSIFICATION_DIR,
+):
     """Calculates the training and validation accuracies and losses
     for each epoch (by averaging each fold) and logs these metrics to
     Tensorboard using a SummaryWriter. It also stores the run
@@ -697,7 +783,7 @@ def log_metrics_to_tensorboard(metrics, config, trial_id, base_dir="runs"):
         The experiment identifier.
     base_dir : str
         The directory where all tensorboard metrics should be stored.
-        Defaults to "runs".
+        Defaults to TENSORBOARD_CLASSIFICATION_DIR.
 
     Returns
     -------
@@ -726,3 +812,50 @@ def log_metrics_to_tensorboard(metrics, config, trial_id, base_dir="runs"):
     config.write_to_file(f"{run_dir}/config.yaml")
 
     return avg_train_losses, avg_train_accs, avg_val_losses, avg_val_accs
+
+
+def log_regressor_metrics_to_tensorboard(
+    metrics,
+    config,
+    trial_id,
+    base_dir=TENSORBOARD_REGRESSION_DIR,
+):
+    """Calculates the training and validation losses for each epoch
+    (by averaging each fold) and logs this metric to Tensorboard using
+    a SummaryWriter. It also stores the run configuration for further reference.
+
+    Parameters
+    ----------
+    metrics : tuple
+        Tuple containing the training and validation losses,
+        for each epoch and fold.
+    config : ModelConfig
+        The model's training configuration.
+    trial_id : str
+        The experiment identifier.
+    base_dir : str
+        The directory where all tensorboard metrics should be stored.
+        Defaults to TENSORBOARD_REGRESSION_DIR.
+
+    Returns
+    -------
+    tuple
+        The training and validation losses, for each epoch.
+    """
+    train_losses, val_losses = list(zip(*metrics))
+
+    avg_train_losses = np.array(train_losses).mean(axis=0)
+    avg_val_losses = np.array(val_losses).mean(axis=0)
+
+    run_dir = os.path.join(base_dir, trial_id)
+
+    writer = SummaryWriter(run_dir)
+
+    for i in range(config.num_epochs):
+        writer.add_scalar("Loss/train", avg_train_losses[i], i)
+        writer.add_scalar("Loss/val", avg_val_losses[i], i)
+
+    # Store current config to file
+    config.write_to_file(f"{run_dir}/config.yaml")
+
+    return avg_train_losses, avg_val_losses

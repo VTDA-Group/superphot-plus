@@ -5,10 +5,10 @@ import csv
 
 import numpy as np
 from imblearn.over_sampling import SMOTE
-from sklearn.model_selection import StratifiedKFold
+from sklearn.model_selection import KFold, StratifiedKFold
 
 from superphot_plus.file_paths import FITS_DIR
-from superphot_plus.file_utils import get_multiple_posterior_samples, has_posterior_samples
+from superphot_plus.file_utils import has_posterior_samples
 from superphot_plus.supernova_class import SupernovaClass as SnClass
 
 
@@ -79,28 +79,33 @@ def import_labels_only(input_csvs, allowed_types, fits_dir=None, needs_posterior
     return np.array(names), np.array(labels), np.array(redshifts)
 
 
-def generate_K_fold(features, classes, num_folds):
+def generate_K_fold(features, num_folds, classes=None, stratified=True):
     """Generates set of K test sets and corresponding training sets.
 
     Parameters
     ----------
     features: list
         Input features.
-    classes: list
-        Input classes.
     num_folds : int
         Number of folds. If -1, sets num_folds=len(features).
+    classes: list
+        Input classes (for classification data). Defaults to None.
+    stratified : bool
+        If True, executes stratified k-fold. If False, performs
+        standard k-Fold split.
 
     Returns
     -------
     generator
         Generator yielding the indices for training and test sets.
     """
-    if num_folds == -1:
-        kf = StratifiedKFold(n_splits=len(features), shuffle=True)  # cross-one out validation
+    num_splits = len(features) if num_folds == -1 else num_folds
+    if stratified and classes is not None:
+        kf = StratifiedKFold(n_splits=num_splits, shuffle=True)
+        return kf.split(features, classes)
     else:
-        kf = StratifiedKFold(n_splits=num_folds, shuffle=True)
-    return kf.split(features, classes)
+        kf = KFold(n_splits=num_splits, shuffle=True)
+        return kf.split(features)
 
 
 def tally_each_class(labels):
@@ -123,7 +128,12 @@ def tally_each_class(labels):
 
 
 def oversample_using_posteriors(
-    lc_names, labels, goal_per_class, fits_dir, sampler=None, redshifts=None, oversample_redshifts=False
+    lc_names,
+    labels,
+    posterior_samples,
+    goal_per_class,
+    redshifts=None,
+    oversample_redshifts=False,
 ):
     """Oversamples, drawing from posteriors of a certain fit.
 
@@ -133,12 +143,10 @@ def oversample_using_posteriors(
         Lightcurve names.
     labels : list
         List of labels.
+    posterior_samples : Dict
+        Dictionary with the posteriors for each light curve.
     goal_per_class : int
         Number of samples per class.
-    fits_dir : str
-        Where fit parameters are stored.
-    sampler : str, optional
-        The name of the sampler to use.
     redshifts : list, optional
         List of redshift values.
     oversample_redshifts : boolean, optional
@@ -156,8 +164,6 @@ def oversample_using_posteriors(
     labels_unique = np.unique(labels)
 
     labels = np.array(labels)
-
-    posterior_samples = get_multiple_posterior_samples(lc_names, fits_dir, sampler)
 
     for l in labels_unique:
         idxs_in_class = np.asarray(labels == l).nonzero()[0]

@@ -21,6 +21,7 @@ class Survey:
     name: str = ""
     priors: MultibandPriors = field(default_factory=MultibandPriors)
     wavelengths: Dict[str, float] = field(default_factory=dict)
+    zero_point: float = 0
 
     def __post_init__(self):
         """Check that priors and wavelengths are defined for all filters.
@@ -66,12 +67,12 @@ class Survey:
         """
         ordered_b = self.priors.ordered_bands
         ordered_wvs = self.get_ordered_wavelengths()
-        
+
         if mwebv is not None:
             ext_list = get_band_extinctions_from_mwebv(mwebv, ordered_wvs)
         else:
             ext_list = get_band_extinctions(ra, dec, ordered_wvs)
-            
+
         ext_dict = {ordered_b[i]: ext_list[i] for i in range(len(ext_list))}
         return ext_dict
 
@@ -101,8 +102,7 @@ class Survey:
         package_filepath = os.path.dirname(superphot_plus.__file__)
         yaml_file = os.path.join(package_filepath, "surveys", "ztf.yaml")
         return cls.from_file(yaml_file)
-    
-    
+
     @classmethod
     def LSST(cls) -> Self:  # pylint: disable=invalid-name
         """Get LSST priors and wavelengths.

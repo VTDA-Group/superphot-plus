@@ -78,3 +78,4 @@ priors:
         clip_b: 2.0
         mean: 0.8606
         std: 0.0388
+zero_point: 26.3

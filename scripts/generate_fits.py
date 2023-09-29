@@ -8,10 +8,8 @@ from tqdm import tqdm
 
 from superphot_plus.file_paths import CLASSIFICATION_DIR, DATA_DIR
 from superphot_plus.lightcurve import Lightcurve
-from superphot_plus.samplers.dynesty_sampler import DynestySampler
-from superphot_plus.samplers.iminuit_sampler import IminuitSampler
-from superphot_plus.samplers.licu_sampler import LiCuSampler
-from superphot_plus.samplers.numpyro_sampler import NumpyroSampler
+from superphot_plus.samplers.sampler import Sampler
+from superphot_plus.samplers.utils import setup_sampler
 from superphot_plus.surveys.surveys import Survey
 
 
@@ -58,7 +56,11 @@ class PosteriorsGenerator:
         splits = np.array_split(posteriors, self.num_workers)
 
         # Initialize sampler
-        sampler, kwargs = self.setup_sampler(self.sampler_name, seed)
+        sampler, kwargs = setup_sampler(
+            sampler_name=self.sampler_name,
+            priors=self.survey.priors,
+            seed=seed,
+        )
 
         with ProcessPoolExecutor(self.num_workers) as executor:
             for i, split in enumerate(splits):
@@ -88,49 +90,6 @@ class PosteriorsGenerator:
         print(f"Generating {len(missing_posteriors)} posterior samples...")
 
         return missing_posteriors
-
-    def setup_sampler(self, sampler_name, seed):
-        """Creates a sampler and its kwargs from its name.
-
-        Parameter
-        ---------
-        sampler_name : str
-            The name of the sampler to use. One of "dynesty", "svi",
-            "NUTS", "iminuit", "licu-ceres" or "licu-mcmc-ceres".
-        seed : int
-            Random seed value used for deterministic data generation.
-
-        Returns
-        -------
-        sampler : Sampler
-            The sampler object.
-        kwargs : dict
-            The sampler specific arguments.
-        """
-        kwargs = {}
-
-        kwargs["priors"] = self.survey.priors
-
-        if sampler_name == "dynesty":
-            sampler_obj = DynestySampler()
-        elif sampler_name == "svi":
-            sampler_obj = NumpyroSampler()
-            kwargs["sampler"] = "svi"
-        elif sampler_name == "NUTS":
-            sampler_obj = NumpyroSampler()
-            kwargs["sampler"] = "NUTS"
-        elif sampler_name == "iminuit":
-            sampler_obj = IminuitSampler()
-        elif sampler_name == "licu-ceres":
-            sampler_obj = LiCuSampler(algorithm="ceres")
-        elif sampler_name == "licu-mcmc-ceres":
-            sampler_obj = LiCuSampler(algorithm="mcmc-ceres", mcmc_niter=10_000)
-        else:
-            raise ValueError(f"Unknown sampler {sampler_name}")
-
-        kwargs["rng_seed"] = seed
-
-        return sampler_obj, kwargs
 
     def run_sampler(self, sampler, kwargs, lightcurves, worker_id):
         """Runs fitting for a set of light curves.
@@ -181,14 +140,7 @@ def extract_cmd_args():
     parser.add_argument(
         "--sampler",
         help="The sampler to use for fitting",
-        choices=[
-            "dynesty",
-            "svi",
-            "NUTS",
-            "iminuit",
-            "licu-ceres",
-            "licu-mcmc-ceres",
-        ],
+        choices=Sampler.CHOICES,
         default="dynesty",
     )
     parser.add_argument(

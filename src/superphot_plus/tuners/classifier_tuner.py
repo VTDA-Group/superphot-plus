@@ -9,47 +9,78 @@ from ray import tune
 from ray.air import session
 from ray.tune import CLIReporter
 from ray.tune.search.optuna import OptunaSearch
+from sklearn.model_selection import train_test_split
 
 from superphot_plus.format_data_ztf import generate_K_fold, normalize_features, tally_each_class
 from superphot_plus.model.classifier import SuperphotClassifier
 from superphot_plus.model.config import ModelConfig
-from superphot_plus.model.data import TrainData, ZtfData
-from superphot_plus.trainer_base import TrainerBase
+from superphot_plus.model.data import TrainData
+from superphot_plus.trainers.classifier_trainer import ClassifierTrainer
 from superphot_plus.utils import create_dataset, get_session_metrics, log_metrics_to_tensorboard
 
 
-class SuperphotTuner(TrainerBase):
-    """
-    Tunes models using Ray and K-Fold cross validation.
+class ClassifierTuner(ClassifierTrainer):
+    """Tunes classifier using Ray and Stratified K-Fold cross validation."""
 
-    Parameters
-    ----------
-    sampler : str
-        The type of sampler used for the lightcurve fits. Defaults to "dynesty".
-    include_redshift : bool
-        If True, includes redshift data for training.
-    num_cpu : int
-        The number of CPUs to use in parallel for each tuning experiment.
-        Defaults to 2.
-    num_gpu : int
-        The number of GPUs to use in parallel for each tuning experiment.
-        Defaults to 0.
-    """
+    def __init__(self, sampler, classification_dir, include_redshift=True, num_cpu=2, num_gpu=0):
+        """Tunes models using Ray and K-Fold cross validation.
 
-    def __init__(
-        self,
-        sampler="dynesty",
-        include_redshift=True,
-        num_cpu=2,
-        num_gpu=0,
-    ):
-        super().__init__(sampler, include_redshift)
+        Parameters
+        ----------
+        sampler : str
+            Name of the method to fit light curves.
+        classification_dir : str
+            The base directory where classification outputs should be logged.
+        include_redshift : bool
+            If True, includes redshift data for training.
+        num_cpu : int
+            The number of CPUs to use in parallel for each tuning experiment.
+            Defaults to 2.
+        num_gpu : int
+            The number of GPUs to use in parallel for each tuning experiment.
+            Defaults to 0.
+        """
+        super().__init__(sampler=sampler, classification_dir=classification_dir)
+
+        # Classification specific
+        self.include_redshift = include_redshift
+
         self.num_cpu = num_cpu
         self.num_gpu = num_gpu
-        self.create_output_dirs(delete_prev=True)
+
+    def run(self, data, num_hp_samples=10):
+        """Performs model tuning with cross-validation to get
+        the best set of hyperparameters.
+
+        Parameters
+        ----------
+        data : tuple of np.array
+            The names, the labels and the redshifts for each light curve.
+        num_hp_samples : int
+            The number of hyperparameters sets to sample from (for model tuning).
+            Defaults to 10.
+        """
+        if data is None:
+            raise ValueError("No data has been provided.")
+
+        names, labels, redshifts, posteriors = data
+        names, _, labels, _, redshifts, _ = train_test_split(
+            names, labels, redshifts, stratify=labels, shuffle=True, test_size=0.1
+        )
+        best_config = self.tune_model(
+            train_data=(names, labels, redshifts, posteriors),
+            num_hp_samples=num_hp_samples,
+        )
+        best_config.write_to_file(os.path.join(self.models_dir, "best-config.yaml"))
 
     def generate_hp_sample(self):
-        """Generates random set of hyperparameters for tuning."""
+        """Generates a random set of hyperparameters for regressor tuning.
+
+        Returns
+        -------
+        ModelConfig
+            Generated classifier hyperparameters.
+        """
         return ModelConfig(
             neurons_per_layer=tune.choice([128, 256, 512]),
             num_hidden_layers=tune.choice([3, 4, 5]),
@@ -60,31 +91,15 @@ class SuperphotTuner(TrainerBase):
             learning_rate=tune.loguniform(1e-4, 1e-1),
         )
 
-    def run(self, input_csvs=None, num_hp_samples=10):
-        """Performs model tuning with cross-validation to get
-        the best set of hyperparameters.
-
-        Parameters
-        ----------
-        input_csvs : list of str
-            The list of training CSV files. Defaults to INPUT_CSVS.
-        num_hp_samples : int
-            The number of hyperparameters sets to sample from (for model tuning).
-            Defaults to 10.
-        """
-        train_data, _ = self.split_train_test(input_csvs)
-        best_config = self.tune_model(train_data, num_hp_samples)
-        best_config.write_to_file(os.path.join(self.models_dir, "best-config.yaml"))
-        return best_config
-
     def tune_model(self, train_data, num_hp_samples=10):
         """Invokes the Ray Tune API to start model tuning. Outputs the best
         model configuration to a log file for further reference.
 
         Parameters
         ----------
-        train_data : ZtfData
-            Contains the ZTF object names, classes and redshifts for training.
+        train_data : tuple
+            Contains the ZTF object names, classes, redshifts and
+            posterior samples for training.
         num_hp_samples : int
             The number of hyperparameters sets to sample from (for model tuning).
             Defaults to 10.
@@ -103,12 +118,9 @@ class SuperphotTuner(TrainerBase):
         # Reporter to show on command line/output window.
         reporter = CLIReporter(metric_columns=["avg_val_loss", "avg_val_acc"])
 
-        # Init Ray cluster.
-        ray.init()
-
         # Start hyperparameter search.
         result = tune.run(
-            partial(self.run_cross_validation, train_data=train_data),
+            tune.with_parameters(self.run_cross_validation, train_data=train_data),
             config=config,
             search_alg=OptunaSearch(),
             resources_per_trial=resources,
@@ -129,7 +141,7 @@ class SuperphotTuner(TrainerBase):
 
         return ModelConfig(**best_trial.config)
 
-    def run_cross_validation(self, config, train_data: ZtfData):
+    def run_cross_validation(self, config, train_data):
         """Runs cross-fold validation to estimate the best set of
         hyperparameters for the model.
 
@@ -139,8 +151,9 @@ class SuperphotTuner(TrainerBase):
             The configuration for model training, drawn from the default
             ModelConfig values. Used as a Dict to comply with the Tune
             API requirements.
-        train_data : ZtfData
-            Contains the ZTF object names, classes and redshifts for training.
+        train_data : tuple
+            Contains the ZTF object names, classes, redshifts and
+            posterior samples for training.
         """
         trial_id = tune.get_trial_id()
 
@@ -150,11 +163,15 @@ class SuperphotTuner(TrainerBase):
         # Construct training config from dict
         config = ModelConfig(**config)
 
-        tally_each_class(train_data.labels)
+        # Deconstruct data
+        _, labels, _, _ = train_data
+        tally_each_class(labels)
 
         # Stratified K-Fold on the training data
         kfold = generate_K_fold(
-            features=np.zeros(len(train_data.labels)), classes=train_data.labels, num_folds=config.num_folds
+            features=np.zeros(len(labels)),
+            num_folds=config.num_folds,
+            classes=labels,
         )
 
         def run_single_fold(fold):

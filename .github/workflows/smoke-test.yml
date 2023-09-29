@@ -36,4 +36,5 @@ jobs:
         pip list
     - name: Run unit tests with pytest
       run: |
-        python -m pytest tests docs/notebooks/*.ipynb --nbval-lax --nbval-current-env
+        python -m pytest tests/superphot_plus docs/notebooks/*.ipynb \
+          --nbval-lax --nbval-current-env

@@ -30,13 +30,11 @@ class LiCuSampler(Sampler):
     """
 
     def __init__(self, **licu_kwargs):
-        kwargs = {'algorithm': 'ceres'}
+        kwargs = {"algorithm": "ceres"}
         kwargs.update(licu_kwargs)
         self.licu_kwargs = kwargs
 
-    def run_single_curve(
-        self, lightcurve: Lightcurve, priors: MultibandPriors, **kwargs
-    ) -> PosteriorSamples:
+    def run_single_curve(self, lightcurve: Lightcurve, priors: MultibandPriors, **kwargs) -> PosteriorSamples:
         """Perform model fitting using light-curve on a single light curve.
 
 
@@ -61,10 +59,10 @@ class LiCuSampler(Sampler):
 
         cube = []
         for band, clip_a, clip_b, mean in zip(
-                priors.ordered_bands,
-                priors_clip_a.reshape(-1, 7),
-                priors_clip_b.reshape(-1, 7),
-                priors_mean.reshape(-1, 7)
+            priors.ordered_bands,
+            priors_clip_a.reshape(-1, 7),
+            priors_clip_b.reshape(-1, 7),
+            priors_mean.reshape(-1, 7),
         ):
             lc = lightcurve.filter_by_band(band, in_place=False)
             cube.extend(fit_single_band(lc, clip_a, clip_b, mean, **self.licu_kwargs))
@@ -94,7 +92,7 @@ class LiCuSampler(Sampler):
         return PosteriorSamples(
             samples,
             name=lightcurve.name,
-            sampling_method="light-curve-package",
+            sampling_method=f"licu-{self.licu_kwargs['algorithm']}",
             sn_class=lightcurve.sn_class,
         )
 
@@ -132,9 +130,7 @@ def fit_single_band(lc, prior_clip_a, prior_clip_b, prior_mean, **licu_kwargs):
     initial_guess = transform_to_licu(*prior_mean)
 
     villar_fit = licu.VillarFit(  # pylint: disable=no-member
-        init=initial_guess,
-        bounds=list(zip(left_bound, right_bound)),
-        **licu_kwargs
+        init=initial_guess, bounds=list(zip(left_bound, right_bound)), **licu_kwargs
     )
 
     # We have nothing better to do than just use the mean of the prior
@@ -185,25 +181,27 @@ def transform_to_licu(amp, beta, gamma, t_0, tau_rise, tau_fall, extra_sigma):
     fall_time = tau_fall
     plateau_rel_amplitude = beta * gamma
     plateau_duration = gamma
-    return np.array([
-        amplitude,
-        baseline,
-        reference_time,
-        rise_time,
-        fall_time,
-        plateau_rel_amplitude,
-        plateau_duration,
-    ])
+    return np.array(
+        [
+            amplitude,
+            baseline,
+            reference_time,
+            rise_time,
+            fall_time,
+            plateau_rel_amplitude,
+            plateau_duration,
+        ]
+    )
 
 
 def transform_from_licu(
-        amplitude,
-        baseline,
-        reference_time,
-        rise_time,
-        fall_time,
-        plateau_rel_amplitude,
-        plateau_duration,
+    amplitude,
+    baseline,
+    reference_time,
+    rise_time,
+    fall_time,
+    plateau_rel_amplitude,
+    plateau_duration,
 ):
     """Transforms light-curve package parameters to superphot+ parameters"""
     del baseline  # no baseline in superphot+

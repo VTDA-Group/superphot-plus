@@ -4,7 +4,7 @@ from typing import List
 
 @dataclass
 class ModelMetrics:
-    """Class containing the training and validation metrics."""
+    """Class containing the classification training and validation metrics."""
 
     train_acc: List[float] = field(default_factory=list)
     val_acc: List[float] = field(default_factory=list)
@@ -64,3 +64,58 @@ class ModelMetrics:
         print(f"Epoch: {self.curr_epoch:02} | Epoch Time: {epoch_mins}m {epoch_secs}s")
         print(f"\tTrain Loss: {train_loss:.3f} | Train Acc: {train_acc*100:.2f}%")
         print(f"\t Val. Loss: {val_loss:.3f} |  Val. Acc: {val_acc*100:.2f}%")
+
+
+@dataclass
+class RegressorMetrics:
+    """Class containing the regression training and validation metrics."""
+
+    train_loss: List[float] = field(default_factory=list)
+    val_loss: List[float] = field(default_factory=list)
+
+    epoch_mins: List[int] = field(default_factory=list)
+    epoch_secs: List[int] = field(default_factory=list)
+    curr_epoch: int = 0
+
+    def get_values(self):
+        """Returns the training and validation losses.
+
+        Returns
+        -------
+        tuple
+            A tuple containing the training and validation losses.
+        """
+        return self.train_loss, self.val_loss
+
+    def append(self, train_loss, val_loss, epoch_time):
+        """Appends training information for an epoch.
+
+        Parameters
+        ----------
+        train_loss: tuple
+            The epoch training loss.
+        val_loss: tuple
+            The epoch validation loss.
+        epoch_time: tuple
+            The number of minutes and seconds spent by the epoch.
+        """
+        epoch_mins, epoch_secs = epoch_time
+
+        self.curr_epoch += 1
+
+        self.train_loss.append(train_loss)
+        self.val_loss.append(val_loss)
+        self.epoch_mins.append(epoch_mins)
+        self.epoch_secs.append(epoch_secs)
+
+    def print_last(self):
+        """Prints the losses for the last epoch."""
+        epoch_mins, epoch_secs, train_loss, val_loss = (
+            self.epoch_mins[-1],
+            self.epoch_secs[-1],
+            self.train_loss[-1],
+            self.val_loss[-1],
+        )
+        print(f"Epoch: {self.curr_epoch:02} | Epoch Time: {epoch_mins}m {epoch_secs}s")
+        print(f"\tTrain Loss: {train_loss:.3f}")
+        print(f"\t Val. Loss: {val_loss:.3f}")
