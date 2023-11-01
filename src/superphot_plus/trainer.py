@@ -95,8 +95,8 @@ class SuperphotTrainer(TrainerBase):
         # Loads model and config
         self.setup_model(load_checkpoint)
 
-        if self.model is None:
-            self.train(train_data)
+        #if self.model is None:
+        self.train(train_data)
 
         # Evaluate model on test dataset
         self.evaluate(test_data, extract_wc)
@@ -124,6 +124,8 @@ class SuperphotTrainer(TrainerBase):
             train_index=train_index,
             val_index=val_index,
         )
+        
+        print(len(train_features))
         train_features, mean, std = normalize_features(train_features)
         val_features, mean, std = normalize_features(val_features, mean, std)
 
@@ -182,7 +184,11 @@ class SuperphotTrainer(TrainerBase):
         test_features, test_classes, test_names, test_group_idxs = self.generate_test_data(
             test_data=test_data
         )
-        test_features, _, _ = normalize_features(test_features)
+        
+        mean = self.config.normalization_means
+        std = self.config.normalization_stddevs
+        
+        test_features, _, _ = normalize_features(test_features, mean, std)
 
         results = self.model.evaluate(
             test_data=TestData(test_features, test_classes, test_names, test_group_idxs),

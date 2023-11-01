@@ -9,8 +9,17 @@ import numpy as np
 from superphot_plus.surveys.surveys import Survey
 from superphot_plus.utils import convert_mags_to_flux
 
+LOW_SNR_FILE="low_snr_classes.dat"
+LOW_VAR_FILE="low_var_classes.dat"
 
-def import_lc(filename, survey=Survey.ZTF(), clip_lightcurve=True):
+def import_lc(
+    filename,
+    tpe=None,
+    survey=Survey.ZTF(),
+    clip_lightcurve=True,
+    low_snr_file=LOW_SNR_FILE,
+    low_var_file=LOW_VAR_FILE
+):
     """Imports a single file, but only the points from a single
     survey.
 
@@ -26,66 +35,54 @@ def import_lc(filename, survey=Survey.ZTF(), clip_lightcurve=True):
     tuple
         Tuple containing the imported light curve data.
     """
-    ra = None
-    dec = None
     if not os.path.exists(filename):  # pragma: no cover
         return [None] * 6
-    with open(filename, "r", encoding="utf-8") as csv_f:
-        csvreader = csv.reader(csv_f, delimiter=",")
-        row_intro = next(csvreader)
+    
+    single_df = pd.read_csv(filename)
+    sub_df = single_df[["mjd", "ra", "dec", "fid", "magpsf", "sigmapsf"]]
+    pruned_df = sub_df.dropna(subset=["mjd", "fid", "magpsf", "sigmapsf"])
+    pruned_df2 = pruned_df.drop(
+        pruned_df[pruned_df['fid'] > 2].index
+    ) # remove i band
+    sorted_df = pruned_df2.sort_values(by=['mjd'])
+    sorted_df['bandpass'] = np.where(sorted_df.fid.to_numpy() == 1, 'g', 'r')
+    sorted_df = sorted_df.drop(columns=['fid',])
+    
+    ra = np.nanmean(sorted_df.ra.to_numpy())
+    dec = np.nanmean(sorted_df.dec.to_numpy())
+    
+    if np.isnan(ra) or np.isnan(dec):
+        return [None] * 6
+    
+    try:
+        ext_dict = survey.get_extinctions(ra, dec)
+    except:
+        return [None] * 6
 
-        ra_idx = row_intro.index("ra")
-        dec_idx = row_intro.index("dec")
-        b_idx = row_intro.index("fid")
-        f_idx = row_intro.index("magpsf")
-        ferr_idx = row_intro.index("sigmapsf")
-
-        flux = []
-        flux_err = []
-        mjd = []
-        bands = []
-
-        for row in csvreader:
-            if ra is None:
-                ra = float(row[ra_idx])
-                dec = float(row[dec_idx])
-                try:
-                    ext_dict = survey.get_extinctions(ra, dec)
-                except:  # pragma: no cover
-                    return [None] * 6
-            if int(row[b_idx]) == 2:
-                flux.append(float(row[f_idx]) - ext_dict["r"])
-                bands.append("r")
-            elif int(row[b_idx]) == 1:
-                flux.append(float(row[f_idx]) - ext_dict["g"])
-                bands.append("g")
-            else:  # pragma: no cover
-                continue
-            mjd.append(float(row[1]))
-            flux_err.append(float(row[ferr_idx]))
-
-    sort_idx = np.argsort(np.array(mjd))
-    t = np.array(mjd)[sort_idx].astype(float)
-    m = np.array(flux)[sort_idx].astype(float)
-    merr = np.array(flux_err)[sort_idx].astype(float)
-    b = np.array(bands)[sort_idx]
-
-    t = t[merr != np.nan]
-    m = m[merr != np.nan]
-    b = b[merr != np.nan]
-    merr = merr[merr != np.nan]
-
+    m = sorted_df.magpsf.to_numpy()
+    merr = sorted_df.sigmapsf.to_numpy()
+    b = sorted_df.bandpass.to_numpy()
+    t = sorted_df.mjd.to_numpy()
+    
+    m[b == "r"] -= ext_dict['r']
+    m[b == "g"] -= ext_dict['g']
+    
     f, ferr = convert_mags_to_flux(m, merr, 26.3)
 
-    if clip_lightcurve:
-        t, f, ferr, b = clip_lightcurve_end(t, f, ferr, b)
+    t, f, ferr, b = clip_lightcurve_end(
+        t, f, ferr, b
+    )
+
     snr = np.abs(f / ferr)
 
     for band in survey.wavelengths:
         if len(snr[(snr > 3.0) & (b == band)]) < 5:  # pragma: no cover
+            with open(low_snr_file, "a+") as f:
+                f.write(f"{tpe}\n")
             return [None] * 6
         if (np.max(f[b == band]) - np.min(f[b == band])) < 3.0 * np.mean(ferr[b == band]):  # pragma: no cover
-            print("SKIPPED BECAUSE AMP")
+            with open(low_var_file, "a+") as f:
+                f.write(f"{tpe}\n")
             return [None] * 6
     return t, f, ferr, b, ra, dec
 

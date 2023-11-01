@@ -45,10 +45,14 @@ def read_probs_csv(probs_fn):
     df = pd.read_csv(probs_fn)
     names = df.Name.to_numpy()
     labels = df.Label.to_numpy()
-    probs = df.iloc[:, 2:7].astype(float).to_numpy()
+    probs = df[['pSNIa', 'pSNII', 'pSNIIn', 'pSLSNI', 'pSNIbc']].astype(float).to_numpy()
+    try:
+        folds = df.Fold.to_numpy()
+    except:
+        folds = None
     pred_classes = np.argmax(probs, axis=1)
 
-    return names, labels, probs, pred_classes, df
+    return names, labels, probs, pred_classes, folds, df
 
 
 def get_alerce_pred_class(ztf_name, alerce, superphot_style=False):

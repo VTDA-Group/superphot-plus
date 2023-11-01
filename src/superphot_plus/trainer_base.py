@@ -3,6 +3,7 @@ import shutil
 
 import numpy as np
 from sklearn.model_selection import train_test_split
+from astropy.cosmology import Planck13 as cosmo
 
 from superphot_plus.file_paths import (
     CLASSIFY_LOG_FILE,
@@ -92,6 +93,15 @@ class TrainerBase:
             fits_dir=self.fits_dir,
             sampler=self.sampler,
         )
+        
+        if self.include_redshift:
+            skip_idxs = ((np.isnan(redshifts)) | (redshifts <= 0))
+            names = names[~skip_idxs]
+            labels = labels[~skip_idxs]
+            redshifts = redshifts[~skip_idxs]
+            
+        print(names)
+        print(np.min(redshifts), np.max(redshifts))
         names, test_names, labels, test_labels, redshifts, test_redshifts = train_test_split(
             names, labels, redshifts, stratify=labels, shuffle=True, test_size=0.1
         )
@@ -122,47 +132,42 @@ class TrainerBase:
             A tuple containing the final training features and respective classes,
             and validation features and respective classes.
         """
-        names, labels, redshifts = train_data
+        names, labels, _ = train_data
 
         train_names, val_names = names[train_index], names[val_index]
         train_labels, val_labels = labels[train_index], labels[val_index]
-        train_redshifts, val_redshifts = redshifts[train_index], redshifts[val_index]
 
         # Convert labels to classes
         train_classes = SnClass.get_classes_from_labels(train_labels)
         val_classes = SnClass.get_classes_from_labels(val_labels)
 
-        train_features, train_classes, train_redshifts = oversample_using_posteriors(
+        train_features, train_classes = oversample_using_posteriors(
             lc_names=train_names,
             labels=train_classes,
             goal_per_class=goal_per_class,
             fits_dir=self.fits_dir,
             sampler=self.sampler,
-            redshifts=train_redshifts,
             oversample_redshifts=self.include_redshift,
+            chisq_cutoff=0.6,
         )
-        val_features, val_classes, val_redshifts = oversample_using_posteriors(
+        val_features, val_classes = oversample_using_posteriors(
             lc_names=val_names,
             labels=val_classes,
             goal_per_class=round(0.1 * goal_per_class),
             fits_dir=self.fits_dir,
             sampler=self.sampler,
-            redshifts=val_redshifts,
             oversample_redshifts=self.include_redshift,
+            chisq_cutoff=0.6,
         )
-
-        # merge redshifts before normalizations
-        if self.include_redshift:
-            # fmt: off
-            train_features = np.hstack((train_features, np.array([train_redshifts, ]).T))
-            val_features = np.hstack((val_features, np.array([val_redshifts, ]).T))
-            # fmt: on
 
         train_features = adjust_log_dists(train_features, redshift=self.include_redshift)
         val_features = adjust_log_dists(val_features, redshift=self.include_redshift)
 
+        print(train_features.shape)
+        
         return train_features, train_classes, val_features, val_classes
 
+    
     def generate_test_data(self, test_data: ZtfData):
         """Extracts and processes the data for testing, adjusting the
         features to their log distributions.
@@ -178,37 +183,40 @@ class TrainerBase:
             A tuple containing the final test features and respective classes,
             the corresponding test ZTF object names and test group indices.
         """
-        test_names, test_labels, test_redshifts = test_data
+        test_names, test_labels, _ = test_data
 
         test_features = []
         test_classes_os = []
         test_group_idxs = []
         test_names_os = []
-        test_redshifts_os = []
 
         test_classes = SnClass.get_classes_from_labels(test_labels)
 
         for i, test_name in enumerate(test_names):
-            test_posts = get_posterior_samples(test_name, self.fits_dir, self.sampler)
-            test_features.extend(test_posts)
+            test_posts, kwargs = get_posterior_samples(test_name, self.fits_dir, self.sampler)
+            if np.mean(test_posts[:,-1]) > 0.6:
+                continue
             test_classes_os.extend([test_classes[i]] * len(test_posts))
             test_names_os.extend([test_names[i]] * len(test_posts))
             if self.include_redshift:
-                test_redshifts_os.extend([test_redshifts[i]] * len(test_posts))
+                z_ext = np.ones((len(test_posts), 2)) * kwargs['redshift']
+                k_correction = 2.5 * np.log10(1.+kwargs['redshift'])
+                dist = cosmo.luminosity_distance([kwargs['redshift'],]).value  # returns dist in Mpc
+                z_ext[:,1] = -2.5*np.log10(kwargs['max_flux']) + 26.3 \
+                    - 5. * np.log10(dist*1e6/10.0) + k_correction
+                
+                test_posts = np.append(test_posts, z_ext, axis=1)
             if len(test_group_idxs) == 0:
                 start_idx = 0
             else:
                 start_idx = test_group_idxs[-1][-1] + 1
+                
+            test_features.extend(list(test_posts))
             test_group_idxs.append(np.arange(start_idx, start_idx + len(test_posts)))
 
         test_features = np.array(test_features)
         test_classes = np.array(test_classes_os)
         test_names = np.array(test_names_os)
-
-        if self.include_redshift:
-            # fmt: off
-            test_features = np.hstack((test_features, np.array([test_redshifts_os, ]).T))
-            # fmt: on
 
         test_features = adjust_log_dists(test_features, redshift=self.include_redshift)
 

@@ -51,8 +51,20 @@ def get_posterior_samples(lc_name, fits_dir=None, sampler=None):
         Numpy array containing the posterior samples.
     """
     posterior_filename = get_posterior_filename(lc_name, fits_dir, sampler)
+    loaded_arr = np.load(posterior_filename, allow_pickle=True)
+    
+    samples = None
+    kwargs = {}
+    for k in loaded_arr.files:
+        if k == 'arr_0' or k == 'samples':
+            samples = loaded_arr[k]
+        else:
+            kwargs[k] = loaded_arr[k]
+            
+    return samples, kwargs
+            
+        
 
-    return np.load(posterior_filename)["arr_0"]
 
 
 def get_multiple_posterior_samples(lc_names, fits_dir, sampler=None):

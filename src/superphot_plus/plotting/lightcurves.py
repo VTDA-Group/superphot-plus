@@ -47,6 +47,7 @@ def plot_lc_fit(
 
     eq_wt_samples = get_posterior_samples(ztf_name, fit_dir, sampling_method)
 
+    print(np.mean(eq_wt_samples, axis=0))
     plot_sampling_lc_fit(
         ztf_name,
         out_dir,
@@ -99,6 +100,8 @@ def plot_sampling_lc_fit(
     sampling_method : str, optional
         Sampling method used for the fit. Default is "dynesty".
     """
+    os.makedirs(out_dir, exist_ok=True)
+    
     band_order = [x for x in band_order] # convert to arrray
     trange_fine = np.linspace(np.amin(tdata), np.amax(tdata), num=500)
 
@@ -107,6 +110,8 @@ def plot_sampling_lc_fit(
     prop_cycle = plt.rcParams['axes.prop_cycle']
     colors = prop_cycle.by_key()['color']
 
+    max_flux = np.max(fdata[bdata == ref_band] - ferrdata[bdata == ref_band])
+    
     for e, band in enumerate(np.unique(bdata)):  # TODO: handle case where band name isnt a valid color
         axis.errorbar(
             tdata[bdata == band],
@@ -120,7 +125,7 @@ def plot_sampling_lc_fit(
         for sample in eq_wt_samples[:30]:
             axis.plot(
                 trange_fine,
-                flux_model(sample, trange_fine, [band] * len(trange_fine), band_order, ref_band),
+                flux_model(sample, trange_fine, [band] * len(trange_fine), max_flux, band_order, ref_band),
                 c=colors[e],
                 lw=1,
                 alpha=0.1,

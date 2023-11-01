@@ -9,6 +9,7 @@ from dustmaps.config import config as dustmaps_config
 from dustmaps.sfd import SFDQuery
 from torch.utils.data import TensorDataset
 from torch.utils.tensorboard import SummaryWriter
+from scipy.special import lambertw
 
 from superphot_plus.file_paths import (
     CLASSIFY_LOG_FILE,
@@ -166,7 +167,7 @@ def convert_mags_to_flux(mag, merr, zero_point):
     return fluxes, flux_unc
 
 
-def flux_model(cube, t_data, b_data, ordered_bands, ref_band):
+def flux_model(cube, t_data, b_data, max_flux, ordered_bands, ref_band):
     """Given "cube" of fit parameters, returns the flux measurements for
     a given set of time and band data.
 
@@ -192,7 +193,11 @@ def flux_model(cube, t_data, b_data, ordered_bands, ref_band):
     ref_band_idx = np.argmax(ref_band == np.array(ordered_bands))
     start_idx = ref_band_idx * 7
 
-    amp, beta, gamma, t_0, tau_rise, tau_fall, _ = cube[start_idx : start_idx + 7]
+    amp = max_flux * 10**cube[start_idx]
+    beta = cube[start_idx + 1]
+    gamma = 10**cube[start_idx + 2]
+    t_0 = cube[start_idx + 3]
+    tau_rise, tau_fall = 10**cube[start_idx + 4: start_idx + 6]
     
     phase = t_data - t_0
     f_model = (
@@ -206,17 +211,17 @@ def flux_model(cube, t_data, b_data, ordered_bands, ref_band):
         if ordered_band == ref_band:
             continue
         start_idx = 7 * band_idx
-        amp_b = amp * cube[start_idx]
-        beta_b = beta * cube[start_idx + 1]
-        gamma_b = gamma * cube[start_idx + 2]
-        t0_b = t_0 * cube[start_idx + 3]
-        tau_rise_b = tau_rise * cube[start_idx + 4]
-        tau_fall_b = tau_fall * cube[start_idx + 5]
+        amp_b = amp * 10**cube[start_idx]
+        beta_b = beta * 10**cube[start_idx + 1]
+        gamma_b = gamma * 10**cube[start_idx + 2]
+        t0_b = t_0 + cube[start_idx + 3]
+        tau_rise_b = tau_rise * 10**cube[start_idx + 4]
+        tau_fall_b = tau_fall * 10**cube[start_idx + 5]
 
         inc_band_ix = b_data == ordered_band
         phase_b = (t_data - t0_b)[inc_band_ix]
         phase_b2 = (t_data - t0_b)[inc_band_ix & (t_data - t0_b < gamma_b)]
-
+        
         f_model[inc_band_ix] = (
             amp_b
             / (1.0 + np.exp(-phase_b / tau_rise_b))
@@ -254,14 +259,32 @@ def params_valid(beta, gamma, tau_rise, tau_fall):
     )):
         return False
     
-    if tau_fall > 1.0 / beta:
+    if gamma > 1.0 / beta:
         return False
-
+    
     if gamma > (1.0 - beta * tau_fall) / beta:
+        return False
+    
+    """
+    if tau_fall > 1.0 / beta:
         return False
 
     if tau_rise * (1.0 + np.exp(gamma / tau_rise)) < tau_fall:
         return False
+    """
+
+    if 1./beta < tau_rise:
+        return False
+    
+    # ensure maximum reached before second phase
+    temp = 1./beta - tau_rise
+    
+    if temp/tau_rise >= 1000:
+        if gamma < tau_rise * np.log(temp/tau_rise):
+            return False #2nd order approximation
+    else:
+        if gamma < temp - tau_rise * np.real(lambertw(np.exp(temp / tau_rise))):
+            return False
 
     return True
 
@@ -412,7 +435,7 @@ def calculate_mse(cube, lightcurve, unique_bands, ref_band):
     return mse_sum / len(lightcurve.times)
 
 
-def calculate_neg_chi_squareds(cubes, t, f, ferr, b, ordered_bands=None, ref_band="r"):
+def calculate_chi_squareds(cubes, t, f, ferr, b, max_flux, ordered_bands=None, ref_band="r"):
     """Gets the negative chi-squared of posterior fits from the model
     parameters and original data files.
     Parameters
@@ -436,19 +459,23 @@ def calculate_neg_chi_squareds(cubes, t, f, ferr, b, ordered_bands=None, ref_ban
         ordered_bands = ["r", "g"]
 
     model_f = np.array(
-        [flux_model(cube, t, b, ordered_bands, ref_band) for cube in cubes]
+        [flux_model(cube, t, b, max_flux, ordered_bands, ref_band) for cube in cubes]
     )  # in future, maybe vectorize flux_model
-    extra_sigma_arr = np.ones((len(cubes), len(t))) * np.max(f[b == ref_band]) * cubes[:, 6][:, np.newaxis]
+    ref_band_idx = np.where(ordered_bands == ref_band)[0][0]
+    extra_sigma_arr = np.ones((len(cubes), len(t))) * np.max(f[b == ref_band]) * 10**cubes[:, ref_band_idx + 6][:, np.newaxis]
 
     for i, ordered_band in enumerate(ordered_bands[ordered_bands != ref_band]):
-        extra_sigma_arr[:, b == ordered_band] *= cubes[:, 7 * i + 13][:, np.newaxis]
+        extra_sigma_arr[:, b == ordered_band] *= 10**cubes[:, 7 * i + 13][:, np.newaxis]
     sigma_sq = extra_sigma_arr**2 + ferr**2
 
+    """
     log_likelihoods = np.sum(
         np.log(1.0 / np.sqrt(2.0 * np.pi * sigma_sq)) - 0.5 * (f - model_f) ** 2 / sigma_sq, axis=1
     ) / len(t)
+    """
+    red_chisq = 0.5 * np.sum((f[np.newaxis, :] - model_f) ** 2 / sigma_sq, axis=1) / len(t)
 
-    return log_likelihoods
+    return red_chisq
 
 
 def create_dataset(features, labels, idxs=None):
@@ -468,13 +495,13 @@ def create_dataset(features, labels, idxs=None):
     torch.utils.data.TensorDataset
         The created dataset.
     """
-    tensor_x = torch.Tensor(features)  # transform to torch tensor
-    tensor_y = torch.Tensor(labels).type(torch.LongTensor)
+    tensor_x = torch.tensor(features, dtype=torch.float, device='cpu')  # transform to torch tensor
+    tensor_y = torch.tensor(labels, dtype=torch.int64, device='cpu')
 
     if idxs is None:
         return TensorDataset(tensor_x, tensor_y)  # create your datset
 
-    tensor_z = torch.Tensor(idxs)
+    tensor_z = torch.tensor(idxs, dtype=torch.int64, device='cpu')
 
     return TensorDataset(tensor_x, tensor_y, tensor_z)  # create your datset
 
@@ -568,17 +595,9 @@ def adjust_log_dists(features_orig, redshift=False):
         Array of adjusted fit features.
     """
     features = np.copy(features_orig)
-    features[:, 4:7] = np.log10(features[:, 4:7])
-    features[:, 2] = np.log10(features[:, 2])
 
     if redshift:  # keep amplitude
-        return np.delete(
-            features,
-            [
-                3,
-            ],
-            1,
-        )
+        return np.delete(features, [3,], 1)
 
     return np.delete(features, [0, 3], 1)
 

@@ -2,7 +2,7 @@
 light curve data."""
 
 import os
-
+import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -33,14 +33,19 @@ def plot_high_confidence_confusion_matrix(probs_csv, filename, cutoff=0.7):
     """
     _, classes_to_labels = SnClass.get_type_maps()
 
-    _, true_classes, probs, pred_classes, _ = read_probs_csv(probs_csv)
+    _, true_classes, probs, pred_classes, folds, _ = read_probs_csv(probs_csv)
     high_conf_mask = np.max(probs, axis=1) > cutoff
 
     true_labels = [classes_to_labels[x] for x in true_classes[high_conf_mask]]
     pred_labels = [classes_to_labels[x] for x in pred_classes[high_conf_mask]]
+    
+    try:
+        folds = folds[high_conf_mask]
+    except:
+        folds = None
 
-    plot_confusion_matrix(true_labels, pred_labels, filename + "_c.pdf", purity=False)
-    plot_confusion_matrix(true_labels, pred_labels, filename + "_p.pdf", purity=True)
+    plot_confusion_matrix(true_labels, pred_labels, filename + "_c.pdf", folds, purity=False)
+    plot_confusion_matrix(true_labels, pred_labels, filename + "_p.pdf", folds, purity=True)
 
 
 def plot_binary_confusion_matrix(probs_csv, filename):
@@ -54,12 +59,16 @@ def plot_binary_confusion_matrix(probs_csv, filename):
     filename : str
         Base filename for saving the confusion matrix plots.
     """
-    (_, true_classes, probs, _, _) = read_probs_csv(probs_csv)
-    pred_binary = np.where(probs[:, 0] > 0.5, "SN Ia", "SN CC")
+    df = pd.read_csv(probs_csv)
+    true_classes = df.Label.to_numpy()
+    prob_Ia = df.pSNIa.to_numpy()
+    
+    pred_binary = np.where(prob_Ia > 0.5, "SN Ia", "SN CC")
     true_binary = np.where(true_classes == 0, "SN Ia", "SN CC")
+    folds = df.Fold.to_numpy()
 
-    plot_confusion_matrix(true_binary, pred_binary, filename + "_c.pdf", purity=False)
-    plot_confusion_matrix(true_binary, pred_binary, filename + "_p.pdf", purity=True)
+    plot_confusion_matrix(true_binary, pred_binary, filename + "_c.pdf", folds, purity=False)
+    plot_confusion_matrix(true_binary, pred_binary, filename + "_p.pdf", folds, purity=True)
 
 
 def compare_four_class_confusion_matrices(probs_csv, probs_alerce_csv, save_dir, p07=False):
@@ -271,7 +280,7 @@ def plot_agreement_matrix_from_arrs(our_labels, alerce_labels, save_dir, spec=Tr
     plt.close()
 
 
-def plot_confusion_matrix(y_true, y_pred, filename, purity=False, cmap="Purples"):
+def plot_confusion_matrix(y_true, y_pred, filename, folds=None, purity=False, cmap="Purples"):
     """Plot the confusion matrix between given true and predicted
     labels.
 
@@ -291,20 +300,68 @@ def plot_confusion_matrix(y_true, y_pred, filename, purity=False, cmap="Purples"
     y_true = np.array(y_true)
     y_pred = np.array(y_pred)
 
-    acc = calc_accuracy(y_pred, y_true)
-    f1_avg = f1_score(y_pred, y_true, class_average=True)
-
-    # plt.rcParams["figure.figsize"] = (16, 16)
-    if purity:
-        title = f"Purity\n($N = {len(y_pred)}, A = {acc:.2f}, F_1 = {f1_avg:.2f}$)"
-        cm_vals = confusion_matrix(y_true, y_pred, normalize="pred")
+    if folds is None:
+        acc = calc_accuracy(y_pred, y_true)
+        f1_avg = f1_score(y_pred, y_true, class_average=True)
+        
+        if purity:
+            title = f"Purity\n$N = {len(y_pred)}, A = {acc:.2f}, F_1 = {f1_avg:.2f}$"
+            cm_vals = confusion_matrix(y_true, y_pred, normalize="pred")
+        else:
+            title = f"Completeness\n$N = {len(y_pred)}, A = {acc:.2f}, F_1 = {f1_avg:.2f}$"
+            cm_vals = confusion_matrix(y_true, y_pred, normalize="true")
+            
     else:
-        title = f"Completeness\n($N = {len(y_pred)}, A = {acc:.2f}, F_1 = {f1_avg:.2f}$)"
-        cm_vals = confusion_matrix(y_true, y_pred, normalize="true")
+        folds = np.array(folds)
+
+        print(len(y_pred), len(folds))
+        accs = []
+        f1s = []
+        cm_vals_all = []
+        for f in np.unique(folds):
+            y_pred_sub = y_pred[folds == f]
+            y_true_sub = y_true[folds == f]
+            
+            accs.append(
+                calc_accuracy(y_pred_sub, y_true_sub)
+            )
+            
+            f1s.append(
+                f1_score(y_pred_sub, y_true_sub, class_average=True)
+            )
+            if purity:
+                cm_vals_all.append(
+                    confusion_matrix(y_true_sub, y_pred_sub, normalize="pred")
+                )
+            else:
+                cm_vals_all.append(
+                    confusion_matrix(y_true_sub, y_pred_sub, normalize="true")
+                )
+                
+        cm_vals_all = np.asarray(cm_vals_all)
+        cm_vals = np.mean(cm_vals_all, axis=0)
+        cm_low = np.abs(cm_vals - np.percentile(cm_vals_all, 16, axis=0))
+        cm_high = np.abs(np.percentile(cm_vals_all, 84, axis=0) - cm_vals)
+        
+        acc = np.mean(accs)
+        acc_low = acc - np.percentile(accs, 16)
+        acc_high = np.percentile(accs, 84) - acc
+        f1_avg = np.mean(f1s)
+        f1_low = f1_avg - np.percentile(f1s, 16)
+        f1_high = np.percentile(f1s, 84) - f1_avg
+        
+        # plt.rcParams["figure.figsize"] = (16, 16)
+        if purity:
+            title = f"Purity\n$N = {len(y_pred)}, "
+        else:
+            title = f"Completeness\n$N = {len(y_pred)}, "
+            
+        title += f"A = {acc:.2f}^{{+{acc_high:.2f}}}_{{-{acc_low:.2f}}}, "
+        title += f"F_1 = {f1_avg:.2f}^{{+{f1_high:.2f}}}_{{-{f1_low:.2f}}}$"
 
     classes = unique_labels(y_true, y_pred)
 
-    fig, ax = plt.subplots(figsize=(6,6))
+    fig, ax = plt.subplots(figsize=(7,7))
     _ = ax.imshow(cm_vals, interpolation="nearest", vmin=0.0, vmax=1.0, cmap=cmap)
 
     ax.set(
@@ -329,14 +386,24 @@ def plot_confusion_matrix(y_true, y_pred, filename, purity=False, cmap="Purples"
             class_i = classes[i]
             class_j = classes[j]
             num_in_cell = len(y_pred[(y_pred == class_j) & (y_true == class_i)])
-            ax.text(
-                j,
-                i,
-                f"{cm_vals[i, j]:.2f}\n({num_in_cell})",
-                ha="center",
-                va="center",
-                color="white" if cm_vals[i, j] > thresh else "black",
-            )
+            if folds is None:
+                ax.text(
+                    j,
+                    i,
+                    f"${cm_vals[i, j]:.2f}\n({num_in_cell})$",
+                    ha="center",
+                    va="center",
+                    color="white" if cm_vals[i, j] > thresh else "black",
+                )
+            else:
+                ax.text(
+                    j,
+                    i,
+                    f"${cm_vals[i, j]:.2f}^{{+{cm_high[i, j]:.2f}}}_{{-{cm_low[i, j]:.2f}}}$" + f"\n({num_in_cell})",
+                    ha="center",
+                    va="center",
+                    color="white" if cm_vals[i, j] > thresh else "black",
+                )
     fig.tight_layout()
     plt.xlim(-0.5, len(classes) - 0.5)
     plt.ylim(len(classes) - 0.5, -0.5)
@@ -374,8 +441,8 @@ def plot_matrices(
     fn_completeness_07 = os.path.join(cm_folder, fn_prefix + "_c_p07.pdf")
 
     # Plot full confusion matrices
-    plot_confusion_matrix(true_classes, pred_classes, fn_purity, True)
-    plot_confusion_matrix(true_classes, pred_classes, fn_completeness, False)
+    plot_confusion_matrix(true_classes, pred_classes, fn_purity, purity=True)
+    plot_confusion_matrix(true_classes, pred_classes, fn_completeness, purity=False)
 
     # Plot confusion matrices for p > 0.7
     if np.any(prob_above_07):
@@ -383,11 +450,11 @@ def plot_matrices(
             true_classes[prob_above_07],
             pred_classes[prob_above_07],
             fn_purity_07,
-            True,
+            purity=True,
         )
         plot_confusion_matrix(
             true_classes[prob_above_07],
             pred_classes[prob_above_07],
             fn_completeness_07,
-            False,
+            purity=False,
         )

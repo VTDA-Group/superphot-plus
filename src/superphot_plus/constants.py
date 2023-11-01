@@ -4,7 +4,7 @@ import numpy as np
 
 # Nested sampling parameters
 MAX_ITER = 5000
-DLOGZ = 0.5
+DLOGZ = 0.4
 NLIVE = 50
 
 # Numpyro parameters

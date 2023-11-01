@@ -370,18 +370,18 @@ def plot_redshifts_abs_mags(probs_snr_csv, training_csv, fits_dir, save_dir, sam
     labels_to_classes, _ = SnClass.get_type_maps()
     allowed_types = list(labels_to_classes.keys())
 
-    _, labels, redshifts = import_labels_only(
-        [
-            training_csv,
-        ],
-        allowed_types,
-        needs_posteriors=True,
-        sampler=sampler,
-        fits_dir=fits_dir
-    )
+    training_df = pd.read_csv(training_csv)
 
     # labels = np.array([classes_to_labels[int(x)] for x in classes])
     probs_dataframe = pd.read_csv(probs_snr_csv)
+    names = probs_dataframe.Name.to_numpy()
+    labels = probs_dataframe.Label.to_numpy()
+    redshifts = []
+    for n in names:
+        z = training_df[training_df.NAME == n].Z.iloc[0]
+        redshifts.append(z)
+    
+    redshifts = np.array(redshifts)
     amplitudes = probs_dataframe.Fmax.to_numpy()
     app_mags = -2.5 * np.log10(amplitudes) + 26.3
 
@@ -553,7 +553,7 @@ def plot_snr_hist(probs_snr_csv, save_dir):
     plt.close()
 
 
-def compare_mag_distributions(probs_classified, probs_unclassified, save_dir, zeropoint=26.3):
+def compare_mag_distributions(probs_classified, probs_unclassified, all_phot, save_dir, zeropoint=26.3):
     """
     Generate overlaid magnitude distributions of the classified and unclassified datasets.
     Assumes that unclassified LCs that did not pass the chi-squared cut are marked as "SKIP".
@@ -573,13 +573,18 @@ def compare_mag_distributions(probs_classified, probs_unclassified, save_dir, ze
     max_flux = classified_df.Fmax.to_numpy()
     max_r_classified = -2.5 * np.log10(max_flux) + zeropoint
 
-    unclassified_df = pd.read_csv(probs_unclassified)
+    unclassified_df = pd.read_csv(all_phot)
     max_flux = unclassified_df.Fmax.to_numpy()
     max_r_unclassified_all = -2.5 * np.log10(max_flux) + zeropoint
 
-    mask_high_chisquared = (unclassified_df.iloc[:, 1] == "SKIP").to_numpy()
+    phot_include_df = pd.read_csv(probs_unclassified)
+    include_phot_names = phot_include_df.Name.to_numpy()
+    mask_high_chisquared = np.array([x not in include_phot_names for x in unclassified_df.NAME.to_numpy()])
     max_r_unclassified = max_r_unclassified_all[~mask_high_chisquared]
     max_r_skipped = max_r_unclassified_all[mask_high_chisquared]
+    
+    print(np.max(phot_include_df.Fmax.to_numpy()))
+    print(phot_include_df.Name.to_numpy()[np.argmax(phot_include_df.Fmax.to_numpy())])
 
     plt.hist(
         max_r_classified,

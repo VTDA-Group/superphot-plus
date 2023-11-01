@@ -5,7 +5,6 @@ import random
 import time
 
 import numpy as np
-import pandas as pd
 import torch
 import torch.nn.functional as F
 from torch import nn, optim
@@ -42,6 +41,7 @@ class SuperphotClassifier(nn.Module):
         self.config = config
 
         n_neurons = config.neurons_per_layer
+        
         self.input_fc = nn.Linear(config.input_dim, n_neurons)
 
         assert config.num_hidden_layers >= 1
@@ -83,6 +83,7 @@ class SuperphotClassifier(nn.Module):
         x = x.view(batch_size, -1)
 
         h_1 = self.dropouts[0](x)
+        
         h_1 = F.relu(self.input_fc(h_1))
 
         h_hidden = h_1
@@ -131,16 +132,8 @@ class SuperphotClassifier(nn.Module):
 
         train_dataset, valid_dataset = train_data
 
-        train_iterator = DataLoader(
-            dataset=train_dataset, shuffle=True,
-            batch_size=self.config.batch_size,
-            pin_memory=True
-        )
-        valid_iterator = DataLoader(
-            dataset=valid_dataset,
-            batch_size=self.config.batch_size,
-            pin_memory=True
-        )
+        train_iterator = DataLoader(dataset=train_dataset, shuffle=True, batch_size=self.config.batch_size)
+        valid_iterator = DataLoader(dataset=valid_dataset, batch_size=self.config.batch_size)
 
         metrics = ModelMetrics()
 
@@ -148,7 +141,6 @@ class SuperphotClassifier(nn.Module):
         best_val_loss = float("inf")
 
         for epoch in np.arange(0, num_epochs):
-            
             start_time = time.monotonic()
 
             train_loss, train_acc = self.train_epoch(train_iterator)
@@ -198,8 +190,8 @@ class SuperphotClassifier(nn.Module):
         self.train()
 
         for x, y in iterator:
-            #x = x.to(self.config.device)
-            #y = y.to(self.config.device)
+            x = x.to(self.config.device)
+            y = y.to(self.config.device)
 
             self.optimizer.zero_grad()
 
@@ -406,9 +398,8 @@ class SuperphotClassifier(nn.Module):
         post_features = get_posterior_samples(obj_name, fits_dir, sampler)
 
         chisq = np.mean(post_features[:, -1])
-        if np.abs(chisq) > 0.6:  # probably not a SN
+        if np.abs(chisq) > 10:  # probably not a SN
             print("OBJECT LIKELY NOT A SN")
-            return None
 
         # normalize the log distributions
         post_features = adjust_log_dists(post_features)
@@ -444,7 +435,7 @@ class SuperphotClassifier(nn.Module):
         _, probs = self.get_predictions_from_fit_params(test_iterator)
         return probs.numpy()
 
-    def return_new_classifications(self, test_csv, fit_dir, save_file, output_dir=None, include_labels=False, sampler='dynesty'):
+    def return_new_classifications(self, test_csv, fit_dir, save_file, output_dir=None, include_labels=False):
         """Return new classifications based on model and save probabilities
         to a CSV file.
 
@@ -467,20 +458,23 @@ class SuperphotClassifier(nn.Module):
         with open(filepath, "w+", encoding="utf-8") as pf:
             pf.write("Name,Label,pSNIa,pSNII,pSNIIn,pSLSNI,pSNIbc\n")
 
-        df = pd.read_csv(test_csv)
-        names = df.NAME.to_numpy()
-        labels = df.CLASS.to_numpy()
-        
-        for i, test_name in enumerate(names):
-            label = None
-            
-            if include_labels:
-                label = labels[i]
+        with open(test_csv, "r", encoding="utf-8") as tc:
+            csv_reader = csv.reader(tc, delimiter=",")
+            next(csv_reader)
+            for _, row in enumerate(csv_reader):
+                try:
+                    test_name = row[0]
+                except:
+                    print(row, "skipped")
+                    continue
 
-            probs_avg = self.classify_single_light_curve(test_name, fit_dir, sampler=sampler)
-            if probs_avg is None:
-                continue
-            save_test_probabilities(test_name, probs_avg, label, output_dir, save_file)
+                label = None
+
+                if include_labels:
+                    label = row[1]
+
+                probs_avg = self.classify_single_light_curve(test_name, fit_dir)
+                save_test_probabilities(test_name, probs_avg, label, output_dir, save_file)
 
     def save(self, models_dir):
         """Stores the trained model and respective configuration.

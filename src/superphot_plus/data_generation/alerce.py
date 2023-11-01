@@ -3,6 +3,7 @@ data from the Alerce API."""
 
 import csv
 import os
+import pandas as pd
 
 from alerce.core import Alerce
 
@@ -24,33 +25,25 @@ def add_stamp_column(input_filename, output_filename):  # pragma: no cover
     output_filename : str
         Path to the output CSV file.
     """
-    csv_rows = []
-    with open(input_filename, "r", encoding="utf-8") as fn_csv:
-        csv_reader = csv.reader(fn_csv, delimiter=",")
-        next(csv_reader)
-        for row in csv_reader:
-            csv_rows.append(row)
+    input_df = pd.read_csv(input_filename)
+    
+    names = input_df.NAME.to_numpy()
+    stamp = []
+    
+    for name in names:
+        try:
+            p = alerce.query_probabilities(oid=name, format="pandas")
 
-    print("done reading in rows")
-    with open(output_filename, "w+", encoding="utf-8") as new_csv:
-        csv_writer = csv.writer(new_csv, delimiter=",")
-        csv_writer.writerow(["NAME", "PROB", "CLASS", "STAMP"])
-        for row in csv_rows:
-            try:
-                name = row[0]
-                print(name)
+            p_class = p[p["classifier_name"] == "stamp_classifier"]
+            prob = p_class[p_class["ranking"] == 1]["probability"].iat[0]
+            best_label = p_class[p_class["ranking"] == 1]["class_name"].iat[0]
 
-                p = alerce.query_probabilities(oid=name, format="pandas")
-
-                p_class = p[p["classifier_name"] == "stamp_classifier"]
-                prob = p_class[p_class["ranking"] == 1]["probability"].iat[0]
-                best_label = p_class[p_class["ranking"] == 1]["class_name"].iat[0]
-
-                stamp = (best_label == "SN") and (prob >= 0.5)
-                csv_writer.writerow([*row, stamp])
-
-            except:
-                csv_writer.writerow([*row, "None"])
+            stamp.append( (best_label == "SN") and (prob >= 0.5) )
+        except:
+            stamp.append( False )
+    
+    input_df['STAMP'] = stamp
+    input_df.to_csv(output_filename, index=False)
 
 
 def get_all_unclassified_samples(save_csv):  # pragma: no cover
@@ -65,14 +58,15 @@ def get_all_unclassified_samples(save_csv):  # pragma: no cover
 
     classifiers = alerce.query_classifiers()
     print(classifiers)
-    i = 40
+    i = 0
     repeat_names = set()
-
-    with open(save_csv, "r", encoding="utf-8") as sc:
-        csv_reader = csv.reader(sc, delimiter=",")
-        next(csv_reader)
-        for row in csv_reader:
-            repeat_names.add(row[0])
+    
+    if os.path.exists(save_csv):
+        with open(save_csv, "r", encoding="utf-8") as sc:
+            csv_reader = csv.reader(sc, delimiter=",")
+            next(csv_reader)
+            for row in csv_reader:
+                repeat_names.add(row[0])
 
     while True:
         print(i)
@@ -80,11 +74,11 @@ def get_all_unclassified_samples(save_csv):  # pragma: no cover
         while True:
             try:
                 objs = alerce.query_objects(
-                    classifier="stamp_classifier",
-                    classifier_version="stamp_classifier_1.0.4",
-                    class_name="SN",
+                    classifier="lc_classifier_top",
+                    #classifier_version="hierarchical_random_forest_1.0.0",
+                    class_name="Transient",
                     format="pandas",
-                    page_size=500,
+                    page_size=2000,
                     probability=0.5,
                     page=i,
                 )
@@ -103,16 +97,14 @@ def get_all_unclassified_samples(save_csv):  # pragma: no cover
                     row = objs.iloc[row_idx]
                     name = row.iat[0]
                     if name in repeat_names:
-                        print("REPEAT")
+                        #print("REPEAT")
                         continue
                     p = alerce.query_probabilities(oid=name, format="pandas")
 
-                    p_class = p[p["classifier_name"] == "stamp_classifier"]
+                    p_class = p[p["classifier_name"] == "lc_classifier_transient"]
                     prob = p_class[p_class["ranking"] == 1]["probability"].iat[0]
                     best_label = p_class[p_class["ranking"] == 1]["class_name"].iat[0]
-                    if best_label != "SN":
-                        print("wrong type")
-                        continue
+                    
                     csv_writer.writerow([name, prob, best_label])
                     repeat_names.add(name)
 
@@ -135,19 +127,18 @@ def generate_flux_files(master_csv, save_folder):  # pragma: no cover
     """
     global alerce
     os.makedirs(save_folder, exist_ok=True)
-    with open(master_csv, "r", encoding="utf-8") as mc:
-        csvreader = csv.reader(mc, delimiter=",", skipinitialspace=True)
-        for row in csvreader:
-            try:
-                ztf_name = row[0]
-                if os.path.exists(os.path.join(save_folder, ztf_name + ".csv")):
-                    continue
-                # print(ztf_name)
-                # Getting detections for an object
-                detections = alerce.query_detections(ztf_name, format="pandas")
-                detections.to_csv(os.path.join(save_folder, ztf_name + ".csv"), index=False)
-            except:
+    df = pd.read_csv(master_csv)
+    names = df.NAME
+    for ztf_name in names:
+        try:
+            if os.path.exists(os.path.join(save_folder, ztf_name + ".csv")):
                 continue
+            # print(ztf_name)
+            # Getting detections for an object
+            detections = alerce.query_detections(ztf_name, format="pandas")
+            detections.to_csv(os.path.join(save_folder, ztf_name + ".csv"), index=False)
+        except:
+            continue
 
 
 def generate_single_flux_file(ztf_name, save_folder):

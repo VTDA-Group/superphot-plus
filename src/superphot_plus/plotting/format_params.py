@@ -17,7 +17,7 @@ def set_global_plot_formatting():
     plt.rc("figure", titlesize=BIGGER_SIZE)  # fontsize of the figure title
 
 
-def param_labels(aux_bands=None, ref_band=None):
+def param_labels(aux_bands=None, ref_band=None, log=True):
     """Return properly formatted parameter labels
     for plotting.
 
@@ -33,25 +33,47 @@ def param_labels(aux_bands=None, ref_band=None):
         All properly formatted plotting labels.
     """
     if ref_band is not None:
-        plot_labels = [
-            rf"$\log_{{10}}A_{{{ref_band}}}$",
-            rf"$\beta_{{{ref_band}}}$",
-            rf"$\log_{{10}}\gamma_{{{ref_band}}}$",
-            rf"$t_{{0, {ref_band}}}$",
-            rf"$\log_{{10}}\tau_\mathrm{{rise, {ref_band}}}$",
-            rf"$\log_{{10}}\tau_\mathrm{{fall, {ref_band}}}$",
-            rf"$\log_{{10}}\sigma_\mathrm{{extra, {ref_band}}}$",
-        ]
+        if log:
+            plot_labels = [
+                rf"$\log_{{10}}A_{{{ref_band}}}$",
+                rf"$\beta_{{{ref_band}}}$",
+                rf"$\log_{{10}}\gamma_{{{ref_band}}}$",
+                rf"$t_{{0, {ref_band}}}$",
+                rf"$\log_{{10}}\tau_\mathrm{{rise, {ref_band}}}$",
+                rf"$\log_{{10}}\tau_\mathrm{{fall, {ref_band}}}$",
+                rf"$\log_{{10}}\sigma_\mathrm{{extra, {ref_band}}}$",
+            ]
+        else:
+            plot_labels = [
+                rf"$A_{{{ref_band}}}$",
+                rf"$\beta_{{{ref_band}}}$",
+                rf"$\gamma_{{{ref_band}}}$",
+                rf"$t_{{0, {ref_band}}}$",
+                rf"$\tau_\mathrm{{rise, {ref_band}}}$",
+                rf"$\tau_\mathrm{{fall, {ref_band}}}$",
+                rf"$\sigma_\mathrm{{extra, {ref_band}}}$",
+            ]
     else:
-        plot_labels = [
-            r"$\log_{10}A$",
-            r"$\beta$",
-            r"$\log_{10}\gamma$",
-            r"$t_0$",
-            r"$\log_{10}\tau_\mathrm{rise}$",
-            r"$\log_{10}\tau_\mathrm{fall}$",
-            r"$\log_{10}\sigma_\mathrm{extra}$",
-        ]
+        if log:
+            plot_labels = [
+                r"$\log_{10}A$",
+                r"$\beta$",
+                r"$\log_{10}\gamma$",
+                r"$t_0$",
+                r"$\log_{10}\tau_\mathrm{rise}$",
+                r"$\log_{10}\tau_\mathrm{fall}$",
+                r"$\log_{10}\sigma_\mathrm{extra}$",
+            ]
+        else:
+            plot_labels = [
+                r"$A$",
+                r"$\beta$",
+                r"$\gamma$",
+                r"$t_0$",
+                r"$\tau_\mathrm{rise}$",
+                r"$\tau_\mathrm{fall}$",
+                r"$\sigma_\mathrm{extra}$",
+            ]
     save_labels = [
         "logA",
         "beta",
