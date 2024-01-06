@@ -3,7 +3,7 @@ name = "superphot-plus"
 license = {file = "LICENSE"}
 readme = "README.md"
 authors = [
-    { name = "Kaylee de Soto", email = "kmd6851@psu.edu" }
+    { name = "Kaylee de Soto", email = "kaylee.de_soto@cfa.harvard.edu" }
 ]
 classifiers = [
     "Development Status :: 4 - Beta",
@@ -24,6 +24,7 @@ dependencies = [
     "scikit-learn",
     "torch",
     "tensorboard",
+    "tensorflow_probability"
 ]
 
 # On a mac, install optional dependencies with `pip install '.[dev]'` (include the single quotes)
