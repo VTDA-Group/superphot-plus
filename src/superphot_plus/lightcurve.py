@@ -32,13 +32,13 @@ class Lightcurve:
         num_pts = len(times)
         if len(fluxes) != num_pts or len(flux_errors) != num_pts or len(bands) != num_pts:
             raise ValueError("Lightcurve: All arrays must be equal size.")
-        self.times = times
-        self.fluxes = fluxes
-        self.flux_errors = flux_errors
-        self.bands = bands
+        self.times = np.copy(times)
+        self.fluxes = np.copy(fluxes)
+        self.flux_errors = np.copy(flux_errors)
+        self.bands = np.copy(bands)
         self.name = name
         self.sn_class = sn_class
-        self.extra_properties = kwargs
+        self.extra_properties = kwargs.copy()
 
     def _reindex(self, indices, in_place=True):
         """Rearrange or subset the values in each array to match

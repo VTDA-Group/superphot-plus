@@ -24,7 +24,7 @@ priors:
         std: 0.3079
       t_0:
         clip_a: -100.0
-        clip_b: 10.0
+        clip_b: 30.0
         mean: -17.878
         std: 9.916
       tau_rise:
@@ -75,6 +75,6 @@ priors:
         std: 0.2642
       extra_sigma:
         clip_a: -1.5
-        clip_b: 1
+        clip_b: 1.0
         mean: -0.1509
         std:  0.2542

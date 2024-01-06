@@ -12,7 +12,9 @@ from superphot_plus.posterior_samples import PosteriorSamples
 from superphot_plus.samplers.sampler import Sampler
 from superphot_plus.surveys.fitting_priors import MultibandPriors
 from superphot_plus.surveys.surveys import Survey
-from superphot_plus.utils import calculate_neg_chi_squareds, flux_model
+from superphot_plus.utils import (
+    calculate_chi_squareds, flux_model, villar_fit_constraint
+)
 
 
 class IminuitSampler(Sampler):
@@ -87,18 +89,22 @@ def run_fit(lightcurve, priors=Survey.ZTF().priors, rstate=None):
 
     # Create copies of the prior vectors with the value for t0 overwritten for the
     # current lightcurve.
-    prior_clip_a[start_idx + 3] = np.amin(lightcurve.times) - 50.0
-    prior_clip_b[start_idx + 3] = np.amax(lightcurve.times) + 50.0
-    prior_mean[start_idx + 3] = max_flux_loc
-    prior_std[start_idx + 3] = 20.0
+    #prior_clip_a[start_idx + 3] += np.amin(lightcurve.times)
+    #prior_clip_b[start_idx + 3] += np.amax(lightcurve.times)
+    prior_clip_a[start_idx + 3] += max_flux_loc
+    prior_clip_b[start_idx + 3] += max_flux_loc
+    prior_mean[start_idx + 3] += max_flux_loc
+    #prior_std[start_idx + 3] = 20.0
 
     # Precompute the vectors of trunc_gauss a and b values.
     tg_a = (prior_clip_a - prior_mean) / prior_std
     tg_b = (prior_clip_b - prior_mean) / prior_std
 
+    """
     idx_to_normalize = np.concatenate(
         [np.array([0, 2, 4, 5, 6]) + 7 * band_idx for band_idx in range(len(unique_bands))]
     )
+    """
 
     def ln_prior(cube):
         """Creates prior for pymultinest, where each side of the "cube"
@@ -136,20 +142,35 @@ def run_fit(lightcurve, priors=Survey.ZTF().priors, rstate=None):
         float
             Log-likelihood value.
         """
+        logL = 0
         # Re-normalize the cube
         cube = cube.copy()
-        cube[idx_to_normalize] = 10 ** cube[idx_to_normalize]
+        beta = cube[7*ref_band_idx + 1]
+        gamma = 10**cube[7*ref_band_idx + 2]
+        tau_rise, tau_fall, extra_sigma = 10**cube[7*ref_band_idx + 4:7*ref_band_idx + 7]
+        
+        logL += -1000. * villar_fit_constraint([beta, gamma, tau_rise, tau_fall])
+        #cube[idx_to_normalize] = 10 ** cube[idx_to_normalize]
 
-        f_model = flux_model(cube, lightcurve.times, lightcurve.bands, unique_bands, ref_band)
-        extra_sigma_arr = np.ones(len(lightcurve.times)) * cube[6] * max_flux
+        f_model = flux_model(cube, lightcurve.times, lightcurve.bands, max_flux, unique_bands, ref_band)
+        extra_sigma_arr = np.ones(len(lightcurve.times)) * extra_sigma * max_flux
 
         for band_idx, ordered_band in enumerate(unique_bands):
             if ordered_band == ref_band:
                 continue
-            extra_sigma_arr[lightcurve.bands == ordered_band] *= cube[7 * band_idx + 6]
+            beta_b = beta * 10**cube[7 * band_idx + 1]
+            gamma_b = gamma * 10**cube[7 * band_idx + 2]
+            tau_rise_b = tau_rise * 10**cube[7 * band_idx + 4]
+            tau_fall_b = tau_fall * 10**cube[7 * band_idx + 5]
+            extra_sigma_b = extra_sigma * 10**cube[7 * band_idx + 6]
+            
+            logL += villar_fit_constraint([beta_b, gamma_b, tau_rise_b, tau_fall_b])
+            logL += -1000. * np.maximum(extra_sigma_b - 10**(-0.8), 0.)
+            
+            extra_sigma_arr[lightcurve.bands == ordered_band] = extra_sigma_b
 
         sigma_sq = lightcurve.flux_errors**2 + extra_sigma_arr**2
-        logL = np.sum(
+        logL += np.sum(
             np.log(1.0 / np.sqrt(2.0 * np.pi * sigma_sq))
             - 0.5 * (f_model - lightcurve.fluxes) ** 2 / sigma_sq
         )
@@ -187,31 +208,34 @@ def run_fit(lightcurve, priors=Survey.ZTF().priors, rstate=None):
             size=(100, n_params),
         )
 
+    """
     sample_mean[idx_to_normalize] = 10.0 ** sample_mean[idx_to_normalize]
     sample_mean[7 * ref_band_idx] = max_flux * sample_mean[7 * ref_band_idx]
     samples[:, idx_to_normalize] = 10.0 ** samples[:, idx_to_normalize]
     samples[:, 7 * ref_band_idx] = max_flux * samples[:, 7 * ref_band_idx]
-
-    red_neg_chisq_mean = calculate_neg_chi_squareds(
+    """
+    red_chisq_mean = calculate_chi_squareds(
         sample_mean.reshape(1, -1),
         lightcurve.times,
         lightcurve.fluxes,
         lightcurve.flux_errors,
         lightcurve.bands,
+        max_flux,
         ordered_bands=priors.ordered_bands,
         ref_band=priors.reference_band,
     )
-    posterior_cube_mean = np.concatenate([sample_mean, red_neg_chisq_mean])
-    red_neg_chisq = calculate_neg_chi_squareds(
+    posterior_cube_mean = np.concatenate([sample_mean, red_chisq_mean])
+    red_chisq = calculate_chi_squareds(
         samples,
         lightcurve.times,
         lightcurve.fluxes,
         lightcurve.flux_errors,
         lightcurve.bands,
+        max_flux,
         ordered_bands=priors.ordered_bands,
         ref_band=priors.reference_band,
     )
-    posterior_cubes = np.hstack((samples, red_neg_chisq[:, np.newaxis]))
+    posterior_cubes = np.hstack((samples, red_chisq[:, np.newaxis]))
 
     return PosteriorSamples(
         posterior_cubes, sample_mean=posterior_cube_mean, name=lightcurve.name, sampling_method="iminuit",

@@ -2,6 +2,7 @@ import os
 import shutil
 
 import extinction
+import pandas as pd
 import numpy as np
 import torch
 from astropy.coordinates import SkyCoord
@@ -10,14 +11,10 @@ from dustmaps.sfd import SFDQuery
 from torch.utils.data import TensorDataset
 from torch.utils.tensorboard import SummaryWriter
 from scipy.special import lambertw
+from tensorflow_probability.substrates.jax.math import lambertw as jaxlw
+import jax.numpy as jnp
+from numpyro.distributions import constraints
 
-from superphot_plus.file_paths import (
-    CLASSIFY_LOG_FILE,
-    FIT_PLOTS_FOLDER,
-    PROBS_FILE,
-    PROBS_FILE2,
-    WRONGLY_CLASSIFIED_FOLDER,
-)
 from superphot_plus.sfd import dust_filepath
 
 def get_band_extinctions_from_mwebv(mwebv, wvs):
@@ -197,8 +194,7 @@ def flux_model(cube, t_data, b_data, max_flux, ordered_bands, ref_band):
     beta = cube[start_idx + 1]
     gamma = 10**cube[start_idx + 2]
     t_0 = cube[start_idx + 3]
-    tau_rise, tau_fall = 10**cube[start_idx + 4: start_idx + 6]
-    
+    tau_rise, tau_fall, extra_sigma = 10**cube[start_idx + 4: start_idx + 7]
     phase = t_data - t_0
     f_model = (
         amp / (1.0 + np.exp(-phase / tau_rise)) * (1.0 - beta * gamma) * np.exp((gamma - phase) / tau_fall)
@@ -254,41 +250,30 @@ def params_valid(beta, gamma, tau_rise, tau_fall):
     bool
         True if parameters are valid, False otherwise.
     """
-    if np.any(np.isnan(
-        [beta, gamma, tau_rise, tau_fall]
-    )):
+
+    if np.any(
+        np.isnan([beta, gamma, tau_rise, tau_fall])
+    ):
         return False
-    
-    if gamma > 1.0 / beta:
-        return False
-    
+
+    # ensure dF2/dtheta < dF1/dtheta at gamma
     if gamma > (1.0 - beta * tau_fall) / beta:
         return False
-    
-    """
-    if tau_fall > 1.0 / beta:
-        return False
 
-    if tau_rise * (1.0 + np.exp(gamma / tau_rise)) < tau_fall:
+    # ensure dF_rise/dtheta < 0 at gamma
+    if np.exp(-gamma / tau_rise) * (1/tau_rise - beta - beta*gamma/tau_rise) > beta:
         return False
-    """
-
-    if 1./beta < tau_rise:
-        return False
-    
-    # ensure maximum reached before second phase
-    temp = 1./beta - tau_rise
-    
-    if temp/tau_rise >= 1000:
-        if gamma < tau_rise * np.log(temp/tau_rise):
-            return False #2nd order approximation
-    else:
-        if gamma < temp - tau_rise * np.real(lambertw(np.exp(temp / tau_rise))):
-            return False
 
     return True
 
+def villar_fit_constraint(x):
+    beta, gamma, tau_rise, tau_fall = x
+    return (
+        jnp.maximum(gamma - (1.0 - beta * tau_fall) / beta, 0.) +
+        jnp.maximum(jnp.exp(-gamma / tau_rise) * (1.0/beta - tau_rise - gamma) - tau_rise, 0.)
+    )
 
+    
 def get_numpyro_cube(params, max_flux, ref_band, ordered_bands):
     """
     Convert output param dict from numpyro sampler to match that
@@ -318,22 +303,15 @@ def get_numpyro_cube(params, max_flux, ref_band, ordered_bands):
         params["log_tau_fall"],
         params["log_extra_sigma"],
     )
-
-    A = max_flux * 10**logA
-    gamma = 10**log_gamma
-    tau_rise = 10**log_tau_rise
-    tau_fall = 10**log_tau_fall
-    extra_sigma = 10**log_extra_sigma  # pylint: disable=unused-variable
-
+    
     cube = []
-    #cube = [A, beta, gamma, t0, tau_rise, tau_fall, extra_sigma]
 
     for b in ordered_bands:
         if b == ref_band:
             cube.extend(
             [
-                A, beta, gamma, t0,
-                tau_rise, tau_fall, extra_sigma
+                logA, beta, log_gamma, t0,
+                log_tau_rise, log_tau_fall, log_extra_sigma
             ]
         )
         else:
@@ -383,18 +361,24 @@ def calculate_log_likelihood(cube, lightcurve, unique_bands, ref_band):
 
     # Generate points from 'cube' for comparison.
     max_flux, _ = lightcurve.find_max_flux(band=ref_band)
-    f_model = flux_model(cube, lightcurve.times, lightcurve.bands, unique_bands, ref_band)
-    extra_sigma_arr = np.ones(len(lightcurve.times)) * cube[6] * max_flux
+    f_model = flux_model(
+        cube, lightcurve.times, lightcurve.bands,
+        max_flux, unique_bands, ref_band
+    )
+    extra_sigma_arr = np.ones(len(lightcurve.times)) * 10**cube[6] * max_flux
     for band_idx, ordered_band in enumerate(unique_bands):
         if ordered_band == ref_band:
             continue
-        extra_sigma_arr[lightcurve.bands == ordered_band] *= cube[7 * band_idx + 6]
+        extra_sigma_arr[lightcurve.bands == ordered_band] *= 10**cube[7 * band_idx + 6]
 
     # Compute the loglikelihood based on the differences in flux between the observed
     # and generated.
     sigma_sq = lightcurve.flux_errors**2 + extra_sigma_arr**2
+
+    print(sigma_sq, f_model, lightcurve.fluxes)
     logL = np.sum(
-        np.log(1.0 / np.sqrt(2.0 * np.pi * sigma_sq)) - 0.5 * (f_model - lightcurve.fluxes) ** 2 / sigma_sq
+        np.log(1.0 / np.sqrt(2.0 * np.pi * sigma_sq))
+        - 0.5 * (f_model - lightcurve.fluxes) ** 2 / sigma_sq
     )
     return logL
 
@@ -428,9 +412,13 @@ def calculate_mse(cube, lightcurve, unique_bands, ref_band):
     if len(lightcurve.times) == 0:
         raise ValueError("Empty light curve provided.")
 
+    max_flux, _ = lightcurve.find_max_flux(band="r")
     # Generate points from 'cube' for comparison.
-    f_model = flux_model(cube, lightcurve.times, lightcurve.bands, unique_bands, ref_band)
-
+    
+    f_model = flux_model(
+        cube, lightcurve.times, lightcurve.bands,
+        max_flux, unique_bands, ref_band
+    )
     mse_sum = np.sum(np.square(f_model - lightcurve.fluxes))
     return mse_sum / len(lightcurve.times)
 
@@ -457,23 +445,21 @@ def calculate_chi_squareds(cubes, t, f, ferr, b, max_flux, ordered_bands=None, r
     """
     if ordered_bands is None:
         ordered_bands = ["r", "g"]
-
+        
+    ordered_bands = np.asarray(ordered_bands)
+    
     model_f = np.array(
         [flux_model(cube, t, b, max_flux, ordered_bands, ref_band) for cube in cubes]
     )  # in future, maybe vectorize flux_model
     ref_band_idx = np.where(ordered_bands == ref_band)[0][0]
     extra_sigma_arr = np.ones((len(cubes), len(t))) * np.max(f[b == ref_band]) * 10**cubes[:, ref_band_idx + 6][:, np.newaxis]
 
-    for i, ordered_band in enumerate(ordered_bands[ordered_bands != ref_band]):
-        extra_sigma_arr[:, b == ordered_band] *= 10**cubes[:, 7 * i + 13][:, np.newaxis]
+    for i, ordered_band in enumerate(ordered_bands):
+        if ordered_band == ref_band:
+            continue
+        extra_sigma_arr[:, b == ordered_band] *= 10**cubes[:, 7 * i + 6][:, np.newaxis]
     sigma_sq = extra_sigma_arr**2 + ferr**2
-
-    """
-    log_likelihoods = np.sum(
-        np.log(1.0 / np.sqrt(2.0 * np.pi * sigma_sq)) - 0.5 * (f - model_f) ** 2 / sigma_sq, axis=1
-    ) / len(t)
-    """
-    red_chisq = 0.5 * np.sum((f[np.newaxis, :] - model_f) ** 2 / sigma_sq, axis=1) / len(t)
+    red_chisq = np.sum((f[np.newaxis, :] - model_f) ** 2 / sigma_sq, axis=1) / len(t)
 
     return red_chisq
 
@@ -499,11 +485,11 @@ def create_dataset(features, labels, idxs=None):
     tensor_y = torch.tensor(labels, dtype=torch.int64, device='cpu')
 
     if idxs is None:
-        return TensorDataset(tensor_x, tensor_y)  # create your datset
+        return TensorDataset(tensor_x, tensor_y)
 
     tensor_z = torch.tensor(idxs, dtype=torch.int64, device='cpu')
 
-    return TensorDataset(tensor_x, tensor_y, tensor_z)  # create your datset
+    return TensorDataset(tensor_x, tensor_y, tensor_z)
 
 
 def calculate_accuracy(y_pred, y):
@@ -549,7 +535,10 @@ def epoch_time(start_time, end_time):
 
 
 def save_test_probabilities(
-    output_filename, pred_probabilities, true_label=None, output_dir=None, save_file=None
+    obj_names,
+    pred_probabilities,
+    output_path,
+    true_labels=None
 ):
     """Saves probabilities to a separate file for ROC curve generation.
 
@@ -564,19 +553,22 @@ def save_test_probabilities(
     output_dir: str
         Where to store the generated file.
     """
-    default_dir = PROBS_FILE2 if true_label is None else PROBS_FILE
-    default_dir = default_dir if save_file is None else save_file
-    output_path = default_dir if output_dir is None else os.path.join(output_dir, default_dir)
-
-    with open(output_path, "a+", encoding="utf-8") as probs_file:
-        if true_label is None:
-            probs_file.write(output_filename)
-        else:
-            probs_file.write(f"{output_filename},{str(true_label)}")
-        for prob in pred_probabilities:
-            probs_file.write(f",{prob:.04f}")
-        probs_file.write("\n")
-
+    if true_labels is None:
+        true_labels = np.ones(len(obj_names)) * -1
+        
+    #TODO: de-hard-code the headers
+    df_dict = {
+        'Name': obj_names,
+        'Label': true_labels,
+        'pSNIa': pred_probabilities[:,0],
+        'pSNII': pred_probabilities[:,1],
+        'pSNIIn': pred_probabilities[:,2],
+        'pSLSNI': pred_probabilities[:,3],
+        'pSNIbc': pred_probabilities[:,4]
+    }
+    
+    df = pd.DataFrame(df_dict)
+    df.to_csv(output_path, index=False)
 
 def adjust_log_dists(features_orig, redshift=False):
     """Takes log of fit parameters with log-Gaussian priors before
@@ -607,7 +599,6 @@ def write_metrics_to_file(
     true_classes,
     pred_classes,
     prob_above_07,
-    log_file=CLASSIFY_LOG_FILE,
 ):
     """Calculates the accuracy and f1 score metrics for the
     test set and outputs them to a log file.
@@ -627,8 +618,9 @@ def write_metrics_to_file(
     """
     test_acc = calc_accuracy(pred_classes, true_classes)
     test_f1_score = f1_score(pred_classes, true_classes, class_average=True)
+    print(config.best_val_loss)
 
-    with open(log_file, "a+", encoding="utf-8") as the_file:
+    with open(config.log_fn, "a+", encoding="utf-8") as the_file:
         the_file.write(str(config.goal_per_class) + " samples per class\n")
         the_file.write(
             str(config.neurons_per_layer)
@@ -645,7 +637,7 @@ def write_metrics_to_file(
         the_file.write(f"Best Validation Loss: {config.best_val_loss:.04f}\n\n")
 
 
-def extract_wrong_classifications(true_classes, pred_classes, ztf_test_names):
+def extract_wrong_classifications(true_classes, pred_classes, ztf_test_names, fit_folder, wc_folder):
     """Extracts the wrong model classifications and copies them to a separate folder.
 
     Parameters
@@ -663,11 +655,11 @@ def extract_wrong_classifications(true_classes, pred_classes, ztf_test_names):
         wc = ztf_test_names[wc_idx]
         wc_type = true_classes[wc_idx]
         wrong_type = pred_classes[wc_idx]
-        fn = wc + ".png"
-        fn_new = wc + "_" + wc_type + "_" + wrong_type + ".png"
+        fn = wc + ".pdf"
+        fn_new = wc + "_" + wc_type + "_" + wrong_type + ".pdf"
         shutil.copy(
-            os.path.join(FIT_PLOTS_FOLDER, fn),
-            os.path.join(WRONGLY_CLASSIFIED_FOLDER, wc_type + "/" + fn_new),
+            os.path.join(fit_folder, fn),
+            os.path.join(wc_folder, wc_type + "/" + fn_new),
         )
 
 

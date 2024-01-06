@@ -44,7 +44,11 @@ def read_probs_csv(probs_fn):
     """
     df = pd.read_csv(probs_fn)
     names = df.Name.to_numpy()
-    labels = df.Label.to_numpy()
+    try:
+        labels = df.Label.to_numpy()
+    except:
+        labels = None
+    
     probs = df[['pSNIa', 'pSNII', 'pSNIIn', 'pSLSNI', 'pSNIbc']].astype(float).to_numpy()
     try:
         folds = df.Fold.to_numpy()
@@ -86,7 +90,7 @@ def create_alerce_pred_csv(probs_fn, save_fn):
     """
     alerce_obj = Alerce()
 
-    names = read_probs_csv(probs_fn)[0]
+    names = pd.read_csv(probs_fn).Name.to_numpy()
 
     alerce_labels = []
     for sn_name in names:
@@ -101,14 +105,20 @@ def retrieve_four_class_info(probs_csv, probs_alerce_csv, p07=False):
     """Extract Superphot+ and ALeRCE predictions and true class info."""
     _, classes_to_labels = SnClass.get_type_maps()
 
-    (sn_names, true_classes, class_probs, pred_classes, _) = read_probs_csv(probs_csv)
+    (sn_names, true_classes, class_probs, pred_classes, folds, _) = read_probs_csv(probs_csv)
 
+    secondary_pred_classes = np.argsort(class_probs, axis=1)[:,-2]
+    
+    if true_classes is None:
+        true_classes = np.zeros(len(sn_names)) # filler
+    if folds is None:
+        folds = np.zeros(len(sn_names))
     try:
         true_labels = np.array([classes_to_labels[x] for x in true_classes])
     except:
         true_labels = np.array([SnClass.canonicalize(x) for x in true_classes])
     pred_labels = np.array([classes_to_labels[x] for x in pred_classes])
-
+    pred_labels2 = np.array([classes_to_labels[x] for x in secondary_pred_classes])
     # read in ALeRCE classes
     df_alerce = pd.read_csv(probs_alerce_csv)
     pred_alerce = df_alerce.alerce_label.to_numpy().astype(str)
@@ -117,28 +127,32 @@ def retrieve_four_class_info(probs_csv, probs_alerce_csv, p07=False):
     # ignore true SNe IIn
     ignore_mask = ignore_mask | (true_labels == "SN IIn")
 
-    (sn_names, true_labels, class_probs, pred_labels, pred_alerce) = (
+    (sn_names, true_labels, class_probs, pred_labels2, pred_labels, pred_alerce, folds) = (
         sn_names[~ignore_mask],
         true_labels[~ignore_mask],
         class_probs[~ignore_mask],
+        pred_labels2[~ignore_mask],
         pred_labels[~ignore_mask],
         pred_alerce[~ignore_mask],
+        folds[~ignore_mask]
     )
-
+    print(np.unique(pred_labels2[pred_labels == "SN IIn"], return_counts=True))
     # merge SN IIn predictions with SN II
-    pred_labels[pred_labels == "SN IIn"] = "SN II"
+    pred_labels[pred_labels == "SN IIn"] = pred_labels2[pred_labels == "SN IIn"]
 
+    
     if p07:
         p07_mask = np.max(class_probs, axis=1) > 0.7
-        (sn_names, true_labels, class_probs, pred_labels, pred_alerce) = (
+        (sn_names, true_labels, class_probs, pred_labels, pred_alerce, folds) = (
             sn_names[p07_mask],
             true_labels[p07_mask],
             class_probs[p07_mask],
             pred_labels[p07_mask],
             pred_alerce[p07_mask],
+            folds[p07_mask]
         )
 
-    return (sn_names, true_labels, class_probs, pred_labels, pred_alerce)
+    return (sn_names, true_labels, class_probs, pred_labels, pred_alerce, folds)
 
 
 def gaussian(inputs, amp, mean, sigma):
@@ -184,7 +198,9 @@ def add_snr_to_prob_csv(probs_csv, data_dir, new_csv):
     Adds 10% SNR and num of SNR > 5 points columns
     to probability CSV. Useful for plots.
     """
-    names, _, _, _, probs_df = read_probs_csv(probs_csv)
+    #names, _, _, _, _, probs_df = read_probs_csv(probs_csv)
+    probs_df = pd.read_csv(probs_csv)
+    names = probs_df.Name.to_numpy()
 
     extended_df = probs_df.copy()
 

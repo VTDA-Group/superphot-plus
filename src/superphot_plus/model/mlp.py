@@ -1,32 +1,27 @@
 """This module implements the Multi-Layer Perceptron (MLP) model for classification."""
-import csv
 import os
 import random
 import time
 
 import numpy as np
-import pandas as pd
 import torch
 import torch.nn.functional as F
 from torch import nn, optim
 from torch.utils.data import DataLoader, TensorDataset
 
 from superphot_plus.constants import EPOCHS, HIDDEN_DROPOUT_FRAC, INPUT_DROPOUT_FRAC
-from superphot_plus.file_paths import PROBS_FILE
-from superphot_plus.file_utils import get_posterior_samples
 from superphot_plus.format_data_ztf import normalize_features
-from superphot_plus.model.config import ModelConfig
+from superphot_plus.config import SuperphotConfig
 from superphot_plus.model.metrics import ModelMetrics
 from superphot_plus.utils import (
-    adjust_log_dists,
-    calculate_accuracy,
     create_dataset,
     epoch_time,
     save_test_probabilities,
+    calculate_accuracy,
 )
 
 
-class SuperphotClassifier(nn.Module):
+class SuperphotMLP(nn.Module):
     """The Multi-Layer Perceptron.
 
     Parameters
@@ -35,7 +30,7 @@ class SuperphotClassifier(nn.Module):
         The MLP architecture configuration.
     """
 
-    def __init__(self, config: ModelConfig):
+    def __init__(self, config: SuperphotConfig):
         super().__init__()
 
         # Initialize MLP architecture
@@ -250,7 +245,7 @@ class SuperphotClassifier(nn.Module):
 
         return epoch_loss / len(iterator), epoch_acc / len(iterator)
 
-    def evaluate(self, test_data, probs_csv_path=PROBS_FILE):
+    def evaluate(self, test_data):
         """Runs model over a group of test samples.
 
         Parameters
@@ -258,8 +253,6 @@ class SuperphotClassifier(nn.Module):
         test_data : TestData
             The data to evaluate the model. Consists of test features,
             test classes, test names and a list of grouped indices, respectively.
-        probs_csv_path : str, optional
-            Where to store the probability results.
 
         Returns
         -------
@@ -270,10 +263,10 @@ class SuperphotClassifier(nn.Module):
         test_features, test_classes, test_names, test_group_idxs = test_data
 
         # Write output file header
-        with open(probs_csv_path, "w+", encoding="utf-8") as probs_file:
+        with open(self.config.probs_fn, "w+", encoding="utf-8") as probs_file:
             probs_file.write("Name,Label,pSNIa,pSNII,pSNIIn,pSLSNI,pSNIbc\n")
 
-        labels, pred_labels, max_probs, names = [], [], [], []
+        labels, pred_labels, max_probs, names, probs_avgs = [], [], [], [], []
 
         for group_idx_set in test_group_idxs:
             test_dataset = create_dataset(
@@ -289,18 +282,18 @@ class SuperphotClassifier(nn.Module):
 
             labels_indiv = labels_indiv.numpy()
 
-            save_test_probabilities(
-                test_names[indx_indiv.numpy().astype(int)[0]],
-                probs_avg,
-                labels_indiv[0],
-                save_file=probs_csv_path,
-            )
-
             pred_labels.append(np.argmax(probs_avg))
             max_probs.append(np.amax(probs_avg))
             labels.append(labels_indiv[0])
             names.append(test_names[indx_indiv.numpy().astype(int)[0]])
+            probs_avgs.append(probs_avg)
 
+        save_test_probabilities(
+            names,
+            np.array(probs_avgs),
+            self.config.probs_fn,
+            true_labels=labels,
+        )
         return (
             np.array(labels).astype(int),
             np.array(names),
@@ -385,37 +378,6 @@ class SuperphotClassifier(nn.Module):
 
         return images, probs
 
-    def classify_single_light_curve(self, obj_name, fits_dir, sampler="dynesty"):
-        """Given an object name, return classification probabilities
-        based on the model fit and data.
-
-        Parameters
-        ----------
-        obj_name : str
-            Name of the supernova.
-        fits_dir : str
-            Where model fit information is stored.
-        sampler : str
-            The MCMC sampler to use. Defaults to "dynesty".
-
-        Returns
-        ----------
-        np.ndarray
-            The average probability for each SN type across all equally-weighted sets of fit parameters.
-        """
-        post_features = get_posterior_samples(obj_name, fits_dir, sampler)
-
-        chisq = np.mean(post_features[:, -1])
-        if np.abs(chisq) > 0.6:  # probably not a SN
-            print("OBJECT LIKELY NOT A SN")
-            return None
-
-        # normalize the log distributions
-        post_features = adjust_log_dists(post_features)
-        probs = self.classify_from_fit_params(post_features)
-        probs_avg = np.mean(probs, axis=0)
-        return probs_avg
-
     def classify_from_fit_params(self, fit_params):
         """Classify one or multiple light curves solely from the fit parameters
         used in the classifier. Excludes t0 and, for redshift-exclusive
@@ -444,45 +406,8 @@ class SuperphotClassifier(nn.Module):
         _, probs = self.get_predictions_from_fit_params(test_iterator)
         return probs.numpy()
 
-    def return_new_classifications(self, test_csv, fit_dir, save_file, output_dir=None, include_labels=False, sampler='dynesty'):
-        """Return new classifications based on model and save probabilities
-        to a CSV file.
 
-        Parameters
-        ----------
-        test_csv : str
-            Path to the CSV file containing the test data.
-        fit_dir : str
-            Path to the directory containing the fit data.
-        save_file : str
-            File to store the new classification outputs.
-        output_dir : str
-            Path to the directory to store the classification outputs.
-        include_labels : bool, optional
-            If True, labels from the test data are included in the
-            probability saving process. Defaults to False.
-        """
-        filepath = save_file if output_dir is None else os.path.join(output_dir, save_file)
-
-        with open(filepath, "w+", encoding="utf-8") as pf:
-            pf.write("Name,Label,pSNIa,pSNII,pSNIIn,pSLSNI,pSNIbc\n")
-
-        df = pd.read_csv(test_csv)
-        names = df.NAME.to_numpy()
-        labels = df.CLASS.to_numpy()
-        
-        for i, test_name in enumerate(names):
-            label = None
-            
-            if include_labels:
-                label = labels[i]
-
-            probs_avg = self.classify_single_light_curve(test_name, fit_dir, sampler=sampler)
-            if probs_avg is None:
-                continue
-            save_test_probabilities(test_name, probs_avg, label, output_dir, save_file)
-
-    def save(self, models_dir):
+    def save(self, models_dir, suffix=""):
         """Stores the trained model and respective configuration.
 
         Parameters
@@ -490,7 +415,7 @@ class SuperphotClassifier(nn.Module):
         models_dir : str, optional
             Where to store pretrained models and their configurations.
         """
-        file_prefix = os.path.join(models_dir, "best-model")
+        file_prefix = os.path.join(models_dir, f"best-model-{suffix}")
 
         # Save configuration to disk
         self.config.write_to_file(f"{file_prefix}.yaml")
@@ -498,6 +423,7 @@ class SuperphotClassifier(nn.Module):
         # Save Pytorch model to disk
         torch.save(self.best_model, f"{file_prefix}.pt")
 
+        
     @classmethod
     def create(cls, config):
         """Creates an MLP instance, optimizer and respective criterion.
@@ -534,7 +460,7 @@ class SuperphotClassifier(nn.Module):
         tuple
             The pre-trained classifier object and the respective model config.
         """
-        config = ModelConfig.from_file(config_filename)
-        model = SuperphotClassifier.create(config)  # set up empty multi-layer perceptron
+        config = SuperphotConfig.from_file(config_filename)
+        model = SuperphotMLP.create(config)  # set up empty multi-layer perceptron
         model.load_state_dict(torch.load(filename))  # load trained state dict to the MLP
         return model, config

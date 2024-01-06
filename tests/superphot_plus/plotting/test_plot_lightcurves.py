@@ -56,8 +56,8 @@ def test_plot_sampling_lc_fit_numpyro(
         lcs,
         ref_band,
         ordered_bands,
+        tmp_path,
         "svi",
-        output_folder=tmp_path
     )
 
     out_fn = os.path.join(tmp_path, single_ztf_sn_id + "_svi.pdf")

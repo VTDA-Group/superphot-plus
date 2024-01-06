@@ -9,7 +9,7 @@ from superphot_plus.lightcurve import Lightcurve
 from superphot_plus.posterior_samples import PosteriorSamples
 from superphot_plus.samplers.sampler import Sampler
 from superphot_plus.surveys.fitting_priors import MultibandPriors
-from superphot_plus.utils import calculate_neg_chi_squareds
+from superphot_plus.utils import calculate_chi_squareds
 
 __all__ = ["LiCuSampler"]
 
@@ -30,7 +30,7 @@ class LiCuSampler(Sampler):
     """
 
     def __init__(self, **licu_kwargs):
-        kwargs = {'algorithm': 'ceres'}
+        kwargs = {'algorithm': 'ceres', 'ceres_niter': 10_000}
         kwargs.update(licu_kwargs)
         self.licu_kwargs = kwargs
 
@@ -52,7 +52,7 @@ class LiCuSampler(Sampler):
             Return the MCMC samples or None if the fitting is
             skipped or encounters an error.
         """
-        max_flux, max_flux_loc = lightcurve.find_max_flux()
+        max_flux, max_flux_loc = lightcurve.find_max_flux(band=priors.reference_band)
         reference_idx = priors.ref_band_index
         priors_clip_a, priors_clip_b, priors_mean, _priors_std = (
             transform_priors_to_physical_values(a, max_flux, max_flux_loc, reference_idx=reference_idx)
@@ -66,28 +66,38 @@ class LiCuSampler(Sampler):
                 priors_clip_b.reshape(-1, 7),
                 priors_mean.reshape(-1, 7)
         ):
-            lc = lightcurve.filter_by_band(band, in_place=False)
+            lc = lightcurve.filter_by_band([band,], in_place=False)
             cube.extend(fit_single_band(lc, clip_a, clip_b, mean, **self.licu_kwargs))
         cube = np.asarray(cube)
-
+        # Fix for out of the limits parameters and for NaNs
+        cube = np.clip(cube, priors_clip_a, priors_clip_b)
+        
         # Scale parameters to the reference band
         non_ref_idx = np.delete(np.arange(len(priors.ordered_bands)), reference_idx)
         param_matrix = cube.reshape(-1, 7)
-        param_matrix[non_ref_idx] /= param_matrix[reference_idx]
-        # Fix for out of the limits parameters and for NaNs
-        cube = np.clip(cube, priors_clip_a, priors_clip_b)
-        cube = np.where(np.isnan(cube), priors_mean, cube)
+        param_matrix[non_ref_idx, [0,1,2,4,5,6]] /= param_matrix[reference_idx, [0,1,2,4,5,6]]
+        
+        # revert back to log space for saving
+        param_matrix[reference_idx][[0,6]] /= max_flux
+        param_matrix[reference_idx][[0, 2, 4, 5, 6]] = np.log10(param_matrix[reference_idx][[0, 2, 4, 5, 6]])
+        param_matrix[non_ref_idx, [0, 1, 2, 4, 5, 6]] = np.log10(param_matrix[non_ref_idx, [0, 1, 2, 4, 5, 6]])
+        param_matrix[non_ref_idx, 3] -= param_matrix[reference_idx, 3]
+        param_matrix[:, 3] -= max_flux_loc
 
-        red_neg_chisq = calculate_neg_chi_squareds(
+        cube = param_matrix.flatten()
+        cube = np.where(np.isnan(cube), priors.to_numpy().T[2], cube)
+
+        red_chisq = calculate_chi_squareds(
             cube.reshape(1, -1),
             lightcurve.times,
             lightcurve.fluxes,
             lightcurve.flux_errors,
             lightcurve.bands,
+            max_flux,
             ordered_bands=priors.ordered_bands,
             ref_band=priors.reference_band,
         )
-        sample = np.concatenate([cube, red_neg_chisq])
+        sample = np.concatenate([cube, red_chisq])
 
         samples = sample.reshape(1, -1)
 
@@ -160,17 +170,19 @@ def transform_priors_to_physical_values(cube, max_flux, max_flux_loc, *, referen
     output = cube.copy()
 
     # Scale log-priors to linear values
-    output[:, [0, 2, 4, 5, 6]] = 10 ** output[:, [0, 2, 4, 5, 6]]
+    output[reference_idx, [0, 2, 4, 5, 6]] = 10 ** output[reference_idx, [0, 2, 4, 5, 6]]
 
     # amplitude and extra_sigma must be scaled by the maximum flux
     output[reference_idx, [0, 6]] *= max_flux
 
     # Non-reference band priors must be scaled by the reference band prior
     non_ref_idx = np.delete(np.arange(output.shape[0]), reference_idx)
-    output[non_ref_idx] *= output[reference_idx]
+    output[non_ref_idx, [0,1,2,4,5,6]] = 10**output[non_ref_idx, [0,1,2,4,5,6]]
+    output[non_ref_idx, [0,1,2,4,5,6]] *= output[reference_idx, [0,1,2,4,5,6]]
 
     # Reference time should not be scaled and should be set separately
-    output[:, 3] = cube[:, 3] + max_flux_loc
+    output[non_ref_idx, 3] += output[reference_idx, 3]
+    output[:, 3] += max_flux_loc
 
     return output.reshape(-1)
 
@@ -213,5 +225,5 @@ def transform_from_licu(
     t_0 = reference_time
     tau_rise = rise_time
     tau_fall = fall_time
-    extra_sigma = 1e-3  # no extra_sigma in light-curve package
+    extra_sigma = 0.  # no extra_sigma in light-curve package
     return np.array([amp, beta, gamma, t_0, tau_rise, tau_fall, extra_sigma])

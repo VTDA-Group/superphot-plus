@@ -13,13 +13,16 @@ def test_import_labels_only(tmp_path):
     csv_file = os.path.join(tmp_path, "labels.csv")
     with open(csv_file, "w+", encoding="utf-8") as new_csv:
         csv_writer = csv.writer(new_csv, delimiter=",")
-        csv_writer.writerow(["Name", "Label", "Redshift"])
+        csv_writer.writerow(["NAME", "CLASS", "Z"])
         csv_writer.writerow(["ZTF_SN_1234", "SN Ic", 4.5])
         csv_writer.writerow(["ZTF_SN_1234", "SN IIn", 4.5])
         csv_writer.writerow(["ZTF_SN_4567", "SN Ib-Ca-rich", 5.6])
 
     ## With no weighted fits, we skip all of the inputs
-    names, labels, redshifts = import_labels_only([csv_file], SupernovaClass.all_classes())
+    names, labels, redshifts = import_labels_only(
+        [csv_file],
+        SupernovaClass.all_classes(),
+    )
 
     assert len(names) == 0
     assert len(labels) == 0
@@ -30,7 +33,11 @@ def test_import_labels_only(tmp_path):
     os.makedirs(fits_dir, exist_ok=True)
     Path(os.path.join(fits_dir, "ZTF_SN_1234_eqwt.npz")).touch()
 
-    names, labels, redshifts = import_labels_only([csv_file], SupernovaClass.all_classes(), fits_dir=fits_dir)
+    names, labels, redshifts = import_labels_only(
+        [csv_file],
+        SupernovaClass.all_classes(),
+        fits_dir=fits_dir
+    )
 
     ## Should not include duplicate label.
     assert names == ["ZTF_SN_1234"]
@@ -52,39 +59,52 @@ def test_oversample_using_posteriors(test_data_dir, single_ztf_sn_id):
 
     names = [single_ztf_sn_id] * 3
     goal_per_class = 10
-    redshifts = [4.5, 4.5, 5.6]
+    redshifts = [4.5, 4.5, -1]
 
     # Oversampling from a set of unique supernova classes.
     classes = [4, 1, 2]  # Classes for "Sn Ibc", "SN II" and "SN IIn"
-    features, labels, oversampled_redshifts = oversample_using_posteriors(
+    features, labels, = oversample_using_posteriors(
         lc_names=names,
         labels=classes,
         goal_per_class=goal_per_class,
         fits_dir=test_data_dir,
-        sampler=None,
-        redshifts=redshifts,
+        sampler='dynesty',
         oversample_redshifts=False,
     )
 
     # We should have 30 samples in total, 10 for each class.
     assert len(features) == len(labels) == 30
-    assert len(oversampled_redshifts) == 0  # redshifts are not included
     assert len(labels[labels == 4]) == len(labels[labels == 1]) == len(labels[labels == 2]) == 10
 
-    # Oversampling from a set with repeated supernova classes.
-    classes = [4, 1, 1]  # Classes for "Sn Ibc" and "SN II"
-    features, labels, oversampled_redshifts = oversample_using_posteriors(
+    features, labels, = oversample_using_posteriors(
         lc_names=names,
         labels=classes,
         goal_per_class=goal_per_class,
         fits_dir=test_data_dir,
-        sampler=None,
+        sampler='dynesty',
+        redshifts=redshifts,
+        oversample_redshifts=True,
+    )
+
+    # We should have 30 samples in total, 10 for each class.
+    assert len(features) == len(labels) == 20
+    assert len(labels[labels == 4]) == len(labels[labels == 1]) == 10
+    assert len(labels[labels == 2]) == 0
+    
+    # Oversampling from a set with repeated supernova classes.
+    classes = [4, 1, 1]  # Classes for "Sn Ibc" and "SN II"
+    features, labels = oversample_using_posteriors(
+        lc_names=names,
+        labels=classes,
+        goal_per_class=goal_per_class,
+        fits_dir=test_data_dir,
+        sampler='dynesty',
         redshifts=redshifts,
         oversample_redshifts=True,
     )
 
     # We should have less samples due to repeated class.
-    assert len(features) == len(labels) == len(oversampled_redshifts) == 20
+    assert len(features) == len(labels) == 20
     assert len(labels[labels == 4]) == len(labels[labels == 1]) == 10
 
 

@@ -100,7 +100,6 @@ def run_mcmc(lightcurve, priors=Survey.ZTF().priors, rstate=None):
     prior_mean[start_idx + 3] += max_flux_loc
 
     prior_std = np.copy(all_priors[3])
-    #prior_std[start_idx + 3] = 20.0
 
     # Precompute the vectors of trunc_gauss a and b values.
     tg_a = (prior_clip_a - prior_mean) / prior_std
@@ -123,25 +122,7 @@ def run_mcmc(lightcurve, priors=Survey.ZTF().priors, rstate=None):
         # Compute the truncated Gaussian distribution for all values at once.
         tg_vals = truncnorm.ppf(cube, tg_a, tg_b, loc=prior_mean, scale=prior_std)
         return tg_vals
-        """
-        cube[start_idx] = (
-            max_flux * 10 ** tg_vals[start_idx]
-        )  # log-uniform for A from 1.0x to 16x of max flux
-        
-        cube[start_idx + 1:] = tg_vals[start_i
-        cube[start_idx + 1] = tg_vals[start_idx + 1]  # beta UPDATED, looks more Lorentzian so widened by 1.5x
-        cube[start_idx + 2] = 10 ** tg_vals[start_idx + 2]  # very broad Gaussian temporary solution for gamma
-        cube[start_idx + 3] = tg_vals[start_idx + 3]
-        cube[start_idx + 4 : start_idx + 7] = 10 ** tg_vals[start_idx + 4 : start_idx + 7]  # taurise, UPDATED
 
-        # all other bands
-        cube[:start_idx] = 10**tg_vals[:start_idx]  # all non-ref params
-        cube[start_idx + 7 :] = 10**tg_vals[start_idx + 7 :]
-        cube[3:start_idx:7] = tg_vals[3:start_idx:7]
-        cube[start_idx + 10:start_idx:7] = tg_vals[start_idx + 10:start_idx:7]
-        
-        return cube
-        """
 
     def create_logL(cube):
         """Define the log-likelihood function.
@@ -223,5 +204,9 @@ def run_mcmc(lightcurve, priors=Survey.ZTF().priors, rstate=None):
     eq_wt_samples = np.append(eq_wt_samples, eq_wt_red_chisq[np.newaxis, :].T, 1)
 
     return PosteriorSamples(
-        eq_wt_samples, name=lightcurve.name, sampling_method="dynesty", sn_class=lightcurve.sn_class
+        eq_wt_samples,
+        name=lightcurve.name,
+        sampling_method="dynesty",
+        sn_class=lightcurve.sn_class,
+        max_flux=max_flux
     )

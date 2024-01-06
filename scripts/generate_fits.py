@@ -6,7 +6,6 @@ from os import urandom
 import numpy as np
 from tqdm import tqdm
 
-from superphot_plus.file_paths import CLASSIFICATION_DIR, DATA_DIR
 from superphot_plus.lightcurve import Lightcurve
 from superphot_plus.samplers.dynesty_sampler import DynestySampler
 from superphot_plus.samplers.iminuit_sampler import IminuitSampler
@@ -179,6 +178,14 @@ def extract_cmd_args():
         description="Parses mosfit data and generates posteriors and physical property files",
     )
     parser.add_argument(
+        "--output_dir",
+        help="Base directory for classification outputs",
+    )
+    parser.add_argument(
+        "--lightcurves_dir",
+        help="Directory where light curve CSV data is stored",
+    )
+    parser.add_argument(
         "--sampler",
         help="The sampler to use for fitting",
         choices=[
@@ -191,11 +198,7 @@ def extract_cmd_args():
         ],
         default="dynesty",
     )
-    parser.add_argument(
-        "--lightcurves_dir",
-        help="Directory where light curve CSV data is stored",
-        default=f"{DATA_DIR}/training_lcs",
-    )
+    
     parser.add_argument(
         "--survey",
         help="Survey to which data belongs to",
@@ -207,11 +210,7 @@ def extract_cmd_args():
         help="Number of workers for multi-core processing",
         default=3,
     )
-    parser.add_argument(
-        "--output_dir",
-        help="Base directory for classification outputs",
-        default=CLASSIFICATION_DIR,
-    )
+
     return parser.parse_args()
 
 

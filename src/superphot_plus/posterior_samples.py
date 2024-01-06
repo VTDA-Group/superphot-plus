@@ -57,7 +57,7 @@ class PosteriorSamples:
             Output directory path. Defaults to FITS_DIR.
         """
         posterior_filename = get_posterior_filename(self.name, output_dir, self.sampling_method)
-
+        
         np.savez_compressed(
             posterior_filename,
             samples=self.samples,
@@ -69,7 +69,7 @@ class PosteriorSamples:
         )
 
     @classmethod
-    def from_file(cls, input_dir, name, sampling_method='dynesty', **kwargs):
+    def from_file(cls, input_dir, name, sampling_method=None, **kwargs):
         """Create a PosteriorSamples object from a file.
 
         Parameters
@@ -92,6 +92,5 @@ class PosteriorSamples:
             all_kwargs['name'] = name
         if (sampling_method is not None) and ('sampling_method' not in all_kwargs):
             all_kwargs['sampling_method'] = sampling_method
-            
             
         return cls(samples, **all_kwargs)

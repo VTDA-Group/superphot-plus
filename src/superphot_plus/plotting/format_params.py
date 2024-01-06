@@ -1,10 +1,21 @@
 """This module introduces uniform plot formatting and parameter label generation."""
 
 import matplotlib.pyplot as plt
+import matplotlib as mpl
 import numpy as np
 
 from superphot_plus.constants import BIGGER_SIZE, MEDIUM_SIZE, SMALL_SIZE
 
+
+CUSTOM_COLORSET = [
+    '#4477AA',
+    '#EE6677',
+    '#228833',
+    '#CCBB44',
+    '#66CCEE',
+    '#AA3377',
+    '#BBBBBB',
+]
 
 def set_global_plot_formatting():
     """Set formatting that affects all subsequent plots."""
@@ -15,7 +26,36 @@ def set_global_plot_formatting():
     plt.rc("ytick", labelsize=MEDIUM_SIZE)  # fontsize of the tick labels
     plt.rc("legend", fontsize=MEDIUM_SIZE)  # legend fontsize
     plt.rc("figure", titlesize=BIGGER_SIZE)  # fontsize of the figure title
+    
+    
+    # set default color scheme (Paul Tol's Bright):
+    mpl.rcParams['axes.prop_cycle'] = mpl.cycler(
+        color=CUSTOM_COLORSET
+    )
+    
+    custom_cmap1 = mpl.colors.LinearSegmentedColormap.from_list(
+        "custom_cmap1",
+        ["#FFFFFF", '#EE6677']
+    )
+    custom_cmap2 = mpl.colors.LinearSegmentedColormap.from_list(
+        "custom_cmap2",
+        ["#FFFFFF", '#4477AA']
+    )
 
+    mpl.colormaps.register(cmap=custom_cmap1, force=True)
+    mpl.colormaps.register(cmap=custom_cmap2, force=True)
+
+def band_colors(c):
+    """Return face and edge colors for light curve plotting."""
+    face_dict = {
+        "r": '#EE6677',
+        "g": '#4477AA',
+    }
+    edge_dict = {
+        'r': '#BB5566',
+        'g': '#004488'
+    }
+    return face_dict[c], edge_dict[c]
 
 def param_labels(aux_bands=None, ref_band=None, log=True):
     """Return properly formatted parameter labels

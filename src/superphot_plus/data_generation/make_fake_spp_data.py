@@ -4,25 +4,9 @@ from scipy.stats import truncnorm
 
 from superphot_plus.lightcurve import Lightcurve
 from superphot_plus.utils import flux_model, params_valid
+from superphot_plus.surveys.surveys import Survey
 
 DEFAULT_MAX_FLUX = 1.0
-# Nested sampling priors
-PRIOR_A = [-0.2, 1.2, 0.0, 0.5]
-PRIOR_BETA = [0.0, 0.02, 0.0052, 1.5 * 0.000336]
-PRIOR_GAMMA = [-2.0, 2.5, 1.1391, 1.5 * 0.1719]
-PRIOR_T0 = [-100.0, 200.0, 0.0, 50.0]
-PRIOR_TAU_RISE = [-1.0, 3.0, 0.5990, 1.5 * 0.2073]
-PRIOR_TAU_FALL = [0.5, 4.0, 1.4296, 1.5 * 0.1003]
-PRIOR_EXTRA_SIGMA = [-5.0, -0.5, -1.5364, 0.2691]
-
-PRIOR_A_g = [0.0, 5.0, 1.0607, 1.5 * 0.1544]
-PRIOR_BETA_g = [1.0, 1.07, 1.0424, 0.0026]
-PRIOR_GAMMA_g = [0.8, 1.2, 1.0075, 0.0139]
-PRIOR_T0_g = [1.0 - 0.0006, 1.0006, 0.9999 + 8.9289e-5, 1.5 * 4.5055e-05]
-PRIOR_TAU_RISE_g = [0.5, 2.0, 0.9663, 0.0128]
-PRIOR_TAU_FALL_g = [0.1, 3.0, 0.5488, 0.0553]
-PRIOR_EXTRA_SIGMA_g = [0.2, 2.0, 0.8606, 0.0388]
-
 
 def trunc_gauss(quantile, clip_a, clip_b, mean, std):
     """Truncated Gaussian distribution.
@@ -50,7 +34,7 @@ def trunc_gauss(quantile, clip_a, clip_b, mean, std):
     return truncnorm.ppf(quantile, a, b, loc=mean, scale=std)
 
 
-def create_prior(cube):
+def create_prior(cube, priors=Survey.ZTF().priors):
     """Creates prior for dynesty, where each side of the "cube"
     is a value sampled between 0 and 1 representing each parameter.
     Slightly altered from ztf_transient_fit.py
@@ -65,27 +49,16 @@ def create_prior(cube):
     np.ndarray
         Updated array of parameters.
     """
-    cube[0] = DEFAULT_MAX_FLUX * 10 ** (
-        trunc_gauss(cube[0], *PRIOR_A)
-    )  # log-uniform for A from 1.0x to 16x of max flux
-    cube[1] = trunc_gauss(cube[1], *PRIOR_BETA)  # beta UPDATED, looks more Lorentzian so widened by 1.5x
-    cube[2] = 10 ** trunc_gauss(cube[2], *PRIOR_GAMMA)  # very broad Gaussian temporary solution for gamma
-    cube[3] = trunc_gauss(cube[3], *PRIOR_T0)  # t0
-    cube[4] = 10 ** (trunc_gauss(cube[4], *PRIOR_TAU_RISE))  # taurise, UPDATED
-    cube[5] = 10 ** (trunc_gauss(cube[5], *PRIOR_TAU_FALL))  # tau fall UPDATED
-    cube[6] = 10 ** (trunc_gauss(cube[6], *PRIOR_EXTRA_SIGMA))  # lognormal for extrasigma, UPDATED
+    priors=Survey.ZTF().priors
+    all_priors = priors.to_numpy().T
 
-    # green band
-    cube[7] = trunc_gauss(cube[7], *PRIOR_A_g)  # A UPDATED
-    cube[8] = trunc_gauss(cube[8], *PRIOR_BETA_g)  # beta UPDATED
-    cube[9] = trunc_gauss(cube[9], *PRIOR_GAMMA_g)  # gamma, GAUSSIAN not Lorentzian
-    cube[10] = trunc_gauss(cube[10], *PRIOR_T0_g)  # t0 UPDATED
-    cube[11] = trunc_gauss(cube[11], *PRIOR_TAU_RISE_g)  # taurise UPDATED, Gaussian
-    cube[12] = trunc_gauss(cube[12], *PRIOR_TAU_FALL_g)  # taufall UPDATED
-    cube[13] = trunc_gauss(cube[13], *PRIOR_EXTRA_SIGMA_g)  # extra sigma UPDATED, Gaussian
-
-    return cube
-
+    # Precompute the vectors of trunc_gauss a and b values.
+    tg_a = (all_priors[0] - all_priors[2]) / all_priors[3]
+    tg_b = (all_priors[1] - all_priors[2]) / all_priors[3]
+    
+    return truncnorm.ppf(
+        cube, tg_a, tg_b, loc=all_priors[2], scale=all_priors[3]
+    )
 
 def ztf_noise_model(mag, band, snr_range_g=None, snr_range_r=None):
     """A very, very simple noise model which assumes the dimmest magnitude is at SNR = 1,
@@ -127,7 +100,7 @@ def ztf_noise_model(mag, band, snr_range_g=None, snr_range_r=None):
     return snr
 
 
-def create_clean_models(nmodels, num_times=100, bands=None, ref_band="r"):
+def create_clean_models(nmodels, num_times=100, priors=Survey.ZTF().priors):
     """Generate 'clean' (noiseless) models from the prior
 
     Parameters
@@ -150,25 +123,29 @@ def create_clean_models(nmodels, num_times=100, bands=None, ref_band="r"):
     """
     params = []
     lcs = []
-
-    if bands is None:
-        bands = ["r", "g"]
-
+    
+    bands = priors.ordered_bands
+    ref_band = priors.reference_band
+    
     tdata = np.linspace(-100, 100, num_times)
     bdata = np.asarray([bands[i % len(bands)] for i in range(num_times)], dtype=str)
     edata = np.asarray([1e-6] * num_times, dtype=float)
 
     while len(lcs) < nmodels:
         cube = np.random.uniform(0, 1, 7 * len(bands))
-        cube = create_prior(cube)
+        cube = create_prior(cube, priors)
         A, beta, gamma, t0, tau_rise, tau_fall, es = cube[:7]  # pylint: disable=unused-variable
 
         # Try again if we picked invalid priors.
-        if not params_valid(beta, gamma, tau_rise, tau_fall):
+        if not params_valid(beta, 10**gamma, 10**tau_rise, 10**tau_fall):
             continue
+            
         params.append(cube)
 
-        f_model = flux_model(cube, tdata, bdata, bands, ref_band)
+        f_model = flux_model(
+            cube, tdata, bdata,
+            DEFAULT_MAX_FLUX, bands, ref_band
+        )
         lcs.append(Lightcurve(tdata, f_model, edata, bdata))
 
     return params, lcs
@@ -195,10 +172,6 @@ def create_ztf_model(plot=False):
     sigmas : np.ndarray
         Uncertainties of each dirty flux value.
     """
-
-    # Randomly sample from parameter space and from data/filters
-    cube = np.random.uniform(0, 1, 14)
-
     # This is going to random simulate some observation every 2-3 days across 2 filters
     num_observations = 130
     tdata = np.random.uniform(-100, 100, num_observations)
@@ -209,15 +182,22 @@ def create_ztf_model(plot=False):
 
     # Now re-attempts to regenerate until it gets a "good" model
     while not found_valid and num_tried < 100:
+        cube = np.random.uniform(0, 1, 14)
         params = create_prior(np.copy(cube))
         A, beta, gamma, t0, tau_rise, tau_fall, es = params[:7]  # pylint: disable=unused-variable
-        found_valid = params_valid(beta, gamma, tau_rise, tau_fall)
+        found_valid = params_valid(
+            beta, 10**gamma, 10**tau_rise, 10**tau_fall
+        )
         num_tried += 1
 
     if not found_valid:
         return "Failure"
 
-    f_model = flux_model(params, tdata, filter_data, ["r", "g"], "r")
+    f_model = flux_model(
+        params, tdata, filter_data,
+        DEFAULT_MAX_FLUX,
+        ["r", "g"], "r"
+    )
     snr = ztf_noise_model(f_model, filter_data)
 
     gind = np.where(snr > 3)  # any points with SNR < 3 are ignored
@@ -225,6 +205,7 @@ def create_ztf_model(plot=False):
     f_model = f_model[gind]
     tdata = tdata[gind]
     filter_data = filter_data[gind]
+    print(f_model)
     sigmas = f_model / snr
 
     dirty_model = f_model + np.random.normal(0, sigmas)

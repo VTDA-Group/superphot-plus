@@ -12,6 +12,7 @@ from sklearn.utils.multiclass import unique_labels
 from superphot_plus.plotting.utils import read_probs_csv, retrieve_four_class_info
 from superphot_plus.supernova_class import SupernovaClass as SnClass
 from superphot_plus.utils import calc_accuracy, f1_score
+from superphot_plus.constants import BIGGER_SIZE, MEDIUM_SIZE, SMALL_SIZE
 
 from superphot_plus.plotting.format_params import set_global_plot_formatting
 
@@ -65,7 +66,10 @@ def plot_binary_confusion_matrix(probs_csv, filename):
     
     pred_binary = np.where(prob_Ia > 0.5, "SN Ia", "SN CC")
     true_binary = np.where(true_classes == 0, "SN Ia", "SN CC")
-    folds = df.Fold.to_numpy()
+    try:
+        folds = df.Fold.to_numpy()
+    except:
+        folds = None
 
     plot_confusion_matrix(true_binary, pred_binary, filename + "_c.pdf", folds, purity=False)
     plot_confusion_matrix(true_binary, pred_binary, filename + "_p.pdf", folds, purity=True)
@@ -90,20 +94,31 @@ def compare_four_class_confusion_matrices(probs_csv, probs_alerce_csv, save_dir,
         If True, only include predictions with a probability >= 0.7.
         Default is False.
     """
-    (_, true_labels, _, pred_labels, pred_alerce) = retrieve_four_class_info(probs_csv, probs_alerce_csv, p07)
+    (
+        _, true_labels, _,
+        pred_labels, pred_alerce, folds
+    ) = retrieve_four_class_info(probs_csv, probs_alerce_csv, p07)
 
     plot_confusion_matrix(
-        true_labels, pred_labels, os.path.join(save_dir, "superphot4_c.pdf"), purity=False, cmap="Purples"
+        true_labels, pred_labels,
+        os.path.join(save_dir, "superphot4_c.pdf"),
+        folds=folds, purity=False, cmap='custom_cmap1',
     )
     plot_confusion_matrix(
-        true_labels, pred_labels, os.path.join(save_dir, "superphot4_p.pdf"), purity=True, cmap="Purples"
+        true_labels, pred_labels,
+        os.path.join(save_dir, "superphot4_p.pdf"),
+        folds=folds, purity=True, cmap='custom_cmap1',
     )
 
     plot_confusion_matrix(
-        true_labels, pred_alerce, os.path.join(save_dir, "alerce_c.pdf"), purity=False, cmap="Blues"
+        true_labels, pred_alerce,
+        os.path.join(save_dir, "alerce_c.pdf"),
+        folds=folds, purity=False, cmap='custom_cmap2',
     )
     plot_confusion_matrix(
-        true_labels, pred_alerce, os.path.join(save_dir, "alerce_p.pdf"), purity=True, cmap="Blues"
+        true_labels, pred_alerce,
+        os.path.join(save_dir, "alerce_p.pdf"),
+        folds=folds, purity=True, cmap='custom_cmap2',
     )
 
 
@@ -124,12 +139,12 @@ def plot_true_agreement_matrix(probs_csv, probs_alerce_csv, save_dir, spec=True)
         probs_csv,
         probs_alerce_csv,
         False,
-    )[3:]
+    )[3:5]
 
     plot_agreement_matrix_from_arrs(pred_labels, pred_alerce, save_dir, spec=spec)
 
 
-def plot_expected_agreement_matrix(probs_csv, probs_alerce_csv, save_dir, cmap="Purples"):
+def plot_expected_agreement_matrix(probs_csv, probs_alerce_csv, save_dir, cmap="custom_cmap2"):
     """Plot expected agreement matrix based on independent ALeRCE and
     Superphot+ confusion matrices.
 
@@ -142,8 +157,8 @@ def plot_expected_agreement_matrix(probs_csv, probs_alerce_csv, save_dir, cmap="
     cmap : matplotlib.colors.Colormap, optional
         Color map for the plot. Default is plt.cm.Purples.
     """
-    (_, true_labels, _, pred_labels, alerce_preds) = retrieve_four_class_info(
-        probs_csv, probs_alerce_csv, False
+    (_, true_labels, _, pred_labels, alerce_preds, _) = retrieve_four_class_info(
+        probs_csv, probs_alerce_csv
     )
 
     cm_purity = confusion_matrix(true_labels, pred_labels, normalize="pred")
@@ -182,7 +197,7 @@ def plot_expected_agreement_matrix(probs_csv, probs_alerce_csv, save_dir, cmap="
 
     # Loop over data dimensions and create text annotations.
     fmt = ".2f"
-    thresh = cm_expected.max() / 2.0
+    thresh = cm_expected.max() / 1.5
     for i in range(cm_expected.shape[0]):
         for j in range(cm_expected.shape[1]):
             axis.text(
@@ -203,7 +218,7 @@ def plot_expected_agreement_matrix(probs_csv, probs_alerce_csv, save_dir, cmap="
     plt.close()
 
 
-def plot_agreement_matrix_from_arrs(our_labels, alerce_labels, save_dir, spec=True, cmap="Purples"):
+def plot_agreement_matrix_from_arrs(our_labels, alerce_labels, save_dir, spec=True, cmap="custom_cmap2"):
     """Helper function to plot agreement matrices.
 
     Plot agreement matrix based on input arrays of ALeRCE and Superphot+
@@ -255,7 +270,7 @@ def plot_agreement_matrix_from_arrs(our_labels, alerce_labels, save_dir, spec=Tr
     plt.setp(ax.get_xticklabels(), rotation=45, ha="right", rotation_mode="anchor")
 
     # Loop over data dimensions and create text annotations.
-    thresh = cm.max() / 2.0
+    thresh = cm.max() / 1.5
     for i in range(cm.shape[0]):
         for j in range(cm.shape[1]):
             class_i = classes[i]
@@ -280,7 +295,7 @@ def plot_agreement_matrix_from_arrs(our_labels, alerce_labels, save_dir, spec=Tr
     plt.close()
 
 
-def plot_confusion_matrix(y_true, y_pred, filename, folds=None, purity=False, cmap="Purples"):
+def plot_confusion_matrix(y_true, y_pred, filename, folds=None, purity=False, cmap="custom_cmap1"):
     """Plot the confusion matrix between given true and predicted
     labels.
 
@@ -339,16 +354,16 @@ def plot_confusion_matrix(y_true, y_pred, filename, folds=None, purity=False, cm
                 )
                 
         cm_vals_all = np.asarray(cm_vals_all)
-        cm_vals = np.mean(cm_vals_all, axis=0)
-        cm_low = np.abs(cm_vals - np.percentile(cm_vals_all, 16, axis=0))
-        cm_high = np.abs(np.percentile(cm_vals_all, 84, axis=0) - cm_vals)
+        cm_vals = np.median(cm_vals_all, axis=0)
+        cm_low = np.abs(cm_vals - np.percentile(cm_vals_all, 10, axis=0))
+        cm_high = np.abs(np.percentile(cm_vals_all, 90, axis=0) - cm_vals)
         
-        acc = np.mean(accs)
-        acc_low = acc - np.percentile(accs, 16)
-        acc_high = np.percentile(accs, 84) - acc
-        f1_avg = np.mean(f1s)
-        f1_low = f1_avg - np.percentile(f1s, 16)
-        f1_high = np.percentile(f1s, 84) - f1_avg
+        acc = np.median(accs)
+        acc_low = acc - np.percentile(accs, 10)
+        acc_high = np.percentile(accs, 90) - acc
+        f1_avg = np.median(f1s)
+        f1_low = f1_avg - np.percentile(f1s, 10)
+        f1_high = np.percentile(f1s, 90) - f1_avg
         
         # plt.rcParams["figure.figsize"] = (16, 16)
         if purity:
@@ -361,7 +376,8 @@ def plot_confusion_matrix(y_true, y_pred, filename, folds=None, purity=False, cm
 
     classes = unique_labels(y_true, y_pred)
 
-    fig, ax = plt.subplots(figsize=(7,7))
+    N_class = len(np.unique(y_true))
+    fig, ax = plt.subplots(figsize=(7, 7))
     _ = ax.imshow(cm_vals, interpolation="nearest", vmin=0.0, vmax=1.0, cmap=cmap)
 
     ax.set(
@@ -371,15 +387,15 @@ def plot_confusion_matrix(y_true, y_pred, filename, folds=None, purity=False, cm
         xticklabels=classes,
         yticklabels=classes,
         title=title,
-        ylabel="True label",
-        xlabel="Predicted label",
+        ylabel="Spectroscopic Classification",
+        xlabel="Photometric Classification",
     )
 
     # Rotate the tick labels and set their alignment.
     plt.setp(ax.get_xticklabels(), rotation=45, ha="right", rotation_mode="anchor")
 
     # Loop over data dimensions and create text annotations.
-    thresh = cm_vals.max() / 2.0
+    thresh = cm_vals.max() / 1.5
 
     for i in range(cm_vals.shape[0]):
         for j in range(cm_vals.shape[1]):
@@ -416,7 +432,6 @@ def plot_matrices(
     true_classes,
     pred_classes,
     prob_above_07,
-    cm_folder,
 ):
     """Plots confusion matrices for test set metrics.
 
@@ -433,6 +448,7 @@ def plot_matrices(
     cm_folder : str
         The folder where the plot figures will be stored.
     """
+    cm_folder = config.cm_dir
     fn_prefix = f"cm_{config.goal_per_class}_{config.num_epochs}_{config.neurons_per_layer}_{config.num_hidden_layers}"
 
     fn_purity = os.path.join(cm_folder, fn_prefix + "_p.pdf")

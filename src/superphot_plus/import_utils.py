@@ -5,6 +5,7 @@ import csv
 import os
 
 import numpy as np
+import pandas as pd
 
 from superphot_plus.surveys.surveys import Survey
 from superphot_plus.utils import convert_mags_to_flux
@@ -69,21 +70,28 @@ def import_lc(
     
     f, ferr = convert_mags_to_flux(m, merr, 26.3)
 
-    t, f, ferr, b = clip_lightcurve_end(
-        t, f, ferr, b
-    )
+    if clip_lightcurve:
+        t, f, ferr, b = clip_lightcurve_end(
+            t, f, ferr, b
+        )
 
     snr = np.abs(f / ferr)
 
+    """
     for band in survey.wavelengths:
         if len(snr[(snr > 3.0) & (b == band)]) < 5:  # pragma: no cover
             with open(low_snr_file, "a+") as f:
                 f.write(f"{tpe}\n")
             return [None] * 6
-        if (np.max(f[b == band]) - np.min(f[b == band])) < 3.0 * np.mean(ferr[b == band]):  # pragma: no cover
+        if np.std(f[b == band]) < np.mean(ferr[b == band]):  # pragma: no cover
             with open(low_var_file, "a+") as f:
                 f.write(f"{tpe}\n")
             return [None] * 6
+        if np.max(f[b == band]) - np.min(f[b == band]) < 3. * np.mean(ferr[b == band]):  # pragma: no cover
+            with open(low_var_file, "a+") as f:
+                f.write(f"{tpe}\n")
+            return [None] * 6
+    """
     return t, f, ferr, b, ra, dec
 
 
