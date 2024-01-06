@@ -19,6 +19,7 @@ dependencies = [
     "dustmaps",
     "joblib",
     "extinction",
+    "lightgbm",
     "numpy",
     "pandas",
     "scikit-learn",
