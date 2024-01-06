@@ -5,12 +5,13 @@ import pytest
 
 from superphot_plus.file_utils import get_posterior_samples
 from superphot_plus.lightcurve import Lightcurve
-from superphot_plus.model.config import ModelConfig
+from superphot_plus.config import SuperphotConfig
+from superphot_plus.surveys.surveys import Survey
 from superphot_plus.utils import (
     calc_accuracy,
     calculate_log_likelihood,
     calculate_mse,
-    calculate_neg_chi_squareds,
+    calculate_chi_squareds,
     f1_score,
     flux_model,
     get_band_extinctions,
@@ -107,16 +108,26 @@ def test_get_band_extinctions() -> None:
     assert np.all(ext_list == pytest.approx([0.3133, 0.2202], 0.01))
 
 
-def test_params_valid():
+def test_params_valid(ztf_priors):
     """Test the params_valid function."""
 
+    means = ztf_priors.to_numpy().T[2]
     # Prior ZTF values are valid.
-    assert params_valid(0.0052, 1.1391, 0.599, 1.4296)
+    assert params_valid(
+        means[1], 10**means[2],
+        10**means[4], 10**means[5]
+    )
+    assert params_valid(
+        means[1]*10**means[8],
+        10**(means[2] + means[9]),
+        10**(means[4] + means[11]),
+        10**(means[5] + means[12])
+    )
 
     # Invalid combinations
-    assert not params_valid(1.0, 1.1391, 0.599, 2.0)
-    assert not params_valid(1.0, 2.0, 0.599, 1.0)
-    assert not params_valid(1.0, 0.0, 1.0, 2.1)
+    assert not params_valid(1.0, 10**1.1391, 10**0.599, 10**2.0)
+    assert not params_valid(1.0, 10**2.0, 10**0.599, 10**1.0)
+    assert not params_valid(1.0, 10**0.0, 10**1.0, 10**2.1)
 
 
 def test_get_numpyro_cube(ztf_priors):
@@ -144,37 +155,23 @@ def test_calculate_log_likelihood_simple():
     edata = np.array([0.01, 0.05])
 
     # Generate clean fluxes from the model with extra sigma = 0.0
-    cube = np.array(
-        [
-            3.12033307,
-            0.00516744388,
-            14.1035747,
-            -49.0239436,
-            6.31504200,
-            30.7416132,
-            0.0,
-            1.33012285,
-            1.04407290,
-            1.01418818,
-            1.00009386,
-            0.980085932,
-            0.573802443,
-            0.0,
-        ]
-    )
-    ftrue = flux_model(cube, tdata, bdata, bands, "r")
-    assert np.allclose(ftrue, np.array([0.65786904, 0.26904324]))
+    cube = Survey.ZTF().priors.to_numpy()[:,2] # mean vals
+    cube[6] = -1e5
+    cube[7] = 0. # remove extra sigma terms
+    ftrue = flux_model(cube, tdata, bdata, 1, bands, "r")
+    assert np.allclose(ftrue, np.array([0.91639224, 0.73648907]))
 
     # r+0.01 and b-0.025
-    fdata = np.array([0.66786904, 0.24404324])
+    fdata = np.array([1.01, 0.73648907-0.025])
 
     # Compute the true probabilities and the log likelihood via the gaussian equation.
     sigma_sq = np.square(edata)
+    print(fdata, ftrue, sigma_sq)
+
     probs = (
-        1.0 / np.sqrt(2 * np.pi * sigma_sq) * np.exp(-0.5 * np.divide(np.power(fdata - ftrue, 2), sigma_sq))
+        1.0 / np.sqrt(2 * np.pi * sigma_sq) * np.exp(-0.5 * np.divide(np.square(fdata - ftrue), sigma_sq))
     )
     LogLTrue = np.sum(np.log(probs))
-
     lc1 = Lightcurve(tdata, fdata, edata, bdata)
     LogL1 = calculate_log_likelihood(cube, lc1, bands, "r")
     assert LogL1 == pytest.approx(LogLTrue)
@@ -188,29 +185,16 @@ def test_calculate_log_likelihood():
     edata = np.array([0.01] * num_observations)
 
     # Generate clean fluxes from the model.
-    cube = np.array(
-        [
-            3.12033307,
-            0.00516744388,
-            14.1035747,
-            -49.0239436,
-            6.31504200,
-            30.7416132,
-            0.0249219755,
-            1.33012285,
-            1.04407290,
-            1.01418818,
-            1.00009386,
-            0.980085932,
-            0.573802443,
-            0.948438711,
-        ]
-    )
-    fdata = flux_model(cube, tdata, bdata, bands, "r")
+    cube = Survey.ZTF().priors.to_numpy()[:,2] # mean vals
+    fdata = flux_model(cube, tdata, bdata, 1, bands, "r")
 
+    # rescale so max_flux = 1 for timestamps
+    lc1 = Lightcurve(tdata, fdata, edata, bdata)
+    true_max_flux = lc1.find_max_flux(band='r')[0]
+    fdata /= true_max_flux
     lc1 = Lightcurve(tdata, fdata, edata, bdata)
     LogL1 = calculate_log_likelihood(cube, lc1, bands, "r")
-    assert LogL1 == pytest.approx(183.17363309388816)  # Change detection only
+    assert LogL1 == pytest.approx(257.9803730518384)  # Change detection only
 
     # Test noisy models
     for diff in [-0.1, 0.1, 0.5, 1.0]:
@@ -241,25 +225,13 @@ def test_calculate_mse():
     edata = np.array([0.01] * num_observations)
 
     # Generate clean fluxes from the model.
-    cube = np.array(
-        [
-            3.12033307,
-            0.00516744388,
-            14.1035747,
-            -49.0239436,
-            6.31504200,
-            30.7416132,
-            0.0249219755,
-            1.33012285,
-            1.04407290,
-            1.01418818,
-            1.00009386,
-            0.980085932,
-            0.573802443,
-            0.948438711,
-        ]
-    )
-    fdata = flux_model(cube, tdata, bdata, bands, "r")
+    cube = Survey.ZTF().priors.to_numpy()[:,2] # mean vals
+    fdata = flux_model(cube, tdata, bdata, 1, bands, "r")
+    
+    # there's an amp vs max_flux degeneracy when generating from nothing,
+    # we have to recalculate cube[0] based on the actual max_flux
+    max_flux = np.max(fdata[bdata == 'r'] - edata[bdata == 'r'])
+    cube[0] -= np.log10(max_flux)
     lc1 = Lightcurve(tdata, fdata, edata, bdata)
     mse1 = calculate_mse(cube, lc1, bands, "r")
     assert mse1 == pytest.approx(0.0)
@@ -268,7 +240,11 @@ def test_calculate_mse():
     for diff in [-0.1, 0.1, 0.5, 1.0]:
         lc2 = Lightcurve(tdata, fdata + diff, edata, bdata)
         test_mse = calculate_mse(cube, lc2, bands, "r")
-        assert test_mse == pytest.approx(diff * diff)
+        
+        # calc amp shift
+        fdata_normed = fdata / (10**cube[0] * max_flux)
+        amp_shifts = 10**cube[0] * diff * fdata_normed - diff
+        assert test_mse == pytest.approx(np.sum(amp_shifts**2) / num_observations)
 
     # Test error conditions.
     with pytest.raises(ValueError) as err:
@@ -285,16 +261,17 @@ def test_calculate_mse():
     assert str(err.value) == "Empty light curve provided."
 
 
-def test_neg_chi_squareds(single_ztf_lightcurve_compressed, test_data_dir, single_ztf_sn_id):
+def test_chi_squareds(single_ztf_lightcurve_compressed, test_data_dir, single_ztf_sn_id):
     """This is currently a change detection test where we are just confirming
     the function runs correctly returns the same value as it used to.
     """
-    posts = get_posterior_samples(single_ztf_sn_id, fits_dir=test_data_dir, sampler="dynesty")
+    posts = get_posterior_samples(single_ztf_sn_id, fits_dir=test_data_dir, sampler="dynesty")[0]
     lc = Lightcurve.from_file(single_ztf_lightcurve_compressed)
 
-    sn_data = [lc.times, lc.fluxes, lc.flux_errors, lc.bands]
-    result = calculate_neg_chi_squareds(posts, *sn_data)
-    assert np.isclose(np.mean(result), -5.43, rtol=0.1)
+    max_flux, _ = lc.find_max_flux(band="r")
+    sn_data = [lc.times, lc.fluxes, lc.flux_errors, lc.bands, max_flux]
+    result = calculate_chi_squareds(posts, *sn_data)
+    assert np.isclose(np.mean(result), 0.4667, rtol=0.1)
 
 
 def test_get_session_metrics():
@@ -345,7 +322,7 @@ def test_log_metrics_to_tensorboard(tmp_path):
 
     avg_train_losses, avg_train_accs, avg_val_losses, avg_val_accs = log_metrics_to_tensorboard(
         metrics=(metrics_fold_1, metrics_fold_2),
-        config=ModelConfig(num_epochs=5),
+        config=SuperphotConfig(num_epochs=5),
         trial_id=trial_id,
         base_dir=tmp_path,
     )

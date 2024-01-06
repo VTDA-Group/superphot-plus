@@ -6,7 +6,10 @@ import pytest
 from jax import random
 
 from superphot_plus.lightcurve import Lightcurve
-from superphot_plus.model.classifier import SuperphotClassifier
+from superphot_plus.model.mlp import SuperphotMLP
+from superphot_plus.trainer import SuperphotTrainer
+#from superphot_plus.model.lightgbm import SuperphotLightGBM
+
 from superphot_plus.surveys.surveys import Survey
 
 TEST_DIR = os.path.dirname(__file__)
@@ -50,6 +53,44 @@ def single_ztf_eqwt_compressed(test_data_dir):
 def single_ztf_sn_id():
     return "ZTF22abvdwik"
 
+@pytest.fixture
+def single_ztf_lightcurve_fit():
+    """
+    return [
+        0.10358849,
+        0.00973718,
+        1.25686431,
+        -5.22735547,
+        0.48882998,
+        1.31443557,
+        -1.76931969,
+        -0.03194404,
+        -0.18223563,
+        0.02049174,
+        -1.64989513,
+        -0.09223167,
+        -0.14907296,
+        -0.15285657,
+        0.74649619
+    ]
+    """
+    return [
+        0.10701995,
+        0.00953622,
+        1.23953683,
+        -5.10189513,
+        0.50944826,
+        1.32378597,
+        -1.7695045,
+        -0.03006368,
+        -0.25154109,
+        0.02070548,
+        -1.65427578,
+        -0.08849417,
+        -0.16305463,
+        -0.19222715,
+        0.49539004
+    ]
 
 @pytest.fixture
 def jax_key():
@@ -75,13 +116,28 @@ def ztf_priors():
 def test_class_frac_csv(test_data_dir):
     return os.path.join(test_data_dir, "test_cf.csv")
 
+@pytest.fixture
+def config_filename(test_data_dir):
+    return os.path.join(test_data_dir, "superphot-config-test.yaml")
 
 @pytest.fixture
-def classifier(test_data_dir):
+def mlp(test_data_dir, config_filename):
     filename = os.path.join(test_data_dir, "superphot-model-ZTF23aagkgnz.pt")
-    config_filename = os.path.join(test_data_dir, "superphot-config-test.yaml")
-    return SuperphotClassifier.load(filename, config_filename)[0]
+    return SuperphotMLP.load(filename, config_filename)[0]
 
+@pytest.fixture
+def trainer_mlp(test_data_dir, config_filename, mlp):
+    trainer = SuperphotTrainer(
+        config_filename,
+        test_data_dir,
+        sampler="dynesty",
+        model_type='MLP',
+        n_folds=1,
+    )
+    trainer.setup_model(load_checkpoint=False)
+    # manual override
+    trainer.models[0] = mlp
+    return trainer
 
 @pytest.fixture
 def dummy_alerce_preds(class_probs_csv, test_data_dir):

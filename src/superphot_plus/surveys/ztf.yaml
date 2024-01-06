@@ -8,73 +8,73 @@ priors:
   bands:
     r:
       amp:
-        clip_a: -0.2
-        clip_b: 1.2
-        mean: 0
-        std: 0.5
+        clip_a: -0.3
+        clip_b: 0.5
+        mean: 0.0957
+        std: 0.0575
       beta:
         clip_a: 0.0
-        clip_b: 0.2
-        mean: 0.0052
-        std: 0.000504
+        clip_b: 0.03
+        mean: 0.00833
+        std: 0.00385
       gamma:
-        clip_a: -2.0
-        clip_b: 2.5
-        mean: 1.1391
-        std: 0.25785
+        clip_a: 0.0
+        clip_b: 3.5
+        mean: 1.4258
+        std: 0.3079
       t_0:
         clip_a: -100.0
-        clip_b: 200.0
-        mean: 0
-        std: 50
+        clip_b: 30.0
+        mean: -17.878
+        std: 9.916
       tau_rise:
-        clip_a: -1.0
-        clip_b: 3.0
-        mean: 0.599
-        std: 0.31095
-      tau_fall:
-        clip_a: 0.5
+        clip_a: -2.0
         clip_b: 4.0
-        mean: 1.4296
-        std: 0.15045
+        mean: 0.6664
+        std: 0.4250
+      tau_fall:
+        clip_a: 0.0
+        clip_b: 4.0
+        mean: 1.5261
+        std: 0.3037
       extra_sigma:
-        clip_a: -5.0
-        clip_b: -0.5
-        mean: -1.5364
-        std: 0.2691
+        clip_a: -3.0
+        clip_b: -0.8
+        mean: -1.6629
+        std: 0.3378
     g:
       amp:
-        clip_a: 0
-        clip_b: 5.0
-        mean: 1.0607
-        std: 0.2316
+        clip_a: -1.0
+        clip_b: 1.0
+        mean: -0.0766
+        std: 0.1096
       beta:
-        clip_a: 1.0
-        clip_b: 1.07
-        mean: 1.0424
-        std: 0.0026
+        clip_a: -2.0
+        clip_b: 1.0
+        mean: -0.2068
+        std: 0.2704
       gamma:
-        clip_a: 0.8
-        clip_b: 1.2
-        mean: 1.0075
-        std: 0.0139
+        clip_a: -1.5
+        clip_b: 1.5
+        mean: -0.0452
+        std: 0.1705
       t_0:
-        clip_a: 0.9994
-        clip_b: 1.0006
-        mean: 0.999989
-        std: 0.000067
+        clip_a: -50
+        clip_b: 30
+        mean: -3.4065
+        std: 4.366
       tau_rise:
-        clip_a: 0.5
-        clip_b: 2.0
-        mean: 0.9663
-        std: 0.0128
+        clip_a: -1.5
+        clip_b: 1.5
+        mean: -0.1510
+        std: 0.1927
       tau_fall:
-        clip_a: 0.1
-        clip_b: 3.0
-        mean: 0.5488
-        std: 0.0553
+        clip_a: -1.5
+        clip_b: 1.5
+        mean: -0.1486
+        std: 0.2642
       extra_sigma:
-        clip_a: 0.2
-        clip_b: 2.0
-        mean: 0.8606
-        std: 0.0388
+        clip_a: -1.5
+        clip_b: 1.0
+        mean: -0.1509
+        std:  0.2542

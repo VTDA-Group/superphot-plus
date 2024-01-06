@@ -2,18 +2,8 @@ import os
 import shutil
 
 import numpy as np
-from sklearn.model_selection import train_test_split
-
-from superphot_plus.file_paths import (
-    CLASSIFY_LOG_FILE,
-    CM_FOLDER,
-    DATA_DIR,
-    FIT_PLOTS_FOLDER,
-    INPUT_CSVS,
-    METRICS_DIR,
-    MODELS_DIR,
-    PROBS_FILE,
-)
+from sklearn.model_selection import train_test_split, StratifiedKFold
+from astropy.cosmology import Planck13 as cosmo
 from superphot_plus.file_utils import get_posterior_samples
 from superphot_plus.format_data_ztf import import_labels_only, oversample_using_posteriors
 from superphot_plus.model.data import ZtfData
@@ -24,7 +14,16 @@ from superphot_plus.utils import adjust_log_dists
 class TrainerBase:
     """Trainer base class."""
 
-    def __init__(self, sampler="dynesty", include_redshift=True, probs_file=PROBS_FILE):
+    def __init__(
+        self,
+        config_name,
+        fits_dir, #TODO: make optional from config
+        sampler="dynesty",
+        model_type='LightGBM',
+        include_redshift=True,
+        probs_file=None,
+        n_folds=10,
+    ):
         # Supernova class types
         self.allowed_types = ["SN Ia", "SN II", "SN IIn", "SLSN-I", "SN Ibc"]
 
@@ -32,43 +31,90 @@ class TrainerBase:
         self.sampler = sampler
         self.include_redshift = include_redshift
         self.probs_file = probs_file
+        self.fits_dir = fits_dir
+        
+        self.config_name = config_name
+        self.models, self.configs = [], []
+        self.model_type = model_type
+        
+        # generate k-folds
+        self.n_folds = max(int(n_folds), 1)
+        self.random_seed = 1 # TODO: un-hard code this
+        
+        if self.n_folds > 1:
+            self.kf = StratifiedKFold(self.n_folds, random_state=self.random_seed, shuffle=True)
+        else:
+            self.kf = None
 
-        # Log folders
-        self.metrics_dir = METRICS_DIR
-        self.models_dir = MODELS_DIR
-        self.cm_folder = CM_FOLDER
-        self.classify_log_file = CLASSIFY_LOG_FILE
-        self.fit_plots_folder = FIT_PLOTS_FOLDER
-
-        # Posterior samples
-        self.fits_dir = f"{DATA_DIR}/{sampler}_fits"
-
-    def create_output_dirs(self, delete_prev=True):
-        """Ensures creation of output directory structure.
-
+    
+    def k_fold_split_train_test(self, kf, input_csvs=None, rng_seed=None):
+        """Reads data and splits into n K-folds. Outputs n sets
+        of train/test sets.
+        
         Parameters
         ----------
-        delete_prev : bool
-            If true, deletes previous output logs.
+        input_csvs : list of str
+            List of input CSV file paths.
+
+        Returns
+        -------
+        list of 2-tuples
+            N sets of the train data and the test data.
         """
-        for folder in [
-            self.metrics_dir,
-            self.models_dir,
-            self.cm_folder,
-            self.fit_plots_folder,
-        ]:
-            if delete_prev and os.path.isdir(folder):
-                shutil.rmtree(folder)
+        k_fold_datasets = []
+        
+        if input_csvs is None:
+            input_csvs = INPUT_CSVS
 
-            os.makedirs(self.metrics_dir, exist_ok=True)
-            os.makedirs(self.models_dir, exist_ok=True)
-            os.makedirs(self.cm_folder, exist_ok=True)
-            os.makedirs(self.fit_plots_folder, exist_ok=True)
-
-        for file in [self.classify_log_file, self.probs_file]:
-            if delete_prev and os.path.isfile(file):
-                os.remove(file)
-
+        # Load train and test data (holdout of 10%)
+        names, labels, redshifts = import_labels_only(
+            input_csvs=input_csvs,
+            allowed_types=self.allowed_types,
+            fits_dir=self.fits_dir,
+            sampler=self.sampler,
+        )
+        
+        if self.include_redshift:
+            skip_idxs = ((np.isnan(redshifts)) | (redshifts <= 0))
+            names = names[~skip_idxs]
+            labels = labels[~skip_idxs]
+            redshifts = redshifts[~skip_idxs]
+            
+        for (train_index, test_index) in kf.split(names, labels):
+            train_names = names[train_index]
+            train_labels = labels[train_index]
+            train_redshifts = redshifts[train_index]
+            
+            test_names = names[test_index]
+            test_labels = labels[test_index]
+            test_redshifts = redshifts[test_index]
+            
+            train_data = ZtfData(train_names, train_labels, train_redshifts)
+            test_data = ZtfData(test_names, test_labels, test_redshifts)
+            
+            k_fold_datasets.append((train_data, test_data))
+            
+        return k_fold_datasets
+    
+    def load_csv(self, input_csvs):
+        """Load CSV data.
+        """
+        # Load train and test data (holdout of 10%)
+        names, labels, redshifts = import_labels_only(
+            input_csvs=input_csvs,
+            allowed_types=self.allowed_types,
+            fits_dir=self.fits_dir,
+            sampler=self.sampler,
+        )
+        
+        if self.include_redshift:
+            skip_idxs = ((np.isnan(redshifts)) | (redshifts <= 0))
+            names = names[~skip_idxs]
+            labels = labels[~skip_idxs]
+            redshifts = redshifts[~skip_idxs]
+        
+        return names, labels, redshifts
+        
     def split_train_test(self, input_csvs=None):
         """Reads data and splits it into training and testing sets.
 
@@ -85,13 +131,8 @@ class TrainerBase:
         if input_csvs is None:
             input_csvs = INPUT_CSVS
 
-        # Load train and test data (holdout of 10%)
-        names, labels, redshifts = import_labels_only(
-            input_csvs=input_csvs,
-            allowed_types=self.allowed_types,
-            fits_dir=self.fits_dir,
-            sampler=self.sampler,
-        )
+        names, labels, redshifts = self.load_csv(input_csvs)
+            
         names, test_names, labels, test_labels, redshifts, test_redshifts = train_test_split(
             names, labels, redshifts, stratify=labels, shuffle=True, test_size=0.1
         )
@@ -126,43 +167,38 @@ class TrainerBase:
 
         train_names, val_names = names[train_index], names[val_index]
         train_labels, val_labels = labels[train_index], labels[val_index]
-        train_redshifts, val_redshifts = redshifts[train_index], redshifts[val_index]
 
         # Convert labels to classes
         train_classes = SnClass.get_classes_from_labels(train_labels)
         val_classes = SnClass.get_classes_from_labels(val_labels)
 
-        train_features, train_classes, train_redshifts = oversample_using_posteriors(
+        train_features, train_classes = oversample_using_posteriors(
             lc_names=train_names,
             labels=train_classes,
             goal_per_class=goal_per_class,
             fits_dir=self.fits_dir,
             sampler=self.sampler,
-            redshifts=train_redshifts,
             oversample_redshifts=self.include_redshift,
+            redshifts=redshifts,
+            chisq_cutoff=1.2,
         )
-        val_features, val_classes, val_redshifts = oversample_using_posteriors(
+        val_features, val_classes = oversample_using_posteriors(
             lc_names=val_names,
             labels=val_classes,
             goal_per_class=round(0.1 * goal_per_class),
             fits_dir=self.fits_dir,
             sampler=self.sampler,
-            redshifts=val_redshifts,
             oversample_redshifts=self.include_redshift,
+            redshifts=redshifts,
+            chisq_cutoff=1.2,
         )
-
-        # merge redshifts before normalizations
-        if self.include_redshift:
-            # fmt: off
-            train_features = np.hstack((train_features, np.array([train_redshifts, ]).T))
-            val_features = np.hstack((val_features, np.array([val_redshifts, ]).T))
-            # fmt: on
 
         train_features = adjust_log_dists(train_features, redshift=self.include_redshift)
         val_features = adjust_log_dists(val_features, redshift=self.include_redshift)
-
+        
         return train_features, train_classes, val_features, val_classes
 
+    
     def generate_test_data(self, test_data: ZtfData):
         """Extracts and processes the data for testing, adjusting the
         features to their log distributions.
@@ -184,31 +220,34 @@ class TrainerBase:
         test_classes_os = []
         test_group_idxs = []
         test_names_os = []
-        test_redshifts_os = []
 
         test_classes = SnClass.get_classes_from_labels(test_labels)
 
         for i, test_name in enumerate(test_names):
-            test_posts = get_posterior_samples(test_name, self.fits_dir, self.sampler)
-            test_features.extend(test_posts)
+            test_posts, kwargs = get_posterior_samples(test_name, self.fits_dir, self.sampler)
+            if np.mean(test_posts[:,-1]) > 1.2:
+                continue
             test_classes_os.extend([test_classes[i]] * len(test_posts))
             test_names_os.extend([test_names[i]] * len(test_posts))
             if self.include_redshift:
-                test_redshifts_os.extend([test_redshifts[i]] * len(test_posts))
+                z_ext = np.ones((len(test_posts), 2)) * test_redshifts[i]
+                k_correction = 2.5 * np.log10(1.+test_redshifts[i])
+                dist = cosmo.luminosity_distance([test_redshifts[i],]).value  # returns dist in Mpc
+                z_ext[:,1] = -2.5*np.log10(kwargs['max_flux']) + 26.3 \
+                    - 5. * np.log10(dist*1e6/10.0) + k_correction
+                
+                test_posts = np.append(test_posts, z_ext, axis=1)
             if len(test_group_idxs) == 0:
                 start_idx = 0
             else:
                 start_idx = test_group_idxs[-1][-1] + 1
+                
+            test_features.extend(list(test_posts))
             test_group_idxs.append(np.arange(start_idx, start_idx + len(test_posts)))
 
         test_features = np.array(test_features)
         test_classes = np.array(test_classes_os)
         test_names = np.array(test_names_os)
-
-        if self.include_redshift:
-            # fmt: off
-            test_features = np.hstack((test_features, np.array([test_redshifts_os, ]).T))
-            # fmt: on
 
         test_features = adjust_log_dists(test_features, redshift=self.include_redshift)
 

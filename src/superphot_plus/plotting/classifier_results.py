@@ -13,16 +13,16 @@ from matplotlib.ticker import AutoMinorLocator
 from astropy.cosmology import Planck13 as cosmo
 from scipy.stats import binned_statistic
 
-from superphot_plus.plotting.format_params import set_global_plot_formatting
+from superphot_plus.plotting.format_params import set_global_plot_formatting, CUSTOM_COLORSET
 from superphot_plus.file_utils import get_multiple_posterior_samples
 from superphot_plus.format_data_ztf import import_labels_only
-from superphot_plus.plotting.utils import histedges_equalN, read_probs_csv, get_survey_fracs
+from superphot_plus.plotting.utils import histedges_equalN, read_probs_csv, get_survey_fracs, retrieve_four_class_info
 from superphot_plus.supernova_class import SupernovaClass as SnClass
 
 set_global_plot_formatting()
 
 
-def save_class_fractions(spec_probs_csv, probs_alerce_csv, phot_probs_csv, save_path):
+def save_class_fractions(spec_probs_csv, probs_alerce_csv, phot_probs_csv, probs_alerce_phot_csv, save_path):
     """Save class fractions from spectroscopic, photometric, and
     corrected photometric.
 
@@ -37,10 +37,10 @@ def save_class_fractions(spec_probs_csv, probs_alerce_csv, phot_probs_csv, save_
     save_fn : str
         Filename + dir for saving the class fractions.
     """
-    labels_to_class, _ = SnClass.get_type_maps()
+    labels_to_class, classes_to_labels = SnClass.get_type_maps()
 
     # import spec dataframe
-    _, true_class_spec, probs_spec, pred_class_spec, _ = read_probs_csv(spec_probs_csv)
+    _, true_class_spec, probs_spec, pred_class_spec, _, _ = read_probs_csv(spec_probs_csv)
 
     num_classes = probs_spec.shape[1]
 
@@ -61,10 +61,8 @@ def save_class_fractions(spec_probs_csv, probs_alerce_csv, phot_probs_csv, save_
     pred_class_spec_alerce = np.array([labels_to_class[x] for x in pred_alerce])
 
     # import phot dataframe
-    _, pred_label_alerce, _, pred_class_phot, _ = read_probs_csv(phot_probs_csv)
-    skip_idx = pred_label_alerce == "SKIP"
-    pred_label_alerce, pred_class_phot = pred_label_alerce[~skip_idx], pred_class_phot[~skip_idx]
-    pred_class_phot_alerce = np.array([labels_to_class[x] for x in pred_label_alerce])
+    pred_class_phot = read_probs_csv(phot_probs_csv)[3]
+    pred_class_phot_alerce = retrieve_four_class_info(phot_probs_csv, probs_alerce_phot_csv)[4]
 
     cm_p = confusion_matrix(true_class_spec, pred_class_spec, normalize="pred")
     cm_p_alerce = confusion_matrix(true_class_alerce, pred_class_spec_alerce, normalize="pred")
@@ -77,8 +75,7 @@ def save_class_fractions(spec_probs_csv, probs_alerce_csv, phot_probs_csv, save_
     )
     alerce_fracs = np.array(
         [
-            len(pred_class_phot_alerce[pred_class_phot_alerce == i]) / len(pred_class_phot_alerce)
-            for i in range(num_classes)
+            len(pred_class_phot_alerce[pred_class_phot_alerce == classes_to_labels[i]]) / len(pred_class_phot_alerce) for i in range(num_classes)
         ]
     )
 
@@ -165,6 +162,8 @@ def plot_class_fractions(saved_cf_file, fig_dir, filename):
             label=classes_to_labels[i],
         )
         for j, fracs_j in enumerate(combined_fracs[i]):
+            if fracs_j == 0.0:
+                continue
             barj = stacked_bar.patches[j]
             # Create annotation
             ax.annotate(
@@ -205,7 +204,7 @@ def generate_roc_curve(probs_csv, save_dir):
     """
     labels_to_classes, classes_to_labels = SnClass.get_type_maps()
 
-    colors = [plt.cm.Set1(i) for i in range(10)]
+    colors = CUSTOM_COLORSET
     fig, double_axes = plt.subplots(1, 2, figsize=(8, 7))
     ax1, ax2 = double_axes
     ax1.set_xlim([0.0, 1.05])
@@ -231,11 +230,17 @@ def generate_roc_curve(probs_csv, save_dir):
         ax2.plot(single_class_fpr, single_class_tpr, label=ref_label, c=colors[ref_class])
         legend_lines.append(legend_line)
         ax2.scatter(
-            single_class_fpr[idx_50], single_class_tpr[idx_50], color=colors[ref_class], s=100, marker="d"
+            single_class_fpr[idx_50], single_class_tpr[idx_50],
+            color=colors[ref_class], s=100, marker="d", zorder=1000
         )
         fpr.append(single_class_fpr)
         tpr.append(single_class_tpr)
 
+    ax1.plot(
+        [0, 1], [0,1],
+        c="#BBBBBB", linestyle='dotted'
+    )
+        
     # First aggregate all false positive rates
     all_fpr = np.unique(np.concatenate([fpr[i] for i in range(5)]))
 
@@ -283,7 +288,7 @@ def plot_phase_vs_accuracy(phased_probs_csv, save_dir):
     _, classes_to_labels = SnClass.get_type_maps()
     allowed_types = np.arange(len(classes_to_labels))
 
-    true_type, phase, _, pred_type, _ = read_probs_csv(phased_probs_csv)
+    true_type, phase, _, pred_type, _, _ = read_probs_csv(phased_probs_csv)
     correct_class = (true_type == pred_type).astype(int)
 
     legend_lines = []
@@ -367,21 +372,22 @@ def plot_redshifts_abs_mags(probs_snr_csv, training_csv, fits_dir, save_dir, sam
     save_dir : str
         Where to save figures.
     """
-    labels_to_classes, _ = SnClass.get_type_maps()
+    labels_to_classes, classes_to_labels = SnClass.get_type_maps()
     allowed_types = list(labels_to_classes.keys())
 
-    _, labels, redshifts = import_labels_only(
-        [
-            training_csv,
-        ],
-        allowed_types,
-        needs_posteriors=True,
-        sampler=sampler,
-        fits_dir=fits_dir
-    )
+    training_df = pd.read_csv(training_csv)
 
     # labels = np.array([classes_to_labels[int(x)] for x in classes])
     probs_dataframe = pd.read_csv(probs_snr_csv)
+    names = probs_dataframe.Name.to_numpy()
+    labels = probs_dataframe.Label.to_numpy()
+    labels = np.array([classes_to_labels[x] for x in labels])
+    redshifts = []
+    for n in names:
+        z = training_df[training_df.NAME == n].Z.iloc[0]
+        redshifts.append(z)
+    
+    redshifts = np.array(redshifts)
     amplitudes = probs_dataframe.Fmax.to_numpy()
     app_mags = -2.5 * np.log10(amplitudes) + 26.3
 
@@ -450,12 +456,21 @@ def plot_snr_npoints_vs_accuracy(probs_snr_csv, save_dir):
 
     _, classes_to_labels = SnClass.get_type_maps()
 
-    _, true_type, _, pred_classes, _ = read_probs_csv(probs_snr_csv)
+    names, true_type, _, pred_classes, _, _ = read_probs_csv(probs_snr_csv)
     correct_class = np.where(true_type == pred_classes, 1, 0)
 
     df = pd.read_csv(probs_snr_csv)
     snr, n_high_snr = df.SNR90, df.nSNR3
-
+    
+    print("TOO HIGH SNR")
+    print(names[(true_type == 2) & (snr > 25) & (pred_classes != true_type)])
+    print(pred_classes[(true_type == 2) & (snr > 25) & (pred_classes != true_type)])
+    print(names[(true_type == 3) & (snr > 20) & (pred_classes != true_type)])
+    print(pred_classes[(true_type == 3) & (snr > 20) & (pred_classes != true_type)])
+    print("TOO MANY POINTS")
+    print(names[(true_type > 2) & (n_high_snr > 60) & (pred_classes != true_type)])
+    print(true_type[(true_type > 2) & (n_high_snr > 60) & (pred_classes != true_type)])
+          
     for unique_type in np.unique(true_type):
         snr_t = snr[true_type == unique_type]
         correct_t = correct_class[true_type == unique_type]
@@ -486,10 +501,11 @@ def plot_snr_npoints_vs_accuracy(probs_snr_csv, save_dir):
 
     plt.xlabel("90th Percentile SNR")
     plt.ylabel("Classification Accuracy")
-    plt.legend()
+    #plt.legend()
     plt.savefig(os.path.join(save_dir, "snr_vs_accuracy.pdf"), bbox_inches="tight")
     plt.close()
 
+    fig, ax = plt.subplots(figsize=(6.4, 6.0))
     # second plot
     for unique_type in np.unique(true_type):
         correct_t = correct_class[true_type == unique_type]
@@ -510,19 +526,23 @@ def plot_snr_npoints_vs_accuracy(probs_snr_csv, save_dir):
 
         n_vs_accuracy[np.isnan(n_vs_accuracy)] = 1.0
 
-        plt.step(
+        ax.step(
             n_bin_edges,
             np.append(n_vs_accuracy, n_vs_accuracy[-1]),
             label=classes_to_labels[unique_type],
             where="post",
         )
 
-    plt.xlim((8, 100))
+    ax.set_xlim((8, 100))
 
-    plt.xlabel(r"Number of $\geq 3\sigma$ Datapoints")
-    plt.ylabel("Classification Accuracy")
-    plt.legend(loc="lower right")
-    plt.savefig(os.path.join(save_dir, "n_vs_accuracy.pdf"), bbox_inches="tight")
+    ax.set_xlabel(r"Number of $\geq 3\sigma$ Datapoints")
+    ax.set_ylabel("Classification Accuracy")
+    fig.legend(loc="lower center", ncols=3)
+    
+    fig.tight_layout()
+    fig.subplots_adjust(bottom=0.25)
+    
+    plt.savefig(os.path.join(save_dir, "n_vs_accuracy.pdf"))
     plt.close()
 
 
@@ -547,13 +567,18 @@ def plot_snr_hist(probs_snr_csv, save_dir):
     plt.hist(n_snr_10[~skip_mask], histtype="step", label=r"$SNR \geq 10$", bins=bins)
     plt.loglog()
     plt.xlabel("Number of Datapoints at Given SNR")
-    plt.ylabel("Number of Lightcurves")
+    plt.ylabel("Number of Light Curves")
     plt.legend()
     plt.savefig(os.path.join(save_dir, "snr_hist.pdf"), bbox_inches="tight")
     plt.close()
 
 
-def compare_mag_distributions(probs_classified, probs_unclassified, save_dir, zeropoint=26.3):
+def compare_mag_distributions(
+    probs_classified,
+    probs_unclassified,
+    save_dir,
+    zeropoint=26.3
+):
     """
     Generate overlaid magnitude distributions of the classified and unclassified datasets.
     Assumes that unclassified LCs that did not pass the chi-squared cut are marked as "SKIP".
@@ -571,46 +596,52 @@ def compare_mag_distributions(probs_classified, probs_unclassified, save_dir, ze
     """
     classified_df = pd.read_csv(probs_classified)
     max_flux = classified_df.Fmax.to_numpy()
+    print(max_flux)
     max_r_classified = -2.5 * np.log10(max_flux) + zeropoint
 
     unclassified_df = pd.read_csv(probs_unclassified)
     max_flux = unclassified_df.Fmax.to_numpy()
     max_r_unclassified_all = -2.5 * np.log10(max_flux) + zeropoint
 
-    mask_high_chisquared = (unclassified_df.iloc[:, 1] == "SKIP").to_numpy()
+    try:
+        mask_high_chisquared = unclassified_df.Chisq.to_numpy() > 1.2
+    except:
+        mask_high_chisquared = np.zeros(len(max_flux)).astype(bool)
     max_r_unclassified = max_r_unclassified_all[~mask_high_chisquared]
     max_r_skipped = max_r_unclassified_all[mask_high_chisquared]
 
     plt.hist(
         max_r_classified,
-        histtype="stepfilled",
+        histtype="step",
         bins=np.arange(5.0, 21.0, 0.5),
-        alpha=0.5,
         label="Spectroscopic",
         density=True,
+        linewidth=2,
     )
     plt.hist(
         max_r_unclassified,
-        histtype="stepfilled",
+        histtype="step",
         bins=np.arange(5.0, 21.0, 0.5),
-        alpha=0.5,
         label="Photometric (included)",
         density=True,
+        linewidth=2,
+
     )
 
     plt.hist(
         max_r_skipped,
-        histtype="stepfilled",
+        histtype="step",
         bins=np.arange(5.0, 21.0, 0.5),
-        alpha=0.5,
         label="Photometric (excluded)",
         density=True,
+        linewidth=2,
+
     )
 
     plt.yscale("log")
     plt.legend(loc="upper left")
-    plt.xlabel("Apparent Magnitude (m)")
-    plt.ylabel("Fraction of Lightcurves")
+    plt.xlabel("Peak Apparent Magnitude")
+    plt.ylabel("Fraction of Light Curves")
     plt.savefig(
         os.path.join(save_dir, "appm_hist_compare.pdf"),
         bbox_inches="tight",
@@ -621,9 +652,12 @@ def compare_mag_distributions(probs_classified, probs_unclassified, save_dir, ze
 def plot_chisquared_vs_accuracy(
     pred_spec_fn,
     pred_phot_fn,
+    all_spec_csv,
     fits_dir,
+    fits_dir_phot,
     save_dir,
     sampler=None,
+    allowed_types = SnClass.get_alternative_namings().keys()
 ):
     """
     Plot chi-squared value histograms for both the spectroscopic and photometric
@@ -640,85 +674,76 @@ def plot_chisquared_vs_accuracy(
     save_dir : str
         Where to save figure.
     """
-    sn_names, true_classes, _, pred_classes, _ = read_probs_csv(pred_spec_fn)
+    sn_names, true_classes, _, pred_classes, _, _ = read_probs_csv(pred_spec_fn)
+    sn_names_all = pd.read_csv(all_spec_csv).NAME.to_numpy()
+    sn_types_all = pd.read_csv(all_spec_csv).CLASS.to_numpy()
 
+    if allowed_types is not None:
+        mask = [
+            SnClass.canonicalize(y) in allowed_types for y in sn_types_all
+        ]
+        sn_names_all = sn_names_all[mask]
+        sn_types_all = sn_types_all[mask]
+        
+    print(len(sn_names_all), len(sn_names))
+    print(np.setdiff1d(sn_names_all, sn_names))
     correctly_classified = np.where(true_classes == pred_classes, 1, 0)
-    mult_posteriors = get_multiple_posterior_samples(sn_names, fits_dir, sampler=sampler)
+    mult_posteriors = get_multiple_posterior_samples(sn_names_all, fits_dir, sampler=sampler)
+    train_chis = np.array([np.mean(mult_posteriors[x][0][:, -1]) for x in sn_names_all])
+    train_chis_spec = np.array([np.mean(mult_posteriors[x][0][:, -1]) for x in sn_names])
+    
+    sn_names = pd.read_csv(pred_phot_fn).Name.to_numpy()
 
-    train_chis = np.array([-1 * np.mean(mult_posteriors[x][:, -1]) for x in sn_names])
+    mult_posteriors = get_multiple_posterior_samples(sn_names, fits_dir_phot, sampler=sampler)
 
-    sn_names = read_probs_csv(pred_phot_fn)[0]
-
-    mult_posteriors = get_multiple_posterior_samples(sn_names, fits_dir, sampler=sampler)
-
-    train_chis_phot = np.array([-1 * np.mean(mult_posteriors[x][:, -1]) for x in sn_names])
+    train_chis_phot = np.array([np.mean(mult_posteriors[x][0][:, -1]) for x in sn_names])
 
     # plot
     _, ax2 = plt.subplots(figsize=(7, 4.8))
     ax1 = ax2.twinx()
-    bins = np.arange(3.5, 14, 0.5)
+    bins = np.arange(0, 2.0, 0.1)
 
     correct_hist, bin_edges, _ = binned_statistic(
-        train_chis, correctly_classified, statistic="sum", bins=bins
+        train_chis_spec, correctly_classified, statistic="sum", bins=bins
     )
     bin_centers = (bin_edges[1:] + bin_edges[:-1]) / 2.0
 
-    all_hist, _, _ = binned_statistic(train_chis, np.ones(len(train_chis)), statistic="sum", bins=bins)
+    all_hist_spec, _, _ = binned_statistic(train_chis, np.ones(len(train_chis)), statistic="sum", bins=bins)
+    
+    all_hist, _, _ = binned_statistic(train_chis_spec, np.ones(len(train_chis_spec)), statistic="sum", bins=bins)
 
     all_hist_phot, _, _ = binned_statistic(
         train_chis_phot, np.ones(len(train_chis_phot)), statistic="sum", bins=bins
     )
 
-    ax2.hist(bin_centers, bin_edges, weights=all_hist, color="purple", alpha=0.5, label="Spectroscopic")
-    ax2.hist(bin_centers, bin_edges, weights=all_hist_phot, color="red", alpha=0.5, label="Photometric")
+    ax2.hist(bin_centers, bin_edges, weights=all_hist_spec, alpha=0.5, label="Spectroscopic")
+    ax2.hist(bin_centers, bin_edges, weights=all_hist_phot, alpha=0.5, label="Photometric")
 
     ax2.set_yscale("log")
 
     all_hist[all_hist == 0] = np.inf
 
     acc_hist = correct_hist / all_hist
-
-    idx_keep = (bin_centers < 10) & (bin_centers > 5)
+    acc_cut = acc_hist[bins[:-1] < 0.6]
+    acc_cut = np.append(acc_cut, acc_cut[-1])
     ax1.step(
-        bin_centers[idx_keep], acc_hist[idx_keep], where="mid", color="blue", linewidth=3, label="Accuracy"
+        bins[bins < 0.615],
+        acc_cut,
+        where="post", color='#228833', linewidth=3, label="Accuracy"
     )
-    ax1.axvline(x=10, color="black", linestyle="--", linewidth=4, label=r"Phot. $\chi^2$ cutoff")
-
-    # put bin counts on top of bars
-    """
-    for bin_i in range(len(bins)-1):
-        try:
-            height = acc_hist[bin_i]
-            plt.annotate(
-                '%d' % all_hist[bin_i],
-                xy=(bin_centers[bin_i], height),
-                xytext=(1, 1), # 3 points vertical offset
-                textcoords="offset points",
-                fontsize=10,
-                ha='center', va='bottom'
-            )
-        except:
-            plt.annotate(
-                '0',
-                xy=(bin_centers[bin_i], height),
-                xytext=(1, 1), # 3 points vertical offset
-                textcoords="offset points",
-                fontsize=10,
-                ha='center', va='bottom'
-            )
-            
-    """
+    ax1.axvline(x=0.6, color="black", linestyle="--", linewidth=4, label=r"Phot. $\chi^2$ cutoff")
 
     ax2.set_xlabel(r"Reduced $\chi^2$")
     ax1.set_ylabel("Accuracy", va="bottom", rotation=270)
     ax2.set_ylabel("Counts")
     ax2.legend()
 
-    ax1.yaxis.label.set_color("blue")
-    ax1.spines["right"].set_color("blue")
-    ax1.tick_params(axis="y", colors="blue")
+    ax1.yaxis.label.set_color('#228833')
+    ax1.spines["right"].set_color('#228833')
+    ax1.tick_params(axis="y", colors='#228833')
+    ax1.set_ylim((0, 1))
 
-    ax1.legend(loc="lower right")
+    ax1.legend(loc="center right")
     ax1.yaxis.set_minor_locator(AutoMinorLocator())
     ax2.yaxis.set_minor_locator(AutoMinorLocator())
 
@@ -726,7 +751,7 @@ def plot_chisquared_vs_accuracy(
     plt.close()
 
 
-def plot_model_metrics(metrics, num_epochs, plot_name, metrics_dir):
+def plot_model_metrics(metrics, plot_name, metrics_dir):
     """Plots training and validation results and exports them to files.
 
     Parameters
@@ -742,6 +767,7 @@ def plot_model_metrics(metrics, num_epochs, plot_name, metrics_dir):
     """
     train_acc, train_loss, val_acc, val_loss = metrics
 
+    num_epochs = len(train_acc)
     # Plot accuracy
     plt.plot(np.arange(0, num_epochs), train_acc, label="Training")
     plt.plot(np.arange(0, num_epochs), val_acc, label="Validation")

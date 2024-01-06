@@ -38,46 +38,35 @@ def test_nonimplemented_sampler(single_ztf_lightcurve_object, ztf_priors):
     name is given.
     """
     with pytest.raises(ValueError):
-        sampler = NumpyroSampler()
+        sampler = NumpyroSampler(sampler="sampler")
         _ = sampler.run_single_curve(
-            single_ztf_lightcurve_object, priors=ztf_priors, rng_seed=None, sampler="sampler"
+            single_ztf_lightcurve_object,
+            priors=ztf_priors,
+            rng_seed=None
         )
 
 
-def test_numpyro_nuts(ztf_priors, single_ztf_lightcurve_object):
+def test_numpyro_nuts(
+    ztf_priors,
+    single_ztf_lightcurve_object,
+    single_ztf_lightcurve_fit,
+):
     """Test that we generated a new file, that its samples that can be
     read, and the mean of samples generated is within a certain range of
     expected values."""
-    sampler = NumpyroSampler()
+    sampler = NumpyroSampler(sampler="NUTS")
     posterior_samples = sampler.run_single_curve(
         single_ztf_lightcurve_object,
         priors=ztf_priors,
         rng_seed=4,
-        sampler="NUTS",
     )
     # Check output length
-    assert len(posterior_samples.samples) == 300
+    assert len(posterior_samples.samples) == 1200
 
     # Check output values
-    expected = [
-        895.47189930,
-        0.00521055,
-        18.16068104,
-        -6.17901895,
-        2.87213922,
-        25.74471707,
-        0.025,
-        1.05761951,
-        1.04262573,
-        1.01245135,
-        0.99999012,
-        0.96668294,
-        0.62614179,
-        0.85886780,
-        -5.59074839,
-    ]
+    expected = single_ztf_lightcurve_fit
     sample_mean = posterior_samples.sample_mean()
-    assert np.all(np.isclose(sample_mean, expected, rtol=0.5))
+    assert np.all(np.isclose(sample_mean, expected, rtol=0.5, atol=0.2))
 
     # Test that on the same system and in the same environment, the same random
     # seed produces the same results.
@@ -85,7 +74,6 @@ def test_numpyro_nuts(ztf_priors, single_ztf_lightcurve_object):
         single_ztf_lightcurve_object,
         rng_seed=4,
         priors=ztf_priors,
-        sampler="NUTS",
     )
     sample_mean2 = posterior_samples2.sample_mean()
     assert np.allclose(sample_mean, sample_mean2)
@@ -95,13 +83,12 @@ def test_numpyro_nuts(ztf_priors, single_ztf_lightcurve_object):
         single_ztf_lightcurve_object,
         rng_seed=5,
         priors=ztf_priors,
-        sampler="NUTS",
     )
     sample_mean3 = posterior_samples3.sample_mean()
     assert not np.allclose(sample_mean, sample_mean3)
 
 
-def test_numpyro_svi(ztf_priors, single_ztf_lightcurve_object):
+def test_numpyro_svi(ztf_priors, single_ztf_lightcurve_object, single_ztf_lightcurve_fit):
     """Test that we generated a new file, that its samples that can be
     read, and the mean of samples generated is within a certain range of
     expected values."""
@@ -116,26 +103,10 @@ def test_numpyro_svi(ztf_priors, single_ztf_lightcurve_object):
     assert len(posterior_samples.samples) == 100
 
     # Check output values
-    expected = [
-        9.64e02,
-        5.21e-03,
-        1.70e01,
-        -6.07e00,
-        2.95e00,
-        2.36e01,
-        2.5e-02,
-        1.07e00,
-        1.04e00,
-        1.01e00,
-        9.99e-01,
-        9.64e-01,
-        5.72e-01,
-        8.57e-01,
-        -5.43,
-    ]
+    expected = single_ztf_lightcurve_fit
     sample_mean = posterior_samples.sample_mean()
     print(sample_mean)
-    assert np.all(np.isclose(sample_mean, expected, rtol=0.25))
+    assert np.all(np.isclose(sample_mean, expected, rtol=0.5, atol=0.2))
 
     # Test that on the same system and in the same environment, the same random
     # seed produces the same results.

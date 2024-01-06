@@ -3,7 +3,6 @@ import tempfile
 
 from generate_fits import PosteriorsGenerator
 
-
 def test_generate_fits():
     """Tests posteriors generation for a variety of
     samplers using a fixed seed."""

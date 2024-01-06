@@ -45,7 +45,7 @@ def test_ztf():
         assert False
 
     ## Confirm a single prior value (to ensure chained deserialization)
-    assert ztf_survey.priors.bands["r"].gamma.mean == 1.1391
+    assert ztf_survey.priors.bands["r"].gamma.mean == 1.4258
 
     
 def test_lsst():

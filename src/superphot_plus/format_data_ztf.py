@@ -2,14 +2,15 @@
 manipulating data related to ZTF lightcurves."""
 
 import csv
+import pandas as pd
 
 import numpy as np
 from imblearn.over_sampling import SMOTE
 from sklearn.model_selection import StratifiedKFold
 
-from superphot_plus.file_paths import FITS_DIR
 from superphot_plus.file_utils import get_multiple_posterior_samples, has_posterior_samples
 from superphot_plus.supernova_class import SupernovaClass as SnClass
+from superphot_plus.posterior_samples import PosteriorSamples
 
 
 def import_labels_only(input_csvs, allowed_types, fits_dir=None, needs_posteriors=True, sampler=None):
@@ -39,39 +40,40 @@ def import_labels_only(input_csvs, allowed_types, fits_dir=None, needs_posterior
     Maps groups of similar labels to a single representative label name
     (eg, "SN Ic", "SNIc-BL", and "21" all become "SN Ibc").
     """
-    if fits_dir is None:
-        fits_dir = FITS_DIR
-
+    # TODO: clean all this up using pandas
+    
     labels = []
     labels_orig = []
     repeat_ct = 0
     names = []
     redshifts = []
-
-    print(input_csvs, fits_dir, sampler)
+    
     for input_csv in input_csvs:
-        with open(input_csv, newline="", encoding="utf-8") as csvfile:
-            csvreader = csv.reader(csvfile)
-            next(csvreader)
-            for row in csvreader:
-                name = row[0]
-                if needs_posteriors and not has_posterior_samples(
+        df = pd.read_csv(input_csv)
+        names_all = df.NAME.to_numpy()
+        labels_all = df.CLASS.to_numpy()
+        redshifts_all = df.Z.to_numpy()
+        
+        for i, name in enumerate(names_all):
+            if needs_posteriors and (
+                    fits_dir is None or not has_posterior_samples(
                     lc_name=name, fits_dir=fits_dir, sampler=sampler
-                ):
-                    continue
-                label_orig = row[1]
-                row_label = SnClass.canonicalize(label_orig)
+                )
+            ):
+                continue
+            label_orig = labels_all[i]
+            row_label = SnClass.canonicalize(label_orig)
 
-                if row_label not in allowed_types:
-                    continue
+            if row_label not in allowed_types:
+                continue
 
-                if name not in names:
-                    names.append(name)
-                    labels.append(row_label)
-                    labels_orig.append(label_orig)
-                    redshifts.append(float(row[2]))
-                else:
-                    repeat_ct += 1
+            if name not in names:
+                names.append(name)
+                labels.append(row_label)
+                labels_orig.append(label_orig)
+                redshifts.append(float(redshifts_all[i]))
+            else:
+                repeat_ct += 1
 
     tally_each_class(labels_orig)
     print(repeat_ct)
@@ -123,7 +125,10 @@ def tally_each_class(labels):
 
 
 def oversample_using_posteriors(
-    lc_names, labels, goal_per_class, fits_dir, sampler=None, redshifts=None, oversample_redshifts=False
+    lc_names, labels, goal_per_class, fits_dir,
+    sampler=None, oversample_redshifts=False,
+    redshifts=None,
+    chisq_cutoff=np.inf,
 ):
     """Oversamples, drawing from posteriors of a certain fit.
 
@@ -150,30 +155,58 @@ def oversample_using_posteriors(
         Tuple containing oversampled features, labels, and redshifts.
     """
 
-    oversampled_redshifts = []
     oversampled_labels = []
     oversampled_features = []
     labels_unique = np.unique(labels)
 
     labels = np.array(labels)
-
-    posterior_samples = get_multiple_posterior_samples(lc_names, fits_dir, sampler)
-
+    
     for l in labels_unique:
         idxs_in_class = np.asarray(labels == l).nonzero()[0]
-        num_in_class = len(idxs_in_class)
-        samples_per_fit = max(1, np.round(goal_per_class / num_in_class).astype(int))
+        
+        idxs_keep = []
+        # get subset that pass redshift cuts
         for i in idxs_in_class:
+            if not oversample_redshifts or not (
+                np.isnan(redshifts[i]) or redshifts[i] <= 0.0
+            ):
+                idxs_keep.append(i)
+        
+        num_in_class = len(idxs_keep)
+        if num_in_class == 0:
+            continue # no valid samples
+        samples_per_fit = max(1, np.round(goal_per_class / num_in_class).astype(int))
+        
+        for i in idxs_keep:
             lc_name = lc_names[i]
-            all_posts = posterior_samples[lc_name]
+            post_obj = PosteriorSamples.from_file(
+                name=lc_name,
+                input_dir=fits_dir,
+                sampling_method=sampler
+            )
+            all_posts = post_obj.samples
+            
+            if np.mean(all_posts[:, -1]) > chisq_cutoff:
+                continue
+                
             sampled_idx = np.random.choice(np.arange(len(all_posts)), samples_per_fit)
             sampled_features = all_posts[sampled_idx]
+            
+            if oversample_redshifts:
+                redshift = redshifts[i]
+                max_flux = post_obj.max_flux
+            
+                z_arr = np.ones((samples_per_fit, 2)) * redshift
+                z_arr[:,1] = np.log10(max_flux)
+                
+                sampled_features = np.append(
+                    sampled_features, z_arr, axis=1
+                )
+                
             oversampled_features.extend(list(sampled_features))
             oversampled_labels.extend([l] * samples_per_fit)
-            if oversample_redshifts:
-                oversampled_redshifts.extend([redshifts[i]] * samples_per_fit)
 
-    return np.array(oversampled_features), np.array(oversampled_labels), np.array(oversampled_redshifts)
+    return np.array(oversampled_features), np.array(oversampled_labels)
 
 
 def normalize_features(features, mean=None, std=None):

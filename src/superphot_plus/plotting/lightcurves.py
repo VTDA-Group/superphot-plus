@@ -5,13 +5,15 @@ import os
 import matplotlib.pyplot as plt
 import numpy as np
 
-from superphot_plus.file_paths import FIT_PLOTS_FOLDER
 from superphot_plus.file_utils import get_posterior_samples
 from superphot_plus.import_utils import clip_lightcurve_end, import_lc
 from superphot_plus.lightcurve import Lightcurve
 from superphot_plus.plotting.utils import lighten_color
 from superphot_plus.utils import flux_model, get_numpyro_cube
+from superphot_plus.plotting.format_params import *
+from superphot_plus.posterior_samples import PosteriorSamples
 
+set_global_plot_formatting()
 
 def plot_lc_fit(
     ztf_name,
@@ -45,8 +47,11 @@ def plot_lc_fit(
 
     lightcurve = Lightcurve.from_file(data_fn)
 
-    eq_wt_samples = get_posterior_samples(ztf_name, fit_dir, sampling_method)
+    eq_wt_samples = PosteriorSamples.from_file(
+        name=ztf_name, input_dir=fit_dir, sampling_method=sampling_method
+    ).samples
 
+    print(np.mean(eq_wt_samples, axis=0))
     plot_sampling_lc_fit(
         ztf_name,
         out_dir,
@@ -99,35 +104,46 @@ def plot_sampling_lc_fit(
     sampling_method : str, optional
         Sampling method used for the fit. Default is "dynesty".
     """
+    os.makedirs(out_dir, exist_ok=True)
+    
     band_order = [x for x in band_order] # convert to arrray
     trange_fine = np.linspace(np.amin(tdata), np.amax(tdata), num=500)
 
     _, axis = plt.subplots()
     
-    prop_cycle = plt.rcParams['axes.prop_cycle']
-    colors = prop_cycle.by_key()['color']
-
+    max_flux = np.max(fdata[bdata == ref_band] - ferrdata[bdata == ref_band])
+    
     for e, band in enumerate(np.unique(bdata)):  # TODO: handle case where band name isnt a valid color
+        face_color, edge_color = band_colors(band)
         axis.errorbar(
             tdata[bdata == band],
             fdata[bdata == band],
             yerr=ferrdata[bdata == band],
-            c=colors[e],
+            c=edge_color,
+            fmt="none",
+            zorder=500,
+        )
+        axis.scatter(
+            tdata[bdata == band],
+            fdata[bdata == band],
+            c=face_color,
+            edgecolor=edge_color,
             label=band,
-            fmt="o",
+            marker="o",
+            zorder=1000,
         )
 
         for sample in eq_wt_samples[:30]:
             axis.plot(
                 trange_fine,
-                flux_model(sample, trange_fine, [band] * len(trange_fine), band_order, ref_band),
-                c=colors[e],
+                flux_model(sample, trange_fine, [band] * len(trange_fine), max_flux, band_order, ref_band),
+                c=face_color,
                 lw=1,
                 alpha=0.1,
             )
 
-    axis.legend(loc="upper left")
-    axis.set_xlabel("MJD")
+    axis.legend(loc="upper right")
+    axis.set_xlabel("Phase (days)")
     axis.set_ylabel("Flux (arbitrary units)")
 
     axis.set_title(ztf_name + ": " + sampling_method)
@@ -152,8 +168,8 @@ def plot_sampling_lc_fit_numpyro(
     lcs,
     ref_band,
     ordered_bands,
+    output_folder,
     sampling_method="svi",
-    output_folder=FIT_PLOTS_FOLDER,
 ):
     """
     Plot lightcurve sampling fit using in-memory samples.
@@ -266,13 +282,23 @@ def plot_lightcurve_clipping(ztf_name, data_folder, save_dir):
         f_notclip_b = f_notclip[notclip_b_idx]
         ferr_notclip_b = ferr_notclip[notclip_b_idx]
 
-        # TODO: have default band names to colors
+        face_color, edge_color= band_colors(b_name)
+        
         plt.errorbar(
             t_notclip_b,
             f_notclip_b,
             yerr=ferr_notclip_b,
-            fmt="o",
-            c=lighten_color(b_name, 0.8),
+            fmt="none",
+            c=edge_color,
+        )
+
+        plt.scatter(
+            t_notclip_b,
+            f_notclip_b,
+            color=face_color,
+            edgecolor=edge_color,
+            marker='o',
+            zorder=1000,
         )
 
         # overlay clipped points
@@ -281,7 +307,8 @@ def plot_lightcurve_clipping(ztf_name, data_folder, save_dir):
             f_clip_b,
             yerr=ferr_clip[clip_b_idx],
             fmt="^",
-            c=lighten_color(b_name, 1.5),
+            c=lighten_color(face_color, 1.2),
+            zorder=500,
         )
 
         # plot lines from last to max flux point
@@ -292,7 +319,7 @@ def plot_lightcurve_clipping(ztf_name, data_folder, save_dir):
         plt.plot(
             t_range_b,
             y_b,
-            c=lighten_color(b_name, 0.8),
+            c=edge_color,
             label=f"Max {b_name}-band slope",
             linestyle="dashed",
             linewidth=2,
@@ -312,7 +339,7 @@ def plot_lightcurve_clipping(ztf_name, data_folder, save_dir):
         plt.plot(
             t_range_b,
             y_b,
-            c=lighten_color(b_name, 1.5),
+            c=lighten_color(face_color, 1.2),
             linestyle="dotted",
             label=f"Clipped {b_name}-band slope",
             linewidth=2,

@@ -8,7 +8,13 @@ from superphot_plus.file_utils import get_posterior_filename, get_posterior_samp
 class PosteriorSamples:
     """Container for posterior samples from lightcurve fitting"""
 
-    def __init__(self, samples, name=None, sampling_method=None, sn_class=None, sample_mean=None):
+    def __init__(
+        self, samples,
+        name=None, sampling_method=None,
+        sn_class=None, sample_mean=None,
+        max_flux=None, redshift=None,
+        **kwargs
+    ):
         """A class for storing an manipulating posterior samples from a lightcurve.
 
         Parameters
@@ -24,6 +30,9 @@ class PosteriorSamples:
         self.name = name
         self.sampling_method = sampling_method
         self.sn_class = sn_class
+        self.max_flux = max_flux
+        self.redshift = redshift
+        
         self._sample_mean = sample_mean
         
         if self._sample_mean is None:
@@ -48,11 +57,19 @@ class PosteriorSamples:
             Output directory path. Defaults to FITS_DIR.
         """
         posterior_filename = get_posterior_filename(self.name, output_dir, self.sampling_method)
-
-        np.savez_compressed(posterior_filename, self.samples)
+        
+        np.savez_compressed(
+            posterior_filename,
+            samples=self.samples,
+            name=self.name,
+            sampling_method=self.sampling_method,
+            sn_class=self.sn_class,
+            redshift=self.redshift,
+            max_flux=self.max_flux
+        )
 
     @classmethod
-    def from_file(cls, input_dir=None, name=None, sampling_method=None, sn_class=None):
+    def from_file(cls, input_dir, name, sampling_method=None, **kwargs):
         """Create a PosteriorSamples object from a file.
 
         Parameters
@@ -66,6 +83,14 @@ class PosteriorSamples:
         sn_class : int, optional
             the classification of the supernova, if known.
         """
-        samples = get_posterior_samples(name, fits_dir=input_dir, sampler=sampling_method)
+        samples, all_kwargs = get_posterior_samples(name, fits_dir=input_dir, sampler=sampling_method)
 
-        return cls(samples, name=name, sampling_method=sampling_method, sn_class=sn_class)
+        for k in kwargs:
+            all_kwargs[k] = kwargs[k]
+            
+        if 'name' not in all_kwargs:
+            all_kwargs['name'] = name
+        if (sampling_method is not None) and ('sampling_method' not in all_kwargs):
+            all_kwargs['sampling_method'] = sampling_method
+            
+        return cls(samples, **all_kwargs)

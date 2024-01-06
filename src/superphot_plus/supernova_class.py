@@ -88,7 +88,7 @@ class SupernovaClass(str, Enum):
             cls.SUPERNOVA_IIN.value: ["SNIIn", "35", "SLSN-II", "SLSNII"],
             cls.SUPERLUMINOUS_SUPERNOVA_I.value: ["40", "SLSN"],
             # cls.SUPERLUMINOUS_SUPERNOVA_II.value: [],
-            "TDE": ["TDE", "42"],
+            #"TDE": ["TDE", "42"],
         }
 
     @classmethod

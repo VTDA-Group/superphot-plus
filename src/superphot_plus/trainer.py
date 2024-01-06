@@ -1,22 +1,29 @@
 import os
 
 import numpy as np
+import pandas as pd
+import copy
 from sklearn.model_selection import train_test_split
 
-from superphot_plus.file_paths import PROBS_FILE
 from superphot_plus.format_data_ztf import normalize_features, tally_each_class
-from superphot_plus.model.classifier import SuperphotClassifier
-from superphot_plus.model.config import ModelConfig
+from superphot_plus.model.mlp import SuperphotMLP
+from superphot_plus.model.lightgbm import SuperphotLightGBM
+
+from superphot_plus.config import SuperphotConfig
 from superphot_plus.model.data import TestData, TrainData, ZtfData
 from superphot_plus.plotting.classifier_results import plot_model_metrics
 from superphot_plus.plotting.confusion_matrices import plot_matrices
 from superphot_plus.supernova_class import SupernovaClass as SnClass
 from superphot_plus.trainer_base import TrainerBase
+from superphot_plus.file_utils import get_posterior_samples
 from superphot_plus.utils import (
     create_dataset,
     extract_wrong_classifications,
     log_metrics_to_tensorboard,
     write_metrics_to_file,
+    adjust_log_dists,
+    epoch_time,
+    save_test_probabilities,
 )
 
 
@@ -44,15 +51,18 @@ class SuperphotTrainer(TrainerBase):
     def __init__(
         self,
         config_name,
+        fits_dir,
         sampler="dynesty",
+        model_type='LightGBM',
         include_redshift=True,
-        probs_file=PROBS_FILE,
+        probs_file=None,
+        n_folds=10,
     ):
-        super().__init__(sampler, include_redshift, probs_file)
-        self.config_name = config_name
-        self.model, self.config = None, None
-
-        self.create_output_dirs(delete_prev=False)
+        super().__init__(
+            config_name, fits_dir,
+            sampler, model_type,
+            include_redshift, probs_file, n_folds
+        )
 
     def setup_model(self, load_checkpoint=False):
         """Reads model configuration from disk and loads the
@@ -63,21 +73,47 @@ class SuperphotTrainer(TrainerBase):
         load_checkpoint : bool
             If true, load pretrained model checkpoint.
         """
-        path = os.path.join(self.models_dir, self.config_name)
-        model_file, config_file = f"{path}.pt", f"{path}.yaml"
+        config = SuperphotConfig.from_file(self.config_name)
+        path = os.path.join(config.models_dir, self.config_name.split('/')[-1].split('.')[0])
+                
+        if self.probs_file is not None:
+            config.probs_fn = self.probs_file
+            
+        for i in range(self.n_folds):
+            if load_checkpoint:
+                model_file, config_file = f"{path}_{i}.pt", f"{path}_{i}.yaml"
+                model_i, config_i = self._load_model_instance(model_file, config_file)
+                self.models.append(model_i)
+                self.configs.append(config_i)
+            else:
+                self.models.append(None)
+                self.configs.append(copy.deepcopy(config))
+                self.configs[-1].probs_fn = config.probs_fn % i
 
-        config = ModelConfig.from_file(config_file)
+        self.load_checkpoint = load_checkpoint
 
-        if load_checkpoint:
-            self.model, _ = SuperphotClassifier.load(model_file, config_file)
-
-        self.config = config
-
-    def run(self, input_csvs=None, extract_wc=False, load_checkpoint=False):
+    def _load_model_instance(self, model_file, config_file):
+        if self.model_type == 'LightGBM':
+            return SuperphotLightGBM.load(model_file, config_file)
+        elif self.model_type == 'MLP':
+            return SuperphotMLP.load(model_file, config_file)
+        else:
+            raise ValueError
+    
+    def _create_model_instance(self, config):
+        if self.model_type == 'LightGBM':
+            return SuperphotLightGBM(config)
+        elif self.model_type == 'MLP':
+            return SuperphotMLP.create(config)
+        else:
+            raise ValueError
+    
+    def run(self, input_csvs=None, extract_wc=False, n_folds=1, load_checkpoint=False):
         """Runs the machine learning workflow.
 
         Trains the model on the whole training set and evaluates it on a
-        test holdout set. Metrics are plotted and logged to files.
+        test holdout set. Also allows K-fold cross-validation.
+        Metrics are plotted and logged to files.
 
         Parameters
         ----------
@@ -90,26 +126,100 @@ class SuperphotTrainer(TrainerBase):
         load_checkpoint : bool
             If true, load pretrained model checkpoint.
         """
-        train_data, test_data = self.split_train_test(input_csvs)
-
         # Loads model and config
         self.setup_model(load_checkpoint)
 
-        if self.model is None:
-            self.train(train_data)
+        if self.n_folds <= 1:
+            k_folded_data = [self.split_train_test(input_csvs),]
+            
+        k_folded_data = self.k_fold_split_train_test(self.kf, input_csvs)
+        
+        for i in range(self.n_folds):
+            train_data, test_data = k_folded_data[i]
+            self.train(i, train_data)
+            # Evaluate model on test dataset
+            self.evaluate(i, test_data, extract_wc)
 
-        # Evaluate model on test dataset
-        self.evaluate(test_data, extract_wc)
+    def classify_single_light_curve(self, obj_name, fits_dir, sampler="dynesty"):
+        """Given an object name, return classification probabilities
+        based on the model fit and data.
 
-    def train(self, train_data: ZtfData):
+        Parameters
+        ----------
+        obj_name : str
+            Name of the supernova.
+        fits_dir : str
+            Where model fit information is stored.
+        sampler : str
+            The MCMC sampler to use. Defaults to "dynesty".
+
+        Returns
+        ----------
+        np.ndarray
+            The average probability for each SN type across all equally-weighted sets of fit parameters.
+        """
+        post_features = get_posterior_samples(obj_name, fits_dir, sampler)[0]
+
+        # normalize the log distributions
+        post_features = adjust_log_dists(post_features)
+        probs_avg = np.zeros(len(self.allowed_types))
+        
+        for model in self.models: # ensemble classifier
+            probs = model.classify_from_fit_params(post_features)
+            probs_avg += np.mean(probs, axis=0)
+            
+        return probs_avg / self.n_folds
+    
+    def return_new_classifications(self, test_csv, fit_dir, save_file, output_dir=None, include_labels=False, sampler='dynesty'):
+        """Return new classifications based on model and save probabilities
+        to a CSV file.
+
+        Parameters
+        ----------
+        test_csv : str
+            Path to the CSV file containing the test data.
+        fit_dir : str
+            Path to the directory containing the fit data.
+        save_file : str
+            File to store the new classification outputs.
+        output_dir : str
+            Path to the directory to store the classification outputs.
+        include_labels : bool, optional
+            If True, labels from the test data are included in the
+            probability saving process. Defaults to False.
+        """
+        filepath = save_file if output_dir is None else os.path.join(output_dir, save_file)
+
+        df = pd.read_csv(test_csv)
+        names = df.NAME.to_numpy()
+        probs_avg = []
+        
+        if include_labels:
+            labels = df.CLASS.to_numpy()
+        else:
+            labels = None
+        
+        for i, test_name in enumerate(names):
+            probs_avg.append(
+                self.classify_single_light_curve(
+                    test_name, fit_dir, sampler=sampler
+                )
+            )
+        save_test_probabilities(
+            names, np.array(probs_avg),
+            filepath, true_labels=labels
+        )
+            
+    def train(self, i: int, train_data: ZtfData):
         """Trains the model with a specific set of hyperparameters.
 
         Parameters
         ----------
+        i : the k-fold index
         train_data : ZtfData
             Contains the ZTF object names, classes and redshifts for training.
         """
-        run_id = "final"
+        run_id = f"final_{i}"
 
         tally_each_class(train_data.labels)  # original tallies
 
@@ -120,45 +230,46 @@ class SuperphotTrainer(TrainerBase):
 
         train_features, train_classes, val_features, val_classes = self.generate_train_data(
             train_data=train_data,
-            goal_per_class=self.config.goal_per_class,
+            goal_per_class=self.configs[0].goal_per_class,
             train_index=train_index,
             val_index=val_index,
         )
+        
         train_features, mean, std = normalize_features(train_features)
         val_features, mean, std = normalize_features(val_features, mean, std)
 
         train_dataset = create_dataset(train_features, train_classes)
         val_dataset = create_dataset(val_features, val_classes)
 
-        self.config.set_non_tunable_params(
-            input_dim=train_features.shape[1],
-            output_dim=len(self.allowed_types),
-            norm_means=mean.tolist(),
-            norm_stddevs=std.tolist(),
-        )
-
-        self.model = SuperphotClassifier.create(self.config)
+        if not self.load_checkpoint:
+            self.configs[i].set_non_tunable_params(
+                input_dim=train_features.shape[1],
+                output_dim=len(self.allowed_types),
+                norm_means=mean.tolist(),
+                norm_stddevs=std.tolist(),
+            )
+            self.models[i] = self._create_model_instance(self.configs[i])
 
         # Train and validate multi-layer perceptron
-        metrics = self.model.train_and_validate(
-            train_data=TrainData(train_dataset, val_dataset), num_epochs=self.config.num_epochs
+        metrics = self.models[i].train_and_validate(
+            train_data=TrainData(train_dataset, val_dataset), num_epochs=self.configs[i].num_epochs
         )
 
         # Save model checkpoint
-        self.model.save(self.models_dir)
+        prefix = os.path.join(self.configs[i].models_dir, self.config_name.split('/')[-1].split('.')[0])
+        self.models[i].save(prefix, suffix=i)
 
         # Plot training and validation metrics
         plot_model_metrics(
             metrics=metrics,
-            num_epochs=self.config.num_epochs,
             plot_name=run_id,
-            metrics_dir=self.metrics_dir,
+            metrics_dir=self.configs[i].metrics_dir,
         )
 
         # Log average metrics per epoch to plot on Tensorboard.
-        log_metrics_to_tensorboard(metrics=[metrics], config=self.config, trial_id=run_id)
+        #log_metrics_to_tensorboard(metrics=[metrics], config=self.configs[i], trial_id=run_id)
 
-    def evaluate(self, test_data: ZtfData, extract_wc=False):
+    def evaluate(self, k_fold, test_data: ZtfData, extract_wc=False):
         """Evaluates a pretrained model on the test holdout set.
 
         Parameters
@@ -176,17 +287,20 @@ class SuperphotTrainer(TrainerBase):
             predicted classes and the predicted classes for which
             classification confidence exceeded 70%.
         """
-        if self.model is None:
+        if self.models[k_fold] is None:
             raise ValueError("Cannot evaluate uninitialized model.")
 
         test_features, test_classes, test_names, test_group_idxs = self.generate_test_data(
             test_data=test_data
         )
-        test_features, _, _ = normalize_features(test_features)
+        
+        mean = self.configs[k_fold].normalization_means
+        std = self.configs[k_fold].normalization_stddevs
+        
+        test_features, _, _ = normalize_features(test_features, mean, std)
 
-        results = self.model.evaluate(
+        results = self.models[k_fold].evaluate(
             test_data=TestData(test_features, test_classes, test_names, test_group_idxs),
-            probs_csv_path=self.probs_file,
         )
 
         true_classes, _, pred_classes, pred_probs = zip(results)
@@ -200,18 +314,16 @@ class SuperphotTrainer(TrainerBase):
 
         # Log evaluation metrics
         write_metrics_to_file(
-            config=self.config,
+            config=self.configs[k_fold],
             true_classes=true_classes,
             pred_classes=pred_classes,
             prob_above_07=pred_probs_above_07,
-            log_file=self.classify_log_file,
         )
         plot_matrices(
-            config=self.config,
+            config=self.configs[k_fold],
             true_classes=true_classes,
             pred_classes=pred_classes,
             prob_above_07=pred_probs_above_07,
-            cm_folder=self.cm_folder,
         )
         if extract_wc:
             extract_wrong_classifications(

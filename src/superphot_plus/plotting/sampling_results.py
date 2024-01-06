@@ -7,13 +7,14 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from superphot_plus.format_data_ztf import oversample_smote, oversample_using_posteriors
-from superphot_plus.plotting.format_params import param_labels
+from superphot_plus.plotting.format_params import param_labels, set_global_plot_formatting
 from superphot_plus.plotting.utils import gaussian
 from superphot_plus.supernova_class import SupernovaClass as SnClass
 from superphot_plus.surveys.surveys import Survey
 
 OVERSAMPLE_SIZE = 4000
 
+set_global_plot_formatting()
 
 def plot_corner_plot_all(
     names,
@@ -40,7 +41,7 @@ def plot_corner_plot_all(
     """
     # allowed_types = SnClass.all_classes()
 
-    features, labels, _ = oversample_using_posteriors(names, labels, OVERSAMPLE_SIZE, fits_dir)
+    features, labels = oversample_using_posteriors(names, labels, OVERSAMPLE_SIZE, fits_dir)
     plotting_labels, _ = param_labels(aux_bands)
     skip_idxs = [0, 3, len(plotting_labels) - 1]
 
@@ -153,8 +154,8 @@ def compare_oversampling(
     _, classes_to_labels = SnClass.get_type_maps()
     labels = np.array([classes_to_labels[x] for x in labels])
 
-    features_gaussian, labels_gaussian, _ = oversample_using_posteriors(
-        names, labels, OVERSAMPLE_SIZE, fits_dir, sampler
+    features_gaussian, labels_gaussian = oversample_using_posteriors(
+        names, labels, goal_per_class, fits_dir, sampler
     )
 
     feature_means = []
@@ -170,10 +171,11 @@ def compare_oversampling(
         for enum, name in enumerate(names_t):
             ## FIXME - e and name are unused - why is this a loop?
             feature_means.append(
-                np.mean(features_gaussian[start_idx : start_idx + samples_per_fit], axis=0)
+                np.median(features_gaussian[start_idx : start_idx + samples_per_fit], axis=0)
             )
             start_idx += samples_per_fit
 
+    labels_ordered = np.asarray(labels_ordered)
     feature_means = np.array(feature_means)
     feature_means_filler = np.ones((goal_per_class, len(feature_means[0])))
     labels_filler = 100 * np.ones(goal_per_class)
@@ -181,9 +183,8 @@ def compare_oversampling(
     feature_means_comb = np.vstack((feature_means, feature_means_filler))
     labels_comb = np.append(labels_ordered, labels_filler)
     features_smote_comb, labels_smote_comb = oversample_smote(feature_means_comb, labels_comb)
-
-    features_smote = features_smote_comb[labels_smote_comb == allowed_types[0]]
-    labels_smote = labels_smote_comb[labels_smote_comb == allowed_types[0]]
+    features_smote = features_smote_comb#[:goal_per_class]
+    labels_smote = labels_smote_comb#[:goal_per_class]
 
     params, save_labels = param_labels(aux_bands)
 
@@ -194,17 +195,19 @@ def compare_oversampling(
             if j in [0, 3, len(params)]:
                 continue
 
-            _, axes = plt.subplots(2, 1, sharex=True, figsize=(6, 8), gridspec_kw={"hspace": 0})
+            fig, axes = plt.subplots(2, 1, sharex=True, figsize=(6, 8), gridspec_kw={"hspace": 0})
 
             smote_ax = axes[0]
             gauss_ax = axes[1]
 
+            """
             if i in [2, 4, 5, 6]:
                 smote_ax.set_xscale("log")
                 gauss_ax.set_xscale("log")
             if j in [2, 4, 5, 6]:
                 smote_ax.set_yscale("log")
                 gauss_ax.set_yscale("log")
+            """
 
             param_2 = params[j]
 
@@ -213,6 +216,7 @@ def compare_oversampling(
 
             features_1_gauss = features_gaussian[:, i]
             features_2_gauss = features_gaussian[:, j]
+            
             for allowed_t in allowed_types:
                 feature_means_t1 = feature_means[:, i][labels_ordered == allowed_t]
                 feature_means_t2 = feature_means[:, j][labels_ordered == allowed_t]
@@ -221,35 +225,40 @@ def compare_oversampling(
                 features_gauss_t1 = features_1_gauss[labels_gaussian == allowed_t]
                 features_gauss_t2 = features_2_gauss[labels_gaussian == allowed_t]
 
-                smote_ax.scatter(
-                    features_smote_t1, features_smote_t2,
-                    label=allowed_t, alpha=0.2, s=1
+                smote_idx = np.random.choice(
+                    np.arange(len(features_smote_t1)), goal_per_class
                 )
                 smote_ax.scatter(
+                    features_smote_t1[smote_idx], features_smote_t2[smote_idx],
+                    label=allowed_t, alpha=0.8, s=1
+                )
+                
+                gauss_ax.scatter(
+                    features_gauss_t1, features_gauss_t2,
+                    label='Oversampled fits', alpha=0.8, s=1
+                )
+                
+                smote_ax.scatter(
                     feature_means_t1, feature_means_t2,
-                    label=allowed_t, s=3, c="black"
+                    label=allowed_t, s=3
                 )
 
                 gauss_ax.scatter(
                     feature_means_t1, feature_means_t2,
-                    label=allowed_t, s=3, c="black"
-                )
-                gauss_ax.scatter(
-                    features_gauss_t1, features_gauss_t2,
-                    label=allowed_t, alpha=0.2, s=1
+                    label='Median fits', s=3
                 )
 
             # annotate with labels
             smote_ax.text(
-                0.99, 0.99, "SMOTE",
-                horizontalalignment='right',
+                0.01, 0.99, "SMOTE",
+                horizontalalignment='left',
                 verticalalignment='top',
                 c="black",
                 transform=smote_ax.transAxes,
             )
             gauss_ax.text(
-                0.99, 0.99, "Oversampling\nMultiple Fits\nPer Lightcurve",
-                horizontalalignment='right',
+                0.01, 0.99, "Oversampling\nMultiple Fits\nPer Lightcurve",
+                horizontalalignment='left',
                 verticalalignment='top',
                 c="black",
                 transform=gauss_ax.transAxes,
@@ -258,6 +267,8 @@ def compare_oversampling(
             gauss_ax.set_xlabel(param_1)
             gauss_ax.set_ylabel(param_2)
             smote_ax.set_ylabel(param_2)
+            
+            plt.legend(loc='lower left', fontsize=14)
             direct_filename = f"{save_labels[i]}_vs_{save_labels[j]}.pdf"
             plt.savefig(
                 os.path.join(save_dir, "oversample_compare", direct_filename),
@@ -289,33 +300,49 @@ def plot_oversampling_1d(
     """
     labels_to_classes, classes_to_labels = SnClass.get_type_maps()
     allowed_types = list(classes_to_labels.keys())
+    print(allowed_types)
 
     goal_per_class = OVERSAMPLE_SIZE
-    features_gaussian, labels_gaussian, _ = oversample_using_posteriors(
+    features_gaussian, labels_gaussian = oversample_using_posteriors(
         names, labels, goal_per_class, fits_dir, sampler
     )
 
-    params, _ = param_labels(priors.aux_bands, priors.reference_band)
+    params, _ = param_labels(priors.aux_bands, priors.reference_band, log=False)
 
-    fig, axes = plt.subplots(3, 4, figsize=(8, 10))
+    fig, axes = plt.subplots(3, 4, figsize=(10, 10))
     axes = axes.ravel()
 
     prior_means = priors.to_numpy()[:, 2]
     prior_stddevs = priors.to_numpy()[:, 3]
 
+    good_fits = features_gaussian[:, -1] < 0.6
+
+    features_gaussian = features_gaussian[good_fits]
+    labels_gaussian = labels_gaussian[good_fits]
+        
     ax_num = 0
     for i in range(1, len(params) - 1):
-        leg_lines = []
-        param_1 = params[i]
-        features_1_gauss = features_gaussian[:, i]
-
         if i == 3:
             continue
+        leg_lines = []
+        param_1 = params[i]
+        
+        features_1_gauss = features_gaussian[:, i]
+        labels_gauss = labels_gaussian
+        
+        if i in [1, 2, 8, 9]:
+            """only include samples that actually have a plateau!"""
+            constrained_plateau = features_gaussian[:, 2] > 0
+            features_1_gauss = features_1_gauss[constrained_plateau]
+            labels_gauss = labels_gauss[constrained_plateau]
+        
+        """
         if i == 10:
             param_1 = r"$10^4\times (t_\mathrm{0, g} - 1)$"
             features_1_gauss = 10000 * (features_1_gauss - 1)
             prior_means[i] = 10000 * (prior_means[i] - 1)
             prior_stddevs[i] = 10000 * prior_stddevs[i]
+        """
         if i == 1:
             param_1 = r"$10^3\times \beta_\mathrm{r}$"
             features_1_gauss = 1000 * features_1_gauss
@@ -324,18 +351,18 @@ def plot_oversampling_1d(
 
         log_scale = False
 
-        if i in [2, 4, 5, 6]:
+        if i not in [1, 3, 10, 14]:
             log_scale = True
             axes[ax_num].set_xscale("log")
-            feature_hist, bin_edges = np.histogram(np.log10(features_1_gauss), bins=20)
+            feature_hist, bin_edges = np.histogram(features_1_gauss, bins=50)
             bin_width = bin_edges[1] - bin_edges[0]
             bin_edges = 10**bin_edges
 
         else:
-            feature_hist, bin_edges = np.histogram(features_1_gauss, bins=20)
+            feature_hist, bin_edges = np.histogram(features_1_gauss, bins=50)
             bin_width = bin_edges[1] - bin_edges[0]
 
-        feature_hist[np.abs(feature_hist) > 1e5] = 0
+        #feature_hist[np.abs(feature_hist) > 1e5] = 0
         current_area = np.sum(bin_width * feature_hist)
         feature_hist = (1.0 / current_area) * feature_hist
 
@@ -344,14 +371,19 @@ def plot_oversampling_1d(
 
         for allowed_class in allowed_types:
             allowed_label = classes_to_labels[allowed_class]
-            features_1_t = features_1_gauss[labels_gaussian == allowed_class]
+            features_1_t = features_1_gauss[labels_gauss == allowed_label]
+            
+            if log_scale:
+                feature_hist, bin_edges = np.histogram(10**features_1_t, bins=bin_edges)
 
-            feature_hist, bin_edges = np.histogram(features_1_t, bins=bin_edges)
+            else:
+                feature_hist, bin_edges = np.histogram(features_1_t, bins=bin_edges)
+                
             current_area = np.sum(bin_width * feature_hist)
             feature_hist = (1.0 / current_area) * feature_hist
-            feature_hist[np.abs(feature_hist) > 1e5] = 0
+            #feature_hist[np.abs(feature_hist) > 1e5] = 0
             (legend_line,) = axes[ax_num].step(
-                bin_centers, feature_hist, where="mid", label=allowed_label
+                bin_centers, feature_hist, where="mid", label=allowed_label, alpha=0.8
             )
             leg_lines.append(legend_line)
 
@@ -359,26 +391,27 @@ def plot_oversampling_1d(
         (legend_line,) = ax.step(
             bin_centers,
             feature_hist_all,
-            where="mid", c="k", label="Combined", linewidth=2
+            where="mid", c="k", label="Combined", alpha=0.8,
         )
         leg_lines.append(legend_line)
 
-        amp = 1.0 / np.sqrt(2 * np.pi) / prior_stddevs[i]
+        if i < 14:
+            amp = 1.0 / np.sqrt(2 * np.pi) / prior_stddevs[i]
 
-        if log_scale:
-            bins_fine = np.linspace(np.log10(bin_centers[0]), np.log10(bin_centers[-1]), num=100)
-            prior_dist = gaussian(bins_fine, amp, prior_means[i], prior_stddevs[i])
-            bins_fine = 10**bins_fine
-        else:
-            bins_fine = np.linspace(bin_centers[0], bin_centers[-1], num=100)
-            prior_dist = gaussian(bins_fine, amp, prior_means[i], prior_stddevs[i])
+            if log_scale:
+                bins_fine = np.linspace(np.log10(bin_centers[0]), np.log10(bin_centers[-1]), num=100)
+                prior_dist = gaussian(bins_fine, amp, prior_means[i], prior_stddevs[i])
+                bins_fine = 10**bins_fine
+            else:
+                bins_fine = np.linspace(bin_centers[0], bin_centers[-1], num=100)
+                prior_dist = gaussian(bins_fine, amp, prior_means[i], prior_stddevs[i])
 
-        (legend_line,) = ax.plot(
-            bins_fine, prior_dist,
-            linestyle="dashed", linewidth=2,
-            label="Prior", c="magenta"
-        )
-        leg_lines.append(legend_line)
+            (legend_line,) = ax.plot(
+                bins_fine, prior_dist,
+                label="Prior",
+                alpha=0.8
+            )
+            leg_lines.append(legend_line)
         ax.set_xlabel(param_1)
         ax.set_yticklabels([])
         ax.set_yticks([])
@@ -389,17 +422,20 @@ def plot_oversampling_1d(
 
         if log_scale:
             ax.set_aspect(abs(np.log10(x_right / x_left) / (y_low - y_high)) * ratio)
+            ax.locator_params(axis="x", numticks=3)
         else:
             ax.set_aspect(abs((x_right - x_left) / (y_low - y_high)) * ratio)
+            ax.locator_params(axis="x", nbins=3)
+        
 
         ax_num += 1
 
     legend_keys = [*list(labels_to_classes.keys()), "Combined", "Prior"]
     fig.legend(leg_lines, legend_keys, loc="lower center", ncol=4)
-    plt.locator_params(axis="x", nbins=3)
+    
 
     fig.tight_layout()
-    fig.subplots_adjust(bottom=0.1)
+    fig.subplots_adjust(bottom=0.15)
 
     plt.savefig(os.path.join(save_dir, "all_1d_hists.pdf"))  # , bbox_inches="tight")
     plt.close()
@@ -426,7 +462,7 @@ def plot_combined_posterior_space(
     os.makedirs(os.path.join(save_dir, "combined_2d_posteriors"), exist_ok=True)
     # pt_colors = ["r", "c", "k", "m", "g"] # keep for TODO
 
-    features, labels, _ = oversample_using_posteriors(names, labels, OVERSAMPLE_SIZE, fits_dir)
+    features, labels = oversample_using_posteriors(names, labels, OVERSAMPLE_SIZE, fits_dir)
 
     params, save_labels = param_labels(aux_bands)
 
@@ -478,15 +514,21 @@ def plot_param_distributions(
         Whether to overlay Gaussian estimate of distribution. Defaults to True.
     """
     os.makedirs(os.path.join(save_dir, "posterior_hists"), exist_ok=True)
-    posteriors, labels, _ = oversample_using_posteriors(names, labels, OVERSAMPLE_SIZE, fit_folder)
+    posteriors, labels = oversample_using_posteriors(
+        names,
+        labels,
+        OVERSAMPLE_SIZE,
+        fit_folder,
+        sampler="dynesty"
+    )
+    good_fits = posteriors[:, -1] < 0.6
+    posteriors = posteriors[good_fits]
+    labels = labels[good_fits]
 
     params, save_labels = param_labels(aux_bands)
 
-    for i in range(1, len(params) - 1):
+    for i in range(len(params) - 1):
         feat_i = posteriors[:, i]
-
-        if i in [2, 4, 5, 6]:
-            feat_i = np.log10(feat_i)
 
         num_per_bin, bins, _ = plt.hist(feat_i, bins=100)
         bin_centers = (bins[1:] + bins[:-1]) / 2.0
@@ -508,6 +550,7 @@ def plot_param_distributions(
 
         plt.xlabel(params[i])
         plt.ylabel("Count")
+        plt.title(f"{mean_est} +- {stddev_est}")
         plt.savefig(
             os.path.join(
                 save_dir, "posterior_hists", f"{save_labels[i]}.pdf"

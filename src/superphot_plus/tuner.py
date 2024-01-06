@@ -12,7 +12,7 @@ from ray.tune.search.optuna import OptunaSearch
 
 from superphot_plus.format_data_ztf import generate_K_fold, normalize_features, tally_each_class
 from superphot_plus.model.classifier import SuperphotClassifier
-from superphot_plus.model.config import ModelConfig
+from superphot_plus.config import SuperphotConfig
 from superphot_plus.model.data import TrainData, ZtfData
 from superphot_plus.trainer_base import TrainerBase
 from superphot_plus.utils import create_dataset, get_session_metrics, log_metrics_to_tensorboard
@@ -46,11 +46,10 @@ class SuperphotTuner(TrainerBase):
         super().__init__(sampler, include_redshift)
         self.num_cpu = num_cpu
         self.num_gpu = num_gpu
-        self.create_output_dirs(delete_prev=True)
 
     def generate_hp_sample(self):
         """Generates random set of hyperparameters for tuning."""
-        return ModelConfig(
+        return SuperphotConfig(
             neurons_per_layer=tune.choice([128, 256, 512]),
             num_hidden_layers=tune.choice([3, 4, 5]),
             goal_per_class=tune.choice([100, 500, 1000]),
@@ -127,7 +126,7 @@ class SuperphotTuner(TrainerBase):
         print(f"Best trial config: {best_trial.config}")
         print(f"Best trial validation loss: {best_val_loss}")
 
-        return ModelConfig(**best_trial.config)
+        return SuperphotConfig(**best_trial.config)
 
     def run_cross_validation(self, config, train_data: ZtfData):
         """Runs cross-fold validation to estimate the best set of
@@ -148,7 +147,7 @@ class SuperphotTuner(TrainerBase):
         os.chdir(os.environ["TUNE_ORIG_WORKING_DIR"])
 
         # Construct training config from dict
-        config = ModelConfig(**config)
+        config = SuperphotConfig(**config)
 
         tally_each_class(train_data.labels)
 
@@ -173,7 +172,7 @@ class SuperphotTuner(TrainerBase):
             val_dataset = create_dataset(val_features, val_classes)
 
             model = SuperphotClassifier.create(
-                config=ModelConfig(
+                config=SuperphotConfig(
                     input_dim=train_features.shape[1],
                     output_dim=len(self.allowed_types),
                     neurons_per_layer=config.neurons_per_layer,

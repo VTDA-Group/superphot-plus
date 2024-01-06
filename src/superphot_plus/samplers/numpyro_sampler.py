@@ -19,20 +19,27 @@ from superphot_plus.posterior_samples import PosteriorSamples
 from superphot_plus.samplers.sampler import Sampler
 from superphot_plus.surveys.fitting_priors import MultibandPriors, PriorFields
 from superphot_plus.surveys.surveys import Survey
-from superphot_plus.utils import calculate_neg_chi_squareds, get_numpyro_cube
+from superphot_plus.utils import (
+    calculate_chi_squareds,
+    get_numpyro_cube,
+    villar_fit_constraint
+)
+#from numpyro.distributions.constraints import Constraint
+
 
 config.update("jax_enable_x64", True)
 numpyro.enable_x64()
+numpyro.set_host_device_count(4)
 
 
 class NumpyroSampler(Sampler):
     """MCMC sampling using numpyro."""
 
-    def __init__(self):
-        pass
+    def __init__(self, sampler='svi'):
+        self.sampler = sampler
 
     def run_single_curve(
-        self, lightcurve: Lightcurve, priors: MultibandPriors, rng_seed, ref_params=None, sampler="svi", **kwargs
+        self, lightcurve: Lightcurve, priors: MultibandPriors, rng_seed, ref_params=None, **kwargs
     ) -> PosteriorSamples:
         """Run the sampler on a single light curve.
 
@@ -53,11 +60,11 @@ class NumpyroSampler(Sampler):
         eq_wt_samples : PosteriorSamples
             The resulting samples.
         """
-        lightcurve.pad_bands(priors.ordered_bands, PAD_SIZE)
+        lightcurve = lightcurve.pad_bands(priors.ordered_bands, PAD_SIZE, in_place=False)
         eq_wt_samples = run_mcmc(
             lightcurve,
             rng_seed=rng_seed,
-            sampler=sampler,
+            sampler=self.sampler,
             priors=priors,
             ref_params=ref_params,
         )
@@ -67,7 +74,7 @@ class NumpyroSampler(Sampler):
         return PosteriorSamples(
             eq_wt_samples[0],
             name=lightcurve.name,
-            sampling_method=sampler,
+            sampling_method=self.sampler,
             sn_class=lightcurve.sn_class,
         )
 
@@ -104,7 +111,7 @@ class NumpyroSampler(Sampler):
         return post_list
 
 
-def prior_helper(priors, max_flux, aux_b=None):
+def prior_helper(priors, aux_b=None):
     """Helper function to sample prior values. If aux_b is not None,
     appends aux_b to value names.
 
@@ -119,24 +126,33 @@ def prior_helper(priors, max_flux, aux_b=None):
         assumes it's the base band.
     """
     if aux_b is None:
-        amp = max_flux * 10 ** numpyro.sample("logA", trunc_norm(priors.amp))
-        beta = numpyro.sample("beta", trunc_norm(priors.beta))
-        gamma = 10 ** numpyro.sample("log_gamma", trunc_norm(priors.gamma))
+        amp = 10 ** numpyro.sample("logA", trunc_norm(priors.amp))
+        beta = numpyro.sample(
+            "beta",
+            trunc_norm(priors.beta, high = 1.0/(10**priors.tau_fall.clip_a + 10**priors.gamma.clip_a)),
+        )
         t_0 = numpyro.sample("t0", trunc_norm(priors.t_0))
         tau_rise = 10 ** numpyro.sample("log_tau_rise", trunc_norm(priors.tau_rise))
-        tau_fall = 10 ** numpyro.sample("log_tau_fall", trunc_norm(priors.tau_fall))
+        tau_fall = 10 ** numpyro.sample(
+            "log_tau_fall",
+            trunc_norm(priors.tau_fall, high = jnp.log10(1./beta - 10**priors.gamma.clip_a))
+        )
+        gamma = 10 ** numpyro.sample(
+            "log_gamma",
+            trunc_norm(priors.gamma, high=jnp.log10((1.0 - beta * tau_fall) / beta))
+        )
         extra_sigma = 10 ** numpyro.sample("log_extra_sigma", trunc_norm(priors.extra_sigma))
-
+        
     else:
         suffix = "_" + str(aux_b)
-        amp = numpyro.sample(f"A{suffix}", trunc_norm(priors.amp))
-        beta = numpyro.sample(f"beta{suffix}", trunc_norm(priors.beta))
-        gamma = numpyro.sample(f"gamma{suffix}", trunc_norm(priors.gamma))
+        amp = 10**numpyro.sample(f"A{suffix}", trunc_norm(priors.amp))
+        beta = 10**numpyro.sample(f"beta{suffix}", trunc_norm(priors.beta))
+        gamma = 10**numpyro.sample(f"gamma{suffix}", trunc_norm(priors.gamma))
         t_0 = numpyro.sample(f"t0{suffix}", trunc_norm(priors.t_0))
-        tau_rise = numpyro.sample(f"tau_rise{suffix}", trunc_norm(priors.tau_rise))
-        tau_fall = numpyro.sample(f"tau_fall{suffix}", trunc_norm(priors.tau_fall))
-        extra_sigma = numpyro.sample(f"extra_sigma{suffix}", trunc_norm(priors.extra_sigma))
-
+        tau_rise = 10**numpyro.sample(f"tau_rise{suffix}", trunc_norm(priors.tau_rise))
+        tau_fall = 10**numpyro.sample(f"tau_fall{suffix}", trunc_norm(priors.tau_fall))
+        extra_sigma = 10**numpyro.sample(f"extra_sigma{suffix}", trunc_norm(priors.extra_sigma))
+    
     return amp, beta, gamma, t_0, tau_rise, tau_fall, extra_sigma
 
 
@@ -152,7 +168,7 @@ def lax_helper_function(svi, svi_state, num_iters, *args, **kwargs):
     return u
 
 
-def trunc_norm(fields: PriorFields):
+def trunc_norm(fields: PriorFields, low=None, high=None):
     """Provides keyword parameters to numpyro's TruncatedNormal, using the fields in PriorFields.
 
     Parameters
@@ -165,8 +181,17 @@ def trunc_norm(fields: PriorFields):
     numpyro.distributions.TruncatedDistribution
         A truncated normal distribution.
     """
+    if high is None:
+        high = fields.clip_b
+    else:
+        high = jnp.minimum(high, fields.clip_b)
+    if low is None:
+        low = fields.clip_a
+    else:
+        low = jnp.maximum(low, fields.clip_b)
+        
     return dist.TruncatedNormal(
-        loc=fields.mean, scale=fields.std, low=fields.clip_a, high=fields.clip_b, validate_args=True
+        loc=fields.mean, scale=fields.std, low=low, high=high, validate_args=True
     )
 
 
@@ -204,18 +229,24 @@ def create_jax_model(
         (
             amp, beta, gamma, t_0,
             tau_rise, tau_fall, extra_sigma
-        ) = prior_helper(ref_priors, max_flux)
+        ) = prior_helper(ref_priors)
 
-    es_scaled = max_flux * extra_sigma
+    constraint = villar_fit_constraint([beta, gamma, tau_rise, tau_fall])
+    numpyro.factor(
+        "vf_constraint",
+        -1000. * constraint
+    )
+        
     phase = t - t_0
-    flux_const = amp / (1.0 + jnp.exp(-phase / tau_rise))
+    flux_const = max_flux * amp / (1.0 + jnp.exp(-phase / tau_rise))
     sigmoid = 1 / (1 + jnp.exp(10.0 * (gamma - phase)))
 
     flux = flux_const * (
         (1 - sigmoid) * (1 - beta * phase)
         + sigmoid * (1 - beta * gamma) * jnp.exp(-(phase - gamma) / tau_fall)
     )
-    sigma_tot = jnp.sqrt(uncertainties**2 + es_scaled**2)
+    
+    sigma_tot = jnp.sqrt(uncertainties**2 + max_flux**2 * extra_sigma**2)
 
     # auxiliary bands
     for b_idx, uniq_b in enumerate(priors.ordered_bands):
@@ -228,18 +259,30 @@ def create_jax_model(
             amp_ratio,
             beta_ratio,
             gamma_ratio,
-            t0_ratio,
+            t0_shift,
             tau_rise_ratio,
             tau_fall_ratio,
             extra_sigma_ratio,
-        ) = prior_helper(b_priors, max_flux, uniq_b)
+        ) = prior_helper(b_priors, uniq_b)
 
-        amp_b = amp * amp_ratio
+        amp_b = max_flux * amp * amp_ratio
         beta_b = beta * beta_ratio
         gamma_b = gamma * gamma_ratio
-        t0_b = t_0 * t0_ratio
+        t0_b = t_0 + t0_shift
         tau_rise_b = tau_rise * tau_rise_ratio
         tau_fall_b = tau_fall * tau_fall_ratio
+        extra_sigma_b = extra_sigma * extra_sigma_ratio
+        
+        constraint = villar_fit_constraint([beta_b, gamma_b, tau_rise_b, tau_fall_b])
+
+        numpyro.factor(
+            f"vf_constraint_{uniq_b}",
+            -1000. * constraint
+        )
+        numpyro.factor(
+            f"sigma_constraint_{uniq_b}",
+            -1000. * jnp.maximum(extra_sigma_b - 10**(-0.8), 0.)
+        )
 
         # base inc_band_ix on ordered_bands
         inc_band_ix = np.arange(b_idx * PAD_SIZE, (b_idx + 1) * PAD_SIZE)
@@ -257,7 +300,7 @@ def create_jax_model(
         )
 
         sigma_tot = sigma_tot.at[inc_band_ix].set(
-            jnp.sqrt(uncertainties[inc_band_ix] ** 2 + extra_sigma_ratio**2 * es_scaled**2)
+            jnp.sqrt(uncertainties[inc_band_ix] ** 2 + (max_flux*extra_sigma_ratio*extra_sigma)**2)
         )
 
     _ = numpyro.sample("obs", dist.Normal(flux, sigma_tot), obs=obsflux)
@@ -345,23 +388,27 @@ def _svi_helper_no_recompile(
             posterior_samples[param[:-3]] = rng.normal(
                 loc=params[param], scale=params[param[:-2] + "sigma"], size=100
             )
-
+    
+    
     posterior_cube = get_numpyro_cube(
         posterior_samples, max_flux,
         priors.reference_band, priors.ordered_bands
     )[0]
+    
     padded_idxs = lc_single.flux_errors == 1e10
-    red_neg_chisq = calculate_neg_chi_squareds(
+        
+    red_chisq = calculate_chi_squareds(
         posterior_cube,
         lc_single.times[~padded_idxs],
         lc_single.fluxes[~padded_idxs],
         lc_single.flux_errors[~padded_idxs],
         lc_single.bands[~padded_idxs],
+        max_flux,
         ordered_bands=priors.ordered_bands,
         ref_band=priors.reference_band,
     )
     
-    return posterior_cube, red_neg_chisq, svi_state
+    return posterior_cube, red_chisq, svi_state
         
         
 def run_mcmc(lc, rng_seed, sampler="NUTS", priors=Survey.ZTF().priors, ref_params=None):
@@ -423,13 +470,13 @@ def run_mcmc(lc, rng_seed, sampler="NUTS", priors=Survey.ZTF().priors, ref_param
 
         mcmc = MCMC(
             kernel,
-            num_warmup=1000,
+            num_warmup=10000,
             num_samples=num_samples,
-            num_chains=1,
+            num_chains=4,
             chain_method="parallel",
             jit_model_args=True,
         )
-
+        
         # with numpyro.validation_enabled():
         mcmc.run(
             rng_key,
@@ -440,26 +487,29 @@ def run_mcmc(lc, rng_seed, sampler="NUTS", priors=Survey.ZTF().priors, ref_param
         )
 
         posterior_samples = mcmc.get_samples()
-
+        
         posterior_cube, aux_bands = get_numpyro_cube(
             posterior_samples,
             max_flux,
             priors.reference_band,
             priors.ordered_bands
         )
-        padded_idxs = lc.flux_errors > 1e5
-        red_neg_chisq = calculate_neg_chi_squareds(
+        
+        padded_idxs = lc.flux_errors == 1e10
+        
+        red_chisq = calculate_chi_squareds(
             posterior_cube,
             lc.times[~padded_idxs],
             lc.fluxes[~padded_idxs],
             lc.flux_errors[~padded_idxs],
             lc.bands[~padded_idxs],
+            max_flux,
             ordered_bands=priors.ordered_bands,
             ref_band=priors.reference_band,
         )
 
         posterior_cubes = [
-            np.hstack((posterior_cube, red_neg_chisq[np.newaxis, :].T)),
+            np.hstack((posterior_cube, red_chisq[np.newaxis, :].T)),
         ]
 
     elif sampler == "svi":
@@ -492,7 +542,7 @@ def run_mcmc(lc, rng_seed, sampler="NUTS", priors=Survey.ZTF().priors, ref_param
                 svi_state = None #reinitialize
             
             max_flux, _ = lc_single.find_max_flux(band=priors.reference_band)
-            posterior_cube, red_neg_chisq, svi_state = _svi_helper_no_recompile(
+            posterior_cube, red_chisq, svi_state = _svi_helper_no_recompile(
                 lc_single,
                 max_flux,
                 priors,
@@ -504,9 +554,9 @@ def run_mcmc(lc, rng_seed, sampler="NUTS", priors=Survey.ZTF().priors, ref_param
                 ref_params,
             )
 
-            bad_prev_fit = np.mean(red_neg_chisq) < -6
+            #bad_prev_fit = np.mean(red_chisq) 
 
-            posterior_cube = np.hstack((posterior_cube, red_neg_chisq[np.newaxis, :].T))
+            posterior_cube = np.hstack((posterior_cube, red_chisq[np.newaxis, :].T))
             posterior_cubes.append(posterior_cube)
 
     else:

@@ -41,6 +41,7 @@ class SuperphotClassifier(nn.Module):
         self.config = config
 
         n_neurons = config.neurons_per_layer
+        
         self.input_fc = nn.Linear(config.input_dim, n_neurons)
 
         assert config.num_hidden_layers >= 1
@@ -82,6 +83,7 @@ class SuperphotClassifier(nn.Module):
         x = x.view(batch_size, -1)
 
         h_1 = self.dropouts[0](x)
+        
         h_1 = F.relu(self.input_fc(h_1))
 
         h_hidden = h_1
@@ -157,7 +159,7 @@ class SuperphotClassifier(nn.Module):
                 epoch_time=epoch_time(start_time, end_time),
             )
 
-            if epoch % 5 == 0:
+            if epoch % 50 == 0:
                 metrics.print_last()
 
         # Save best model state

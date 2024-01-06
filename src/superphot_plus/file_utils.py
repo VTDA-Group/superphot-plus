@@ -4,10 +4,8 @@ import os
 
 import numpy as np
 
-from superphot_plus.file_paths import FITS_DIR
 
-
-def get_posterior_filename(lc_name, fits_dir=None, sampler=None):
+def get_posterior_filename(lc_name, fits_dir='.', sampler=None):
     """Get the file name for equal weight posterior samples from a lightcurve fit.
 
     Parameters
@@ -24,8 +22,6 @@ def get_posterior_filename(lc_name, fits_dir=None, sampler=None):
     str
         File name for numpy array file containing the posterior samples.
     """
-    if fits_dir is None:
-        fits_dir = FITS_DIR
     if sampler is not None:
         posterior_filename = os.path.join(fits_dir, f"{lc_name}_eqwt_{sampler}.npz")
     else:
@@ -51,9 +47,20 @@ def get_posterior_samples(lc_name, fits_dir=None, sampler=None):
         Numpy array containing the posterior samples.
     """
     posterior_filename = get_posterior_filename(lc_name, fits_dir, sampler)
-
-    return np.load(posterior_filename)["arr_0"]
-
+    loaded_arr = np.load(posterior_filename, allow_pickle=True)
+    samples = None
+    kwargs = {}
+    for k in loaded_arr.files:
+        extracted = loaded_arr[k]
+        if extracted.shape == ():
+            extracted = extracted[()]
+        if k == 'arr_0' or k == 'samples':
+            samples = extracted
+        else:
+            kwargs[k] = extracted
+    print(kwargs)
+    return samples, kwargs
+            
 
 def get_multiple_posterior_samples(lc_names, fits_dir, sampler=None):
     """Reads all EQUAL WEIGHT posterior samples for a set of lightcurve fits.
