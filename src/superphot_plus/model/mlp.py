@@ -395,7 +395,6 @@ class SuperphotMLP(nn.Module):
             Sums to 1 along each row.
         """
         fit_params_2d = np.atleast_2d(fit_params)  # cast to 2D if only 1 light curve
-
         test_features, _, _ = normalize_features(
             fit_params_2d,
             self.config.normalization_means,
