@@ -31,8 +31,6 @@ def test_run_trainer(tmp_path):
     features = np.random.random((num_samples, input_dim))
     labels = np.random.randint(num_output_classes, size=num_samples)
 
-    test_names = ["ZTF-testname"]
-    test_group_idxs = [np.arange(0, 10)]
 
     # Create a test holdout of 10%
     train_features, test_features, train_labels, test_labels = train_test_split(
@@ -78,8 +76,10 @@ def test_run_trainer(tmp_path):
 
     log_metrics_to_tensorboard(metrics=[metrics], config=config, trial_id=run_id, base_dir=tmp_path)
 
+    test_names = ["ZTF-testname"] * len(test_features)
+    
     model.evaluate(
-        test_data=TestData(test_features, test_labels, test_names, test_group_idxs),
+        test_data=TestData(test_features, test_labels, test_names),
     )
 
     assert os.path.exists(os.path.join(tmp_path, "accuracy_test-run.pdf"))
@@ -90,15 +90,8 @@ def test_run_trainer(tmp_path):
 def test_create_dataset():
     """Tests the creation of a TensorDataset."""
     features, labels = np.random.random((2, 5)), [1, 3]
-
-    # Without group indices
     dataset = create_dataset(features, labels)
     assert 2 == len(dataset.tensors)
-
-    # With group indices
-    idxs = [[0, 1, 2, 3, 4], [5, 6, 7, 8, 9]]
-    dataset = create_dataset(features, labels, idxs)
-    assert 3 == len(dataset.tensors)
 
 
 def test_calculate_accuracy():

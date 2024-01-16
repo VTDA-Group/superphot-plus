@@ -86,9 +86,7 @@ class SuperphotLightGBM:
         eval_results = {}
         
         classifier = lightgbm.LGBMClassifier(**lightgbm_params)
-        
-        print(train_feats.shape)
-        print(val_feats.shape)
+
         classifier.fit(
             train_feats,
             train_classes,
@@ -139,7 +137,7 @@ class SuperphotLightGBM:
             A tuple containing the labels, names, predicted labels
             and maximum probabilities.
         """
-        test_features, test_classes, test_names, test_group_idxs = test_data
+        test_features, test_classes, test_names = test_data
 
         # Write output file header
         # TODO: UNHARD CODE THIS
@@ -148,9 +146,8 @@ class SuperphotLightGBM:
 
         labels, pred_labels, max_probs, names, probs_avgs = [], [], [], [], []
 
-        for group_idx_set in test_group_idxs:
-            
-            test_name = test_names[group_idx_set][0]
+        for test_name in np.unique(test_names):
+            group_idx_set = ( test_names == test_name )
             true_classes = test_classes[group_idx_set]
             
             probs = self.best_model.predict_proba(
@@ -207,7 +204,10 @@ class SuperphotLightGBM:
             self.config.normalization_stddevs,
         )[0]
         probs = self.best_model.predict_proba(test_features)
-        return probs.numpy()
+        try:
+            return probs.numpy()
+        except:
+            return probs
             
     def save(self, config_prefix, suffix=''):
         """Save the classifier as file.

@@ -8,7 +8,23 @@ from astropy.table import Table
 from superphot_plus.supernova_class import SupernovaClass as SnClass
 from superphot_plus.utils import convert_mags_to_flux
 from superphot_plus.lightcurve import Lightcurve
+from superphot_plus.posterior_samples import PosteriorSamples
 
+
+DEFAULT_FEATURES = [
+    'color',
+    'color_error',
+    's1',
+    's1_error',
+    's2',
+    's2_error',
+    's3',
+    's3_error',
+    'luminosity',
+    'luminosity_error',
+    'reference_time_error',
+]
+    
 def convert_to_lcdata_h5(dataset_csv, probs_csv, data_dir, save_dir):
     """Convert data folder to h5 file compatible with lcdata.
     """
@@ -70,7 +86,7 @@ def convert_to_lcdata_h5(dataset_csv, probs_csv, data_dir, save_dir):
         ),
         overwrite=True
     )
-        
+    
 def retrieve_decodings(sn_name, dataset_fn, model_fn):
     """Retrieve 100 decoded light curves for single
     light curve name."""
@@ -89,6 +105,46 @@ def retrieve_decodings(sn_name, dataset_fn, model_fn):
                              100 - percentile_offset, axis=0)
     
     return model_times, flux_median, flux_min, flux_max
+
+
+def reformat_features(
+    predictions_fn,
+    save_dir,
+    csv_path,
+    feature_list=DEFAULT_FEATURES,
+):
+    """Retrieve ParSNIP features and format
+    to be read by get_posterior_samples.
+    """
+    predictions = Table.read(predictions_fn)
+    features = np.array([
+        predictions[i].data for i in feature_list
+    ]).T
+    #super hacky way to not remove i=3 element later in classification
+    features = np.insert(features, 3, np.zeros(len(features)), axis=1)
+    names = predictions['object_id'].data.astype(str)
+    redshifts = predictions['redshift'].data.astype(float)
+    labels = predictions['type'].data.astype(str)
+    
+    # make training CSV
+    training_df = pd.DataFrame({
+        'NAME': names,
+        'CLASS': labels,
+        'Z': redshifts
+    })
+    training_df.to_csv(csv_path)
+    return
+    for i, sn_name in enumerate(names):
+        ps = PosteriorSamples(
+            features,
+            name=sn_name,
+            sampling_method='parsnip',
+            redshift=redshifts[i],
+            sn_class=labels[i]
+        )
+        ps.save_to_file(save_dir)
+    
+    
         
         
     

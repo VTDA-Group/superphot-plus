@@ -260,7 +260,7 @@ class SuperphotMLP(nn.Module):
             A tuple containing the labels, names, predicted labels
             and maximum probabilities.
         """
-        test_features, test_classes, test_names, test_group_idxs = test_data
+        test_features, test_classes, test_names = test_data
 
         # Write output file header
         with open(self.config.probs_fn, "w+", encoding="utf-8") as probs_file:
@@ -268,16 +268,20 @@ class SuperphotMLP(nn.Module):
 
         labels, pred_labels, max_probs, names, probs_avgs = [], [], [], [], []
 
-        for group_idx_set in test_group_idxs:
+        for test_name in test_names:
+            group_idx_set = (test_names == test_name)
             test_dataset = create_dataset(
                 test_features[group_idx_set],
                 test_classes[group_idx_set],
-                group_idx_set,
             )
 
-            test_iterator = DataLoader(dataset=test_dataset, batch_size=self.config.batch_size)
+            test_iterator = DataLoader(
+                dataset=test_dataset, batch_size=self.config.batch_size
+            )
 
-            _, labels_indiv, indx_indiv, probs = self.get_predictions(test_iterator)
+            _, labels_indiv, probs = self.get_predictions(
+                test_iterator
+            )
             probs_avg = np.mean(probs.numpy(), axis=0)
 
             labels_indiv = labels_indiv.numpy()
@@ -285,7 +289,7 @@ class SuperphotMLP(nn.Module):
             pred_labels.append(np.argmax(probs_avg))
             max_probs.append(np.amax(probs_avg))
             labels.append(labels_indiv[0])
-            names.append(test_names[indx_indiv.numpy().astype(int)[0]])
+            names.append(test_name)
             probs_avgs.append(probs_avg)
 
         save_test_probabilities(
@@ -321,10 +325,9 @@ class SuperphotMLP(nn.Module):
         images = []
         labels = []
         probs = []
-        sample_idxs = []
 
         with torch.no_grad():
-            for x, y, z in iterator:
+            for x, y in iterator:
                 x = x.to(self.config.device)
 
                 y_pred, _ = self(x)
@@ -333,15 +336,13 @@ class SuperphotMLP(nn.Module):
 
                 images.append(x.cpu())
                 labels.append(y.cpu())
-                sample_idxs.append(z.cpu())
                 probs.append(y_prob.cpu())
 
         images = torch.cat(images, dim=0)
         labels = torch.cat(labels, dim=0)
         probs = torch.cat(probs, dim=0)
-        sample_idxs = torch.cat(sample_idxs, dim=0)
 
-        return images, labels, sample_idxs, probs
+        return images, labels, probs
 
     def get_predictions_from_fit_params(self, iterator):
         """Given a trained model, returns the test images, test labels, and

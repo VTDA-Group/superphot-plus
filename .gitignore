@@ -158,3 +158,6 @@ runs/
 # Airspeed Velocity performance results
 _results/
 _html/
+
+# Pymon
+*.pymon
