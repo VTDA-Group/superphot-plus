@@ -375,7 +375,6 @@ def calculate_log_likelihood(cube, lightcurve, unique_bands, ref_band):
     # and generated.
     sigma_sq = lightcurve.flux_errors**2 + extra_sigma_arr**2
 
-    print(sigma_sq, f_model, lightcurve.fluxes)
     logL = np.sum(
         np.log(1.0 / np.sqrt(2.0 * np.pi * sigma_sq))
         - 0.5 * (f_model - lightcurve.fluxes) ** 2 / sigma_sq
@@ -464,7 +463,7 @@ def calculate_chi_squareds(cubes, t, f, ferr, b, max_flux, ordered_bands=None, r
     return red_chisq
 
 
-def create_dataset(features, labels, idxs=None):
+def create_dataset(features, labels):
     """Creates a PyTorch dataset object from numpy arrays.
 
     Parameters
@@ -483,14 +482,7 @@ def create_dataset(features, labels, idxs=None):
     """
     tensor_x = torch.tensor(features, dtype=torch.float, device='cpu')  # transform to torch tensor
     tensor_y = torch.tensor(labels, dtype=torch.int64, device='cpu')
-
-    if idxs is None:
-        return TensorDataset(tensor_x, tensor_y)
-
-    tensor_z = torch.tensor(idxs, dtype=torch.int64, device='cpu')
-
-    return TensorDataset(tensor_x, tensor_y, tensor_z)
-
+    return TensorDataset(tensor_x, tensor_y)
 
 def calculate_accuracy(y_pred, y):
     """Calculate the prediction accuracy.
@@ -569,30 +561,7 @@ def save_test_probabilities(
     
     df = pd.DataFrame(df_dict)
     df.to_csv(output_path, index=False)
-
-def adjust_log_dists(features_orig, redshift=False):
-    """Takes log of fit parameters with log-Gaussian priors before
-    feeding into classifier. Also removes apparent amplitude and t0.
-
-    Parameters
-    ----------
-    features_orig : np.ndarray
-        Array of fit features of all samples.
-    redshift : boolean, optional
-        Whether to keep redshift data or not.
-
-    Returns
-    ---------
-    features : np.ndarray
-        Array of adjusted fit features.
-    """
-    features = np.copy(features_orig)
-
-    if redshift:  # keep amplitude
-        return np.delete(features, [3,], 1)
-
-    return np.delete(features, [0, 3], 1)
-
+    
 
 def write_metrics_to_file(
     config,
@@ -618,7 +587,6 @@ def write_metrics_to_file(
     """
     test_acc = calc_accuracy(pred_classes, true_classes)
     test_f1_score = f1_score(pred_classes, true_classes, class_average=True)
-    print(config.best_val_loss)
 
     with open(config.log_fn, "a+", encoding="utf-8") as the_file:
         the_file.write(str(config.goal_per_class) + " samples per class\n")

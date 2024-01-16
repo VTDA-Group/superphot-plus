@@ -5,8 +5,6 @@ import csv
 import pandas as pd
 
 import numpy as np
-from imblearn.over_sampling import SMOTE
-from sklearn.model_selection import StratifiedKFold
 
 from superphot_plus.file_utils import get_multiple_posterior_samples, has_posterior_samples
 from superphot_plus.supernova_class import SupernovaClass as SnClass
@@ -40,7 +38,6 @@ def import_labels_only(input_csvs, allowed_types, fits_dir=None, needs_posterior
     Maps groups of similar labels to a single representative label name
     (eg, "SN Ic", "SNIc-BL", and "21" all become "SN Ibc").
     """
-    # TODO: clean all this up using pandas
     
     labels = []
     labels_orig = []
@@ -61,6 +58,7 @@ def import_labels_only(input_csvs, allowed_types, fits_dir=None, needs_posterior
                 )
             ):
                 continue
+                
             label_orig = labels_all[i]
             row_label = SnClass.canonicalize(label_orig)
 
@@ -79,30 +77,6 @@ def import_labels_only(input_csvs, allowed_types, fits_dir=None, needs_posterior
     print(repeat_ct)
 
     return np.array(names), np.array(labels), np.array(redshifts)
-
-
-def generate_K_fold(features, classes, num_folds):
-    """Generates set of K test sets and corresponding training sets.
-
-    Parameters
-    ----------
-    features: list
-        Input features.
-    classes: list
-        Input classes.
-    num_folds : int
-        Number of folds. If -1, sets num_folds=len(features).
-
-    Returns
-    -------
-    generator
-        Generator yielding the indices for training and test sets.
-    """
-    if num_folds == -1:
-        kf = StratifiedKFold(n_splits=len(features), shuffle=True)  # cross-one out validation
-    else:
-        kf = StratifiedKFold(n_splits=num_folds, shuffle=True)
-    return kf.split(features, classes)
 
 
 def tally_each_class(labels):
@@ -124,89 +98,51 @@ def tally_each_class(labels):
     print()
 
 
-def oversample_using_posteriors(
-    lc_names, labels, goal_per_class, fits_dir,
-    sampler=None, oversample_redshifts=False,
-    redshifts=None,
+def retrieve_posterior_set(
+    lc_names, fits_dir, sampler=None,
+    redshifts=None, labels=None,
     chisq_cutoff=np.inf,
 ):
-    """Oversamples, drawing from posteriors of a certain fit.
-
+    """Retrieve all sets of posterior samples, excluding
+    poor median fits and invalid redshift values.
+    
     Parameters
     ----------
     lc_names : str
         Lightcurve names.
-    labels : list
-        List of labels.
-    goal_per_class : int
-        Number of samples per class.
     fits_dir : str
         Where fit parameters are stored.
     sampler : str, optional
         The name of the sampler to use.
     redshifts : list, optional
         List of redshift values.
-    oversample_redshifts : boolean, optional
-        Indicates whether to oversample redshifts.
-
-    Returns
-    -------
-    tuple of np.ndarray
-        Tuple containing oversampled features, labels, and redshifts.
+    chisq_cutoff : float, optional
+        Ignore all fit sets with median chisq above this value.
     """
+    samples = []
+    if redshifts is None:
+        redshifts = np.ones(len(lc_names))
 
-    oversampled_labels = []
-    oversampled_features = []
-    labels_unique = np.unique(labels)
+    for i, name in enumerate(lc_names):
+        if np.isnan(redshifts[i]) or redshifts[i] <= 0:
+            continue
+        post_obj = PosteriorSamples.from_file(
+            name=name,
+            input_dir=fits_dir,
+            sampling_method=sampler
+        )
+        # bandaid: add redshifts to PosteriorSamples object here
+        post_obj.redshift = redshifts[i]
+        if labels is not None:
+            post_obj.sn_class = labels[i]
+        all_posts = post_obj.samples
+        
+        if np.median(all_posts[:, -1]) > chisq_cutoff:
+            continue
+        
+        samples.append(post_obj)
 
-    labels = np.array(labels)
-    
-    for l in labels_unique:
-        idxs_in_class = np.asarray(labels == l).nonzero()[0]
-        
-        idxs_keep = []
-        # get subset that pass redshift cuts
-        for i in idxs_in_class:
-            if not oversample_redshifts or not (
-                np.isnan(redshifts[i]) or redshifts[i] <= 0.0
-            ):
-                idxs_keep.append(i)
-        
-        num_in_class = len(idxs_keep)
-        if num_in_class == 0:
-            continue # no valid samples
-        samples_per_fit = max(1, np.round(goal_per_class / num_in_class).astype(int))
-        
-        for i in idxs_keep:
-            lc_name = lc_names[i]
-            post_obj = PosteriorSamples.from_file(
-                name=lc_name,
-                input_dir=fits_dir,
-                sampling_method=sampler
-            )
-            all_posts = post_obj.samples
-            
-            if np.mean(all_posts[:, -1]) > chisq_cutoff:
-                continue
-                
-            sampled_idx = np.random.choice(np.arange(len(all_posts)), samples_per_fit)
-            sampled_features = all_posts[sampled_idx]
-            
-            if oversample_redshifts:
-                redshift = redshifts[i]
-                max_flux = post_obj.max_flux
-            
-                z_arr = np.ones((samples_per_fit, 2)) * redshift
-                z_arr[:,1] = np.log10(max_flux)
-                
-                sampled_features = np.append(
-                    sampled_features, z_arr, axis=1
-                )
-                
-            oversampled_features.extend(list(sampled_features))
-            oversampled_labels.extend([l] * samples_per_fit)
-
-    return np.array(oversampled_features), np.array(oversampled_labels)
+    return samples
 
 
 def normalize_features(features, mean=None, std=None):
@@ -229,19 +165,10 @@ def normalize_features(features, mean=None, std=None):
         deviation values.
     """
     if mean is None:
-        mean = features.mean(axis=-2)
+        mean = features.mean(axis=0)
     if std is None:
-        std = features.std(axis=-2)
+        std = features.std(axis=0)
 
     safe_std = np.copy(std)
     safe_std[std == 0.0] = 1.0
     return (features - mean) / safe_std, mean, std
-
-
-def oversample_smote(features, labels):
-    """
-    Uses SMOTE to oversample data from rarer classes.
-    """
-    oversample = SMOTE()
-    features_smote, labels_smote = oversample.fit_resample(features, labels)
-    return features_smote, labels_smote

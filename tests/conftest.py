@@ -113,6 +113,7 @@ def trainer_mlp(test_data_dir, config_filename, mlp):
         test_data_dir,
         sampler="dynesty",
         model_type='MLP',
+        include_redshift=False,
         n_folds=1,
     )
     trainer.setup_model(load_checkpoint=False)

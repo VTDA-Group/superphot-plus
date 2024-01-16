@@ -43,7 +43,7 @@ class SuperphotConfig:
     # Tunable parameters
     neurons_per_layer: Optional[int] = None
     num_hidden_layers: Optional[int] = None
-    goal_per_class: Optional[int] = None
+    goal_per_class: Optional[int] = 4500
     num_folds: Optional[int] = None
     num_epochs: Optional[int] = None
     batch_size: Optional[int] = None

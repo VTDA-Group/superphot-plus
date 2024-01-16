@@ -58,7 +58,6 @@ def get_posterior_samples(lc_name, fits_dir=None, sampler=None):
             samples = extracted
         else:
             kwargs[k] = extracted
-    print(kwargs)
     return samples, kwargs
             
 
@@ -103,5 +102,4 @@ def has_posterior_samples(lc_name, fits_dir=None, sampler=None):
         Does a file already exist for the lightcurve fit
     """
     posterior_filename = get_posterior_filename(lc_name, fits_dir, sampler)
-
     return os.path.isfile(posterior_filename)

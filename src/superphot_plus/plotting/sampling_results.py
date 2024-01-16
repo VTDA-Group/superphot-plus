@@ -6,11 +6,12 @@ import corner
 import matplotlib.pyplot as plt
 import numpy as np
 
-from superphot_plus.format_data_ztf import oversample_smote, oversample_using_posteriors
 from superphot_plus.plotting.format_params import param_labels, set_global_plot_formatting
 from superphot_plus.plotting.utils import gaussian
 from superphot_plus.supernova_class import SupernovaClass as SnClass
 from superphot_plus.surveys.surveys import Survey
+from superphot_plus.model.data import PosteriorSamplesGroup
+from superphot_plus.format_data_ztf import retrieve_posterior_set
 
 OVERSAMPLE_SIZE = 4000
 
@@ -40,8 +41,14 @@ def plot_corner_plot_all(
         The auxiliary bands of the fits (for plotting lables). Defaults to ZTF's aux bands.
     """
     # allowed_types = SnClass.all_classes()
-
-    features, labels = oversample_using_posteriors(names, labels, OVERSAMPLE_SIZE, fits_dir)
+    all_post_objs = retrieve_posterior_set(
+        names, fits_dir, sampler='dynesty',
+        redshifts=None,
+        labels=labels,
+        chisq_cutoff=1.2
+    )
+    psg = PosteriorSamplesGroup(all_post_objs)
+    features, labels = psg.oversample(OVERSAMPLE_SIZE)
     plotting_labels, _ = param_labels(aux_bands)
     skip_idxs = [0, 3, len(plotting_labels) - 1]
 
@@ -154,9 +161,14 @@ def compare_oversampling(
     _, classes_to_labels = SnClass.get_type_maps()
     labels = np.array([classes_to_labels[x] for x in labels])
 
-    features_gaussian, labels_gaussian = oversample_using_posteriors(
-        names, labels, goal_per_class, fits_dir, sampler
+    all_post_objs = retrieve_posterior_set(
+        names, fits_dir, sampler=sampler,
+        redshifts=None,
+        labels=labels,
+        chisq_cutoff=1.2
     )
+    psg = PosteriorSamplesGroup(all_post_objs)
+    features_gaussian, labels_gaussian = psg.oversample(goal_per_class)
 
     feature_means = []
     labels_ordered = []
@@ -303,9 +315,14 @@ def plot_oversampling_1d(
     print(allowed_types)
 
     goal_per_class = OVERSAMPLE_SIZE
-    features_gaussian, labels_gaussian = oversample_using_posteriors(
-        names, labels, goal_per_class, fits_dir, sampler
+    all_post_objs = retrieve_posterior_set(
+        names, fits_dir, sampler='dynesty',
+        redshifts=None,
+        labels=labels,
+        chisq_cutoff=1.2
     )
+    psg = PosteriorSamplesGroup(all_post_objs)
+    features_gaussian, labels_gaussian = psg.oversample(goal_per_class)
 
     params, _ = param_labels(priors.aux_bands, priors.reference_band, log=False)
 
@@ -314,11 +331,6 @@ def plot_oversampling_1d(
 
     prior_means = priors.to_numpy()[:, 2]
     prior_stddevs = priors.to_numpy()[:, 3]
-
-    good_fits = features_gaussian[:, -1] < 0.6
-
-    features_gaussian = features_gaussian[good_fits]
-    labels_gaussian = labels_gaussian[good_fits]
         
     ax_num = 0
     for i in range(1, len(params) - 1):
@@ -462,7 +474,14 @@ def plot_combined_posterior_space(
     os.makedirs(os.path.join(save_dir, "combined_2d_posteriors"), exist_ok=True)
     # pt_colors = ["r", "c", "k", "m", "g"] # keep for TODO
 
-    features, labels = oversample_using_posteriors(names, labels, OVERSAMPLE_SIZE, fits_dir)
+    all_post_objs = retrieve_posterior_set(
+        names, fits_dir, sampler='dynesty',
+        redshifts=None,
+        labels=labels,
+        chisq_cutoff=1.2
+    )
+    psg = PosteriorSamplesGroup(all_post_objs)
+    features, labels = psg.oversample(OVERSAMPLE_SIZE)
 
     params, save_labels = param_labels(aux_bands)
 
@@ -514,17 +533,14 @@ def plot_param_distributions(
         Whether to overlay Gaussian estimate of distribution. Defaults to True.
     """
     os.makedirs(os.path.join(save_dir, "posterior_hists"), exist_ok=True)
-    posteriors, labels = oversample_using_posteriors(
-        names,
-        labels,
-        OVERSAMPLE_SIZE,
-        fit_folder,
-        sampler="dynesty"
+    all_post_objs = retrieve_posterior_set(
+        names, fit_folder, sampler='dynesty',
+        redshifts=None,
+        labels=labels,
+        chisq_cutoff=1.2
     )
-    good_fits = posteriors[:, -1] < 0.6
-    posteriors = posteriors[good_fits]
-    labels = labels[good_fits]
-
+    psg = PosteriorSamplesGroup(all_post_objs)
+    posteriors, labels = psg.oversample(OVERSAMPLE_SIZE)
     params, save_labels = param_labels(aux_bands)
 
     for i in range(len(params) - 1):

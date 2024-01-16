@@ -10,7 +10,7 @@ from superphot_plus.model.mlp import SuperphotMLP
 from superphot_plus.model.lightgbm import SuperphotLightGBM
 
 from superphot_plus.config import SuperphotConfig
-from superphot_plus.model.data import TestData, TrainData, ZtfData
+from superphot_plus.model.data import TestData, TrainData, PosteriorSamplesGroup
 from superphot_plus.plotting.classifier_results import plot_model_metrics
 from superphot_plus.plotting.confusion_matrices import plot_matrices
 from superphot_plus.supernova_class import SupernovaClass as SnClass
@@ -21,7 +21,6 @@ from superphot_plus.utils import (
     extract_wrong_classifications,
     log_metrics_to_tensorboard,
     write_metrics_to_file,
-    adjust_log_dists,
     epoch_time,
     save_test_probabilities,
 )
@@ -161,7 +160,7 @@ class SuperphotTrainer(TrainerBase):
         post_features = get_posterior_samples(obj_name, fits_dir, sampler)[0]
 
         # normalize the log distributions
-        post_features = adjust_log_dists(post_features)
+        post_features = np.delete(post_features, self.skipped_params, 1)
         probs_avg = np.zeros(len(self.allowed_types))
         
         for model in self.models: # ensemble classifier
@@ -210,13 +209,13 @@ class SuperphotTrainer(TrainerBase):
             filepath, true_labels=labels
         )
             
-    def train(self, i: int, train_data: ZtfData):
+    def train(self, i: int, train_data: PosteriorSamplesGroup):
         """Trains the model with a specific set of hyperparameters.
 
         Parameters
         ----------
         i : the k-fold index
-        train_data : ZtfData
+        train_data : PosteriorSamplesGroup
             Contains the ZTF object names, classes and redshifts for training.
         """
         run_id = f"final_{i}"
@@ -269,12 +268,12 @@ class SuperphotTrainer(TrainerBase):
         # Log average metrics per epoch to plot on Tensorboard.
         #log_metrics_to_tensorboard(metrics=[metrics], config=self.configs[i], trial_id=run_id)
 
-    def evaluate(self, k_fold, test_data: ZtfData, extract_wc=False):
+    def evaluate(self, k_fold, test_data: PosteriorSamplesGroup, extract_wc=False):
         """Evaluates a pretrained model on the test holdout set.
 
         Parameters
         ----------
-        test_data : ZtfData
+        test_data : PosteriorSamplesGroup
             Contains the ZTF object names, classes and redshifts for testing.
         extract_wc : bool
             If true, assumes all sample fit plots are saved in
@@ -290,7 +289,7 @@ class SuperphotTrainer(TrainerBase):
         if self.models[k_fold] is None:
             raise ValueError("Cannot evaluate uninitialized model.")
 
-        test_features, test_classes, test_names, test_group_idxs = self.generate_test_data(
+        test_features, test_classes, test_names = self.generate_test_data(
             test_data=test_data
         )
         
@@ -300,7 +299,7 @@ class SuperphotTrainer(TrainerBase):
         test_features, _, _ = normalize_features(test_features, mean, std)
 
         results = self.models[k_fold].evaluate(
-            test_data=TestData(test_features, test_classes, test_names, test_group_idxs),
+            test_data=TestData(test_features, test_classes, test_names),
         )
 
         true_classes, _, pred_classes, pred_probs = zip(results)
