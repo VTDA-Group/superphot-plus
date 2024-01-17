@@ -81,22 +81,13 @@ class TrainerBase:
             labels=labels,
             chisq_cutoff=1.2
         )
-
-        for (train_index, test_index) in kf.split(names, labels):
-            train_posteriors = all_post_objs[train_index]
-            test_posteriors = all_post_objs[test_index]
-            
-            train_data = PosteriorSamplesGroup(
-                train_posteriors,
-                use_redshift_info=self.include_redshift,
-                ignore_param_idxs=self.skipped_params
-            )
-            test_data = PosteriorSamplesGroup(
-                test_posteriors,
-                use_redshift_info=self.include_redshift,
-                ignore_param_idxs=self.skipped_params
-            )
-            
+        all_data = PosteriorSamplesGroup(
+            all_post_objs,
+            use_redshift_info=self.include_redshift,
+            ignore_param_idxs=self.skipped_params
+        )
+        for groups in kf.split(all_data.names, all_data.labels):
+            train_data, test_data = all_data.split(split_indices=groups)
             k_fold_datasets.append((train_data, test_data))
             
         return k_fold_datasets
@@ -215,10 +206,10 @@ class TrainerBase:
         test_names, test_labels, test_redshifts = test_data
         test_classes = SnClass.get_classes_from_labels(test_labels)
         test_features = test_data.features
-        os_classes = np.flatten(
+        os_classes = np.ravel(
             [[c] * test_data.num_draws for c in test_classes]
         )
-        os_names = np.flatten(
+        os_names = np.ravel(
             [[n] * test_data.num_draws for n in test_names]
         )
         return test_features, os_classes, os_names

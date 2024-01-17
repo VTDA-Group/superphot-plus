@@ -120,8 +120,6 @@ def reformat_features(
     features = np.array([
         predictions[i].data for i in feature_list
     ]).T
-    #super hacky way to not remove i=3 element later in classification
-    features = np.insert(features, 3, np.zeros(len(features)), axis=1)
     names = predictions['object_id'].data.astype(str)
     redshifts = predictions['redshift'].data.astype(float)
     labels = predictions['type'].data.astype(str)
@@ -133,10 +131,9 @@ def reformat_features(
         'Z': redshifts
     })
     training_df.to_csv(csv_path)
-    return
     for i, sn_name in enumerate(names):
         ps = PosteriorSamples(
-            features,
+            features[i],
             name=sn_name,
             sampling_method='parsnip',
             redshift=redshifts[i],
