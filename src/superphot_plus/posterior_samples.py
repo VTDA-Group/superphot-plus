@@ -26,7 +26,7 @@ class PosteriorSamples:
         sn_class : int, optional
             the classification of the supernova, if known.
         """
-        self.samples = samples
+        self.samples = np.atleast_2d(samples)
         self.name = name
         self.sampling_method = sampling_method
         self.sn_class = sn_class

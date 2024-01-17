@@ -142,7 +142,7 @@ def retrieve_posterior_set(
         
         samples.append(post_obj)
 
-    return samples
+    return np.array(samples)
 
 
 def normalize_features(features, mean=None, std=None):

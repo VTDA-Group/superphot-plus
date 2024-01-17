@@ -4,6 +4,7 @@ from typing import List, Optional
 import numpy as np
 from torch.utils.data import TensorDataset
 from imblearn.over_sampling import SMOTE
+from sklearn.model_selection import train_test_split
 
 from superphot_plus.posterior_samples import PosteriorSamples
 
@@ -26,9 +27,7 @@ class PosteriorSamplesGroup:
         self.redshifts = np.array([
             ps.redshift for ps in self.posterior_objects
         ])
-        self.abs_mags = np.array([
-            np.log10(ps.max_flux) for ps in self.posterior_objects
-        ])
+        self.abs_mags = []
 
         # save equal number of draws per LC
         num_samples = [ps.samples.shape[0] for ps in self.posterior_objects]
@@ -40,7 +39,13 @@ class PosteriorSamplesGroup:
             
             if self.use_redshift_info:
                 z_arr = np.ones((self.num_draws, 2)) * ps.redshift
-                z_arr[:,1] = np.log10(ps.max_flux)
+                max_flux = ps.max_flux
+                if max_flux is None:
+                    self.abs_mags.append(None)
+                    z_arr[:,1] = -np.inf
+                else:
+                    self.abs_mags.append(np.log10(max_flux))
+                    z_arr[:,1] = np.log10(max_flux)
 
                 samples = np.append(
                     samples, z_arr, axis=1
@@ -49,7 +54,6 @@ class PosteriorSamplesGroup:
             feat_arr.extend(samples)
             
         self.features = np.asarray(feat_arr)
-        print(self.num_draws, len(self.labels), len(self.features))
         self.median_features = np.median(feat_arr, axis=0)
         
 
@@ -77,7 +81,6 @@ class PosteriorSamplesGroup:
             idxs_in_class = np.asarray(self.labels == l).nonzero()[0]
             samples_per_fit = round(goal_per_class / len(idxs_in_class))
 
-            print(idxs_in_class)
             for i in idxs_in_class:
                 sampled_idx = np.random.choice(
                     np.arange(self.num_draws),
@@ -103,12 +106,17 @@ class PosteriorSamplesGroup:
         return features_smote, labels_smote
     
     
-    def split(self, split_frac=0.1, shuffle=True):
-        idx1, idx2 = train_test_split(
-            np.arange(len(self.labels)),
-            stratify=self.labels,
-            test_size=0.1
-        )
+    def split(self, split_frac=0.1, split_indices=None, shuffle=True):
+        
+        if split_indices is not None:
+            idx1, idx2 = split_indices
+        else:
+            idx1, idx2 = train_test_split(
+                np.arange(len(self.labels)),
+                stratify=self.labels,
+                test_size=0.1
+            )
+            
         split_1 = PosteriorSamplesGroup(
             self.posterior_objects[idx1],
             self.use_redshift_info,
