@@ -7,7 +7,7 @@ from imblearn.over_sampling import SMOTE
 from sklearn.model_selection import train_test_split
 
 from superphot_plus.posterior_samples import PosteriorSamples
-
+from superphot_plus.supernova_class import SupernovaClass as SnClass
 
 @dataclass
 class PosteriorSamplesGroup:
@@ -32,7 +32,9 @@ class PosteriorSamplesGroup:
         # save equal number of draws per LC
         num_samples = [ps.samples.shape[0] for ps in self.posterior_objects]
         self.num_draws = min(num_samples)
+        
         feat_arr = []
+        median_feats = []
         
         for ps in self.posterior_objects:
             samples = ps.samples[:self.num_draws]
@@ -52,9 +54,10 @@ class PosteriorSamplesGroup:
                 )
             samples = np.delete(samples, self.ignore_param_idxs, 1)
             feat_arr.extend(samples)
+            median_feats.append(np.median(samples, axis=0))
             
         self.features = np.asarray(feat_arr)
-        self.median_features = np.median(feat_arr, axis=0)
+        self.median_features = np.asarray(median_feats)
         
 
     def __iter__(self):
@@ -79,7 +82,7 @@ class PosteriorSamplesGroup:
 
         for l in labels_unique:
             idxs_in_class = np.asarray(self.labels == l).nonzero()[0]
-            samples_per_fit = round(goal_per_class / len(idxs_in_class))
+            samples_per_fit = max(round(goal_per_class / len(idxs_in_class)), 1)
 
             for i in idxs_in_class:
                 sampled_idx = np.random.choice(
@@ -114,7 +117,7 @@ class PosteriorSamplesGroup:
             idx1, idx2 = train_test_split(
                 np.arange(len(self.labels)),
                 stratify=self.labels,
-                test_size=0.1
+                test_size=split_frac
             )
             
         split_1 = PosteriorSamplesGroup(
@@ -127,7 +130,15 @@ class PosteriorSamplesGroup:
             self.use_redshift_info,
             self.ignore_param_idxs
         )
+        
         return split_1, split_2
+    
+    def canonicalize_labels(self):
+        """Convert labels to canon labels.
+        """
+        self.labels = np.asarray([
+            SnClass.canonicalize(l) for l in self.labels
+        ])
 
 
 @dataclass

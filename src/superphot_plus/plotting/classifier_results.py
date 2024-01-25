@@ -16,7 +16,11 @@ from scipy.stats import binned_statistic
 from superphot_plus.plotting.format_params import set_global_plot_formatting, CUSTOM_COLORSET
 from superphot_plus.file_utils import get_multiple_posterior_samples
 from superphot_plus.format_data_ztf import import_labels_only
-from superphot_plus.plotting.utils import histedges_equalN, read_probs_csv, get_survey_fracs, retrieve_four_class_info
+from superphot_plus.plotting.utils import (
+    histedges_equalN, read_probs_csv,
+    get_survey_fracs, retrieve_four_class_info,
+    calc_precision_recall
+)
 from superphot_plus.supernova_class import SupernovaClass as SnClass
 
 set_global_plot_formatting()
@@ -273,6 +277,80 @@ def generate_roc_curve(probs_csv, save_dir):
     plt.close()
 
 
+def plot_precision_recall(probs_csv, save_dir):
+    """Show how adjusting binary threshholds impact
+    purity and completeness values."""
+    labels_to_classes, classes_to_labels = SnClass.get_type_maps()
+
+    colors = CUSTOM_COLORSET
+    fig, ax = plt.subplots(figsize=(6, 8))
+    ax.set_xlim([0.0, 1.05])
+    ax.set_ylim([0.0, 1.05])
+    ratio = 1.0
+    ax.set_ylabel("Purity")
+    plt.locator_params(axis="x", nbins=3)
+
+    legend_lines = []
+    precs = []
+    recalls = []
+
+    for ref_class, ref_label in enumerate(classes_to_labels):
+        true_classes, probs = read_probs_csv(probs_csv)[1:3]
+        y_true = np.where(true_classes == ref_class, 1, 0)
+        y_score = probs[:, ref_class]
+
+        p, r, t = calc_precision_recall(y_true, y_score)
+        
+        idx_50 = np.argmin((t - 0.5) ** 2)
+        (legend_line,) = ax.plot(
+            r, p, label=ref_label, c=colors[ref_class]
+        )
+        legend_lines.append(legend_line)
+        ax.scatter(
+            r[idx_50], p[idx_50],
+            color=colors[ref_class], s=100, marker="d", zorder=1000
+        )
+        precs.append(p)
+        recalls.append(r)
+        
+    """
+    # First aggregate all recalls
+    all_recalls = np.unique(
+        np.concatenate([recalls[i] for i in range(5)])
+    )
+
+    # Then interpolate all ROC curves at this points
+    mean_precisions = np.zeros_like(all_recalls)
+    
+    for i in range(len(classes_to_labels)):
+        nonnan = ~np.isnan(precs[i])
+        mean_precisions += np.interp(all_recalls, recalls[i][nonnan], precs[i][nonnan])
+
+    # Finally average it and compute AUC
+    mean_precisions /= len(classes_to_labels)
+
+    (legend_line,) = ax.plot(
+        all_recalls, mean_precisions,
+        label="Macro-averaged", linewidth=3,
+        linestyle="dashed", c="black"
+    )
+    """
+
+    x_left, x_right = ax.get_xlim()
+    y_low, y_high = ax.get_ylim()
+
+    ax.set_aspect(abs((x_right - x_left) / (y_low - y_high)) * ratio)
+    ax.yaxis.set_minor_locator(AutoMinorLocator())
+    ax.xaxis.set_minor_locator(AutoMinorLocator())
+    ax.set_xlabel("Completeness")
+
+    #legend_lines.append(legend_line)
+    #legend_keys = [*list(labels_to_classes.keys()), "Combined"]
+    fig.legend(legend_lines, legend_keys, loc="lower center", ncol=3)
+    plt.savefig(os.path.join(save_dir, "prec_recall_all.pdf"), bbox_inches="tight")
+    plt.close()
+
+    
 def plot_phase_vs_accuracy(phased_probs_csv, save_dir):
     """Plot classification accuracy as a function of phase.
 

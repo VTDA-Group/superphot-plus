@@ -5,8 +5,15 @@ import arviz as az
 import corner
 import matplotlib.pyplot as plt
 import numpy as np
+import umap
+import umap.plot
 
-from superphot_plus.plotting.format_params import param_labels, set_global_plot_formatting
+from superphot_plus.plotting.format_params import (
+    param_labels,
+    set_global_plot_formatting,
+    CUSTOM_COLORSET
+)
+
 from superphot_plus.plotting.utils import gaussian
 from superphot_plus.supernova_class import SupernovaClass as SnClass
 from superphot_plus.surveys.surveys import Survey
@@ -573,3 +580,26 @@ def plot_param_distributions(
             ), bbox_inches="tight"
         )
         plt.close()
+
+        
+def plot_feature_umap(psg, save_path):
+    """Plot 2D UMAP of sampling features.
+    
+    Parameters
+    ----------
+    psg : PosteriorSamplesGroup
+        The group of posteriors to map
+    save_path : str
+        Where to save the resulting figure.
+    """
+    features, labels = psg.oversample(goal_per_class=4500)
+    nan_features = np.any(np.isnan(features), axis=1)
+    mapper = umap.UMAP().fit(features[~nan_features], force_all_finite=False)
+    umap.plot.points(
+        mapper,
+        labels=labels[~nan_features],
+        color_key_cmap='custom_categorical'
+    )
+    plt.savefig(save_path, bbox_inches='tight')
+    plt.close()
+    
