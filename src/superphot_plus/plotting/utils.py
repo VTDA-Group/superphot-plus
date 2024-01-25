@@ -234,3 +234,31 @@ def add_snr_to_prob_csv(probs_csv, data_dir, new_csv):
     extended_df["nSNR10"] = np.array(n_snr_10)
 
     extended_df.to_csv(new_csv, index=False)
+
+    
+def calc_precision_recall(y_true, y_score):
+    """Calculate purity recall values at
+    multiple threshholds for plot. Assumes y_true only
+    contains 0s and 1s (target), and y_score are
+    probabilities of being class 1.
+    """
+    threshholds = np.linspace(0, 1, num=100)
+    precs = []
+    recalls = []
+    
+    y_true = y_true.astype(bool)
+    
+    for t in threshholds:
+        y_pred = y_score > t
+        intersect = (y_pred & y_true).astype(int)
+        precision = sum(intersect) / sum(y_pred.astype(int))
+        recall = sum(intersect) / sum(y_true.astype(int))
+        
+        precs.append(precision)
+        recalls.append(recall)
+        
+    return np.asarray(precs), np.asarray(recalls), threshholds
+
+        
+        
+    

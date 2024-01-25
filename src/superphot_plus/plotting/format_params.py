@@ -41,10 +41,16 @@ def set_global_plot_formatting():
         "custom_cmap2",
         ["#FFFFFF", '#4477AA']
     )
-
+    custom_categorical = mpl.colors.ListedColormap(
+        CUSTOM_COLORSET,
+        name="custom_categorical"
+    )
+    
     mpl.colormaps.register(cmap=custom_cmap1, force=True)
     mpl.colormaps.register(cmap=custom_cmap2, force=True)
+    mpl.colormaps.register(cmap=custom_categorical, force=True)
 
+    
 def band_colors(c):
     """Return face and edge colors for light curve plotting."""
     face_dict = {

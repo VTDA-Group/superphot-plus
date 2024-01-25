@@ -68,7 +68,6 @@ class SuperphotLightGBM:
         val_classes = np.asarray([y[0] for x, y in valid_iterator])
         
         lightgbm_params = {
-            #"min_child_weight": self.config.min_child_weight,
             "verbosity": 1,
             "random_state": rng_seed,
         }

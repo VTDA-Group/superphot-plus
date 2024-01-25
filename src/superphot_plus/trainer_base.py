@@ -44,6 +44,7 @@ class TrainerBase:
         # generate k-folds
         self.n_folds = max(int(n_folds), 1)
         self.random_seed = 1 # TODO: un-hard code this
+        self.chisq_cutoff = 1.2
         
         if self.n_folds > 1:
             self.kf = StratifiedKFold(self.n_folds, random_state=self.random_seed, shuffle=True)
@@ -79,13 +80,14 @@ class TrainerBase:
             names, self.fits_dir, sampler=self.sampler,
             redshifts=redshifts,
             labels=labels,
-            chisq_cutoff=1.2
+            chisq_cutoff=np.inf
         )
         all_data = PosteriorSamplesGroup(
             all_post_objs,
             use_redshift_info=self.include_redshift,
             ignore_param_idxs=self.skipped_params
         )
+        
         for groups in kf.split(all_data.names, all_data.labels):
             train_data, test_data = all_data.split(split_indices=groups)
             k_fold_datasets.append((train_data, test_data))
@@ -103,8 +105,8 @@ class TrainerBase:
             sampler=self.sampler,
         )
         
-        if not self.include_redshift:
-            redshifts = np.ones(len(names)) # just set all to valid z's
+        #if not self.include_redshift:
+        #    redshifts = np.ones(len(names)) # just set all to valid z's
         
         return names, labels, redshifts
         
@@ -129,7 +131,7 @@ class TrainerBase:
             names, self.fits_dir, sampler=self.sampler,
             labels=labels,
             redshifts=redshifts,
-            chisq_cutoff=1.2
+            chisq_cutoff=self.chisq_cutoff
         )
         train_idxs, test_idxs = train_test_split(
             np.arange(len(labels)),
