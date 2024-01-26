@@ -97,19 +97,20 @@ def prep_lcs_superraenn(
     
 def run_superraenn_raenn(lcfile, outdir):
     
-    NEURON_N_DEFAULT = 64
-    ENCODING_N_DEFAULT = 6
+    NEURON_N_DEFAULT = 120
+    ENCODING_N_DEFAULT = 8
     N_EPOCH_DEFAULT = 2000
 
-    sequence, outseq, ids, maxlen, nfilts = prep_input(lcfile, save=True, outdir=outdir)
+    sequence, outseq, ids, maxlen, nfilts, weights = prep_input(lcfile, save=True, outdir=outdir)
 
+    print(weights)
     model, callbacks_list, input_1, encoded = make_model(
         NEURON_N_DEFAULT,
         ENCODING_N_DEFAULT,
         int(maxlen),
         2
     )
-    model = fit_model(model, callbacks_list, sequence, outseq, N_EPOCH_DEFAULT)
+    model = fit_model(model, callbacks_list, sequence, outseq, weights, N_EPOCH_DEFAULT)
     encoder = get_encoder(model, input_1, encoded)
 
     # These comments used in testing, and sould be removed...

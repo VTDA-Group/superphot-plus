@@ -1,6 +1,7 @@
 """This module contains scripts to plot sampling results."""
 import os
 
+import pacmap
 import arviz as az
 import corner
 import matplotlib.pyplot as plt
@@ -593,13 +594,51 @@ def plot_feature_umap(psg, save_path):
         Where to save the resulting figure.
     """
     features, labels = psg.oversample(goal_per_class=4500)
+    # add jitter
+    for i in range(features.shape[1]):
+        features[:,i] += np.random.normal(scale=np.std(features) / 1e3, size=len(features))
     nan_features = np.any(np.isnan(features), axis=1)
+    print(features)
     mapper = umap.UMAP().fit(features[~nan_features], force_all_finite=False)
     umap.plot.points(
         mapper,
         labels=labels[~nan_features],
         color_key_cmap='custom_categorical'
     )
+    plt.savefig(save_path, bbox_inches='tight')
+    plt.close()
+    
+    
+def plot_feature_pacmap(psg, save_path):
+    """Plot 2D PACMAP of sampling features.
+    
+    Parameters
+    ----------
+    psg : PosteriorSamplesGroup
+        The group of posteriors to map
+    save_path : str
+        Where to save the resulting figure.
+    """
+    features, labels = psg.oversample(goal_per_class=4500)
+    labels = np.asarray(labels)
+    # add jitter
+    for i in range(features.shape[1]):
+        features[:,i] += np.random.normal(scale=np.std(features) / 100, size=len(features))
+    nan_features = np.any(np.isnan(features), axis=1)
+    embedding = pacmap.PaCMAP(n_components=2)#, n_neighbors=None, MN_ratio=0.5, FP_ratio=2.0) 
+    X_transformed = embedding.fit_transform(features[~nan_features], init="pca")
+
+    for l in np.unique(labels):
+        subX = X_transformed[labels == l]
+        # visualize the embedding
+        plt.scatter(
+            subX[:, 0],
+            subX[:, 1],
+            s=0.6,
+            alpha=0.3,
+            label=l
+        )
+    plt.legend()
     plt.savefig(save_path, bbox_inches='tight')
     plt.close()
     
