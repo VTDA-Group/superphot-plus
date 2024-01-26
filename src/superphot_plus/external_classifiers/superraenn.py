@@ -9,6 +9,7 @@ from superphot_plus.supernova_class import SupernovaClass as SnClass
 from superphot_plus.utils import convert_mags_to_flux
 from superphot_plus.lightcurve import Lightcurve
 from superphot_plus.posterior_samples import PosteriorSamples
+from superphot_plus.file_utils import get_posterior_filename
 
 from superraenn.preprocess import save_lcs
 from superraenn.lc import LightCurve
@@ -156,7 +157,7 @@ def encode_raenn_features(
             ps = PosteriorSamples(
                 features[i],
                 name=input_lc.name,
-                sampling_method='parsnip',
+                sampling_method='superraenn',
                 redshift=input_lc.redshift,
                 sn_class=input_lc.obj_type
             )
@@ -169,6 +170,11 @@ def encode_raenn_features(
         for i, input_lc in enumerate(input_lcs):
             if i % 100 == 0:
                 print(i)
+            save_path = get_posterior_filename(
+                input_lc.name, fits_dir=save_dir, sampler='superraenn'
+            )
+            if os.path.exists(save_path):
+                continue
             gp = input_lc.gp
             gp_mags = input_lc.gp_mags
             
