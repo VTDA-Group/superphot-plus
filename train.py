@@ -4,6 +4,7 @@ from argparse import ArgumentParser, BooleanOptionalAction
 from superphot_plus.config import SuperphotConfig
 from superphot_plus.trainer import SuperphotTrainer
 
+import numpy as np
 
 def extract_cmd_args():
     """Extracts the script command-line arguments."""
