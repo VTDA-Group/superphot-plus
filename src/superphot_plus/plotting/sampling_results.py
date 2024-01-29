@@ -620,16 +620,20 @@ def plot_feature_pacmap(psg, save_path):
         Where to save the resulting figure.
     """
     features, labels = psg.oversample(goal_per_class=4500)
+    print(features)
     labels = np.asarray(labels)
     # add jitter
     for i in range(features.shape[1]):
-        features[:,i] += np.random.normal(scale=np.std(features) / 100, size=len(features))
+        features[:,i] += np.random.normal(
+            scale=np.nanstd(features) / 100,
+            size=len(features)
+        )
     nan_features = np.any(np.isnan(features), axis=1)
     embedding = pacmap.PaCMAP(n_components=2)#, n_neighbors=None, MN_ratio=0.5, FP_ratio=2.0) 
     X_transformed = embedding.fit_transform(features[~nan_features], init="pca")
 
     for l in np.unique(labels):
-        subX = X_transformed[labels == l]
+        subX = X_transformed[labels[~nan_features] == l]
         # visualize the embedding
         plt.scatter(
             subX[:, 0],
