@@ -1,3 +1,9 @@
+# ignore added folders from train.py
+models/
+fits/
+probabilities/
+figs/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
@@ -161,3 +167,7 @@ _html/
 
 # Pymon
 *.pymon
+
+# dustmap directories
+src/superphot_plus/sfd/
+src/superphot_plus/planck/
