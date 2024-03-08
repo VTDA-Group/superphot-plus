@@ -5,7 +5,11 @@ import pandas as pd
 import copy
 from sklearn.model_selection import train_test_split
 
-from superphot_plus.format_data_ztf import normalize_features, tally_each_class
+from superphot_plus.format_data_ztf import (
+    normalize_features,
+    tally_each_class,
+    retrieve_posterior_set
+)
 from superphot_plus.model.mlp import SuperphotMLP
 from superphot_plus.model.lightgbm import SuperphotLightGBM
 
@@ -56,11 +60,13 @@ class SuperphotTrainer(TrainerBase):
         include_redshift=True,
         probs_file=None,
         n_folds=10,
+        target_label=None,
     ):
         super().__init__(
             config_name, fits_dir,
             sampler, model_type,
-            include_redshift, probs_file, n_folds
+            include_redshift, probs_file, n_folds,
+            target_label
         )
 
     def setup_model(self, load_checkpoint=False):
@@ -101,7 +107,7 @@ class SuperphotTrainer(TrainerBase):
     
     def _create_model_instance(self, config):
         if self.model_type == 'LightGBM':
-            return SuperphotLightGBM(config)
+            return SuperphotLightGBM(config, target_label=self.target_label)
         elif self.model_type == 'MLP':
             return SuperphotMLP.create(config)
         else:
@@ -134,10 +140,27 @@ class SuperphotTrainer(TrainerBase):
         k_folded_data = self.k_fold_split_train_test(self.kf, input_csvs)
         
         for i in range(self.n_folds):
+            print(f"Running fold {i}")
             train_data, test_data = k_folded_data[i]
             self.train(i, train_data)
             # Evaluate model on test dataset
             self.evaluate(i, test_data, extract_wc)
+            
+        # concatenate probs csvs
+        concat_path = self.probs_file.replace("%d", "%s") % "concat"
+        concat_df = pd.read_csv(self.probs_file % 0)
+
+        concat_df['Fold'] = 0
+        for i in range(1, 10):
+            new_df = pd.read_csv(self.probs_file % i)
+            new_df['Fold'] = i
+
+            concat_df = pd.concat(
+                [concat_df,
+                new_df],
+                ignore_index=True
+            )
+        concat_df.to_csv(concat_path, index=False)
 
     def classify_single_light_curve(self, obj_name, fits_dir, sampler="dynesty"):
         """Given an object name, return classification probabilities
@@ -157,7 +180,14 @@ class SuperphotTrainer(TrainerBase):
         np.ndarray
             The average probability for each SN type across all equally-weighted sets of fit parameters.
         """
-        post_features = get_posterior_samples(obj_name, fits_dir, sampler)[0]
+        post_features = get_posterior_samples(
+            obj_name,
+            fits_dir,
+            sampler
+        )[0]
+        
+        if np.median(post_features[:,-1]) > self.chisq_cutoff:
+            return -1 * np.ones(len(self.allowed_types))
 
         # normalize the log distributions
         post_features = np.delete(post_features, self.skipped_params, 1)
@@ -191,23 +221,52 @@ class SuperphotTrainer(TrainerBase):
 
         df = pd.read_csv(test_csv)
         names = df.NAME.to_numpy()
-        probs_avg = []
+        try:
+            redshifts = df.Z.to_numpy()
+        except:
+            redshifts = -1 * np.ones(len(names))
         
+        if not self.include_redshift:
+            redshifts = None
+            
         if include_labels:
             labels = df.CLASS.to_numpy()
         else:
             labels = None
-        
-        for i, test_name in enumerate(names):
-            probs_avg.append(
-                self.classify_single_light_curve(
-                    test_name, fit_dir, sampler=sampler
-                )
-            )
-        save_test_probabilities(
-            names, np.array(probs_avg),
-            filepath, true_labels=labels
+            
+        posts = retrieve_posterior_set(
+            names, fit_dir, sampler=sampler,
+            redshifts=redshifts, labels=labels,
+            chisq_cutoff=self.chisq_cutoff,
         )
+        test_data = PosteriorSamplesGroup(
+            posts,
+            ignore_param_idxs=self.skipped_params,
+            use_redshift_info=self.include_redshift,
+            random_seed=self.random_seed
+        )
+        
+        combined_probs = np.zeros((len(posts), len(self.allowed_types)))
+        for k_fold in range(self.n_folds):
+            
+            probs = self.models[k_fold].classify_from_fit_params(
+                test_data.features
+            )
+            probs = probs.reshape((
+                len(posts),
+                test_data.num_draws,
+                len(self.allowed_types)
+            ))
+            combined_probs += np.mean(probs, axis=1)
+            
+        save_test_probabilities(
+            test_data.names,
+            combined_probs / self.n_folds,
+            filepath,
+            true_labels=test_data.labels,
+            target_label=self.target_label
+        )
+        
             
     def train(self, i: int, train_data: PosteriorSamplesGroup):
         """Trains the model with a specific set of hyperparameters.
@@ -219,12 +278,13 @@ class SuperphotTrainer(TrainerBase):
             Contains the ZTF object names, classes and redshifts for training.
         """
         run_id = f"final_{i}"
-
-        tally_each_class(train_data.labels)  # original tallies
+        #tally_each_class(train_data.labels)  # original tallies
 
         # Split data into training and validation sets
         train_index, val_index = train_test_split(
-            np.arange(0, len(train_data.labels)), stratify=train_data.labels, test_size=0.1
+            np.arange(0, len(train_data.labels)),
+            stratify=train_data.labels,
+            test_size=0.1
         )
 
         train_features, train_classes, val_features, val_classes = self.generate_train_data(
@@ -251,7 +311,9 @@ class SuperphotTrainer(TrainerBase):
 
         # Train and validate multi-layer perceptron
         metrics = self.models[i].train_and_validate(
-            train_data=TrainData(train_dataset, val_dataset), num_epochs=self.configs[i].num_epochs
+            train_data=TrainData(train_dataset, val_dataset),
+            rng_seed=self.random_seed,
+            num_epochs=self.configs[i].num_epochs,
         )
 
         # Save model checkpoint

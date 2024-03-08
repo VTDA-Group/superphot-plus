@@ -7,6 +7,7 @@ import matplotlib.colors as mc
 import numpy as np
 import pandas as pd
 from alerce.core import Alerce
+from scipy.stats import binned_statistic
 
 from superphot_plus.lightcurve import Lightcurve
 from superphot_plus.supernova_class import SupernovaClass as SnClass
@@ -236,29 +237,132 @@ def add_snr_to_prob_csv(probs_csv, data_dir, new_csv):
     extended_df.to_csv(new_csv, index=False)
 
     
-def calc_precision_recall(y_true, y_score):
+def calc_precision_recall(y_true, y_score, folds):
     """Calculate purity recall values at
     multiple threshholds for plot. Assumes y_true only
     contains 0s and 1s (target), and y_score are
     probabilities of being class 1.
     """
-    threshholds = np.linspace(0, 1, num=100)
-    precs = []
-    recalls = []
+    threshholds = np.linspace(0, 1, num=1000)
+    all_precs = []
+    all_recalls = []
+    all_thresh = []
     
     y_true = y_true.astype(bool)
     
     for t in threshholds:
         y_pred = y_score > t
         intersect = (y_pred & y_true).astype(int)
-        precision = sum(intersect) / sum(y_pred.astype(int))
-        recall = sum(intersect) / sum(y_true.astype(int))
         
-        precs.append(precision)
-        recalls.append(recall)
-        
-    return np.asarray(precs), np.asarray(recalls), threshholds
+        for f in np.unique(folds):
+            f_idx = folds == f
+            if sum(y_pred[f_idx].astype(int)) == 0:
+                precision = 1.0
+            else:
+                precision = sum(intersect[f_idx]) / sum(y_pred[f_idx].astype(int))
+            recall = sum(intersect[f_idx]) / sum(y_true[f_idx].astype(int))
+            all_precs.append(precision)
+            all_recalls.append(recall)
+            all_thresh.append(t)
 
+    recall_bin_edges = np.unique(histedges_equalN(all_recalls, 30))
+    #r_centers = (recall_bin_edges[1:] + recall_bin_edges[:-1]) / 2
+    p, _, _ = binned_statistic(all_recalls, all_precs, statistic='mean', bins=recall_bin_edges)
+    perr, _, _ = binned_statistic(all_recalls, all_precs, statistic='std', bins=recall_bin_edges)
+    t, _, _ = binned_statistic(all_recalls, all_thresh, statistic='mean', bins=recall_bin_edges)
+    
+    p = np.append(p, sum(y_true)/len(y_true)) # end of curve
+    perr = np.append(perr, 0.0)
+    return np.asarray(t), np.asarray(recall_bin_edges), np.asarray(p), np.asarray(perr)
+
+def roc_curve_w_uncertainties(y_true, y_score, folds):
+    """Incorporate K-fold uncertainties."""
+    threshholds = np.linspace(0, 1, num=1000)
+    all_tpr = []
+    all_fpr = []
+    all_thresh = []
+    
+    y_true = y_true.astype(bool)
+    for t in threshholds:
+        y_pred = y_score > t
+        false_pos = (y_pred & ~y_true).astype(int)
+        true_pos = (y_pred & y_true).astype(int)
+        for f in np.unique(folds):
+            f_idx = folds == f
+            single_tpr = sum(true_pos[f_idx]) / sum(y_true[f_idx].astype(int))
+            single_fpr = sum(false_pos[f_idx]) / sum((~y_true[f_idx]).astype(int))
+            all_tpr.append(single_tpr)
+            all_fpr.append(single_fpr)
+            all_thresh.append(t)
+    fpr_bin_edges = np.unique(histedges_equalN(all_fpr, 30))
+    fpr_centers = (fpr_bin_edges[1:] + fpr_bin_edges[:-1]) / 2
+    tpr, _, _ = binned_statistic(all_fpr, all_tpr, statistic='mean', bins=fpr_bin_edges)
+    tpr_err, _, _ = binned_statistic(all_fpr, all_tpr, statistic='std', bins=fpr_bin_edges)
+    print(tpr, fpr_bin_edges)
+    bin_widths = fpr_bin_edges[1:] - fpr_bin_edges[:-1] 
+    auc = np.sum(tpr*bin_widths)
+    print(auc)
+    t, _, _ = binned_statistic(all_fpr, all_thresh, statistic='mean', bins=fpr_bin_edges)
+    
+    return (
+        np.append(np.asarray(t), t[-1]),
+        np.asarray(fpr_bin_edges),
+        np.append(np.asarray(tpr), tpr[-1]),
+        np.append(np.asarray(tpr_err), tpr_err[-1])
+    )
         
-        
+def rebin_prec_recall(t, r, rerr, p, perr):
+    """Turn completeness to the independent variable,
+    and bin precision accordingly.
+    """
+    r_bin_centers = r
+    r_bin_edges = (r[1:] + r[:-1]) / 2.0
+    # add endpoints
+    r_bin_edges = np.insert(r_bin_edges, 0, 2*r_bin_centers[0] - r_bin_edges[0])
+    r_bin_edges = np.append(r_bin_edges, 2*r_bin_centers[-1] - r_bin_edges[-1])
+    
+    # find purity idxs that fall into each bin
+    pmin_updated = []
+    pmax_updated = []
+    for i, b_center in enumerate(r_bin_centers):
+        contained_idxs = (
+            r - rerr < r_bin_edges[i+1]
+        ) & (
+            r + rerr >= r_bin_edges[i]
+        )
+        if len(p[contained_idxs]) == 0:
+            pmin_updated.append(p[i])
+            pmax_updated.append(p[i])
+        else:
+            pmin_updated.append(
+                p[contained_idxs][0] - perr[contained_idxs][0]
+            )
+            pmax_updated.append(
+                p[contained_idxs][-1] + perr[contained_idxs][-1]
+            )
+    pmin_updated.append(pmin_updated[-1])
+    pmax_updated.append(pmax_updated[-1])
+    p_copy = np.append(p, p[-1])
+    return np.asarray(r_bin_edges), np.asarray(p_copy), np.asarray(pmin_updated), np.asarray(pmax_updated)
+            
+    
+def calc_calibration_curve(y_true, y_score, folds):
+    """Return confidence vs. fraction of true positives."""
+    thresh_bins = histedges_equalN(y_score, 50)
+    thresh_bins[-1] = 1.0
+    f_means = []
+    f_errs = []
+    y_true = y_true.astype(bool)
+    for i in range(len(thresh_bins)-1):
+        y_pred = (thresh_bins[i] <= y_score) & (y_score < thresh_bins[i+1])
+        num_true = (y_pred & y_true).astype(int)
+        fracs = []
+        for f in np.unique(folds):
+            f_idx = folds == f
+            frac = sum(num_true[f_idx]) / sum(y_pred[f_idx].astype(int))
+            fracs.append(frac)
+        f_means.append(np.mean(fracs))
+        f_errs.append(np.std(fracs))
+            
+    return thresh_bins, np.append(np.asarray(f_means), 1.0), np.append(np.asarray(f_errs), 0.0)
     

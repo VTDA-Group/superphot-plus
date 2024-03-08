@@ -22,18 +22,20 @@ class TrainerBase:
         include_redshift=True,
         probs_file=None,
         n_folds=10,
+        target_label=None,
     ):
         # Supernova class types
         # TODO: replace with supernova_class enumeration
         self.allowed_types = ["SN Ia", "SN II", "SN IIn", "SLSN-I", "SN Ibc"]
-
+        self.target_label = target_label
+        
         # Fitting method
         self.sampler = sampler
         self.include_redshift = include_redshift
         if self.include_redshift:
-            self.skipped_params = [3,]
+            self.skipped_params = [3,14]
         else:
-            self.skipped_params = [0,3]
+            self.skipped_params = [0,3,14]
         self.probs_file = probs_file
         self.fits_dir = fits_dir
         
@@ -43,16 +45,20 @@ class TrainerBase:
         
         # generate k-folds
         self.n_folds = max(int(n_folds), 1)
-        self.random_seed = 1 # TODO: un-hard code this
+        self.random_seed = 42 # TODO: un-hard code this
         self.chisq_cutoff = 1.2
         
         if self.n_folds > 1:
-            self.kf = StratifiedKFold(self.n_folds, random_state=self.random_seed, shuffle=True)
+            self.kf = StratifiedKFold(
+                self.n_folds,
+                random_state=self.random_seed,
+                shuffle=True
+            )
         else:
             self.kf = None
 
     
-    def k_fold_split_train_test(self, kf, input_csvs=None, rng_seed=None):
+    def k_fold_split_train_test(self, kf, input_csvs=None):
         """Reads data and splits into n K-folds. Outputs n sets
         of train/test sets.
         
@@ -75,21 +81,30 @@ class TrainerBase:
         names, labels, redshifts = self.load_csv(
             input_csvs=input_csvs,
         )
-        
+        if not self.include_redshift:
+            redshifts = None
+            
         all_post_objs = retrieve_posterior_set(
             names, self.fits_dir, sampler=self.sampler,
             redshifts=redshifts,
             labels=labels,
-            chisq_cutoff=np.inf
+            chisq_cutoff=self.chisq_cutoff
         )
         all_data = PosteriorSamplesGroup(
             all_post_objs,
             use_redshift_info=self.include_redshift,
-            ignore_param_idxs=self.skipped_params
+            ignore_param_idxs=self.skipped_params,
+            random_seed=self.random_seed
         )
         
+        if self.target_label is not None:
+            all_data.make_binary(target_label=self.target_label)
+            
         for groups in kf.split(all_data.names, all_data.labels):
             train_data, test_data = all_data.split(split_indices=groups)
+            
+            #test_data.make_fully_redshift_independent()
+            
             k_fold_datasets.append((train_data, test_data))
             
         return k_fold_datasets
@@ -104,10 +119,7 @@ class TrainerBase:
             fits_dir=self.fits_dir,
             sampler=self.sampler,
         )
-        
-        #if not self.include_redshift:
-        #    redshifts = np.ones(len(names)) # just set all to valid z's
-        
+
         return names, labels, redshifts
         
     def split_train_test(self, input_csvs=None):
@@ -127,28 +139,23 @@ class TrainerBase:
             input_csvs = INPUT_CSVS
 
         names, labels, redshifts = self.load_csv(input_csvs)
+        
+        if not self.include_redshift:
+            redshifts = None
+            
         all_post_objs = retrieve_posterior_set(
             names, self.fits_dir, sampler=self.sampler,
             labels=labels,
             redshifts=redshifts,
             chisq_cutoff=self.chisq_cutoff
         )
-        train_idxs, test_idxs = train_test_split(
-            np.arange(len(labels)),
-            stratify=labels,
-            shuffle=True,
-            test_size=0.1
-        )
-        train_data = PosteriorSamplesGroup(
-            all_post_objs[train_idxs],
+        all_data = PosteriorSamplesGroup(
+            all_post_objs,
             use_redshift_info=self.include_redshift,
-            ignore_param_idxs=self.skipped_params
+            ignore_param_idxs=self.skipped_params,
+            random_seed=self.random_seed
         )
-        test_data = PosteriorSamplesGroup(
-            all_post_objs[test_idxs],
-            use_redshift_info=self.include_redshift,
-            ignore_param_idxs=self.skipped_params
-        )
+        train_data, test_data = all_data.split(split_frac=0.1)
 
         return train_data, test_data
 
@@ -177,15 +184,24 @@ class TrainerBase:
         """
         train_data, val_data = train_data.split(split_frac=0.1)
         
-        train_features, train_labels = train_data.oversample(
-            goal_per_class=round(0.9*goal_per_class),
-        )
-        val_features, val_labels = train_data.oversample(
-            goal_per_class=round(0.1*goal_per_class),
-        )
+        #train_data.make_fully_redshift_independent()
+        #val_data.make_fully_redshift_independent()
+    
+        train_features, train_labels = train_data.oversample(5)
+        val_features, val_labels = val_data.oversample(5)
 
-        train_classes = SnClass.get_classes_from_labels(train_labels)
-        val_classes = SnClass.get_classes_from_labels(val_labels)
+        if self.target_label is None:
+            train_classes = SnClass.get_classes_from_labels(train_labels)
+            val_classes = SnClass.get_classes_from_labels(val_labels)
+        else:
+            train_classes = np.where(
+                train_labels == self.target_label,
+                1, 0
+            )
+            val_classes = np.where(
+                val_labels == self.target_label,
+                1, 0
+            )
         
         return train_features, train_classes, val_features, val_classes
 
@@ -206,7 +222,14 @@ class TrainerBase:
             the corresponding test ZTF object names and test group indices.
         """
         test_names, test_labels, test_redshifts = test_data
-        test_classes = SnClass.get_classes_from_labels(test_labels)
+        
+        if self.target_label is None:
+            test_classes = SnClass.get_classes_from_labels(test_labels)
+        else:
+            test_classes = np.where(
+                test_labels == self.target_label,
+                1, 0
+            )
         test_features = test_data.features
         os_classes = np.ravel(
             [[c] * test_data.num_draws for c in test_classes]

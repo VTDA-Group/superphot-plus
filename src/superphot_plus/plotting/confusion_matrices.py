@@ -19,7 +19,7 @@ from superphot_plus.plotting.format_params import set_global_plot_formatting
 set_global_plot_formatting()
 
 
-def plot_high_confidence_confusion_matrix(probs_csv, filename, cutoff=0.7):
+def plot_high_confidence_confusion_matrix(probs_csv, filename, cutoff=0.7, num_include=None):
     """Plot confusion matrices for high-confidence predictions.
 
     Parameters
@@ -35,6 +35,13 @@ def plot_high_confidence_confusion_matrix(probs_csv, filename, cutoff=0.7):
     _, classes_to_labels = SnClass.get_type_maps()
 
     _, true_classes, probs, pred_classes, folds, _ = read_probs_csv(probs_csv)
+    
+    if num_include is not None:
+        confidences = np.max(probs, axis=1)
+        conf_ordered = np.sort(confidences)
+        print(conf_ordered)
+        cutoff = conf_ordered[len(conf_ordered) - num_include - 1]
+        
     high_conf_mask = np.max(probs, axis=1) > cutoff
 
     true_labels = [classes_to_labels[x] for x in true_classes[high_conf_mask]]
@@ -49,7 +56,7 @@ def plot_high_confidence_confusion_matrix(probs_csv, filename, cutoff=0.7):
     plot_confusion_matrix(true_labels, pred_labels, filename + "_p.pdf", folds, purity=True)
 
 
-def plot_binary_confusion_matrix(probs_csv, filename):
+def plot_binary_confusion_matrix(probs_csv, filename, cutoff=0.5):
     """Merge all non-Ia into one core collapse class and plot resulting
     binary confusion matrix.
 
@@ -64,7 +71,7 @@ def plot_binary_confusion_matrix(probs_csv, filename):
     true_classes = df.Label.to_numpy()
     prob_Ia = df.pSNIa.to_numpy()
     
-    pred_binary = np.where(prob_Ia > 0.5, "SN Ia", "SN CC")
+    pred_binary = np.where(prob_Ia > cutoff, "SN Ia", "SN CC")
     true_binary = np.where(true_classes == 0, "SN Ia", "SN CC")
     try:
         folds = df.Fold.to_numpy()
@@ -135,13 +142,13 @@ def plot_true_agreement_matrix(probs_csv, probs_alerce_csv, save_dir, spec=True)
     save_dir : str
         Directory path for saving the agreement matrix plot.
     """
-    pred_labels, pred_alerce = retrieve_four_class_info(
+    pred_labels, pred_alerce, folds = retrieve_four_class_info(
         probs_csv,
         probs_alerce_csv,
         False,
-    )[3:5]
+    )[3:6]
 
-    plot_agreement_matrix_from_arrs(pred_labels, pred_alerce, save_dir, spec=spec)
+    plot_agreement_matrix_from_arrs(pred_labels, pred_alerce, folds, save_dir, spec=spec)
 
 
 def plot_expected_agreement_matrix(probs_csv, probs_alerce_csv, save_dir, cmap="custom_cmap2"):
@@ -157,28 +164,48 @@ def plot_expected_agreement_matrix(probs_csv, probs_alerce_csv, save_dir, cmap="
     cmap : matplotlib.colors.Colormap, optional
         Color map for the plot. Default is plt.cm.Purples.
     """
-    (_, true_labels, _, pred_labels, alerce_preds, _) = retrieve_four_class_info(
+    (_, true_labels, _, pred_labels, alerce_preds, folds) = retrieve_four_class_info(
         probs_csv, probs_alerce_csv
     )
 
-    cm_purity = confusion_matrix(true_labels, pred_labels, normalize="pred")
-
-    cm_complete = confusion_matrix(true_labels, alerce_preds, normalize="true")
-
-    cm_expected = cm_purity.T @ cm_complete
+    accs = []
+    cm_vals_all = []
+    alerce_preds = np.array(alerce_preds)
     classes = unique_labels(alerce_preds, pred_labels)
 
-    alerce_preds = np.array(alerce_preds)
+    for f in np.unique(folds):
+        ap_fold = alerce_preds[folds == f]
+        cm_purity = confusion_matrix(
+            true_labels[folds == f],
+            pred_labels[folds == f],
+            normalize="pred"
+        )
+        cm_complete = confusion_matrix(
+            true_labels[folds == f],
+            ap_fold,
+            normalize="true"
+        )
+        cm_expected = cm_purity.T @ cm_complete
 
-    exp_acc = 0
-    # calculate agreement score
-    for i, single_class in enumerate(classes):
-        num_in_class = len(alerce_preds[alerce_preds == single_class])
-        exp_acc += num_in_class * cm_expected[i, i]
+        exp_acc = 0
+        # calculate agreement score
+        for i, single_class in enumerate(classes):
+            num_in_class = len(ap_fold[ap_fold == single_class])
+            exp_acc += num_in_class * cm_expected[i, i]
 
-    exp_acc /= len(alerce_preds)
+        accs.append(exp_acc / len(ap_fold))
+        cm_vals_all.append(cm_expected)
+        
+    cm_vals_all = np.asarray(cm_vals_all)
+    cm_expected = np.median(cm_vals_all, axis=0)
+    cm_low = np.abs(cm_expected - np.percentile(cm_vals_all, 10, axis=0))
+    cm_high = np.abs(np.percentile(cm_vals_all, 90, axis=0) - cm_expected)
 
-    title = f"Expected Agreement Matrix,\nSpec. ($A' = {exp_acc:.2f}$)"
+    acc = np.median(accs)
+    acc_low = acc - np.percentile(accs, 10)
+    acc_high = np.percentile(accs, 90) - acc
+
+    title = f"Expected Agreement Matrix,\nSpec. ($A' = {acc:.2f}^{{+{acc_high:.2f}}}_{{-{acc_low:.2f}}}$)"
     fig, axis = plt.subplots(figsize=(6,6))
     _ = axis.imshow(cm_expected, interpolation="nearest", vmin=0.0, vmax=1.0, cmap=cmap)
 
@@ -203,7 +230,7 @@ def plot_expected_agreement_matrix(probs_csv, probs_alerce_csv, save_dir, cmap="
             axis.text(
                 j,
                 i,
-                format(cm_expected[i, j], fmt),
+                f"${cm_expected[i, j]:.2f}^{{+{cm_high[i, j]:.2f}}}_{{-{cm_low[i, j]:.2f}}}$",
                 ha="center",
                 va="center",
                 color="white" if cm_expected[i, j] > thresh else "black",
@@ -218,7 +245,7 @@ def plot_expected_agreement_matrix(probs_csv, probs_alerce_csv, save_dir, cmap="
     plt.close()
 
 
-def plot_agreement_matrix_from_arrs(our_labels, alerce_labels, save_dir, spec=True, cmap="custom_cmap2"):
+def plot_agreement_matrix_from_arrs(our_labels, alerce_labels, folds, save_dir, spec=True, cmap="custom_cmap2"):
     """Helper function to plot agreement matrices.
 
     Plot agreement matrix based on input arrays of ALeRCE and Superphot+
@@ -242,16 +269,41 @@ def plot_agreement_matrix_from_arrs(our_labels, alerce_labels, save_dir, spec=Tr
         suffix_title = "Phot."
         suffix = "phot"
 
-    cm = confusion_matrix(alerce_labels, our_labels, normalize="true")
+    accs = []
+    cm_vals_all = []
     classes = unique_labels(alerce_labels, our_labels)
-
     our_labels = np.array(our_labels)
     alerce_labels = np.array(alerce_labels)
+    
+    for f in np.unique(folds):
+        cm_vals_all.append(
+            confusion_matrix(
+                alerce_labels[folds == f],
+                our_labels[folds == f], normalize="true"
+            )
+        )
+        
+        accs.append(
+            calc_accuracy(
+                alerce_labels[folds == f],
+                our_labels[folds == f]
+            )
+        )
 
-    exp_acc = calc_accuracy(alerce_labels, our_labels)
+    cm_vals_all = np.asarray(cm_vals_all)
+    cm = np.median(cm_vals_all, axis=0)
+    cm_low = np.abs(cm - np.percentile(cm_vals_all, 10, axis=0))
+    cm_high = np.abs(np.percentile(cm_vals_all, 90, axis=0) - cm)
 
-    title = "True Agreement Matrix,\n" + fr"{suffix_title} ($A' = %.2f$)" % exp_acc
-
+    acc = np.median(accs)
+    acc_low = acc - np.percentile(accs, 10)
+    acc_high = np.percentile(accs, 90) - acc
+        
+    if spec:
+        title = "True Agreement Matrix,\n" + fr"{suffix_title} ($A' = {acc:.2f}^{{+{acc_high:.2f}}}_{{-{acc_low:.2f}}}$)"
+    else:
+        title = "True Agreement Matrix,\n" + fr"{suffix_title} ($A' = {acc:.2f}$)"
+        
     fig, ax = plt.subplots(figsize=(6,6))
     _ = ax.imshow(cm, interpolation="nearest", vmin=0.0, vmax=1.0, cmap=cmap)
 
@@ -276,14 +328,25 @@ def plot_agreement_matrix_from_arrs(our_labels, alerce_labels, save_dir, spec=Tr
             class_i = classes[i]
             class_j = classes[j]
             num_in_cell = len(our_labels[(our_labels == class_j) & (alerce_labels == class_i)])
-            ax.text(
+            if spec:
+                ax.text(
+                    j,
+                    i,
+                    f"${cm[i, j]:.2f}^{{+{cm_high[i, j]:.2f}}}_{{-{cm_low[i, j]:.2f}}}$" + f"\n({num_in_cell})",
+                    ha="center",
+                    va="center",
+                    color="white" if cm[i, j] > thresh else "black",
+                )
+            else:
+                ax.text(
                 j,
                 i,
-                f"{cm[i, j]:.2f}\n({num_in_cell})",
+                f"${cm[i, j]:.2f}$" + f"\n({num_in_cell})",
                 ha="center",
                 va="center",
                 color="white" if cm[i, j] > thresh else "black",
             )
+                
     fig.tight_layout()
     plt.xlim(-0.5, len(classes) - 0.5)
     plt.ylim(len(classes) - 0.5, -0.5)

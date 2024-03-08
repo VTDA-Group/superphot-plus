@@ -16,6 +16,7 @@ class SuperphotConfig:
     sampled by ray tune for parameter optimization."""
 
     create_dirs: Optional[bool] = True
+    relative_dirs: Optional[bool] = True
     # File paths
     data_dir: Optional[str] = "."
     fits_dir: Optional[str] = "fits"
@@ -32,6 +33,10 @@ class SuperphotConfig:
     probs_dir: Optional[str] = 'probabilities'
     probs_fn: Optional[str] = 'probs_%d.csv'
     prefix: Optional[str] = 'best-model'
+    
+    # single-target options
+    target_label: Optional[str] = None
+    prob_threshhold: Optional[float] = 0.5
     
     # Nontunable parameters
     input_dim: Optional[int] = None
@@ -55,21 +60,22 @@ class SuperphotConfig:
 
     def __post_init__(self):
         """Ensure subdirectory structure exists."""
-        self.fits_dir = os.path.join(self.data_dir, self.fits_dir)
-        self.input_csvs = [
-            os.path.join(self.data_dir, x) for x in self.input_csvs
-        ]
-        self.models_dir = os.path.join(self.data_dir, self.models_dir)
-        self.figs_dir = os.path.join(self.data_dir, self.figs_dir)
-        
-        self.metrics_dir = os.path.join(self.figs_dir, self.metrics_dir)
-        self.fit_plots_dir = os.path.join(self.figs_dir, self.fit_plots_dir)
-        self.cm_dir = os.path.join(self.figs_dir, self.cm_dir)
-        self.wrongly_classified_dir = os.path.join(self.figs_dir, self.wrongly_classified_dir)
+        if self.relative_dirs:
+            self.fits_dir = os.path.join(self.data_dir, self.fits_dir)
+            self.input_csvs = [
+                os.path.join(self.data_dir, x) for x in self.input_csvs
+            ]
+            self.models_dir = os.path.join(self.data_dir, self.models_dir)
+            self.figs_dir = os.path.join(self.data_dir, self.figs_dir)
 
-        self.log_fn = os.path.join(self.data_dir, self.log_fn)
-        self.probs_dir = os.path.join(self.data_dir, self.probs_dir)
-        self.probs_fn = os.path.join(self.probs_dir, self.probs_fn)
+            self.metrics_dir = os.path.join(self.figs_dir, self.metrics_dir)
+            self.fit_plots_dir = os.path.join(self.figs_dir, self.fit_plots_dir)
+            self.cm_dir = os.path.join(self.figs_dir, self.cm_dir)
+            self.wrongly_classified_dir = os.path.join(self.figs_dir, self.wrongly_classified_dir)
+
+            self.log_fn = os.path.join(self.data_dir, self.log_fn)
+            self.probs_dir = os.path.join(self.data_dir, self.probs_dir)
+            self.probs_fn = os.path.join(self.probs_dir, self.probs_fn)
     
         if self.create_dirs:
             for x_dir in [
@@ -103,4 +109,6 @@ class SuperphotConfig:
         """Load configuration data from a YAML file."""
         with open(file, "r", encoding="utf-8") as file_handle:
             metadata = yaml.safe_load(file_handle)
-            return cls(**metadata, prefix=file[:-5])
+            metadata['prefix'] = file[:-5]
+            metadata['relative_dirs'] = False
+            return cls(**metadata)

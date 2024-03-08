@@ -1,18 +1,41 @@
 """Run fits for original Superphot pipeline."""
+import sys, os
+os.environ["XLA_FLAGS"] = "--xla_cpu_multi_thread_eigen=false --xla_force_host_platform=true"
+os.environ['PYTENSOR_FLAGS']=f'compiledir_format=compiler2'
+
+import numpy as np
+import jax
+
+jax.config.update('jax_enable_x64', True)   # Use 64-bit precision for better numerical stability
+jax.config.update('jax_platform_name', 'cpu')  # Use CPU platform
+
+import pytensor
+#pytensor.config.compiledir_format = "compiledir_%(platform)s-%(processor)s-%(python_version)s-%(python_bitwidth)s-%(device)s"
+
+from astropy.table import Table
+from astropy.io import ascii
 from superphot.fit import two_iteration_mcmc
 from superphot.extract import *
 import pandas as pd
-import os
-import numpy as np
-from astropy.table import Table
-from astropy.io import ascii
+from contextlib import contextmanager
 
 from superphot_plus.supernova_class import SupernovaClass as SnClass
 from superphot_plus.utils import convert_mags_to_flux
 from superphot_plus.lightcurve import Lightcurve
 from superphot_plus.posterior_samples import PosteriorSamples
+from multiprocess import Pool
+import glob
 
-
+@contextmanager
+def suppress_stdout():
+    with open(os.devnull, "w") as devnull:
+        old_stdout = sys.stdout
+        sys.stdout = devnull
+        try:  
+            yield
+        finally:
+            sys.stdout = old_stdout
+            
 def fit_lcs_superphot(dataset_csv, probs_csv, data_dir, save_dir):
     """Run superphot-fit on processed light curves."""
     print("STARTS")
@@ -24,14 +47,12 @@ def fit_lcs_superphot(dataset_csv, probs_csv, data_dir, save_dir):
     redshifts = full_df.Z.to_numpy()
         
     final_names = pd.read_csv(probs_csv).Name.to_numpy()
-    lcs = []
-    
-    for i, name in enumerate(all_names):
-        if i % 500 == 0:
-            print(i)
-            
+
+    def single_fit(i):
+        name = all_names[i]
+        
         if name not in final_names:
-            continue
+            return
         
         l_canon = SnClass.canonicalize(labels[i])
             
@@ -62,13 +83,22 @@ def fit_lcs_superphot(dataset_csv, probs_csv, data_dir, save_dir):
             save_dir,
             name + '{}'
         )
-        
-        two_iteration_mcmc(
-            lc,
-            outfile,
-            do_diagnostics=False,
-            force=False,
+        with suppress_stdout():
+            two_iteration_mcmc(
+                lc,
+                outfile,
+                do_diagnostics=False,
+                force=False,
+            )
+    p = Pool(8)
+    result = p.map(single_fit, np.arange(len(all_names)))
+    """
+    with Pool() as pool:
+        result = pool.map(
+            single_fit,
+            np.arange(len(all_names))
         )
+    """
 
 def create_metatable(
     full_csv,

@@ -11,7 +11,6 @@ from dustmaps.sfd import SFDQuery
 from torch.utils.data import TensorDataset
 from torch.utils.tensorboard import SummaryWriter
 from scipy.special import lambertw
-from tensorflow_probability.substrates.jax.math import lambertw as jaxlw
 import jax.numpy as jnp
 from numpyro.distributions import constraints
 
@@ -530,7 +529,8 @@ def save_test_probabilities(
     obj_names,
     pred_probabilities,
     output_path,
-    true_labels=None
+    true_labels=None,
+    target_label=None
 ):
     """Saves probabilities to a separate file for ROC curve generation.
 
@@ -548,16 +548,24 @@ def save_test_probabilities(
     if true_labels is None:
         true_labels = np.ones(len(obj_names)) * -1
         
-    #TODO: de-hard-code the headers
-    df_dict = {
-        'Name': obj_names,
-        'Label': true_labels,
-        'pSNIa': pred_probabilities[:,0],
-        'pSNII': pred_probabilities[:,1],
-        'pSNIIn': pred_probabilities[:,2],
-        'pSLSNI': pred_probabilities[:,3],
-        'pSNIbc': pred_probabilities[:,4]
-    }
+    if target_label is None:
+        #TODO: de-hard-code the headers
+        df_dict = {
+            'Name': obj_names,
+            'Label': true_labels,
+            'pSNIa': pred_probabilities[:,0],
+            'pSNII': pred_probabilities[:,1],
+            'pSNIIn': pred_probabilities[:,2],
+            'pSLSNI': pred_probabilities[:,3],
+            'pSNIbc': pred_probabilities[:,4]
+        }
+    else:
+        df_dict = {
+            'Name': obj_names,
+            'Label': true_labels,
+            f'p{target_label.replace(" ", "")}': pred_probabilities[:,1],
+            'pOther': pred_probabilities[:,0],
+        }
     
     df = pd.DataFrame(df_dict)
     df.to_csv(output_path, index=False)

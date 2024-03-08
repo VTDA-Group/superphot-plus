@@ -56,7 +56,7 @@ def plot_corner_plot_all(
         chisq_cutoff=1.2
     )
     psg = PosteriorSamplesGroup(all_post_objs)
-    features, labels = psg.oversample(OVERSAMPLE_SIZE)
+    features, labels = psg.oversample()
     plotting_labels, _ = param_labels(aux_bands)
     skip_idxs = [0, 3, len(plotting_labels) - 1]
 
@@ -176,36 +176,38 @@ def compare_oversampling(
         chisq_cutoff=1.2
     )
     psg = PosteriorSamplesGroup(all_post_objs)
-    features_gaussian, labels_gaussian = psg.oversample(goal_per_class)
-
-    feature_means = []
-    labels_ordered = []
-
-    start_idx = 0
-    for label in np.unique(labels):
-        type_idx = labels == label
-        labels_ordered.extend(labels[type_idx])
-        names_t = names[type_idx]
-        samples_per_fit = max(1, int(np.round(goal_per_class / len(names_t))))
-
-        for enum, name in enumerate(names_t):
-            ## FIXME - e and name are unused - why is this a loop?
-            feature_means.append(
-                np.median(features_gaussian[start_idx : start_idx + samples_per_fit], axis=0)
-            )
-            start_idx += samples_per_fit
-
-    labels_ordered = np.asarray(labels_ordered)
-    feature_means = np.array(feature_means)
-    feature_means_filler = np.ones((goal_per_class, len(feature_means[0])))
-    labels_filler = 100 * np.ones(goal_per_class)
-
-    feature_means_comb = np.vstack((feature_means, feature_means_filler))
-    labels_comb = np.append(labels_ordered, labels_filler)
-    features_smote_comb, labels_smote_comb = oversample_smote(feature_means_comb, labels_comb)
-    features_smote = features_smote_comb#[:goal_per_class]
-    labels_smote = labels_smote_comb#[:goal_per_class]
-
+    psg.canonicalize_labels()
+    features_gaussian, labels_gaussian = psg.oversample()
+    features_smote, labels_smote = psg.oversample_smote()
+    clipped_features = []
+    clipped_features_smote = []
+    feature_medians = []
+    unique_labels = np.unique(labels)
+    
+    for l in unique_labels:
+        random_idxs = np.random.choice(
+            np.where(labels_gaussian == l)[0],
+            size=goal_per_class,
+            replace=False
+        )
+        clipped_features.append(
+            features_gaussian[random_idxs]
+        )
+        random_idxs_smote = np.random.choice(
+            np.where(labels_smote == l)[0],
+            size=goal_per_class,
+            replace=False
+        )
+        clipped_features_smote.append(
+            features_smote[random_idxs_smote]
+        )
+        feature_medians.append(
+            psg.median_features[psg.labels == l]
+        )
+    clipped_features = np.asarray(clipped_features)
+    clipped_features_smote = np.asarray(clipped_features_smote)
+    #feature_medians = np.asarray(feature_medians)
+    
     params, save_labels = param_labels(aux_bands)
 
     for i, param_1 in enumerate(params):
@@ -220,37 +222,21 @@ def compare_oversampling(
             smote_ax = axes[0]
             gauss_ax = axes[1]
 
-            """
-            if i in [2, 4, 5, 6]:
-                smote_ax.set_xscale("log")
-                gauss_ax.set_xscale("log")
-            if j in [2, 4, 5, 6]:
-                smote_ax.set_yscale("log")
-                gauss_ax.set_yscale("log")
-            """
-
             param_2 = params[j]
-
-            features_1_smote = features_smote[:, i]
-            features_2_smote = features_smote[:, j]
-
-            features_1_gauss = features_gaussian[:, i]
-            features_2_gauss = features_gaussian[:, j]
             
-            for allowed_t in allowed_types:
-                feature_means_t1 = feature_means[:, i][labels_ordered == allowed_t]
-                feature_means_t2 = feature_means[:, j][labels_ordered == allowed_t]
-                features_smote_t1 = features_1_smote[labels_smote == allowed_t]
-                features_smote_t2 = features_2_smote[labels_smote == allowed_t]
-                features_gauss_t1 = features_1_gauss[labels_gaussian == allowed_t]
-                features_gauss_t2 = features_2_gauss[labels_gaussian == allowed_t]
+            for k,l in enumerate(unique_labels):
+                if l not in allowed_types:
+                    continue
+                feature_means_t1 = np.array(feature_medians[k])[:,i]
+                feature_means_t2 = np.array(feature_medians[k])[:,j]
+                features_smote_t1 = clipped_features_smote[k, :, i]
+                features_smote_t2 = clipped_features_smote[k, :, j]
+                features_gauss_t1 = clipped_features[k, :, i]
+                features_gauss_t2 = clipped_features[k, :, j]
 
-                smote_idx = np.random.choice(
-                    np.arange(len(features_smote_t1)), goal_per_class
-                )
                 smote_ax.scatter(
-                    features_smote_t1[smote_idx], features_smote_t2[smote_idx],
-                    label=allowed_t, alpha=0.8, s=1
+                    features_smote_t1, features_smote_t2,
+                    label=l, alpha=0.8, s=1
                 )
                 
                 gauss_ax.scatter(
@@ -260,7 +246,7 @@ def compare_oversampling(
                 
                 smote_ax.scatter(
                     feature_means_t1, feature_means_t2,
-                    label=allowed_t, s=3
+                    label=l, s=3
                 )
 
                 gauss_ax.scatter(
@@ -283,7 +269,7 @@ def compare_oversampling(
                 c="black",
                 transform=gauss_ax.transAxes,
             )
-            smote_ax.set_title("Oversampling using SMOTE vs Multiple Fits")
+            #smote_ax.set_title("Oversampling using SMOTE vs Multiple Fits")
             gauss_ax.set_xlabel(param_1)
             gauss_ax.set_ylabel(param_2)
             smote_ax.set_ylabel(param_2)
@@ -322,7 +308,7 @@ def plot_oversampling_1d(
     allowed_types = list(classes_to_labels.keys())
     print(allowed_types)
 
-    goal_per_class = OVERSAMPLE_SIZE
+    #goal_per_class = OVERSAMPLE_SIZE
     all_post_objs = retrieve_posterior_set(
         names, fits_dir, sampler='dynesty',
         redshifts=None,
@@ -330,11 +316,11 @@ def plot_oversampling_1d(
         chisq_cutoff=1.2
     )
     psg = PosteriorSamplesGroup(all_post_objs)
-    features_gaussian, labels_gaussian = psg.oversample(goal_per_class)
+    features_gaussian, labels_gaussian = psg.oversample()
 
     params, _ = param_labels(priors.aux_bands, priors.reference_band, log=False)
 
-    fig, axes = plt.subplots(3, 4, figsize=(10, 10))
+    fig, axes = plt.subplots(3, 4, figsize=(10, 12))
     axes = axes.ravel()
 
     prior_means = priors.to_numpy()[:, 2]
@@ -489,7 +475,7 @@ def plot_combined_posterior_space(
         chisq_cutoff=1.2
     )
     psg = PosteriorSamplesGroup(all_post_objs)
-    features, labels = psg.oversample(OVERSAMPLE_SIZE)
+    features, labels = psg.oversample()
 
     params, save_labels = param_labels(aux_bands)
 
@@ -548,7 +534,7 @@ def plot_param_distributions(
         chisq_cutoff=1.2
     )
     psg = PosteriorSamplesGroup(all_post_objs)
-    posteriors, labels = psg.oversample(OVERSAMPLE_SIZE)
+    posteriors, labels = psg.oversample()
     params, save_labels = param_labels(aux_bands)
 
     for i in range(len(params) - 1):
@@ -593,7 +579,7 @@ def plot_feature_umap(psg, save_path):
     save_path : str
         Where to save the resulting figure.
     """
-    features, labels = psg.oversample(goal_per_class=4500)
+    features, labels = psg.oversample()
     # add jitter
     for i in range(features.shape[1]):
         features[:,i] += np.random.normal(scale=np.std(features) / 1e3, size=len(features))
@@ -619,19 +605,15 @@ def plot_feature_pacmap(psg, save_path):
     save_path : str
         Where to save the resulting figure.
     """
-    features, labels = psg.oversample(goal_per_class=4500)
-    print(features)
-    labels = np.asarray(labels)
+    features, labels = psg.oversample()
     # add jitter
     for i in range(features.shape[1]):
-        features[:,i] += np.random.normal(
-            scale=np.nanstd(features) / 100,
-            size=len(features)
-        )
+        features[:,i] += np.random.normal(scale=np.nanstd(features) / 100, size=len(features))
     nan_features = np.any(np.isnan(features), axis=1)
     embedding = pacmap.PaCMAP(n_components=2)#, n_neighbors=None, MN_ratio=0.5, FP_ratio=2.0) 
     X_transformed = embedding.fit_transform(features[~nan_features], init="pca")
 
+    labels = np.asarray(labels)[~nan_features]
     for l in np.unique(labels):
         subX = X_transformed[labels[~nan_features] == l]
         # visualize the embedding
