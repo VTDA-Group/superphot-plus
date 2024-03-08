@@ -105,7 +105,8 @@ def create_metatable(
     probs_csv,
     save_path
 ):
-    """Create metatable to use in Superphot."""
+    """Create metatable to use in Superphot.
+    """
     df = pd.read_csv(full_csv)
     final_names = pd.read_csv(probs_csv).Name.to_numpy()
     df_red = df[df.NAME.isin(final_names)]

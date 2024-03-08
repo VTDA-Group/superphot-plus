@@ -126,11 +126,14 @@ def retrieve_posterior_set(
     for i, name in enumerate(lc_names):
         if np.isnan(redshifts[i]) or redshifts[i] <= 0:
             continue
-        post_obj = PosteriorSamples.from_file(
-            name=name,
-            input_dir=fits_dir,
-            sampling_method=sampler
-        )
+        try:
+            post_obj = PosteriorSamples.from_file(
+                name=name,
+                input_dir=fits_dir,
+                sampling_method=sampler
+            )
+        except:
+            continue
         # bandaid: add redshifts to PosteriorSamples object here
         post_obj.redshift = redshifts[i]
         if labels is not None:

@@ -615,7 +615,7 @@ def plot_feature_pacmap(psg, save_path):
 
     labels = np.asarray(labels)[~nan_features]
     for l in np.unique(labels):
-        subX = X_transformed[labels == l]
+        subX = X_transformed[labels[~nan_features] == l]
         # visualize the embedding
         plt.scatter(
             subX[:, 0],
