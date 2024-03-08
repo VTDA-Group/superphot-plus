@@ -123,8 +123,6 @@ def retrieve_posterior_set(
     if redshifts is None:
         redshifts = np.ones(len(lc_names))
 
-    print(redshifts)
-    print(len(lc_names))
     for i, name in enumerate(lc_names):
         if np.isnan(redshifts[i]) or redshifts[i] <= 0:
             continue

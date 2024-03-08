@@ -77,6 +77,7 @@ class SupernovaClass(str, Enum):
                 "SN Ib/c",
                 "SNIb",
                 "SNIc",
+                "SNIbc",
                 "SNIc-BL",
                 "21",
                 "20",

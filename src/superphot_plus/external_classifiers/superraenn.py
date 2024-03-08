@@ -10,15 +10,20 @@ from superphot_plus.utils import convert_mags_to_flux
 from superphot_plus.lightcurve import Lightcurve
 from superphot_plus.posterior_samples import PosteriorSamples
 from superphot_plus.file_utils import get_posterior_filename
+from tensorflow.keras.optimizers.legacy import Adam
 
 from superraenn.preprocess import save_lcs
 from superraenn.lc import LightCurve
 from superraenn.raenn import *
 from superraenn.feature_extraction import *
 from tensorflow.keras.models import load_model
-from tensorflow.keras.layers import Input
+from tensorflow.keras.layers import Input, RepeatVector, concatenate
 import tensorflow as tf
 
+NEURON_N_DEFAULT = 100
+ENCODING_N_DEFAULT = 10
+N_EPOCH_DEFAULT = 2000
+    
 
 def prep_lcs_superraenn(
     dataset_csv,
@@ -96,22 +101,27 @@ def prep_lcs_superraenn(
     save_lcs(my_lcs, save_dir)
     
     
-def run_superraenn_raenn(lcfile, outdir):
-    
-    NEURON_N_DEFAULT = 120
-    ENCODING_N_DEFAULT = 8
-    N_EPOCH_DEFAULT = 2000
+def run_superraenn_raenn(lcfile, outdir, load_file=None):
 
-    sequence, outseq, ids, maxlen, nfilts, weights = prep_input(lcfile, save=True, outdir=outdir)
+    sequence, outseq, ids, maxlen, nfilts = prep_input(lcfile, save=True, outdir=outdir)
 
-    print(weights)
     model, callbacks_list, input_1, encoded = make_model(
         NEURON_N_DEFAULT,
         ENCODING_N_DEFAULT,
         int(maxlen),
         2
     )
-    model = fit_model(model, callbacks_list, sequence, outseq, weights, N_EPOCH_DEFAULT)
+    
+    if load_file is not None:
+        model = tf.keras.models.load_model(
+            load_file,
+            custom_objects={'customLoss': customLoss},
+            compile=False
+        )
+        
+    new_optimizer = Adam(learning_rate=1e-4, beta_1=0.9, beta_2=0.999, decay=0)
+    model.compile(optimizer=new_optimizer, loss=customLoss)
+    model = fit_model(model, callbacks_list, sequence, outseq, N_EPOCH_DEFAULT)
     encoder = get_encoder(model, input_1, encoded)
 
     # These comments used in testing, and sould be removed...
@@ -173,8 +183,8 @@ def encode_raenn_features(
             save_path = get_posterior_filename(
                 input_lc.name, fits_dir=save_dir, sampler='superraenn'
             )
-            if os.path.exists(save_path):
-                continue
+            #if os.path.exists(save_path):
+            #    continue
             gp = input_lc.gp
             gp_mags = input_lc.gp_mags
             
@@ -226,63 +236,65 @@ def encode_raenn_features(
                     np.nanmedian(lc_grad[gindmean])
                 )
                 feats.append(np.trapz(pred))
-                features_i = np.append(features[i], feats)
-                ps = PosteriorSamples(
-                    features_i,
-                    name=input_lc.name,
-                    sampling_method='superraenn',
-                    redshift=input_lc.redshift,
-                    sn_class=input_lc.obj_type
-                )
-                ps.save_to_file(save_dir)
-    
+            features_i = np.append(features[i], feats)
+            ps = PosteriorSamples(
+                features_i,
+                name=input_lc.name,
+                sampling_method='superraenn',
+                redshift=input_lc.redshift,
+                sn_class=input_lc.obj_type
+            )
+            ps.save_to_file(save_dir)
 
-
-def retrieve_decodings(sn_name=None):
-    model_path = "superraenn_outputs/models/model.h5"
-    lcfile = "superraenn_outputs/lcs.npz"
+def retrieve_decodings(
+    model_path,
+    lc_file,
+    prep_fn,
+    sn_name=None
+):
     
     model = load_model(
         model_path,
-        custom_objects={"customLoss": customLoss}
+        custom_objects={"customLoss": customLoss},
+        compile=False
     )
     input_1 = Input((None, 5))
     mid_layer = model.layers[1](input_1)
     encoded = model.layers[2](mid_layer)
     
     sequence, outsequence, ids, maxlen, nfilts = prep_input(
-        lcfile, save=False,
+        lc_file, save=False,
     )
     
     ids = np.array(ids)
     
     if sn_name is not None:
         seq = sequence[ids == sn_name]
-        #outseq = outsequence[ids == sn_name]
+        outseq = outsequence[ids == sn_name]
         outseq_single = outsequence[ids == sn_name]
-        outseq = np.zeros((1, 1000, 2))
+        u_time = np.unique(outseq_single[0,:,:])
+        outseq = np.zeros((1, 200, 2))
         outseq[0, :, 0] = np.linspace(
-            -30,
-            100,
-            num=1000
+            np.min(u_time[:-1]),
+            np.max(u_time[:-1]),
+            num=200
         )
+        outseq = outseq_single
         outseq[0, :, 1] = outseq_single[0,0,1]
     else:
         seq = sequence
         outseq = outsequence
         
-    print(outseq)
-
     encoder = get_encoder(model, input_1, encoded)
-    decoder = get_decoder(model, 10)
+    decoder = get_decoder(model, ENCODING_N_DEFAULT)
     
-    decodings = get_decodings(
-        decoder, encoder,
-        seq, outseq, 10,
-        plot=True
-    )
-    
-    prep = np.load("superraenn_outputs/prep.npz")
+    encodings = encoder(seq)
+    repeater = RepeatVector(outseq.shape[1])(encodings)
+    merged = concatenate([repeater, outseq], axis=-1)
+    decodings = decoder(merged)
+
+    #decodings = model([seq, outseq])
+    prep = np.load(prep_fn)
     bandmin = prep['bandmin']
     bandmax = prep['bandmax']
         
@@ -293,7 +305,7 @@ def retrieve_decodings(sn_name=None):
         return decodings
     
     # convert back to apparent magnitues
-    lcs = np.load(lcfile, allow_pickle=True)['lcs']
+    lcs = np.load(lc_file, allow_pickle=True)['lcs']
     
     for lc in lcs:
         if lc.name == sn_name:
@@ -301,7 +313,7 @@ def retrieve_decodings(sn_name=None):
             k_correction = 2.5 * np.log10(1.+redshift)
             dist = cosmo.luminosity_distance([redshift]).value[0]  # returns dist in Mpc
             fluxes = 10**((decodings - 26.3 - k_correction + 5. * np.log10(dist*1e5))/(-2.5))
-            return outseq[0,:,0], fluxes[0]
+            return outseq[0,:,0], fluxes[0].numpy()
     
     
     

@@ -37,6 +37,7 @@ def import_lc(
         Tuple containing the imported light curve data.
     """
     if not os.path.exists(filename):  # pragma: no cover
+        print(filename, "BAD FILE")
         return [None] * 6
     
     single_df = pd.read_csv(filename)
@@ -53,11 +54,13 @@ def import_lc(
     dec = np.nanmean(sorted_df.dec.to_numpy())
     
     if np.isnan(ra) or np.isnan(dec):
+        print(filename, "BAD LOC")
         return [None] * 6
     
     try:
         ext_dict = survey.get_extinctions(ra, dec)
     except:
+        print(filename, "BAD LOC")
         return [None] * 6
 
     m = sorted_df.magpsf.to_numpy()
@@ -77,13 +80,12 @@ def import_lc(
 
     snr = np.abs(f / ferr)
 
-    """
     for band in survey.wavelengths:
-        if len(snr[(snr > 3.0) & (b == band)]) < 5:  # pragma: no cover
+        if len(snr[(snr > 3.0) & (b == band)]) < 5:
             with open(low_snr_file, "a+") as f:
                 f.write(f"{tpe}\n")
             return [None] * 6
-        if np.std(f[b == band]) < np.mean(ferr[b == band]):  # pragma: no cover
+        if np.std(f[b == band]) < np.mean(ferr[b == band]):
             with open(low_var_file, "a+") as f:
                 f.write(f"{tpe}\n")
             return [None] * 6
@@ -91,7 +93,6 @@ def import_lc(
             with open(low_var_file, "a+") as f:
                 f.write(f"{tpe}\n")
             return [None] * 6
-    """
     return t, f, ferr, b, ra, dec
 
 

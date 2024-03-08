@@ -21,7 +21,7 @@ class SuperphotLightGBM:
         The MLP architecture configuration.
     """
 
-    def __init__(self, config: SuperphotConfig):
+    def __init__(self, config: SuperphotConfig, target_label=None):
         super().__init__()
 
         # Initialize MLP architecture
@@ -29,9 +29,8 @@ class SuperphotLightGBM:
         
         # Model state dictionary
         self.best_model = None
-        self.target_label = None
+        self.target_label = target_label
         
-    
     def train_and_validate(
         self,
         train_data,
@@ -64,12 +63,19 @@ class SuperphotLightGBM:
         
         train_feats = np.asarray([x[0].numpy() for x, y in train_iterator])
         train_classes = np.asarray([y[0] for x, y in train_iterator])
+        uc, cts = np.unique(train_classes, return_counts=True)
         val_feats = np.asarray([x[0].numpy() for x, y in valid_iterator])
         val_classes = np.asarray([y[0] for x, y in valid_iterator])
-        
+        uc, cts = np.unique(val_classes, return_counts=True)
         lightgbm_params = {
-            "verbosity": 1,
+            "boosting": "dart",
+            "data_sample_strategy": "goss",
+            "verbosity": -1,
             "random_state": rng_seed,
+            'max_depth': 5,
+            'num_leaves': 20,
+            'lambda_l1': 5.0,
+            'n_estimators': 250,
         }
         
         if self.target_label is not None:
@@ -98,23 +104,32 @@ class SuperphotLightGBM:
                 lightgbm.log_evaluation,
                 lightgbm.record_evaluation(eval_results)
             ],
-            eval_metric=['multi_error',]
+            eval_metric=['multi_logloss', 'multi_error',]
         )
-                
-        metrics = ModelMetrics(
-            train_acc = 1. - np.array(eval_results['train']['multi_error']),
-            train_loss = np.array(eval_results['train']['multi_logloss']),
-            val_acc = 1. - np.array(eval_results['val']['multi_error']),
-            val_loss = np.array(eval_results['val']['multi_logloss'])
-        )
+        if self.target_label is None:
+            metrics = ModelMetrics(
+                train_acc = 1. - np.array(eval_results['train']['multi_error']),
+                train_loss = np.array(eval_results['train']['multi_logloss']),
+                val_acc = 1. - np.array(eval_results['val']['multi_error']),
+                val_loss = np.array(eval_results['val']['multi_logloss'])
+            )
 
-        best_val_loss = np.min(eval_results['val']['multi_logloss'])
+            best_val_loss = np.min(eval_results['val']['multi_logloss'])
+        else:
+            metrics = ModelMetrics(
+                train_acc = np.ones(len(eval_results['train']['binary_logloss'])),
+                train_loss = np.array(eval_results['train']['binary_logloss']),
+                val_acc = np.ones(len(eval_results['train']['binary_logloss'])),
+                val_loss = np.array(eval_results['val']['binary_logloss'])
+            )
+
+            best_val_loss = np.min(eval_results['val']['binary_logloss'])
         
         # Save best model state
         self.best_model = classifier
 
         # Store best validation loss
-        self.config.set_best_val_loss(best_val_loss)
+        self.config.set_best_val_loss(float(best_val_loss))
 
         return metrics.get_values()
         
@@ -138,11 +153,6 @@ class SuperphotLightGBM:
         """
         test_features, test_classes, test_names = test_data
 
-        # Write output file header
-        # TODO: UNHARD CODE THIS
-        with open(self.config.probs_fn, "w+", encoding="utf-8") as probs_file:
-            probs_file.write("Name,Label,pSNIa,pSNII,pSNIIn,pSLSNI,pSNIbc\n")
-
         labels, pred_labels, max_probs, names, probs_avgs = [], [], [], [], []
 
         for test_name in np.unique(test_names):
@@ -157,11 +167,13 @@ class SuperphotLightGBM:
             if self.target_label is None:
                 pred_labels.append(np.argmax(probs_avg))
                 max_probs.append(np.amax(probs_avg))
+                labels.append(true_classes[0])
             else:
-                pred_labels.append(int(probs_avg > self.config.prob_threshhold))
-                max_probs.append(max(probs_avg, 1 - probs_avg))
-                
-            labels.append(true_classes[0])
+                pred_target = probs_avg[1] > self.config.prob_threshhold
+                pred_labels.append(1-int(pred_target))
+                max_probs.append(probs_avg[1] if pred_target else probs_avg[0])
+                labels.append(1-true_classes[0])
+            
             names.append(test_name)
             probs_avgs.append(probs_avg)
             
@@ -169,7 +181,8 @@ class SuperphotLightGBM:
             names,
             np.array(probs_avgs),
             self.config.probs_fn,
-            true_labels=labels
+            true_labels=labels,
+            target_label=self.target_label
         )
 
         return (
