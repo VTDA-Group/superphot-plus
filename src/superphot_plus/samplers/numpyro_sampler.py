@@ -8,7 +8,7 @@ import numpy as np
 import numpyro
 import numpyro.distributions as dist
 from jax import random, lax, jit
-from jax.config import config
+from jax._src import config
 from numpyro.distributions import constraints
 from numpyro.infer import MCMC, NUTS, SVI, Trace_ELBO
 from numpyro.infer.initialization import init_to_uniform
@@ -102,9 +102,14 @@ class NumpyroSampler(Sampler):
         for i, posts in enumerate(eq_wt_samples):
             if posts is None:
                 continue
+            max_flux = lightcurves[i].find_max_flux(band='r')[0]
             post_list.append(
                 PosteriorSamples(
-                    posts, name=lightcurves[i].name, sampling_method=sampler, sn_class=lightcurves[i].sn_class
+                    posts,
+                    name=lightcurves[i].name,
+                    sampling_method=sampler,
+                    sn_class=lightcurves[i].sn_class,
+                    max_flux=max_flux
                 )
             )
 

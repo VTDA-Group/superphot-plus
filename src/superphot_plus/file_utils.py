@@ -23,7 +23,10 @@ def get_posterior_filename(lc_name, fits_dir='.', sampler=None):
         File name for numpy array file containing the posterior samples.
     """
     if sampler is not None:
-        posterior_filename = os.path.join(fits_dir, f"{lc_name}_eqwt_{sampler}.npz")
+        if sampler == 'snII':
+            posterior_filename = os.path.join(fits_dir, f"{lc_name}.npz")
+        else:
+            posterior_filename = os.path.join(fits_dir, f"{lc_name}_eqwt_{sampler}.npz")
     else:
         posterior_filename = os.path.join(fits_dir, f"{lc_name}_eqwt.npz")
     return posterior_filename
@@ -54,7 +57,7 @@ def get_posterior_samples(lc_name, fits_dir=None, sampler=None):
         extracted = loaded_arr[k]
         if extracted.shape == ():
             extracted = extracted[()]
-        if k == 'arr_0' or k == 'samples':
+        if k == 'arr_0' or k == 'samples' or k == 'fits':
             samples = extracted
         else:
             kwargs[k] = extracted

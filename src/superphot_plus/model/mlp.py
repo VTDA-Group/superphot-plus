@@ -415,7 +415,7 @@ class SuperphotMLP(nn.Module):
         models_dir : str, optional
             Where to store pretrained models and their configurations.
         """
-        file_prefix = os.path.join(models_dir, f"best-model-{suffix}")
+        file_prefix = f"{models_dir}-{suffix}"
 
         # Save configuration to disk
         self.config.write_to_file(f"{file_prefix}.yaml")

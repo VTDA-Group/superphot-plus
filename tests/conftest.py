@@ -101,10 +101,12 @@ def test_class_frac_csv(test_data_dir):
 def config_filename(test_data_dir):
     return os.path.join(test_data_dir, "superphot-config-test.yaml")
 
+
 @pytest.fixture
 def mlp(test_data_dir, config_filename):
-    filename = os.path.join(test_data_dir, "superphot-model-ZTF23aagkgnz.pt")
+    filename = os.path.join(test_data_dir, "training_paper_mlp-0.pt")
     return SuperphotMLP.load(filename, config_filename)[0]
+
 
 @pytest.fixture
 def trainer_mlp(test_data_dir, config_filename, mlp):
@@ -119,6 +121,21 @@ def trainer_mlp(test_data_dir, config_filename, mlp):
     trainer.setup_model(load_checkpoint=False)
     # manual override
     trainer.models[0] = mlp
+    return trainer
+
+@pytest.fixture
+def trainer_lightgbm(test_data_dir, config_filename, gbm):
+    trainer = SuperphotTrainer(
+        config_filename,
+        test_data_dir,
+        sampler="dynesty",
+        model_type='LightGBM',
+        include_redshift=False,
+        n_folds=1,
+    )
+    trainer.setup_model(load_checkpoint=False)
+    # manual override
+    #trainer.models[0] = mlp
     return trainer
 
 @pytest.fixture

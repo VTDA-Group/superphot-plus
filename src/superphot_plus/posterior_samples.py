@@ -83,7 +83,9 @@ class PosteriorSamples:
         sn_class : int, optional
             the classification of the supernova, if known.
         """
-        samples, all_kwargs = get_posterior_samples(name, fits_dir=input_dir, sampler=sampling_method)
+        samples, all_kwargs = get_posterior_samples(
+            name, fits_dir=input_dir, sampler=sampling_method
+        )
 
         for k in kwargs:
             all_kwargs[k] = kwargs[k]

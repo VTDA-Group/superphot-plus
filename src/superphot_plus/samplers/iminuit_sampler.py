@@ -188,7 +188,7 @@ def run_fit(lightcurve, priors=Survey.ZTF().priors, rstate=None):
     ln_l._parameters = parameters  # pylint: disable=protected-access
 
     # We have no data to pass, because the lightcurve is already in the ln_l function
-    cost = UnbinnedNLL([], ln_l, log=True)
+    cost = UnbinnedNLL([0], ln_l, log=True)
     minuit = Minuit(cost, **dict(zip(names, prior_mean)))
     minuit.migrad()
 

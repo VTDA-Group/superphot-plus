@@ -1,7 +1,8 @@
-input_dim: 13
+input_dim: 12
 output_dim: 5
 neurons_per_layer: 128
 num_hidden_layers: 3
+create_dirs: False
 normalization_means:
 - 0.0
 - 0.0
@@ -15,9 +16,7 @@ normalization_means:
 - 0.0
 - 0.0
 - 0.0
-- 0.0
 normalization_stddevs:
-- 1.0
 - 1.0
 - 1.0
 - 1.0
