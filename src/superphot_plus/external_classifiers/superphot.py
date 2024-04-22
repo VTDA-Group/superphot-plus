@@ -51,7 +51,10 @@ def fit_lcs_superphot(dataset_csv, probs_csv, data_dir, save_dir):
     def single_fit(i):
         name = all_names[i]
         
+        if name != 'ZTF23aauqmys':
+            return
         if name not in final_names:
+            print(name)
             return
         
         l_canon = SnClass.canonicalize(labels[i])
@@ -83,13 +86,13 @@ def fit_lcs_superphot(dataset_csv, probs_csv, data_dir, save_dir):
             save_dir,
             name + '{}'
         )
-        with suppress_stdout():
-            two_iteration_mcmc(
-                lc,
-                outfile,
-                do_diagnostics=False,
-                force=False,
-            )
+        #with suppress_stdout():
+        two_iteration_mcmc(
+            lc,
+            outfile,
+            do_diagnostics=False,
+            force=True,
+        )
     p = Pool(8)
     result = p.map(single_fit, np.arange(len(all_names)))
     """

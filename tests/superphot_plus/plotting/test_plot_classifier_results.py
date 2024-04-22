@@ -41,7 +41,7 @@ def test_plot_redshifts_abs_mags(class_probs_snr_csv, training_csv, test_data_di
 def test_plot_snr_npoints_vs_accuracy(class_probs_snr_csv, tmp_path):
     """Test whether SNR vs Npoints trends are being plotted."""
     plot_snr_npoints_vs_accuracy(class_probs_snr_csv, tmp_path)
-    filepath = os.path.join(tmp_path, "n_vs_accuracy.pdf")
+    filepath = os.path.join(tmp_path, "n_snr_vs_accuracy.pdf")
     assert os.path.exists(filepath)
 
 
@@ -52,11 +52,19 @@ def test_plot_snr_hist(class_probs_snr_csv, tmp_path):
     assert os.path.exists(filepath)
 
 
-def test_compare_mag_distributions(class_probs_snr_csv, tmp_path):
+def test_compare_mag_distributions(class_probs_snr_csv, training_csv, test_data_dir, tmp_path):
     """Test magnitude comparison plots are generated.
     TODO: add example photometric SNR CSV for proper generation.
     """
-    compare_mag_distributions(class_probs_snr_csv, class_probs_snr_csv, tmp_path)
+    compare_mag_distributions(
+        class_probs_snr_csv,
+        class_probs_snr_csv,
+        training_csv,
+        training_csv,
+        test_data_dir,
+        test_data_dir,
+        tmp_path
+    )
     filepath = os.path.join(tmp_path, "appm_hist_compare.pdf")
     assert os.path.exists(filepath)
 

@@ -839,7 +839,7 @@ def plot_snr_npoints_vs_accuracy(probs_snr_csv, save_dir):
         snr_t = snr[true_type == unique_type]
         correct_t = correct_class[true_type == unique_type]
 
-        nbins = 8
+        nbins = min(len(snr_t)-1, 8)
         snr_vs_accuracy, snr_bin_edges, _ = binned_statistic(
             snr_t, correct_t, "mean", bins=histedges_equalN(snr_t, nbins)
         )
@@ -857,18 +857,13 @@ def plot_snr_npoints_vs_accuracy(probs_snr_csv, save_dir):
     ax1.set_xscale('log')
     ax1.set_xlabel("90th Percentile SNR")
     ax1.set_ylabel("Class Completeness")
-    #plt.legend()
-    #plt.savefig(os.path.join(save_dir, "snr_vs_accuracy.pdf"))
-    
-    #plt.close()
 
-    #fig, ax = plt.subplots(figsize=(6.4, 6.0))
     # second plot
     for unique_type in np.unique(true_type):
         correct_t = correct_class[true_type == unique_type]
         n_high_t = n_high_snr[true_type == unique_type]
 
-        nbins = 8
+        nbins = min(len(n_high_t)-1, 8)
         n_vs_accuracy, n_bin_edges, _ = binned_statistic(
             n_high_t, correct_t, "mean", bins=histedges_equalN(n_high_t, nbins)
         )
@@ -961,16 +956,25 @@ def compare_mag_distributions(
     all_names = all_names[label_mask]
     
     max_flux = []
+    mask_high_chisquared = []
+    
     for n in all_names:
-        ps = PosteriorSamples.from_file(
-            name = n,
-            input_dir = fits_dir,
-            sampling_method =sampler
-        )
+        try:
+            ps = PosteriorSamples.from_file(
+                name = n,
+                input_dir = fits_dir,
+                sampling_method=sampler
+            )
+        except:
+            continue
+        if ps.max_flux is None:
+            continue
+        mask_high_chisquared.append(n in classified_names)
         max_flux.append(ps.max_flux)
+    
+    mask_high_chisquared = np.array(mask_high_chisquared)
     max_flux = np.array(max_flux)
     max_r_classified_all = -2.5 * np.log10(max_flux) + zeropoint
-    mask_high_chisquared = np.isin(all_names, classified_names)
     max_r_classified = max_r_classified_all[mask_high_chisquared]
     max_r_classified_skipped = max_r_classified_all[~mask_high_chisquared]
     
@@ -979,17 +983,24 @@ def compare_mag_distributions(
     all_phot_names = pd.read_csv(all_phot_csv).NAME.to_numpy()
     
     max_flux = []
+    mask_high_chisquared = []
     for n in all_phot_names:
-        ps = PosteriorSamples.from_file(
-            name = n,
-            input_dir = fits_dir_phot,
-            sampling_method =sampler
-        )
+        try:
+            ps = PosteriorSamples.from_file(
+                name = n,
+                input_dir = fits_dir_phot,
+                sampling_method =sampler
+            )
+        except:
+            continue
+        if ps.max_flux is None:
+            continue
+        mask_high_chisquared.append(n in unclassified_names)
         max_flux.append(ps.max_flux)
+        
+    mask_high_chisquared = np.array(mask_high_chisquared)
     max_flux = np.array(max_flux)
-    
-    max_r_unclassified_all = -2.5 * np.log10(np.asarray(max_flux)) + zeropoint
-    mask_high_chisquared = np.isin(all_phot_names, unclassified_names)
+    max_r_unclassified_all = -2.5 * np.log10(max_flux) + zeropoint
     max_r_unclassified = max_r_unclassified_all[mask_high_chisquared]
     max_r_unclassified_skipped = max_r_unclassified_all[~mask_high_chisquared]
 

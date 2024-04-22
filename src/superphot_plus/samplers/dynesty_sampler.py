@@ -48,9 +48,17 @@ class DynestySampler(Sampler):
         """
         return run_mcmc(lightcurve, priors=priors, rstate=rstate)
 
-    def run_multi_curve(self, lightcurves, priors, **kwargs) -> List[PosteriorSamples]:
+    def run_multi_curve(self, lightcurves, priors, rstate=None, **kwargs) -> List[PosteriorSamples]:
         """Not yet implemented."""
-        raise NotImplementedError
+        ps_set = []
+        for i, lightcurve in enumerate(lightcurves):
+            
+            if i % 20 == 0:
+                print(i)
+                
+            ps_set.append(run_mcmc(lightcurve, priors=priors, rstate=rstate))
+            
+        return ps_set
 
 
 def run_mcmc(lightcurve, priors=Survey.ZTF().priors, rstate=None):
