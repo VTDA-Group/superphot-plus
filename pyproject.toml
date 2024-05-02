@@ -61,6 +61,7 @@ plotting = [
     "corner",
     "matplotlib",
     "pacmap",
+    "scipy<1.13",
 ]
 tuning = [
     "ray[tune]", # Hyperparameter tuning library
