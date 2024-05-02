@@ -60,6 +60,7 @@ plotting = [
     "colorcet",
     "corner",
     "matplotlib",
+    "pacmap",
 ]
 tuning = [
     "ray[tune]", # Hyperparameter tuning library
