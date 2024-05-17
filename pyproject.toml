@@ -15,17 +15,17 @@ classifiers = [
 ]
 dynamic = ["version"]
 dependencies = [
-    "astropy",
-    "dustmaps",
-    "joblib",
-    "extinction",
-    "lightgbm",
-    "numpy",
-    "pandas",
-    "scikit-learn",
-    "torch",
-    "tensorboard",
-    "tensorflow_probability"
+    "astropy>=6.0.1",
+    "dustmaps>=1.0.13",
+    "joblib>=1.4.0",
+    "extinction>=0.4.6",
+    "lightgbm>=4.3.0",
+    "numpy==1.26.1",
+    "pandas>=2.2.2",
+    "scikit-learn>=1.4.2",
+    "torch>=2.2.2",
+    "tensorboard>=2.16.2",
+    "tensorflow_probability>=0.24.0"
 ]
 
 # On a mac, install optional dependencies with `pip install '.[dev]'` (include the single quotes)
@@ -45,29 +45,29 @@ dev = [
     "pylint", # Used for static linting of files
 ]
 data-generation = [
-    "alerce",
-    "antares_client",
+    "alerce>=1.2.0",
+    "antares_client>=1.8.0",
 ]
 sampling = [
-    "dynesty",
-    "numpyro",
-    "imblearn",
-    "iminuit",
-    "light-curve>=0.8,<0.9",
+    "dynesty>=2.1.3",
+    "numpyro>=0.14.0",
+    "imbalanced-learn>=0.12.2",
+    "iminuit>=2.25.2",
+    "light-curve>=0.9",
 ]
 plotting = [
-    "arviz",
-    "colorcet",
-    "corner",
-    "matplotlib",
+    "arviz>=0.18.0",
+    "colorcet>=3.1.0",
+    "corner>=2.2.2",
+    "matplotlib>=3.8.4",
 ]
 tuning = [
-    "ray[tune]", # Hyperparameter tuning library
+    "ray[tune]>=2.11.0", # Hyperparameter tuning library
     "optuna", # Optimization search algorithm
 ]
 benchmarking = [
-    "asv==0.5.1", # Used to compute performance benchmarks
-    "memory_profiler", # Used to benchmark memory usage
+    "asv>=0.5.1", # Used to compute performance benchmarks
+    "memory_profiler>=0.61.0", # Used to benchmark memory usage
 ]
 
 [build-system]
