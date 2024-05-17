@@ -32,5 +32,5 @@ normalization_stddevs:
 - 1.0
 batch_size: 32
 learning_rate: 0.0001
-models_dir: '.'
+models_dir: '../examples/outputs'
 data_dir: '../examples/outputs'

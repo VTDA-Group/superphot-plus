@@ -33,6 +33,13 @@ class PosteriorSamplesGroup:
         self.rng = np.random.default_rng(
             self.random_seed
         )
+        
+        # filter invalid redshifts if using redshift info
+        z_mask = (~np.isnan(self.redshifts)) & (self.redshifts > 0)
+        self.names = self.names[z_mask]
+        self.labels = self.labels[z_mask]
+        self.redshifts = self.redshifts[z_mask]
+        self.posterior_objects = self.posterior_objects[z_mask]
 
         # save equal number of draws per LC
         num_samples = [ps.samples.shape[0] for ps in self.posterior_objects]
@@ -67,11 +74,11 @@ class PosteriorSamplesGroup:
         self.features = np.asarray(feat_arr)
         self.median_features = np.asarray(median_feats)
         
-
+        
     def __iter__(self):
         return iter((self.names, self.labels, self.redshifts))
 
-    
+        
     def oversample(self, fits_per_majority_lc=1):
         """Oversamples, drawing from posteriors of a certain fit.
         Assumes goal_per_class is the number of majority class if not set.

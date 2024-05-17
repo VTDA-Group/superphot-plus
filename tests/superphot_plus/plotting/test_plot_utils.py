@@ -36,7 +36,7 @@ def test_read_probs_csv(class_probs_csv):
     """Test reading in a probability CSV."""
     names, labels, probs, pred_classes, _, df = read_probs_csv(class_probs_csv)
 
-    assert len(names) == len(labels) == len(probs) == len(pred_classes) == 500
+    assert len(names) == len(labels) == len(probs) == len(pred_classes) == 499
     assert probs.shape[1] == 5
     assert np.array_equal(df.Name.to_numpy(), names)
 

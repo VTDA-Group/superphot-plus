@@ -6,8 +6,6 @@ import arviz as az
 import corner
 import matplotlib.pyplot as plt
 import numpy as np
-import umap
-import umap.plot
 
 from superphot_plus.plotting.format_params import (
     param_labels,
@@ -56,7 +54,7 @@ def plot_corner_plot_all(
         chisq_cutoff=1.2
     )
     psg = PosteriorSamplesGroup(all_post_objs)
-    features, labels = psg.oversample()
+    features, labels = psg.oversample(100)
     plotting_labels, _ = param_labels(aux_bands)
     skip_idxs = [0, 3, len(plotting_labels) - 1]
 
@@ -310,7 +308,7 @@ def plot_oversampling_1d(
 
     #goal_per_class = OVERSAMPLE_SIZE
     all_post_objs = retrieve_posterior_set(
-        names, fits_dir, sampler='dynesty',
+        names, fits_dir, sampler=sampler,
         redshifts=None,
         labels=labels,
         chisq_cutoff=1.2
@@ -579,6 +577,11 @@ def plot_feature_umap(psg, save_path):
     save_path : str
         Where to save the resulting figure.
     """
+    
+    import umap
+    import umap.plot
+
+
     features, labels = psg.oversample()
     # add jitter
     for i in range(features.shape[1]):
