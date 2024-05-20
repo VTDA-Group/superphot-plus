@@ -14,6 +14,7 @@ classifiers = [
     "Programming Language :: Python",
 ]
 dynamic = ["version"]
+requires-python = ">=3.9"
 dependencies = [
     "astropy>=6.0.1",
     "dustmaps>=1.0.13",
@@ -27,6 +28,9 @@ dependencies = [
     "tensorboard>=2.16.2",
     "tensorflow_probability>=0.24.0"
 ]
+
+[project.urls]
+"Source Code" = "https://github.com/VTDA-Group/superphot-plus"
 
 # On a mac, install optional dependencies with `pip install '.[dev]'` (include the single quotes)
 [project.optional-dependencies]
@@ -93,13 +97,56 @@ testpaths = [
 
 [tool.black]
 line-length = 110
-target-version = ["py38"]
+target-version = ["py39"]
 
 [tool.isort]
 profile = "black"
 line_length = 110
 
-[tool.coverage.report]
-omit = [
-    "src/superphot_plus/_version.py", # auto-generated
+[tool.ruff]
+line-length = 110
+target-version = "py39"
+
+[tool.ruff.lint]
+select = [
+    # pycodestyle
+    "E",
+    "W",
+    # Pyflakes
+    "F",
+    # pep8-naming
+    "N",
+    # pyupgrade
+    "UP",
+    # flake8-bugbear
+    "B",
+    # flake8-simplify
+    "SIM",
+    # isort
+    "I",
+    # docstrings
+    "D101",
+    "D102",
+    "D103",
+    "D106",
+    "D206",
+    "D207",
+    "D208",
+    "D300",
+    "D417",
+    "D419",
+
 ]
+
+ignore = [
+    "UP006", # Allow non standard library generics in type hints
+    "UP007", # Allow Union in type hints
+    "SIM114", # Allow if with same arms
+    "B028", # Allow default warning level
+    "SIM117", # Allow nested with
+    "UP015", # Allow redundant open parameters
+    "UP028", # Allow yield in for loop
+]
+
+[tool.coverage.run]
+omit=["src/superphot_plus/_version.py"]
