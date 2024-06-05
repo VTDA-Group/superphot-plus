@@ -4,6 +4,7 @@ data from the Alerce API."""
 import csv
 import os
 import pandas as pd
+import ast
 
 from alerce.core import Alerce
 
@@ -126,18 +127,38 @@ def generate_flux_files(master_csv, save_folder):  # pragma: no cover
         Path to the folder where the flux files will be saved.
     """
     global alerce
+    #print(dir(alerce))
+    #return
+
     os.makedirs(save_folder, exist_ok=True)
     df = pd.read_csv(master_csv)
     names = df.NAME
+    #columns to keep
+    colnames = ['oid', 'mjd', 'fid', 'ra', 'dec', 'mag', 'e_mag']
     for ztf_name in names:
         try:
-            if os.path.exists(os.path.join(save_folder, ztf_name + ".csv")):
-                continue
-            # print(ztf_name)
             # Getting detections for an object
-            detections = alerce.query_detections(ztf_name, format="pandas")
-            detections.to_csv(os.path.join(save_folder, ztf_name + ".csv"), index=False)
+            lc = alerce.query_lightcurve(ztf_name, format="pandas")
+            dets = list(lc['detections'])[0]
+            if len(dets) == 0:
+                continue
+            nondets = list(lc['forced_photometry'])[0]
+            detections=pd.DataFrame.from_dict(dets)[colnames]
+            detections['forced_phot'] = False
+            if len(nondets) > 0:
+                non_detections = pd.DataFrame.from_dict(nondets)[colnames]
+                non_detections = non_detections[non_detections['mag'] < 100.] # get rid of < 0 flux detections
+                if len(non_detections) == 0:
+                    lc_concat = detections
+                else:
+                    non_detections['forced_phot'] = True
+                    lc_concat = pd.concat([detections, non_detections], join='inner')
+            else:
+                lc_concat = detections
+
+            lc_concat.to_csv(os.path.join(save_folder, ztf_name + ".csv"), index=False)
         except:
+            print("SKIPPED")
             continue
 
 
@@ -156,6 +177,6 @@ def generate_single_flux_file(ztf_name, save_folder):
     os.makedirs(save_folder, exist_ok=True)
 
     # Getting detections for an object
-    detections = alerce.query_detections(ztf_name, format="pandas")
+    detections = alerce.query_lightcurve(ztf_name, format="pandas")
     print(os.path.join(save_folder, ztf_name + ".csv"))
     detections.to_csv(os.path.join(save_folder, ztf_name + ".csv"), index=False)

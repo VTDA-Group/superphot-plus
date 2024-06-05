@@ -3,12 +3,12 @@ data from the Alerce API."""
 
 import csv
 import os
-
 import numpy as np
 import pandas as pd
 
 from superphot_plus.surveys.surveys import Survey
 from superphot_plus.utils import convert_mags_to_flux
+
 
 LOW_SNR_FILE="low_snr_classes.dat"
 LOW_VAR_FILE="low_var_classes.dat"
@@ -41,8 +41,8 @@ def import_lc(
         return [None] * 6
     
     single_df = pd.read_csv(filename)
-    sub_df = single_df[["mjd", "ra", "dec", "fid", "magpsf", "sigmapsf"]]
-    pruned_df = sub_df.dropna(subset=["mjd", "fid", "magpsf", "sigmapsf"])
+    sub_df = single_df[["mjd", "ra", "dec", "fid", "mag", "e_mag"]]
+    pruned_df = sub_df.dropna(subset=["mjd", "fid", "mag", "e_mag"])
     pruned_df2 = pruned_df.drop(
         pruned_df[pruned_df['fid'] > 2].index
     ) # remove i band
@@ -63,8 +63,8 @@ def import_lc(
         print(filename, "BAD LOC")
         return [None] * 6
 
-    m = sorted_df.magpsf.to_numpy()
-    merr = sorted_df.sigmapsf.to_numpy()
+    m = sorted_df.mag.to_numpy()
+    merr = sorted_df.e_mag.to_numpy()
     b = sorted_df.bandpass.to_numpy()
     t = sorted_df.mjd.to_numpy()
     
@@ -120,6 +120,7 @@ def clip_lightcurve_end(times, fluxes, fluxerrs, bands):
     for b in np.unique(bands):
         idx_b = bands == b
         t_b, f_b, ferr_b = times[idx_b], fluxes[idx_b], fluxerrs[idx_b]
+        print(t_b)
         end_i = len(t_b) - np.argmax(f_b)
         num_to_cut = 0
 

@@ -37,27 +37,30 @@ def generate_files_from_antares(
         csvreader = csv.reader(mc, delimiter=",", skipinitialspace=True)
         next(csvreader)
         for row in csvreader:
-            try:
-                ztf_name = row[0]
-                if os.path.exists(f"{output_folder}/{str(ztf_name)}.npz"):
-                    continue
-                print(ztf_name)
-                # Getting detections for an object
-                locus = get_by_ztf_object_id(ztf_name)
-                ts = locus.timeseries[
-                    [
-                        "ant_mjd",
-                        "ztf_magpsf",
-                        "ztf_sigmapsf",
-                        "ztf_fid",
-                        "ant_ra",
-                        "ant_dec",
-                        "ztf_magzpsci",
-                    ]
-                ]
-
-            except:
+            ztf_name = row[0]
+            if os.path.exists(f"{output_folder}/{str(ztf_name)}.npz"):
                 continue
+            print(ztf_name)
+            # Getting detections for an object
+            locus = get_by_ztf_object_id(ztf_name)
+            print(locus.alerts[0].properties)
+            return None
+            """
+            ts = locus.timeseries[
+                [
+                    "ant_mjd",
+                    "ztf_magpsf",
+                    "ztf_sigmapsf",
+                    "ztf_fid",
+                    "ant_ra",
+                    "ant_dec",
+                    "ztf_magzpsci",
+                ]
+            ]
+            """
+
+            #except:
+            #    continue
 
             label = row[3]
             print(label)
