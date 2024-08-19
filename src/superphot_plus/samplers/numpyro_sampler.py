@@ -12,13 +12,12 @@ from jax._src import config
 from numpyro.distributions import constraints
 from numpyro.infer import MCMC, NUTS, SVI, Trace_ELBO
 from numpyro.infer.initialization import init_to_uniform
+from snapi import Sampler, SamplerResult
+from sklearn.utils import check_random_state
 
 from superphot_plus.constants import PAD_SIZE
 from superphot_plus.lightcurve import Lightcurve
-from superphot_plus.posterior_samples import PosteriorSamples
-from superphot_plus.samplers.sampler import Sampler
 from superphot_plus.surveys.fitting_priors import MultibandPriors, PriorFields
-from superphot_plus.surveys.surveys import Survey
 from superphot_plus.utils import (
     calculate_chi_squareds,
     get_numpyro_cube,
@@ -35,48 +34,38 @@ numpyro.set_host_device_count(4)
 class NumpyroSampler(Sampler):
     """MCMC sampling using numpyro."""
 
-    def __init__(self, sampler='svi'):
+    def __init__(
+            self,
+            priors: MultibandPriors,
+            sampler='svi',
+            random_state: int = None,
+        ):
         self.sampler = sampler
+        self._random_state = check_random_state(random_state)
 
-    def run_single_curve(
-        self, lightcurve: Lightcurve, priors: MultibandPriors, rng_seed, ref_params=None, **kwargs
-    ) -> PosteriorSamples:
-        """Run the sampler on a single light curve.
+    def fit(
+            self, X: NDArray[np.object_], # pylint: disable=invalid-name
+            y: NDArray[np.float32],
+        ) -> None: 
+        """Fit the data.
 
         Parameters
         ----------
-        lightcurve : Lightcurve
-            The lightcurve to sample.
-        priors : MultibandPriors
-            The curve priors to use.
-        rng_seed : int or None
-            The random seed to use (for testing purposes). The user should pass None in
-            cases where they want a fully random run.
-        sampler : str
-            The numpyro sampler to use. Either "NUTS" or "svi"
-
-        Returns
-        -------
-        eq_wt_samples : PosteriorSamples
-            The resulting samples.
+        X : np.ndarray
+            The X data to fit. If 1d, will be reshaped to 2d.
+            First column = times, second column = bands, third column = errors.
+        y : np.ndarray
+            The y data to fit.
         """
-        lightcurve = lightcurve.pad_bands(priors.ordered_bands, PAD_SIZE, in_place=False)
-        eq_wt_samples = run_mcmc(
-            lightcurve,
-            rng_seed=rng_seed,
-            sampler=self.sampler,
-            priors=priors,
-            ref_params=ref_params,
-        )
-        if eq_wt_samples is None:
-            return None
+        super().fit(X,y)
+        _, band_counts = np.unique(X[:, 1], return_counts=True)
+        if not np.all(np.diff(band_counts) == 0): # if different counts
+            self._pad_inputs()
+
+    def _pad_inputs(self):
+        """Pads the inputs so X has same number of points in each band."""
+        pass
         
-        return PosteriorSamples(
-            eq_wt_samples[0],
-            name=lightcurve.name,
-            sampling_method=self.sampler,
-            sn_class=lightcurve.sn_class,
-        )
 
     def run_multi_curve(
         self, lightcurves, priors: MultibandPriors, rng_seed, sampler="svi", ref_params=None, **kwargs

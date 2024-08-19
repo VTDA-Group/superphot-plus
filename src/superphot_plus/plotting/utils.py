@@ -76,13 +76,13 @@ def get_alerce_pred_class(ztf_name, alerce, superphot_style=False):
     str
         Predicted class label.
     """
-    try:
-        query = alerce.query_probabilities(oid=ztf_name, format="pandas")
-        query_transient = query[query["classifier_name"] == "lc_classifier_transient"]
-        label = query_transient[query_transient["ranking"] == 1]["class_name"].iat[0]
-        return SnClass.from_alerce_to_superphot_format(label) if superphot_style else label
-    except:
-        return "None"
+    #try:
+    query = alerce.query_probabilities(oid=ztf_name, format="pandas")
+    query_transient = query[query["classifier_name"] == "lc_classifier_transient"]
+    label = query_transient[query_transient["ranking"] == 1]["class_name"].iat[0]
+    return SnClass.from_alerce_to_superphot_format(label) if superphot_style else label
+    #except:
+    #    return "None"
 
 
 def create_alerce_pred_csv(probs_fn, save_fn):
@@ -106,7 +106,7 @@ def retrieve_four_class_info(probs_csv, probs_alerce_csv, p07=False):
     """Extract Superphot+ and ALeRCE predictions and true class info."""
     _, classes_to_labels = SnClass.get_type_maps()
 
-    (sn_names, true_classes, class_probs, pred_classes, folds, _) = read_probs_csv(probs_csv)
+    (sn_names, true_classes, class_probs, pred_classes, folds, df) = read_probs_csv(probs_csv)
 
     secondary_pred_classes = np.argsort(class_probs, axis=1)[:,-2]
     
@@ -122,7 +122,8 @@ def retrieve_four_class_info(probs_csv, probs_alerce_csv, p07=False):
     pred_labels2 = np.array([classes_to_labels[x] for x in secondary_pred_classes])
     # read in ALeRCE classes
     df_alerce = pd.read_csv(probs_alerce_csv)
-    pred_alerce = df_alerce.alerce_label.to_numpy().astype(str)
+    merged_df = df.merge(df_alerce, left_on='Name', right_on='name', how='left')
+    pred_alerce = merged_df.alerce_label.to_numpy().astype(str)
 
     ignore_mask = (pred_alerce == "None") | (pred_alerce == "nan") | (pred_alerce == "SKIP")
     # ignore true SNe IIn

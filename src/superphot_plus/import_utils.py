@@ -9,7 +9,6 @@ import pandas as pd
 from superphot_plus.surveys.surveys import Survey
 from superphot_plus.utils import convert_mags_to_flux
 
-
 LOW_SNR_FILE="low_snr_classes.dat"
 LOW_VAR_FILE="low_var_classes.dat"
 

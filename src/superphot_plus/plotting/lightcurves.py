@@ -16,6 +16,7 @@ from superphot_plus.posterior_samples import PosteriorSamples
 set_global_plot_formatting()
 
 def plot_lc_fit(
+    ax,
     ztf_name,
     ref_band,
     ordered_bands,
@@ -53,6 +54,7 @@ def plot_lc_fit(
 
     print(np.mean(eq_wt_samples, axis=0))
     plot_sampling_lc_fit(
+        ax,
         ztf_name,
         out_dir,
         lightcurve.times,
@@ -69,6 +71,7 @@ def plot_lc_fit(
 
 
 def plot_sampling_lc_fit(
+    axis,
     ztf_name,
     out_dir,
     tdata,
@@ -108,8 +111,6 @@ def plot_sampling_lc_fit(
     
     band_order = [x for x in band_order] # convert to arrray
     trange_fine = np.linspace(np.amin(tdata), np.amax(tdata), num=500)
-
-    _, axis = plt.subplots()
     
     max_flux = np.max(fdata[bdata == ref_band] - ferrdata[bdata == ref_band])
     
@@ -154,8 +155,8 @@ def plot_sampling_lc_fit(
     plt.savefig(
         os.path.join(out_dir, ztf_name + "_" + sampling_method + "." + file_type), bbox_inches="tight"
     )
-
-    plt.close()
+    
+    return axis
 
 
 def plot_sampling_lc_fit_numpyro(

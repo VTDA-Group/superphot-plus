@@ -71,8 +71,8 @@ def plot_binary_confusion_matrix(probs_csv, filename, cutoff=0.5):
     true_classes = df.Label.to_numpy()
     prob_Ia = df.pSNIa.to_numpy()
     
-    pred_binary = np.where(prob_Ia > cutoff, "SN Ia", "SN CC")
-    true_binary = np.where(true_classes == 0, "SN Ia", "SN CC")
+    pred_binary = np.where(prob_Ia > cutoff, "SN Ia", "SN-Other")
+    true_binary = np.where(true_classes == 0, "SN Ia", "SN-Other")
     try:
         folds = df.Fold.to_numpy()
     except:
@@ -299,10 +299,7 @@ def plot_agreement_matrix_from_arrs(our_labels, alerce_labels, folds, save_dir, 
     acc_low = acc - np.percentile(accs, 10)
     acc_high = np.percentile(accs, 90) - acc
         
-    if spec:
-        title = "True Agreement Matrix,\n" + fr"{suffix_title} ($A' = {acc:.2f}^{{+{acc_high:.2f}}}_{{-{acc_low:.2f}}}$)"
-    else:
-        title = "True Agreement Matrix,\n" + fr"{suffix_title} ($A' = {acc:.2f}$)"
+    title = "True Agreement Matrix,\n" + fr"{suffix_title} ($A' = {acc:.2f}^{{+{acc_high:.2f}}}_{{-{acc_low:.2f}}}$)"
         
     fig, ax = plt.subplots(figsize=(6,6))
     _ = ax.imshow(cm, interpolation="nearest", vmin=0.0, vmax=1.0, cmap=cmap)
@@ -328,24 +325,24 @@ def plot_agreement_matrix_from_arrs(our_labels, alerce_labels, folds, save_dir, 
             class_i = classes[i]
             class_j = classes[j]
             num_in_cell = len(our_labels[(our_labels == class_j) & (alerce_labels == class_i)])
-            if spec:
-                ax.text(
-                    j,
-                    i,
-                    f"${cm[i, j]:.2f}^{{+{cm_high[i, j]:.2f}}}_{{-{cm_low[i, j]:.2f}}}$" + f"\n({num_in_cell})",
-                    ha="center",
-                    va="center",
-                    color="white" if cm[i, j] > thresh else "black",
-                )
-            else:
-                ax.text(
+            #if spec:
+            ax.text(
                 j,
                 i,
-                f"${cm[i, j]:.2f}$" + f"\n({num_in_cell})",
+                f"${cm[i, j]:.2f}^{{+{cm_high[i, j]:.2f}}}_{{-{cm_low[i, j]:.2f}}}$" + f"\n({num_in_cell})",
                 ha="center",
                 va="center",
                 color="white" if cm[i, j] > thresh else "black",
             )
+            #else:
+            #    ax.text(
+            #    j,
+            #    i,
+            #    f"${cm[i, j]:.2f}$" + f"\n({num_in_cell})",
+            #    ha="center",
+            #    va="center",
+            #    color="white" if cm[i, j] > thresh else "black",
+            #)
                 
     fig.tight_layout()
     plt.xlim(-0.5, len(classes) - 0.5)

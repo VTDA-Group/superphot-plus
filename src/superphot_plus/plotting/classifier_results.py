@@ -475,8 +475,7 @@ def plot_phase_vs_accuracy(phased_probs_dir, all_probs_csv, save_dir):
     save_dir : str
         Where to save the output figures.
     """
-    fig, axes = plt.subplots(3, 1, sharex=True, figsize=(8, 16), gridspec_kw = {'hspace':0.05})
-    ax, ax2, ax3 = axes
+    fig, axes = plt.subplots(5, 3, sharex=True, figsize=(16, 16), gridspec_kw = {'hspace':0.15, 'wspace':0.3})
     _, classes_to_labels = SnClass.get_type_maps()
     allowed_types = np.arange(len(classes_to_labels))
 
@@ -527,13 +526,23 @@ def plot_phase_vs_accuracy(phased_probs_dir, all_probs_csv, save_dir):
             f1s = []
             for f in range(10):
                 correct_t = correct_class[(folds == f) & (true_type == allowed_type)]
-                completeness = np.sum(correct_t) / len(true_type[(true_type == allowed_type) & (folds == f)])
+                if len(correct_t) == 0.0:
+                    correct_sum = 0.0
+                else:
+                    correct_sum = np.sum(correct_t)
+                if len(true_type[(true_type == allowed_type) & (folds == f)]) == 0:
+                    completeness = 1.0
+                else:
+                    completeness = correct_sum / len(true_type[(true_type == allowed_type) & (folds == f)])
                 all_preds = pred_type[(pred_type == allowed_type) & (folds == f)]
                 all_trues = true_type[(pred_type == allowed_type) & (folds == f)]
                 adj_pred = np.sum([
                     class_fracs[j] * len(all_preds[all_trues == at2]) / phase_fracs[j] for j, at2 in enumerate(allowed_types)
                 ])
-                purity = class_fracs[i] * np.sum(correct_t) / adj_pred / phase_fracs[i]
+                if adj_pred == 0.0:
+                    purity = 1.0
+                else:
+                    purity = class_fracs[i] * correct_sum / adj_pred / phase_fracs[i]
                 accs.append(completeness)
                 fracs.append(purity)
                 if purity == 0 and completeness == 0:
@@ -588,13 +597,23 @@ def plot_phase_vs_accuracy(phased_probs_dir, all_probs_csv, save_dir):
             f1s = []
             for f in range(10):
                 correct_t = correct_class[(folds == f) & (true_type == allowed_type)]
-                completeness = np.sum(correct_t) / len(true_type[(true_type == allowed_type) & (folds == f)])
+                if len(correct_t) == 0.0:
+                    correct_sum = 0.0
+                else:
+                    correct_sum = np.sum(correct_t)
+                if len(true_type[(true_type == allowed_type) & (folds == f)]) == 0:
+                    completeness = 1.0
+                else:
+                    completeness = correct_sum / len(true_type[(true_type == allowed_type) & (folds == f)])
                 all_preds = pred_type[(pred_type == allowed_type) & (folds == f)]
                 all_trues = true_type[(pred_type == allowed_type) & (folds == f)]
                 adj_pred = np.sum([
                     class_fracs[j] * len(all_preds[all_trues == at2]) / phase_fracs[j] for j, at2 in enumerate(allowed_types)
                 ])
-                purity = class_fracs[i] * np.sum(correct_t) / adj_pred / phase_fracs[i]
+                if adj_pred == 0.0:
+                    purity = 1.0
+                else:
+                    purity = class_fracs[i] * correct_sum / adj_pred / phase_fracs[i]
                 accs.append(completeness)
                 fracs.append(purity)
                 if purity == 0 and completeness == 0:
@@ -644,6 +663,12 @@ def plot_phase_vs_accuracy(phased_probs_dir, all_probs_csv, save_dir):
     
     legend_lines = []
     for i, allowed_type in enumerate(allowed_types):
+        
+        # now plots each in grid pattern
+        ax = axes[i,0]
+        ax2 = axes[i,1]
+        ax3 = axes[i,2]
+        
         (legend_line,) = ax.plot(
             phases, accs_full_means[i], label=allowed_type, color=CUSTOM_COLORSET[i]
         )
@@ -679,27 +704,67 @@ def plot_phase_vs_accuracy(phased_probs_dir, all_probs_csv, save_dir):
             f1_full_means[i]+f1_full_stddevs[i],
             alpha=0.2, color=CUSTOM_COLORSET[i]
         )
+        ax.set_ylim((0, 1))
+        ax2.set_ylim((0, 1))
+        ax3.set_ylim((0, 1))
+        ax.axvline(x=0.0, color="grey", linestyle="dotted")
+        ax2.axvline(x=0.0, color="grey", linestyle="dotted")
+        ax3.axvline(x=0.0, color="grey", linestyle="dotted")
+
+        ax.set_ylabel("Completeness")
+        ax2.set_ylabel("Estimated Purity")    
+        ax3.set_ylabel("Estimated F1")
         
+    (dotted_l,) = axes[0,0].plot(np.NaN, np.NaN, color='k', linestyle='dashed', label='Early Phase')
+    (solid_l,) = axes[0,0].plot(np.NaN, np.NaN, color='k', label='Full Phase')
+    legend_lines.extend([dotted_l, solid_l])
+    
+    axes[4,0].set_xlabel(r"Phase (days)")
+    axes[4,1].set_xlabel(r"Phase (days)")
+    axes[4,2].set_xlabel(r"Phase (days)")
+    
+    fig.legend(legend_lines, [*[classes_to_labels[x] for x in allowed_types], 'Early Phase', 'Full Phase'], loc="lower center", ncol=4)
+    plt.savefig(os.path.join(save_dir, "phase_vs_accuracy.pdf"), bbox_inches="tight")
+    plt.close()
+    
+        
+    fig, axes = plt.subplots(3, 1, sharex=True, figsize=(6, 12), gridspec_kw = {'hspace':0.1})
+    ax, ax2, ax3 = axes
+    
     (legend_line,) = ax3.plot(
-        phases, np.mean(f1_full_means, axis=0), label="Macro", color='k'
+        phases, np.mean(f1_full_means, axis=0), color=CUSTOM_COLORSET[0]
     )
-    ax3.plot(
-        phases, np.mean(f1_early_means, axis=0), linestyle='dashed', color='k'
+    (legend_line_dotted,) = ax3.plot(
+        phases, np.mean(f1_early_means, axis=0), linestyle='dashed', color=CUSTOM_COLORSET[1]
     )
-    legend_lines.append(legend_line)
+    ax3.fill_between(
+        phases, np.mean(f1_full_means, axis=0) - np.mean(f1_full_stddevs, axis=0),
+        np.mean(f1_full_means, axis=0) + np.mean(f1_full_stddevs, axis=0),
+        alpha=0.2, color=CUSTOM_COLORSET[0]
+    )
     
     ax.plot(
-        phases, np.mean(accs_full_means, axis=0), label="Macro", color='k'
+        phases, np.mean(accs_full_means, axis=0), color=CUSTOM_COLORSET[0]
     )
     ax.plot(
-        phases, np.mean(accs_early_means, axis=0), linestyle='dashed', color='k'
+        phases, np.mean(accs_early_means, axis=0), linestyle='dashed', color=CUSTOM_COLORSET[1]
+    )
+    ax.fill_between(
+        phases, np.mean(accs_full_means, axis=0) - np.mean(accs_full_stddevs, axis=0),
+        np.mean(accs_full_means, axis=0) + np.mean(accs_full_stddevs, axis=0),
+        alpha=0.2, color=CUSTOM_COLORSET[0]
     )
     
     ax2.plot(
-        phases, np.mean(fracs_full_means, axis=0), label="Macro", color='k'
+        phases, np.mean(fracs_full_means, axis=0), color=CUSTOM_COLORSET[0]
     )
     ax2.plot(
-        phases, np.mean(fracs_early_means, axis=0), linestyle='dashed', color='k'
+        phases, np.mean(fracs_early_means, axis=0), linestyle='dashed', color=CUSTOM_COLORSET[1]
+    )
+    ax2.fill_between(
+        phases, np.mean(fracs_full_means, axis=0) - np.mean(fracs_full_stddevs, axis=0),
+        np.mean(fracs_full_means, axis=0) + np.mean(fracs_full_stddevs, axis=0),
+        alpha=0.2, color=CUSTOM_COLORSET[0]
     )
 
     ax.set_ylabel("Completeness")
@@ -715,8 +780,8 @@ def plot_phase_vs_accuracy(phased_probs_dir, all_probs_csv, save_dir):
     ax2.axvline(x=0.0, color="grey", linestyle="dotted")
     ax3.axvline(x=0.0, color="grey", linestyle="dotted")
     ax3.set_xlabel(r"Phase (days)")
-    fig.legend(legend_lines, [*[classes_to_labels[x] for x in allowed_types], "Macro"], loc="lower center", ncol=3)
-    plt.savefig(os.path.join(save_dir, "phase_vs_accuracy.pdf"), bbox_inches="tight")
+    fig.legend([legend_line, legend_line_dotted], ["Full Phase", "Early Phase"], loc="lower center", ncol=3)
+    plt.savefig(os.path.join(save_dir, "phase_vs_accuracy_macro.pdf"), bbox_inches="tight")
     plt.close()
 
 

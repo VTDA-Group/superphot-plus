@@ -1,10 +1,10 @@
 import os
 import shutil
-
 import extinction
 import pandas as pd
 import numpy as np
 import torch
+
 from astropy.coordinates import SkyCoord
 from dustmaps.config import config as dustmaps_config
 from dustmaps.sfd import SFDQuery
@@ -163,7 +163,7 @@ def convert_mags_to_flux(mag, merr, zero_point):
     return fluxes, flux_unc
 
 
-def flux_model(cube, t_data, b_data, max_flux, ordered_bands, ref_band):
+def flux_model(cube, t_data, b_data, ordered_bands, ref_band):
     """Given "cube" of fit parameters, returns the flux measurements for
     a given set of time and band data.
 
@@ -185,47 +185,38 @@ def flux_model(cube, t_data, b_data, max_flux, ordered_bands, ref_band):
     f_model : numpy array
         The flux model for the given set of time and band data.
     """
-    b_data = np.array(b_data)
-    ref_band_idx = np.argmax(ref_band == np.array(ordered_bands))
-    start_idx = ref_band_idx * 7
+    if cube.ndim == 1:
+        cube = np.atleast_2d(cube).T
 
-    amp = max_flux * 10**cube[start_idx]
-    beta = cube[start_idx + 1]
-    gamma = 10**cube[start_idx + 2]
-    t_0 = cube[start_idx + 3]
-    tau_rise, tau_fall, extra_sigma = 10**cube[start_idx + 4: start_idx + 7]
-    phase = t_data - t_0
-    f_model = (
-        amp / (1.0 + np.exp(-phase / tau_rise)) * (1.0 - beta * gamma) * np.exp((gamma - phase) / tau_fall)
-    )
-    f_model[phase < gamma] = (
-        amp / (1.0 + np.exp(-phase[phase < gamma] / tau_rise)) * (1.0 - beta * phase[phase < gamma])
-    )
+    cube = np.repeat(cube.T[:,:,np.newaxis], len(t_data), axis=2)
+    t_data = np.repeat(t_data[np.newaxis,:], cube.shape[1], axis=0)
+    b_data = np.repeat(b_data[np.newaxis,:], cube.shape[1], axis=0)
+
+    ref_band_idx = np.argmax(ref_band == np.array(ordered_bands))
+    si = ref_band_idx * 7
+
+    gamma = 10**cube[si + 2]
+    phase = t_data - cube[si + 3]
+    f_model = 10**cube[si] / (1.0 + np.exp(-phase / 10**cube[si + 4]))
+    f_model = np.where(phase >= gamma, f_model * (1.0 - cube[si+1] * gamma) * np.exp((gamma - phase) / 10**cube[si + 5]), f_model)
+    f_model = np.where(phase < gamma, f_model * (1.0 - cube[si+1] * phase), f_model)
 
     for band_idx, ordered_band in enumerate(ordered_bands):
         if ordered_band == ref_band:
             continue
-        start_idx = 7 * band_idx
-        amp_b = amp * 10**cube[start_idx]
-        beta_b = beta * 10**cube[start_idx + 1]
-        gamma_b = gamma * 10**cube[start_idx + 2]
-        t0_b = t_0 + cube[start_idx + 3]
-        tau_rise_b = tau_rise * 10**cube[start_idx + 4]
-        tau_fall_b = tau_fall * 10**cube[start_idx + 5]
+        si2 = 7 * band_idx
+        amp_b = 10**(cube[si] + cube[si2])
+        beta_b = cube[si2 + 1] + cube[si + 1]
+        gamma_b = gamma * 10**cube[si2 + 2]
+        tau_rise_b = 10**(cube[si + 4] + cube[si2 + 4])
+        tau_fall_b = 10**(cube[si + 5] + cube[si2 + 5])
 
-        inc_band_ix = b_data == ordered_band
-        phase_b = (t_data - t0_b)[inc_band_ix]
-        phase_b2 = (t_data - t0_b)[inc_band_ix & (t_data - t0_b < gamma_b)]
-        
-        f_model[inc_band_ix] = (
-            amp_b
-            / (1.0 + np.exp(-phase_b / tau_rise_b))
-            * (1.0 - beta_b * gamma_b)
-            * np.exp((gamma_b - phase_b) / tau_fall_b)
-        )
-        f_model[inc_band_ix & (t_data - t0_b < gamma_b)] = (
-            amp_b / (1.0 + np.exp(-phase_b2 / tau_rise_b)) * (1.0 - phase_b2 * beta_b)
-        )
+        inc_band_ix = b_data[0] == ordered_band
+        phase_b = phase - cube[si2 + 3]
+
+        f_model = np.where(inc_band_ix, amp_b / (1.0 + np.exp(-phase_b / tau_rise_b)), f_model)
+        f_model = np.where(inc_band_ix & (phase - cube[si2 + 3] >= gamma_b), f_model * (1.0 - beta_b * gamma_b) * np.exp((gamma_b - phase_b) / tau_fall_b), f_model)
+        f_model = np.where(inc_band_ix & (phase - cube[si2 + 3] < gamma_b), f_model * (1.0 - phase_b * beta_b), f_model)
 
     return f_model
 
@@ -256,12 +247,12 @@ def params_valid(beta, gamma, tau_rise, tau_fall):
         return False
 
     # ensure dF2/dtheta < dF1/dtheta at gamma
-    if gamma > (1.0 - beta * tau_fall) / beta:
+    if (beta > 0.0) and (gamma > (1.0 - beta * tau_fall) / beta): # no constraint if beta <= 0
         return False
 
     # ensure dF_rise/dtheta < 0 at gamma
-    if np.exp(-gamma / tau_rise) * (1/tau_rise - beta - beta*gamma/tau_rise) > beta:
-        return False
+    #if np.exp(-gamma / tau_rise) * (1/tau_rise - beta - beta*gamma/tau_rise) > beta:
+    #    return False
 
     return True
 
@@ -362,7 +353,7 @@ def calculate_log_likelihood(cube, lightcurve, unique_bands, ref_band):
     max_flux, _ = lightcurve.find_max_flux(band=ref_band)
     f_model = flux_model(
         cube, lightcurve.times, lightcurve.bands,
-        max_flux, unique_bands, ref_band
+        unique_bands, ref_band
     )
     extra_sigma_arr = np.ones(len(lightcurve.times)) * 10**cube[6] * max_flux
     for band_idx, ordered_band in enumerate(unique_bands):

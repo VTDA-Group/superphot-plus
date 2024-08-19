@@ -67,21 +67,26 @@ class MultibandPriors:
     """Ordering of bands."""
     reference_band: str = "r"
     """Reference band."""
+    name: str = ""
+    """Name of survey."""
 
     def __post_init__(self):
         """Additional logic to coerce string dictionaries into the appropriate
         data type."""
+        tmp_directory = self.bands.copy()
         for band, curve_priors in self.bands.items():
             if isinstance(curve_priors, dict):
-                self.bands[band] = CurvePriors(**curve_priors)
+                tmp_directory[f"{self.name}_{band}"] = CurvePriors(**curve_priors)
+        self.bands = tmp_directory
+        self.reference_band = f"{self.name}_{self.reference_band}"
 
     @property
     def ordered_bands(self):
         """Returns included bands in band_order."""
         bands_ordered = []
         for band in self.band_order:
-            if band in self.bands:
-                bands_ordered.append(band)
+            if f"{self.name}_{band}" in self.bands:
+                bands_ordered.append(f"{self.name}_{band}")
 
         return np.array(bands_ordered)
 
@@ -103,7 +108,7 @@ class MultibandPriors:
     def filter_by_band(self, band_list, in_place=True):
         """Return MultibandPriors object with only some bands.
         """
-        assert self.reference_band in band_list
+        assert self.reference_band[-1] in band_list
         
         bands_filtered = {band: self.bands[band] for band in band_list}
         band_order = ""
@@ -117,16 +122,16 @@ class MultibandPriors:
             return self
         
         return MultibandPriors(
-            bands=bands_filtered,
+            bands={b[-1]: bands_filtered[b] for b in bands_filtered},
             band_order=band_order,
-            reference_band=self.reference_band
+            reference_band=self.reference_band[-1]
         )        
         
     def to_numpy(self):
         """Fields as a (7*bands)x4 numpy array"""
         priors = []
         for band in self.band_order:
-            if band in self.bands:
-                priors.append(self.bands[band].to_numpy())
+            if f"{self.name}_{band}" in self.bands:
+                priors.append(self.bands[f"{self.name}_{band}"].to_numpy())
 
         return np.concatenate(priors)

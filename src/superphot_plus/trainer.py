@@ -12,7 +12,6 @@ from superphot_plus.format_data_ztf import (
 )
 from superphot_plus.model.mlp import SuperphotMLP
 from superphot_plus.model.lightgbm import SuperphotLightGBM
-
 from superphot_plus.config import SuperphotConfig
 from superphot_plus.model.data import TestData, TrainData, PosteriorSamplesGroup
 from superphot_plus.plotting.classifier_results import plot_model_metrics
@@ -151,7 +150,7 @@ class SuperphotTrainer(TrainerBase):
         concat_df = pd.read_csv(self.probs_file % 0)
 
         concat_df['Fold'] = 0
-        for i in range(1, 10):
+        for i in range(1, self.n_folds):
             new_df = pd.read_csv(self.probs_file % i)
             new_df['Fold'] = i
 
@@ -218,6 +217,7 @@ class SuperphotTrainer(TrainerBase):
             probability saving process. Defaults to False.
         """
         filepath = save_file if output_dir is None else os.path.join(output_dir, save_file)
+        fp_indiv = filepath[:-4] + "_%d.csv"
 
         df = pd.read_csv(test_csv)
         names = df.NAME.to_numpy()
@@ -234,6 +234,7 @@ class SuperphotTrainer(TrainerBase):
         else:
             labels = None
             
+        print("retrieving posts")
         posts = retrieve_posterior_set(
             names, fit_dir, sampler=sampler,
             redshifts=redshifts, labels=labels,
@@ -247,8 +248,9 @@ class SuperphotTrainer(TrainerBase):
         )
         
         combined_probs = np.zeros((len(posts), len(self.allowed_types)))
-        for k_fold in range(self.n_folds):
             
+        for k_fold in range(self.n_folds):
+            print(k_fold)
             probs = self.models[k_fold].classify_from_fit_params(
                 test_data.features
             )
@@ -257,6 +259,15 @@ class SuperphotTrainer(TrainerBase):
                 test_data.num_draws,
                 len(self.allowed_types)
             ))
+            
+            save_test_probabilities(
+                test_data.names,
+                np.mean(probs, axis=1),
+                fp_indiv % k_fold,
+                true_labels=test_data.labels,
+                target_label=self.target_label
+            )
+            
             combined_probs += np.mean(probs, axis=1)
             
         save_test_probabilities(
@@ -266,6 +277,22 @@ class SuperphotTrainer(TrainerBase):
             true_labels=test_data.labels,
             target_label=self.target_label
         )
+        
+        # concat individual ones together
+        concat_path = fp_indiv.replace("%d", "%s") % "concat"
+        concat_df = pd.read_csv(fp_indiv % 0)
+
+        concat_df['Fold'] = 0
+        for i in range(1, self.n_folds):
+            new_df = pd.read_csv(fp_indiv % i)
+            new_df['Fold'] = i
+
+            concat_df = pd.concat(
+                [concat_df,
+                new_df],
+                ignore_index=True
+            )
+        concat_df.to_csv(concat_path, index=False)
         
             
     def train(self, i: int, train_data: PosteriorSamplesGroup):

@@ -10,6 +10,7 @@ from astropy.cosmology import Planck13 as cosmo
 from superphot_plus.posterior_samples import PosteriorSamples
 from superphot_plus.supernova_class import SupernovaClass as SnClass
 
+
 @dataclass
 class PosteriorSamplesGroup:
     """Holds data from multiple objects' posterior objects."""

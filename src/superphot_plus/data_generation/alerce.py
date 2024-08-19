@@ -31,7 +31,9 @@ def add_stamp_column(input_filename, output_filename):  # pragma: no cover
     names = input_df.NAME.to_numpy()
     stamp = []
     
-    for name in names:
+    for i,name in enumerate(names):
+        if i % 100 == 0:
+            print(i)
         try:
             p = alerce.query_probabilities(oid=name, format="pandas")
 
@@ -47,7 +49,7 @@ def add_stamp_column(input_filename, output_filename):  # pragma: no cover
     input_df.to_csv(output_filename, index=False)
 
 
-def get_all_unclassified_samples(save_csv):  # pragma: no cover
+def get_all_unclassified_samples(save_csv, start_i=0):  # pragma: no cover
     """Get all unclassified samples and save them to a CSV file.
 
     Parameters
@@ -59,8 +61,8 @@ def get_all_unclassified_samples(save_csv):  # pragma: no cover
 
     classifiers = alerce.query_classifiers()
     print(classifiers)
-    i = 0
     repeat_names = set()
+    i = start_i
     
     if os.path.exists(save_csv):
         with open(save_csv, "r", encoding="utf-8") as sc:
@@ -79,12 +81,13 @@ def get_all_unclassified_samples(save_csv):  # pragma: no cover
                     #classifier_version="hierarchical_random_forest_1.0.0",
                     class_name="Transient",
                     format="pandas",
-                    page_size=2000,
+                    page_size=1000,
                     probability=0.5,
                     page=i,
                 )
                 break
             except:
+                print("trying again")
                 pass
 
         if len(objs) == 0:  # finished

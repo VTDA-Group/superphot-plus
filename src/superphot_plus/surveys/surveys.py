@@ -29,9 +29,9 @@ class Survey:
         data type.
         """
         if isinstance(self.priors, dict):
-            self.priors = MultibandPriors(**self.priors)  # pylint: disable=not-a-mapping
+            self.priors = MultibandPriors(**self.priors, name=self.name)  # pylint: disable=not-a-mapping
         for band in self.priors.bands:
-            assert band in self.wavelengths
+            assert band[-1] in self.wavelengths
 
     def get_ordered_wavelengths(self):
         """Return wavelengths in order that matches priors'
