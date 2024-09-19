@@ -5,15 +5,17 @@ from typing import List, Optional
 import numpy as np
 from dynesty import NestedSampler
 from scipy.stats import truncnorm
-from snapi import Sampler, SamplerResult
+from snapi import SamplerResult
 import pandas as pd
 
 from superphot_plus.constants import DLOGZ, MAX_ITER, NLIVE
 from superphot_plus.surveys.fitting_priors import MultibandPriors
 from superphot_plus.utils import flux_model, params_valid
+from superphot_plus.samplers.superphot_sampler import SuperphotSampler
 
 
-class DynestySampler(Sampler):
+
+class DynestySampler(SuperphotSampler):
     """ "MCMC sampling using dynesty."""
 
     def __init__(
@@ -48,12 +50,10 @@ class DynestySampler(Sampler):
         verbose : bool, optional
             Whether to print progress.
         """
-        super().__init__()
+        super().__init__(priors)
 
         # set all parameters
-        self.result = None
         self._rng = np.random.default_rng(random_state)
-        self._nparams = 6
         if max_iter < 1:
             raise ValueError("max_iter must be greater than 0.")
         if dlogz <= 0:
@@ -65,12 +65,6 @@ class DynestySampler(Sampler):
         self._nlive = nlive
         self._verbose = verbose
         self._sampler_name = 'superphot_dynesty'
-
-        self._all_priors = priors.to_numpy().T
-        self._ref_band = priors.reference_band
-        self._unique_bands = priors.ordered_bands
-        self._ref_band_idx = np.argmax(self._unique_bands == self._ref_band)
-        self._start_idx = 7 * self._ref_band_idx
 
         # Precompute the vectors of trunc_gauss a and b values.
         tg_a = (self._all_priors[0] - self._all_priors[2]) / self._all_priors[3]
@@ -92,7 +86,6 @@ class DynestySampler(Sampler):
             return truncnorm.ppf(cube, tg_a, tg_b, loc=self._all_priors[2], scale=self._all_priors[3])
         
         self._prior_func = create_prior
-        self._is_fitted = False
 
     def fit(self, X, y):
         """Runs dynesty importance nested sampling on a set of light curves; saves set
@@ -183,38 +176,3 @@ class DynestySampler(Sampler):
         self.result = SamplerResult(samples_df, sampler_name=self._sampler_name)
         self._is_fitted = True
         self.result.score = self.score(self._X, self._y)
-
-    def predict(self, X):
-        """Predicts the flux of a light curve using the model."""
-        super().predict(X)
-
-        return flux_model(
-            self.result.fit_parameters.to_numpy()[:100],
-            X[:, 0].astype(np.float32), X[:, 1],
-            self._unique_bands,
-            self._ref_band
-        ), X
-    
-    def _eff_variance(self, X):
-        """Calculates the effective variance of the model."""
-        log_extra_sigma_arr = np.repeat(self.result.fit_parameters['log_extra_sigma'].to_numpy()[:,np.newaxis], X.shape[0], axis=1)
-        
-        for ordered_band in self._unique_bands:
-            if ordered_band == self._ref_band:
-                continue
-            log_extra_sigma_arr_band = np.repeat(self.result.fit_parameters[f'log_extra_sigma_{ordered_band}'].to_numpy()[:,np.newaxis], X.shape[0], axis=1)
-            log_extra_sigma_arr[:,X[:,1] == ordered_band] += log_extra_sigma_arr_band[:,X[:,1] == ordered_band]
-        
-        return X[:,2:3].T.astype(np.float32)**2 + (10**log_extra_sigma_arr)**2
-    
-    def _create_param_names(self):
-        """Creates the parameter names."""
-        param_names = ['log_A', 'beta', 'log_gamma', 't0', 'log_tau_rise', 'log_tau_fall', 'log_extra_sigma']
-        for band in self._unique_bands:
-            if band == self._ref_band:
-                continue
-            param_names += [
-                f'log_A_{band}', f'beta_{band}', f'log_gamma_{band}', f't0_{band}',
-                f'log_tau_rise_{band}', f'log_tau_fall_{band}', f'log_extra_sigma_{band}'
-            ]
-        return param_names

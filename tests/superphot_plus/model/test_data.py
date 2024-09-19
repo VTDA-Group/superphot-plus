@@ -1,5 +1,5 @@
 from superphot_plus.model.data import PosteriorSamplesGroup
-from superphot_plus.format_data_ztf import retrieve_posterior_set
+from superphot_plus.utils import retrieve_posterior_set
 
 
 def test_oversample_using_posteriors(test_data_dir, single_ztf_sn_id):

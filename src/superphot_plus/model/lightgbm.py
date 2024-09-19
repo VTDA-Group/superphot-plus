@@ -1,15 +1,14 @@
-import os
+import pickle
 
 import numpy as np
 import lightgbm
-import pickle
+from torch.utils.data import DataLoader
 
-from superphot_plus.format_data_ztf import normalize_features
 from superphot_plus.config import SuperphotConfig
 from superphot_plus.model.metrics import ModelMetrics
-from torch.utils.data import DataLoader, TensorDataset
 from superphot_plus.utils import (
     save_test_probabilities,
+    normalize_features
 )
 
 class SuperphotLightGBM:
@@ -233,6 +232,22 @@ class SuperphotLightGBM:
             pickle.dump(self, f)
         self.config.write_to_file(f"{config_prefix}_{suffix}.yaml")
         
+    @classmethod
+    def create(cls, config):
+        """Creates a Model instance.
+
+        Parameters
+        ----------
+        config : ModelConfig
+            Includes (in order): input_size, output_size, n_neurons, n_hidden.
+            Also includes normalization means and standard deviations.
+
+        Returns
+        ----------
+        torch.nn.Module
+            The MLP object.
+        """
+        return cls(config)
             
     @classmethod
     def load(cls, filename, config_filename=None):

@@ -1,61 +1,18 @@
 import os
-import shutil
-import extinction
+
 import pandas as pd
 import numpy as np
 import torch
-
-from astropy.coordinates import SkyCoord
-from dustmaps.config import config as dustmaps_config
-from dustmaps.sfd import SFDQuery
 from torch.utils.data import TensorDataset
 from torch.utils.tensorboard import SummaryWriter
-from scipy.special import lambertw
 import jax.numpy as jnp
-from numpyro.distributions import constraints
+from snapi import LightCurve
+from snapi.analysis import SamplerResult
 
-from superphot_plus.sfd import dust_filepath
+from superphot_plus.supernova_class import SupernovaClass as SnClass
 
-def get_band_extinctions_from_mwebv(mwebv, wvs):
-    """Get extinction list from MWEBV value and wavelengths.
-    """
-    Av_sfd = 2.742 * mwebv
-    band_wvs = 1.0 / (0.0001 * np.asarray(wvs))  # in inverse microns
-
-    # Now figure out how much the magnitude is affected by this dust
-    ext_list = extinction.fm07(band_wvs, Av_sfd, unit="invum")  # in magnitudes
-
-    return ext_list
-
-
-def get_band_extinctions(ra, dec, wvs):
-    """Get g- and r-band extinctions in magnitudes for a single
-    supernova lightcurve based on right ascension (RA) and declination
-    (DEC).
-
-    Parameters
-    ----------
-    ra : float
-        The right ascension of the object of interest, in degrees.
-    dec : float
-        The declination of the object of interest, in degrees.
-    wvs : list or np.ndarray
-        Array of wavelengths, in angstroms.
-
-
-    Returns
-    -------
-    ext_dict : Dict
-        A dictionary mapping bands to extinction magnitudes for the given coordinates.
-    """
-    dustmaps_config["data_dir"] = dust_filepath
-    sfd = SFDQuery()
-
-    # First look up the amount of mw dust at this location
-    coords = SkyCoord(ra, dec, frame="icrs", unit="deg")
-      # from https://dustmaps.readthedocs.io/en/latest/examples.html
-    mwebv = sfd(coords)
-    return get_band_extinctions_from_mwebv(mwebv, wvs)
+LOW_SNR_FILE="low_snr_classes.dat"
+LOW_VAR_FILE="low_var_classes.dat"
 
 
 def calc_accuracy(pred_classes, test_labels):
@@ -139,28 +96,6 @@ def f1_score(pred_classes, true_classes, class_average=False):
         return f1_sum / len(samples_per_class.keys())
 
     return f1_sum / len(true_classes)
-
-
-def convert_mags_to_flux(mag, merr, zero_point):
-    """Converts magnitudes to flux.
-
-    Parameters
-    ----------
-    mag : array-like
-        The magnitudes.
-    merr : array-like
-        The error in magnitudes.
-    zero_point : float
-        The zero point in the magnitude system.
-
-    Returns
-    -------
-    fluxes, flux_unc : tuple of numpy array
-        The calculated fluxes and their uncertainties.
-    """
-    fluxes = 10.0 ** (-1.0 * (mag - zero_point) / 2.5)
-    flux_unc = np.log(10.0) / 2.5 * fluxes * merr
-    return fluxes, flux_unc
 
 
 def flux_model(cube, t_data, b_data, ordered_bands, ref_band):
@@ -319,140 +254,6 @@ def get_numpyro_cube(params, max_flux, ref_band, ordered_bands):
     return np.array(cube).T, np.array(ordered_bands)
 
 
-def calculate_log_likelihood(cube, lightcurve, unique_bands, ref_band):
-    """Calculate the log-likelihood of a single lightcurve.
-    Copied from dynesty_sampler.py
-
-    Parameters
-    ----------
-    cube : np.ndarray
-        Array of parameters. Must be length 7 * B where B is
-        the number of unique bands.
-    lightcurve : Lightcurve
-        The lightcurve object to evaluate.
-    unique_bands : list
-        A list of bands to use.
-    ref_band : str
-        The reference band.
-
-    Returns
-    -------
-    logL : float
-        Log-likelihood value.
-    """
-    if ref_band not in unique_bands:
-        raise ValueError("Reference band not included in unique_bands.")
-    if 7 * len(unique_bands) != len(cube):
-        raise ValueError(
-            f"Size mismatch with curve parameters. Expected {7 * len(unique_bands)}. Found {len(cube)}."
-        )
-    if len(lightcurve.times) == 0:
-        raise ValueError("Empty light curve provided.")
-
-    # Generate points from 'cube' for comparison.
-    max_flux, _ = lightcurve.find_max_flux(band=ref_band)
-    f_model = flux_model(
-        cube, lightcurve.times, lightcurve.bands,
-        unique_bands, ref_band
-    )
-    extra_sigma_arr = np.ones(len(lightcurve.times)) * 10**cube[6] * max_flux
-    for band_idx, ordered_band in enumerate(unique_bands):
-        if ordered_band == ref_band:
-            continue
-        extra_sigma_arr[lightcurve.bands == ordered_band] *= 10**cube[7 * band_idx + 6]
-
-    # Compute the loglikelihood based on the differences in flux between the observed
-    # and generated.
-    sigma_sq = lightcurve.flux_errors**2 + extra_sigma_arr**2
-
-    logL = np.sum(
-        np.log(1.0 / np.sqrt(2.0 * np.pi * sigma_sq))
-        - 0.5 * (f_model - lightcurve.fluxes) ** 2 / sigma_sq
-    )
-    return logL
-
-
-def calculate_mse(cube, lightcurve, unique_bands, ref_band):
-    """Calculate the mean-square error for a lightcurve.
-
-    Parameters
-    ----------
-    cube : np.ndarray
-        Array of parameters. Must be length 7 * B where B is
-        the number of unique bands.
-    lightcurve : Lightcurve
-        The lightcurve object to evaluate.
-    unique_bands : list
-        A list of bands to use.
-    ref_band : str
-        The reference band.
-
-    Returns
-    -------
-    mse : float
-        The mean square error of the predictions
-    """
-    if ref_band not in unique_bands:
-        raise ValueError("Reference band not included in unique_bands.")
-    if 7 * len(unique_bands) != len(cube):
-        raise ValueError(
-            f"Size mismatch with curve parameters. Expected {7 * len(unique_bands)}. Found {len(cube)}."
-        )
-    if len(lightcurve.times) == 0:
-        raise ValueError("Empty light curve provided.")
-
-    max_flux, _ = lightcurve.find_max_flux(band="r")
-    # Generate points from 'cube' for comparison.
-    
-    f_model = flux_model(
-        cube, lightcurve.times, lightcurve.bands,
-        max_flux, unique_bands, ref_band
-    )
-    mse_sum = np.sum(np.square(f_model - lightcurve.fluxes))
-    return mse_sum / len(lightcurve.times)
-
-
-def calculate_chi_squareds(cubes, t, f, ferr, b, max_flux, ordered_bands=None, ref_band="r"):
-    """Gets the negative chi-squared of posterior fits from the model
-    parameters and original data files.
-    Parameters
-    ----------
-    names : list of str
-        The names of the objects.
-    fit_dir : str
-        The directory where the fit files are located.
-    data_dirs : list of str
-        The directories where the data files are located.
-    ordered_bands : list of str
-        Bands in order they appear in cubes. Defaults to ZTF band order.
-    ref_band : str
-        Base/reference band. Defaults to 'r'.
-    Returns
-    -------
-    log_likelihoods : np.ndarray
-        The log likelihoods for each object.
-    """
-    if ordered_bands is None:
-        ordered_bands = ["r", "g"]
-        
-    ordered_bands = np.asarray(ordered_bands)
-    
-    model_f = np.array(
-        [flux_model(cube, t, b, max_flux, ordered_bands, ref_band) for cube in cubes]
-    )  # in future, maybe vectorize flux_model
-    ref_band_idx = np.where(ordered_bands == ref_band)[0][0]
-    extra_sigma_arr = np.ones((len(cubes), len(t))) * np.max(f[b == ref_band]) * 10**cubes[:, ref_band_idx + 6][:, np.newaxis]
-
-    for i, ordered_band in enumerate(ordered_bands):
-        if ordered_band == ref_band:
-            continue
-        extra_sigma_arr[:, b == ordered_band] *= 10**cubes[:, 7 * i + 6][:, np.newaxis]
-    sigma_sq = extra_sigma_arr**2 + ferr**2
-    red_chisq = np.sum((f[np.newaxis, :] - model_f) ** 2 / sigma_sq, axis=1) / len(t)
-
-    return red_chisq
-
-
 def create_dataset(features, labels):
     """Creates a PyTorch dataset object from numpy arrays.
 
@@ -604,32 +405,6 @@ def write_metrics_to_file(
         the_file.write(f"Best Validation Loss: {config.best_val_loss:.04f}\n\n")
 
 
-def extract_wrong_classifications(true_classes, pred_classes, ztf_test_names, fit_folder, wc_folder):
-    """Extracts the wrong model classifications and copies them to a separate folder.
-
-    Parameters
-    ----------
-    true_classes : np.ndarray
-        The ground truth for the classified samples.
-    predicted_classes : np.ndarray
-        The predictions for the classified samples.
-    ztf_test_names : np.ndarray
-        The ZTF object names for the classified samples.
-    """
-    wrongly_classified = np.where(true_classes != pred_classes)[0]
-
-    for wc_idx in wrongly_classified:
-        wc = ztf_test_names[wc_idx]
-        wc_type = true_classes[wc_idx]
-        wrong_type = pred_classes[wc_idx]
-        fn = wc + ".pdf"
-        fn_new = wc + "_" + wc_type + "_" + wrong_type + ".pdf"
-        shutil.copy(
-            os.path.join(fit_folder, fn),
-            os.path.join(wc_folder, wc_type + "/" + fn_new),
-        )
-
-
 def get_session_metrics(metrics):
     """Calculates the validation loss and accuracy for the hyperparameter set.
     The best model is considered the one with the lowest validation loss.
@@ -704,3 +479,208 @@ def log_metrics_to_tensorboard(metrics, config, trial_id, base_dir="runs"):
     config.write_to_file(f"{run_dir}/config.yaml")
 
     return avg_train_losses, avg_train_accs, avg_val_losses, avg_val_accs
+
+
+def clip_lightcurve_end(light_curve: LightCurve):
+    """Clips end of lightcurve with approximately 0 slope. Checks from
+    back to max of lightcurve.
+
+    Parameters
+    ----------
+    times : np.ndarray
+        Time values of the light curve.
+    fluxes : np.ndarray
+        Flux values of the light curve.
+    fluxerrs : np.ndarray
+        Flux error values of the light curve.
+    bands : np.ndarray
+        Band information of the light curve.
+
+    Returns
+    -------
+    tuple
+        Tuple containing the clipped light curve data.
+    """
+    t_b = light_curve.detections['time']
+    f_b = light_curve.detections['flux']
+
+    if np.argmax(f_b) == len(f_b) - 1:
+        return light_curve.copy()
+
+    end_i = len(t_b) - np.argmax(f_b)
+    num_to_cut = 0
+
+    m_cutoff = 0.2 * np.abs((f_b[-1] - np.amax(f_b)) / (t_b[-1] - t_b[np.argmax(f_b)]))
+
+    for i in range(2, end_i):
+        cut_idx = -1 * i
+        m = (f_b[cut_idx] - f_b[-1]) / (t_b[cut_idx] - t_b[-1])
+
+        if np.abs(m) < m_cutoff:
+            num_to_cut = i
+
+    if num_to_cut > 0:
+        return LightCurve(
+            light_curve.detections[:-num_to_cut],
+            filt=light_curve.filter
+        )
+    return light_curve.copy()
+
+
+def import_labels_only(input_csvs, allowed_types, fits_dir=None, needs_posteriors=True, sampler=None):
+    """Filters CSVs for rows where label is in allowed_types and returns
+    names, labels.
+
+    Parameters
+    ----------
+    input_csvs : list of str
+        List of input CSV file paths.
+    allowed_types : list
+        List of allowed types for labels.
+    fits_dir : str, optional
+        Directory path for FITS files. Defaults to None.
+    needs_posteriors: boolean, optional
+        Indicates whether to load posterior samples.
+    sampler : str, optional
+        The sampler to get posteriors from.
+
+    Returns
+    -------
+    tuple of np.ndarray
+        Tuple of names, labels and redshifts.
+
+    Notes
+    -----
+    Maps groups of similar labels to a single representative label name
+    (eg, "SN Ic", "SNIc-BL", and "21" all become "SN Ibc").
+    """
+    
+    labels = []
+    labels_orig = []
+    repeat_ct = 0
+    names = []
+    redshifts = []
+    
+    for input_csv in input_csvs:
+        df = pd.read_csv(input_csv)
+        names_all = df.NAME.to_numpy()
+        labels_all = df.CLASS.to_numpy()
+        redshifts_all = df.Z.to_numpy()
+        
+        for i, name in enumerate(names_all):
+            if needs_posteriors and (
+                    fits_dir is None or not has_posterior_samples(
+                    lc_name=name, fits_dir=fits_dir, sampler=sampler
+                )
+            ):
+                continue
+                
+            label_orig = labels_all[i]
+            row_label = SnClass.canonicalize(label_orig)
+
+            if row_label not in allowed_types:
+                continue
+
+            if name not in names:
+                names.append(name)
+                labels.append(row_label)
+                labels_orig.append(label_orig)
+                redshifts.append(float(redshifts_all[i]))
+            else:
+                repeat_ct += 1
+
+    tally_each_class(labels_orig)
+    print(repeat_ct)
+
+    return np.array(names), np.array(labels), np.array(redshifts)
+
+
+def tally_each_class(labels):
+    """Prints the number of samples with each class label.
+
+    Parameters
+    ----------
+    labels: list
+        Input labels.
+    """
+    un_labels, cts = np.unique(labels, return_counts=True)
+    for u, c in zip(un_labels, cts):
+        print(f"{u}: {c}")
+    print()
+
+
+def retrieve_posterior_set(
+    lc_names, fits_dir, sampler=None,
+    redshifts=None, labels=None,
+    chisq_cutoff=np.inf,
+):
+    """Retrieve all sets of posterior samples, excluding
+    poor median fits and invalid redshift values.
+    
+    Parameters
+    ----------
+    lc_names : str
+        Lightcurve names.
+    fits_dir : str
+        Where fit parameters are stored.
+    sampler : str, optional
+        The name of the sampler to use.
+    redshifts : list, optional
+        List of redshift values.
+    chisq_cutoff : float, optional
+        Ignore all fit sets with median chisq above this value.
+    """
+    samples = []
+    if redshifts is None:
+        redshifts = np.ones(len(lc_names))
+
+    for i, name in enumerate(lc_names):
+        if np.isnan(redshifts[i]) or redshifts[i] <= 0:
+            continue
+        try:
+            post_obj = SamplerResult.load(
+                name=name,
+                input_dir=fits_dir,
+                sampling_method=sampler
+            )
+        except:
+            continue
+        # bandaid: add redshifts to PosteriorSamples object here
+        post_obj.redshift = redshifts[i]
+        if labels is not None:
+            post_obj.sn_class = labels[i]        
+        if post_obj.score > chisq_cutoff:
+            continue
+        
+        samples.append(post_obj)
+
+    return np.array(samples)
+
+
+def normalize_features(features, mean=None, std=None):
+    """Normalizes the features for feeding into the neural network.
+
+    Parameters
+    ----------
+    features : numpy array
+        Input features. Must be a 2-d array where each row corresponds
+        to a data point and each entry to a feature.
+    mean : ndarray, optional
+        Mean values for normalization. Defaults to None.
+    std : ndarray, optional
+        Standard deviation values for normalization. Defaults to None.
+
+    Returns
+    -------
+    tuple of np.ndarray
+        Tuple containing normalized features, mean values, and standard
+        deviation values.
+    """
+    if mean is None:
+        mean = features.mean(axis=0)
+    if std is None:
+        std = features.std(axis=0)
+
+    safe_std = np.copy(std)
+    safe_std[std == 0.0] = 1.0
+    return (features - mean) / safe_std, mean, std

@@ -1,15 +1,12 @@
 import os
+import copy
+
 
 import numpy as np
 import pandas as pd
-import copy
 from sklearn.model_selection import train_test_split
+from snapi.analysis import SamplerResult
 
-from superphot_plus.format_data_ztf import (
-    normalize_features,
-    tally_each_class,
-    retrieve_posterior_set
-)
 from superphot_plus.model.mlp import SuperphotMLP
 from superphot_plus.model.lightgbm import SuperphotLightGBM
 from superphot_plus.config import SuperphotConfig
@@ -18,14 +15,12 @@ from superphot_plus.plotting.classifier_results import plot_model_metrics
 from superphot_plus.plotting.confusion_matrices import plot_matrices
 from superphot_plus.supernova_class import SupernovaClass as SnClass
 from superphot_plus.trainer_base import TrainerBase
-from superphot_plus.file_utils import get_posterior_samples
 from superphot_plus.utils import (
     create_dataset,
-    extract_wrong_classifications,
-    log_metrics_to_tensorboard,
     write_metrics_to_file,
-    epoch_time,
     save_test_probabilities,
+    normalize_features,
+    retrieve_posterior_set
 )
 
 
@@ -44,30 +39,7 @@ class SuperphotTrainer(TrainerBase):
         be located under the specified models directory. Defaults to None.
     sampler : str
         The type of sampler used for the lightcurve fits. Defaults to "dynesty".
-    include_redshift : bool
-        If True, includes redshift data for training.
-    probs_file : str
-        The file where test probabilities are written. Defaults to PROBS_FILE.
     """
-
-    def __init__(
-        self,
-        config_name,
-        fits_dir,
-        sampler="dynesty",
-        model_type='LightGBM',
-        include_redshift=True,
-        probs_file=None,
-        n_folds=10,
-        target_label=None,
-    ):
-        super().__init__(
-            config_name, fits_dir,
-            sampler, model_type,
-            include_redshift, probs_file, n_folds,
-            target_label
-        )
-
     def setup_model(self, load_checkpoint=False):
         """Reads model configuration from disk and loads the
         saved checkpoint if load_checkpoint flag was enabled.
@@ -79,9 +51,6 @@ class SuperphotTrainer(TrainerBase):
         """
         config = SuperphotConfig.from_file(self.config_name)
         path = os.path.join(config.models_dir, self.config_name.split('/')[-1].split('.')[0])
-                
-        if self.probs_file is not None:
-            config.probs_fn = self.probs_file
             
         for i in range(self.n_folds):
             if load_checkpoint:
@@ -112,7 +81,7 @@ class SuperphotTrainer(TrainerBase):
         else:
             raise ValueError
     
-    def run(self, input_csvs=None, extract_wc=False, n_folds=1, load_checkpoint=False):
+    def run(self, input_csvs=None, load_checkpoint=False):
         """Runs the machine learning workflow.
 
         Trains the model on the whole training set and evaluates it on a
@@ -143,15 +112,15 @@ class SuperphotTrainer(TrainerBase):
             train_data, test_data = k_folded_data[i]
             self.train(i, train_data)
             # Evaluate model on test dataset
-            self.evaluate(i, test_data, extract_wc)
+            self.evaluate(i, test_data)
             
         # concatenate probs csvs
-        concat_path = self.probs_file.replace("%d", "%s") % "concat"
-        concat_df = pd.read_csv(self.probs_file % 0)
+        concat_path = self.configs[0].probs_fn.replace("0", "concat")
+        concat_df = pd.read_csv(self.configs[0].probs_fn)
 
         concat_df['Fold'] = 0
         for i in range(1, self.n_folds):
-            new_df = pd.read_csv(self.probs_file % i)
+            new_df = pd.read_csv(self.configs[i].probs_fn)
             new_df['Fold'] = i
 
             concat_df = pd.concat(
@@ -179,17 +148,17 @@ class SuperphotTrainer(TrainerBase):
         np.ndarray
             The average probability for each SN type across all equally-weighted sets of fit parameters.
         """
-        post_features = get_posterior_samples(
-            obj_name,
-            fits_dir,
-            sampler
-        )[0]
+        result = SamplingResult.load(
+            load_prefix=obj_name,
+            load_folder=fits_dir,
+            sampler_name=f'superphot_{sampler}'
+        )
         
-        if np.median(post_features[:,-1]) > self.chisq_cutoff:
+        if result.score > self.chisq_cutoff:
             return -1 * np.ones(len(self.allowed_types))
 
         # normalize the log distributions
-        post_features = np.delete(post_features, self.skipped_params, 1)
+        post_features = np.delete(result.fit_parameters, self.skipped_params, 1)
         probs_avg = np.zeros(len(self.allowed_types))
         
         for model in self.models: # ensemble classifier
@@ -357,7 +326,7 @@ class SuperphotTrainer(TrainerBase):
         # Log average metrics per epoch to plot on Tensorboard.
         #log_metrics_to_tensorboard(metrics=[metrics], config=self.configs[i], trial_id=run_id)
 
-    def evaluate(self, k_fold, test_data: PosteriorSamplesGroup, extract_wc=False):
+    def evaluate(self, k_fold, test_data: PosteriorSamplesGroup):
         """Evaluates a pretrained model on the test holdout set.
 
         Parameters
@@ -413,9 +382,3 @@ class SuperphotTrainer(TrainerBase):
             pred_classes=pred_classes,
             prob_above_07=pred_probs_above_07,
         )
-        if extract_wc:
-            extract_wrong_classifications(
-                true_classes=true_classes,
-                pred_classes=pred_classes,
-                ztf_test_names=test_data.names,
-            )

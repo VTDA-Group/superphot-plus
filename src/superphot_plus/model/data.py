@@ -6,8 +6,8 @@ from torch.utils.data import TensorDataset
 from imblearn.over_sampling import SMOTE
 from sklearn.model_selection import train_test_split
 from astropy.cosmology import Planck13 as cosmo
+from snapi.analysis import SamplingResult
 
-from superphot_plus.posterior_samples import PosteriorSamples
 from superphot_plus.supernova_class import SupernovaClass as SnClass
 
 
@@ -15,7 +15,7 @@ from superphot_plus.supernova_class import SupernovaClass as SnClass
 class PosteriorSamplesGroup:
     """Holds data from multiple objects' posterior objects."""
 
-    posterior_objects: List[PosteriorSamples]
+    posterior_objects: List[SamplingResult]
     use_redshift_info: Optional[bool] = False
     ignore_param_idxs: Optional[List[int]] = field(default_factory=list)
     random_seed: Optional[int] = None
@@ -43,14 +43,14 @@ class PosteriorSamplesGroup:
         self.posterior_objects = self.posterior_objects[z_mask]
 
         # save equal number of draws per LC
-        num_samples = [ps.samples.shape[0] for ps in self.posterior_objects]
+        num_samples = [ps.fit_parameters.shape[0] for ps in self.posterior_objects]
         self.num_draws = min(num_samples)
         
         feat_arr = []
         median_feats = []
         
         for ps in self.posterior_objects:
-            samples = ps.samples[:self.num_draws]
+            samples = ps.fit_parameters[:self.num_draws]
             
             if self.use_redshift_info:
                 z_arr = np.ones((self.num_draws, 2)) * ps.redshift
@@ -127,7 +127,7 @@ class PosteriorSamplesGroup:
         return features_smote, labels_smote
     
     
-    def split(self, split_frac=0.1, split_indices=None, shuffle=True):
+    def split(self, split_frac=0.1, split_indices=None):
         
         if split_indices is not None:
             idx1, idx2 = split_indices
@@ -182,7 +182,6 @@ class PosteriorSamplesGroup:
         We do everything relative to tau_rise because that's
         the first shape param to be measured in real time!
         """
-        return None
         self.features_z_independent = np.asarray([
             np.log10(self.features[:,0]) + self.features[:,2],
             self.features[:,2] - self.features[:,1],

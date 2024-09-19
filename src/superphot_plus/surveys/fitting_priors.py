@@ -100,7 +100,7 @@ class MultibandPriors:
         """Returns auxilliary (non-reference) bands in band_order."""
         bands_ordered = []
         for band in self.band_order:
-            if band in self.bands and band != self.reference_band:
+            if f"{self.name}_{band}" in self.bands and f"{self.name}_{band}" != self.reference_band:
                 bands_ordered.append(band)
 
         return np.array(bands_ordered)

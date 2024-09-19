@@ -3,8 +3,9 @@ data from the Alerce API."""
 
 import csv
 import os
-import pandas as pd
 import ast
+
+import pandas as pd
 
 from alerce.core import Alerce
 
@@ -116,70 +117,3 @@ def get_all_unclassified_samples(save_csv, start_i=0):  # pragma: no cover
                     print("skipped")
                     continue
         i += 1
-
-
-def generate_flux_files(master_csv, save_folder):  # pragma: no cover
-    """Generates flux files for all ZTF samples in the master CSV file,
-    using ALeRCE's API.
-
-    Parameters
-    ----------
-    master_csv : str
-        Path to the master CSV file.
-    save_folder : str
-        Path to the folder where the flux files will be saved.
-    """
-    global alerce
-    #print(dir(alerce))
-    #return
-
-    os.makedirs(save_folder, exist_ok=True)
-    df = pd.read_csv(master_csv)
-    names = df.NAME
-    #columns to keep
-    colnames = ['oid', 'mjd', 'fid', 'ra', 'dec', 'mag', 'e_mag']
-    for ztf_name in names:
-        try:
-            # Getting detections for an object
-            lc = alerce.query_lightcurve(ztf_name, format="pandas")
-            dets = list(lc['detections'])[0]
-            if len(dets) == 0:
-                continue
-            nondets = list(lc['forced_photometry'])[0]
-            detections=pd.DataFrame.from_dict(dets)[colnames]
-            detections['forced_phot'] = False
-            if len(nondets) > 0:
-                non_detections = pd.DataFrame.from_dict(nondets)[colnames]
-                non_detections = non_detections[non_detections['mag'] < 100.] # get rid of < 0 flux detections
-                if len(non_detections) == 0:
-                    lc_concat = detections
-                else:
-                    non_detections['forced_phot'] = True
-                    lc_concat = pd.concat([detections, non_detections], join='inner')
-            else:
-                lc_concat = detections
-
-            lc_concat.to_csv(os.path.join(save_folder, ztf_name + ".csv"), index=False)
-        except:
-            print("SKIPPED")
-            continue
-
-
-def generate_single_flux_file(ztf_name, save_folder):
-    """Generates a flux file for a single ZTF sample in the master CSV
-    file, using ALeRCE's API.
-
-    Parameters
-    ----------
-    ztf_name : str
-        Name of the ZTF sample.
-    save_folder : str
-        Path to the folder where the flux file will be saved.
-    """
-    global alerce
-    os.makedirs(save_folder, exist_ok=True)
-
-    # Getting detections for an object
-    detections = alerce.query_lightcurve(ztf_name, format="pandas")
-    print(os.path.join(save_folder, ztf_name + ".csv"))
-    detections.to_csv(os.path.join(save_folder, ztf_name + ".csv"), index=False)

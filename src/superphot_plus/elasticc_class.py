@@ -12,7 +12,6 @@ class ElasticcClass(SupernovaClass):
     SUPERNOVA_II = "SN II"
     SUPERNOVA_IIN = "SN IIn"
     SUPERLUMINOUS_SUPERNOVA_I = "SLSN-I"
-    # SUPERLUMINOUS_SUPERNOVA_II = "SLSN-II"
 
     @classmethod
     def get_type_maps(cls, allowed_types=None):

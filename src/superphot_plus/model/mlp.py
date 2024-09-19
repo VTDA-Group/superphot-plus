@@ -10,7 +10,6 @@ from torch import nn, optim
 from torch.utils.data import DataLoader, TensorDataset
 
 from superphot_plus.constants import EPOCHS, HIDDEN_DROPOUT_FRAC, INPUT_DROPOUT_FRAC
-from superphot_plus.format_data_ztf import normalize_features
 from superphot_plus.config import SuperphotConfig
 from superphot_plus.model.metrics import ModelMetrics
 from superphot_plus.utils import (
@@ -18,6 +17,7 @@ from superphot_plus.utils import (
     epoch_time,
     save_test_probabilities,
     calculate_accuracy,
+    normalize_features
 )
 
 

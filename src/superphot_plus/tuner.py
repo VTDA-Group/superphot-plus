@@ -4,18 +4,21 @@ from functools import partial
 
 import numpy as np
 import ray
-from joblib import Parallel, delayed
 from ray import tune
 from ray.air import session
 from ray.tune import CLIReporter
 from ray.tune.search.optuna import OptunaSearch
+from joblib import Parallel, delayed
 
-from superphot_plus.format_data_ztf import generate_K_fold, normalize_features, tally_each_class
-from superphot_plus.model.classifier import SuperphotClassifier
+
+from superphot_plus.model.lightgbm import SuperphotLightGBM
 from superphot_plus.config import SuperphotConfig
-from superphot_plus.model.data import TrainData, ZtfData
+from superphot_plus.model.data import TrainData, PosteriorSamplesGroup
 from superphot_plus.trainer_base import TrainerBase
-from superphot_plus.utils import create_dataset, get_session_metrics, log_metrics_to_tensorboard
+from superphot_plus.utils import (
+    create_dataset, get_session_metrics, log_metrics_to_tensorboard,
+    normalize_features, tally_each_class
+)
 
 
 class SuperphotTuner(TrainerBase):
@@ -37,15 +40,11 @@ class SuperphotTuner(TrainerBase):
     """
 
     def __init__(
-        self,
-        sampler="dynesty",
-        include_redshift=True,
-        num_cpu=2,
-        num_gpu=0,
+        self, *args, **kwargs
     ):
-        super().__init__(sampler, include_redshift)
-        self.num_cpu = num_cpu
-        self.num_gpu = num_gpu
+        super().__init__(*args, **kwargs)
+        self.num_cpu = kwargs['num_cpu']
+        self.num_gpu = kwargs['num_gpu']
 
     def generate_hp_sample(self):
         """Generates random set of hyperparameters for tuning."""
@@ -53,7 +52,6 @@ class SuperphotTuner(TrainerBase):
             neurons_per_layer=tune.choice([128, 256, 512]),
             num_hidden_layers=tune.choice([3, 4, 5]),
             goal_per_class=tune.choice([100, 500, 1000]),
-            num_folds=tune.choice(list(range(5, 10))),
             num_epochs=tune.choice([250, 500, 750]),
             batch_size=tune.choice([32, 64, 128]),
             learning_rate=tune.loguniform(1e-4, 1e-1),
@@ -73,7 +71,7 @@ class SuperphotTuner(TrainerBase):
         """
         train_data, _ = self.split_train_test(input_csvs)
         best_config = self.tune_model(train_data, num_hp_samples)
-        best_config.write_to_file(os.path.join(self.models_dir, "best-config.yaml"))
+        best_config.write_to_file(os.path.join(best_config.models_dir, "best-config.yaml"))
         return best_config
 
     def tune_model(self, train_data, num_hp_samples=10):
@@ -128,7 +126,7 @@ class SuperphotTuner(TrainerBase):
 
         return SuperphotConfig(**best_trial.config)
 
-    def run_cross_validation(self, config, train_data: ZtfData):
+    def run_cross_validation(self, config, train_data: PosteriorSamplesGroup):
         """Runs cross-fold validation to estimate the best set of
         hyperparameters for the model.
 
@@ -138,7 +136,7 @@ class SuperphotTuner(TrainerBase):
             The configuration for model training, drawn from the default
             ModelConfig values. Used as a Dict to comply with the Tune
             API requirements.
-        train_data : ZtfData
+        train_data : PosteriorSamplesGroup
             Contains the ZTF object names, classes and redshifts for training.
         """
         trial_id = tune.get_trial_id()
@@ -150,11 +148,6 @@ class SuperphotTuner(TrainerBase):
         config = SuperphotConfig(**config)
 
         tally_each_class(train_data.labels)
-
-        # Stratified K-Fold on the training data
-        kfold = generate_K_fold(
-            features=np.zeros(len(train_data.labels)), classes=train_data.labels, num_folds=config.num_folds
-        )
 
         def run_single_fold(fold):
             train_index, val_index = fold
@@ -171,8 +164,8 @@ class SuperphotTuner(TrainerBase):
             train_dataset = create_dataset(train_features, train_classes)
             val_dataset = create_dataset(val_features, val_classes)
 
-            model = SuperphotClassifier.create(
-                config=SuperphotConfig(
+            model = SuperphotLightGBM.create(
+                    config=SuperphotConfig(
                     input_dim=train_features.shape[1],
                     output_dim=len(self.allowed_types),
                     neurons_per_layer=config.neurons_per_layer,
@@ -191,7 +184,9 @@ class SuperphotTuner(TrainerBase):
             )
 
         # Process each fold in parallel.
-        fold_metrics = Parallel(n_jobs=-1)(delayed(run_single_fold)(fold) for fold in kfold)
+        fold_metrics = Parallel(n_jobs=-1)(
+            delayed(run_single_fold)(fold) for fold in self.kf.split(train_data.names, train_data.labels)
+        )
 
         # Report mean metrics for the current hyperparameter set.
         avg_val_loss, avg_val_acc = get_session_metrics(metrics=fold_metrics)

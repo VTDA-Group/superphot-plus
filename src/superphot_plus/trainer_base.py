@@ -1,14 +1,10 @@
-import os
-import shutil
-
 import numpy as np
-from sklearn.model_selection import train_test_split, StratifiedKFold
+from sklearn.model_selection import StratifiedKFold
 from astropy.cosmology import Planck13 as cosmo
-from superphot_plus.file_utils import get_posterior_samples
-from superphot_plus.format_data_ztf import import_labels_only
+
 from superphot_plus.model.data import PosteriorSamplesGroup
 from superphot_plus.supernova_class import SupernovaClass as SnClass
-from superphot_plus.format_data_ztf import retrieve_posterior_set
+from superphot_plus.utils import retrieve_posterior_set, import_labels_only
 
 class TrainerBase:
     """Trainer base class."""
@@ -16,13 +12,13 @@ class TrainerBase:
     def __init__(
         self,
         config_name,
-        fits_dir, #TODO: make optional from config
+        fits_dir,
         sampler="dynesty",
         model_type='LightGBM',
         include_redshift=True,
-        probs_file=None,
         n_folds=10,
         target_label=None,
+        **kwargs
     ):
         # Supernova class types
         # TODO: replace with supernova_class enumeration
@@ -36,7 +32,6 @@ class TrainerBase:
             self.skipped_params = [3,14]
         else:
             self.skipped_params = [0,3,14]
-        self.probs_file = probs_file
         self.fits_dir = fits_dir
         
         self.config_name = config_name
@@ -47,6 +42,7 @@ class TrainerBase:
         self.n_folds = max(int(n_folds), 1)
         self.random_seed = 42 # TODO: un-hard code this
         self.chisq_cutoff = 1.2
+        self.load_checkpoint = None
         
         if self.n_folds > 1:
             self.kf = StratifiedKFold(
@@ -58,7 +54,7 @@ class TrainerBase:
             self.kf = None
 
     
-    def k_fold_split_train_test(self, kf, input_csvs=None):
+    def k_fold_split_train_test(self, kf, input_csvs):
         """Reads data and splits into n K-folds. Outputs n sets
         of train/test sets.
         
@@ -73,9 +69,6 @@ class TrainerBase:
             N sets of the train data and the test data.
         """
         k_fold_datasets = []
-        
-        if input_csvs is None:
-            input_csvs = INPUT_CSVS
 
         # Load train and test data (holdout of 10%)
         names, labels, redshifts = self.load_csv(
@@ -122,7 +115,7 @@ class TrainerBase:
 
         return names, labels, redshifts
         
-    def split_train_test(self, input_csvs=None):
+    def split_train_test(self, input_csvs):
         """Reads data and splits it into training and testing sets.
 
         Parameters
@@ -135,9 +128,6 @@ class TrainerBase:
         tuple
             The train data and the test data.
         """
-        if input_csvs is None:
-            input_csvs = INPUT_CSVS
-
         names, labels, redshifts = self.load_csv(input_csvs)
         
         if not self.include_redshift:
@@ -221,7 +211,7 @@ class TrainerBase:
             A tuple containing the final test features and respective classes,
             the corresponding test ZTF object names and test group indices.
         """
-        test_names, test_labels, test_redshifts = test_data
+        test_names, test_labels, _ = test_data
         
         if self.target_label is None:
             test_classes = SnClass.get_classes_from_labels(test_labels)

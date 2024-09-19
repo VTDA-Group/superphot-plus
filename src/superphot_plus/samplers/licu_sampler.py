@@ -3,11 +3,12 @@
 import light_curve as licu
 import numpy as np
 from numpy.typing import NDArray
-from snapi import Sampler, SamplerResult
+from snapi import SamplerResult
 import pandas as pd
 
 from superphot_plus.surveys.fitting_priors import MultibandPriors
-from superphot_plus.utils import flux_model
+from superphot_plus.samplers.superphot_sampler import SuperphotSampler
+
 
 __all__ = ["LiCuSampler"]
 
@@ -51,7 +52,8 @@ def transform_from_licu(
     tau_fall = fall_time
     extra_sigma = 0.  # no extra_sigma in light-curve package
     return np.array([amp, beta, gamma, t_0, tau_rise, tau_fall, extra_sigma])
-class LiCuSampler(Sampler):
+
+class LiCuSampler(SuperphotSampler):
     """Fit light curves using the light-curve package's VillarFit
 
     Parameters
@@ -71,18 +73,15 @@ class LiCuSampler(Sampler):
             priors: MultibandPriors,
             **licu_kwargs
         ):
+        super().__init__(priors)
         kwargs = {'algorithm': 'ceres', 'ceres_niter': 10_000}
         kwargs.update(licu_kwargs)
         self.licu_kwargs = kwargs
-
-        self._ref_band_idx = priors.ref_band_index
         self._priors_clip_a, self._priors_clip_b, self._priors_mean, _ = (
             self.transform_priors_to_physical_values(a)
             for a in priors.to_numpy().T
         )
         self._orig_prior_mean = priors.to_numpy().T[2]
-        self._nparams = 6
-        self.result = None
 
     def fit(
             self, X: NDArray[np.object_], # pylint: disable=invalid-name
@@ -130,7 +129,7 @@ class LiCuSampler(Sampler):
 
         cube = param_matrix.flatten()
         cube = np.where(np.isnan(cube), self._orig_prior_mean, cube)
-        samples_df = pd.DataFrame(cube.reshape(-1, 7), columns=self.create_param_names())
+        samples_df = pd.DataFrame(cube.reshape(-1, 7), columns=self._create_param_names())
 
         self.result = SamplerResult(samples_df, sampler_name="superphot_licu")
         self.result.score = self.score(self._X, self._y)
@@ -174,9 +173,6 @@ class LiCuSampler(Sampler):
 
         # We have nothing better to do than just use the mean of the prior
         extra_sigma = prior_mean[6]
-
-        # light-curve package parameters
-        # Reduced Chi^2 definition is different from the one in superphot+
         try:
             *features, _ = villar_fit(X[:,0], y, X[:,2])
         except ValueError:
@@ -185,28 +181,7 @@ class LiCuSampler(Sampler):
         cube = transform_from_licu(*features)
         # Use mean of prior for extra_sigma
         cube[6] = extra_sigma
-
         return cube
-    
-    def predict(self, X):
-        """Predicts the flux of a light curve using the model."""
-        super().predict(X)
-
-        return flux_model(
-            self.result.samples,
-            X[:, 0], X[:, 1],
-            self._unique_bands,
-            self._ref_band
-        )
-    
-    def _eff_variance(self, X):
-        """Calculates the effective variance of the model."""
-        log_extra_sigma_arr = np.ones(X.shape[1]) * self.results.samples['log_extra_sigma']
-        
-        for ordered_band in enumerate(self._unique_bands):
-            log_extra_sigma_arr[X[:,1] == ordered_band] += self.results.samples[f'log_extra_sigma_{ordered_band}']
-        
-        return X[:,2]**2 + (10**log_extra_sigma_arr)**2
 
     def transform_priors_to_physical_values(self, cube):
         """Some priors are for log-params, this transforms them back to linear"""
@@ -225,15 +200,3 @@ class LiCuSampler(Sampler):
         output[non_ref_idx, 3] += output[self._ref_band_idx, 3]
 
         return output.reshape(-1)
-    
-    def create_param_names(self):
-        """Create parameter names for the sampler"""
-        param_names = ['log_A', 'beta', 'log_gamma', 't0', 'log_tau_rise', 'log_tau_fall', 'log_extra_sigma']
-        for band in self._unique_bands:
-            if band == self._ref_band:
-                continue
-            param_names += [
-                f'log_A_{band}', f'beta_{band}', f'log_gamma_{band}', f't0_{band}',
-                f'log_tau_rise_{band}', f'log_tau_fall_{band}', f'log_extra_sigma_{band}'
-            ]
-        return param_names

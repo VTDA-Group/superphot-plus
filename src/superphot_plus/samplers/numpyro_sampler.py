@@ -1,109 +1,28 @@
 """MCMC sampling using numpyro."""
+from typing import Optional
 
-from os import urandom
-from typing import List
-
-import jax.numpy as jnp
-import numpy as np
+from numpy.typing import NDArray
 import numpyro
 import numpyro.distributions as dist
+import pandas as pd
+import jax.numpy as jnp
 from jax import random, lax, jit
 from jax._src import config
 from numpyro.distributions import constraints
 from numpyro.infer import MCMC, NUTS, SVI, Trace_ELBO
 from numpyro.infer.initialization import init_to_uniform
-from snapi import Sampler, SamplerResult
+from snapi import SamplerResult
 from sklearn.utils import check_random_state
 
 from superphot_plus.constants import PAD_SIZE
-from superphot_plus.lightcurve import Lightcurve
 from superphot_plus.surveys.fitting_priors import MultibandPriors, PriorFields
+from superphot_plus.samplers.superphot_sampler import SuperphotSampler
 from superphot_plus.utils import (
-    calculate_chi_squareds,
     get_numpyro_cube,
     villar_fit_constraint
 )
-#from numpyro.distributions.constraints import Constraint
-
-
-config.update("jax_enable_x64", True)
-numpyro.enable_x64()
-numpyro.set_host_device_count(4)
-
-
-class NumpyroSampler(Sampler):
-    """MCMC sampling using numpyro."""
-
-    def __init__(
-            self,
-            priors: MultibandPriors,
-            sampler='svi',
-            random_state: int = None,
-        ):
-        self.sampler = sampler
-        self._random_state = check_random_state(random_state)
-
-    def fit(
-            self, X: NDArray[np.object_], # pylint: disable=invalid-name
-            y: NDArray[np.float32],
-        ) -> None: 
-        """Fit the data.
-
-        Parameters
-        ----------
-        X : np.ndarray
-            The X data to fit. If 1d, will be reshaped to 2d.
-            First column = times, second column = bands, third column = errors.
-        y : np.ndarray
-            The y data to fit.
-        """
-        super().fit(X,y)
-        _, band_counts = np.unique(X[:, 1], return_counts=True)
-        if not np.all(np.diff(band_counts) == 0): # if different counts
-            self._pad_inputs()
-
-    def _pad_inputs(self):
-        """Pads the inputs so X has same number of points in each band."""
-        pass
-        
-
-    def run_multi_curve(
-        self, lightcurves, priors: MultibandPriors, rng_seed, sampler="svi", ref_params=None, **kwargs
-    ) -> List[PosteriorSamples]:
-        """Not yet implemented."""
-
-        if len(lightcurves) == 0:
-            return []
-
-        padded_lcs = []
-        for lc in lightcurves:
-            padded_lcs.append(lc.pad_bands(priors.ordered_bands, PAD_SIZE, in_place=False))
-
-        eq_wt_samples = run_mcmc(
-            padded_lcs,
-            rng_seed=rng_seed,
-            sampler=sampler,
-            priors=priors,
-            ref_params=ref_params
-        )
-
-        post_list = []
-        for i, posts in enumerate(eq_wt_samples):
-            if posts is None:
-                continue
-            max_flux = lightcurves[i].find_max_flux(band='r')[0]
-            post_list.append(
-                PosteriorSamples(
-                    posts,
-                    name=lightcurves[i].name,
-                    sampling_method=sampler,
-                    sn_class=lightcurves[i].sn_class,
-                    max_flux=max_flux
-                )
-            )
-
-        return post_list
-
+#config.update("jax_enable_x64", True)
+#numpyro.enable_x64()
 
 def prior_helper(priors, aux_b=None):
     """Helper function to sample prior values. If aux_b is not None,
@@ -279,7 +198,7 @@ def create_jax_model(
         )
 
         # base inc_band_ix on ordered_bands
-        inc_band_ix = np.arange(b_idx * PAD_SIZE, (b_idx + 1) * PAD_SIZE)
+        inc_band_ix = jnp.arange(b_idx * PAD_SIZE, (b_idx + 1) * PAD_SIZE)
 
         phase_b = (t - t0_b)[inc_band_ix]
         flux_const_b = amp_b / (1.0 + jnp.exp(-phase_b / tau_rise_b))
@@ -339,221 +258,237 @@ def create_jax_guide(priors, t=None, obsflux=None, uncertainties=None, max_flux=
         numpyro_sample("extra_sigma_" + uniq_b, b_priors.extra_sigma, 1e-3)
 
 
-def _svi_helper_no_recompile(
-    lc_single,
-    max_flux,
-    priors,
-    svi,
-    svi_state,
-    lax_jit,
-    num_iter,
-    seed,
-    ref_params=None,
-):
-    """Helper function to run SVI on a single light curve with an already
-    compiled SVI sampler object."""
-    if svi_state is None:
-        svi_state = svi.init(
-            random.PRNGKey(1),
-            obsflux=lc_single.fluxes,
-            t=lc_single.times,
-            uncertainties=lc_single.flux_errors,
-            max_flux=max_flux,
-            ref_params=ref_params,
+class NumpyroSampler(SuperphotSampler):
+    """Samplers which use numpyro."""
+    def __init__(
+            self,
+            priors: MultibandPriors,
+            random_state: int,
+            *args,
+            **kwargs,
+        ):
+        super().__init__(priors)
+        self._random_state = check_random_state(random_state)
+        self._rng = jnp.random.key(self._random_state)
+
+        def jax_model(t=None, obsflux=None, uncertainties=None, max_flux=None, ref_params=None):
+            create_jax_model(priors, t, obsflux, uncertainties, max_flux, ref_params)
+
+        def jax_guide(**kwargs):  # pylint: disable=unused-argument
+            create_jax_guide(priors)
+
+        self._jax_model = jax_model
+        self._jax_guide = jax_guide
+        self._orig_num_times = None
+        self._padded_len = 0
+        self._X = None
+        self._y = None
+
+    def fit(
+            self, X: NDArray[jnp.object_], # pylint: disable=invalid-name
+            y: NDArray[jnp.float32],
+            orig_num_times: Optional[int] = None,
+        ) -> None: 
+        """Fit the data.
+
+        Parameters
+        ----------
+        X : np.ndarray
+            The X data to fit. If 1d, will be reshaped to 2d.
+            First column = times, second column = bands, third column = errors.
+        y : np.ndarray
+            The y data to fit.
+        orig_num_times : the original number of datapoints. Important when calculating
+            a score based on DOF with an artificially padded input. Defaults to the
+            length of X.
+        """
+        super().fit(X,y)
+        _, band_counts = jnp.unique(X[:, 1], return_counts=True)
+        if not jnp.all(jnp.diff(band_counts) == 0): # if different counts
+            raise ValueError("There must be same number of points in each band.")
+
+        self._padded_len = band_counts[0]
+
+        if orig_num_times is not None:
+            self._orig_num_times = orig_num_times
+        
+        self._rearrange_inputs()
+
+    def _rearrange_inputs(self):
+        """Rearrange X and y so padded band order matches self._unique_bands"""
+        rearranged_X = jnp.zeros(self._X.shape)
+        rearranged_y = jnp.zeros(self._y.shape)
+        for i, b in enumerate(self._unique_bands):
+            b_mask = self._X[:,1] == b
+            rearranged_X[self._padded_len*(i+1):self._padded_len*(i+2)] = self._X[b_mask]
+            rearranged_y[self._padded_len*(i+1):self._padded_len*(i+2)] = self._y[b_mask]
+
+        self._X = rearranged_X
+        self._y = rearranged_y
+
+    def _process_samples(self, params):
+        """Convert parameter dict from numpyro to SamplerResult."""
+        posterior_samples = {}
+        for param in params:
+            if param[-2:] == "mu":
+                posterior_samples[param[:-3]] = self._rng.normal(
+                    loc=params[param], scale=params[param[:-2] + "sigma"], size=100
+                )
+        posterior_cube = get_numpyro_cube(
+            posterior_samples, 1,
+            self.priors.reference_band, self.priors.ordered_bands
+        )[0]
+
+        samples_df = pd.DataFrame(
+            posterior_cube,
+            columns=self._create_param_names()
         )
-    
-    svi_state = lax_jit(
-        svi,
-        svi_state,
-        num_iter,
-        obsflux=lc_single.fluxes,
-        t=lc_single.times,
-        uncertainties=lc_single.flux_errors,
-        max_flux=max_flux,
-        ref_params=ref_params,
-    )
 
-    # params = svi_result.params
-    params = svi.get_params(svi_state)
-    posterior_samples = {}
-    for param in params:
-        if param[-2:] == "mu":
-            rng = np.random.RandomState(seed[0])
-            posterior_samples[param[:-3]] = rng.normal(
-                loc=params[param], scale=params[param[:-2] + "sigma"], size=100
+        self.result = SamplerResult(samples_df, sampler_name=self._sampler_name)
+        self._is_fitted = True
+        self.result.score = self.score(self._X, self._y, self._orig_num_times)
+
+    def _reduced_chi_squared(self, X, y, y_pred, orig_num_times: Optional[int]=None):
+        """Returns the reduced chi-squared value of the model.
+
+        Parameters
+        ----------
+        X : np.ndarray
+            The x data to score.
+        y : np.ndarray
+            The y data to score.
+        y_pred : np.ndarray
+            The predicted y data.
+        orig_num_times: int, optional
+            length of y before padding. If None,
+            defaults to len(y)
+
+        Returns
+        -------
+        float
+            The reduced chi-squared value.
+        """
+        if orig_num_times is None:
+            orig_num_times = len(y)
+        return jnp.median(
+            jnp.sum(
+                (y[jnp.newaxis,:] - y_pred) ** 2 / self._eff_variance(X) / (orig_num_times - self._nparams - 1),
+                axis=1,
             )
-    
-    
-    posterior_cube = get_numpyro_cube(
-        posterior_samples, max_flux,
-        priors.reference_band, priors.ordered_bands
-    )[0]
-    
-    padded_idxs = lc_single.flux_errors == 1e10
-        
-    red_chisq = calculate_chi_squareds(
-        posterior_cube,
-        lc_single.times[~padded_idxs],
-        lc_single.fluxes[~padded_idxs],
-        lc_single.flux_errors[~padded_idxs],
-        lc_single.bands[~padded_idxs],
-        max_flux,
-        ordered_bands=priors.ordered_bands,
-        ref_band=priors.reference_band,
-    )
-    
-    return posterior_cube, red_chisq, svi_state
-        
-        
-def run_mcmc(lc, rng_seed, sampler="NUTS", priors=Survey.ZTF().priors, ref_params=None):
-    """Runs MCMC using numpyro on the lightcurve to get set
-    of equally weighted posteriors (sets of fit parameters).
+        )
 
-    Parameters
-    ----------
-    lc : Lightcurve object
-        The Lightcurve object on which to run MCMC
-    rng_seed : int or None
-        The random seed to use (for testing purposes). The user should pass None in
-        cases where they want a fully random run.
-    sampler : str, optional
-        The MCMC sampler to use. Defaults to "NUTS".
-    priors : MultibandPriors, optional
-        The prior set to use for fitting. Defaults to ZTF's priors.
+class NUTSSampler(NumpyroSampler):
+    """NUTS sampling using numpyro."""
 
-    Returns
-    -------
-    np.ndarray or None
-        A set of equally weighted posteriors (sets of fit parameters) as
-        a numpy array. If the lightcurve does not contain any valid
-        points, None is returned.
-    """
+    def __init__(
+            self,
+            priors: MultibandPriors,
+            num_warmup: int=10_000,
+            num_samples: int=10_000,
+            num_chains: int=4,
+            random_state: int = None,
+        ):
+        super().__init__(priors, random_state)
+        self._sampler_name = 'superphot_nuts'
 
-    batch = type(lc) is list  # check if one LightCurve or multiple
+        kernel = NUTS(self._jax_model, init_strategy=init_to_uniform)
 
-    if rng_seed is None:
-        rng_seed = int.from_bytes(urandom(4), "big")
-    print(f"Running numpyro with seed={rng_seed}")
-
-    rng_key = random.PRNGKey(rng_seed)
-    rng_key, seed2 = random.split(rng_key)
-        
-
-    def jax_model(t=None, obsflux=None, uncertainties=None, max_flux=None, ref_params=None):
-        create_jax_model(priors, t, obsflux, uncertainties, max_flux, ref_params)
-
-    def jax_guide(**kwargs):  # pylint: disable=unused-argument
-        create_jax_guide(priors)
-
-    if sampler == "NUTS":
-        if batch:
-            raise ValueError("Batch mode not implemented for NUTS.")
-
-        # Require data in all bands.
-        for unique_band in priors.ordered_bands:
-            if lc.obs_count(unique_band) == 0:
-                return None
-
-        max_flux, _ = lc.find_max_flux(band=priors.reference_band)
-
-        num_samples = 300
-        kernel = NUTS(jax_model, init_strategy=init_to_uniform)
-
-        rng_key = random.PRNGKey(rng_seed)
-        rng_key, _ = random.split(rng_key)
-
-        mcmc = MCMC(
+        self._mcmc = MCMC(
             kernel,
-            num_warmup=10000,
+            num_warmup=num_warmup,
             num_samples=num_samples,
-            num_chains=4,
+            num_chains=num_chains,
             chain_method="parallel",
             jit_model_args=True,
         )
-        
-        # with numpyro.validation_enabled():
-        mcmc.run(
-            rng_key,
-            obsflux=lc.fluxes,
-            t=lc.times,
-            uncertainties=lc.flux_errors,
-            max_flux=max_flux,
+
+
+    def fit(
+            self, X: NDArray[jnp.object_], # pylint: disable=invalid-name
+            y: NDArray[jnp.float32],
+            orig_num_times: Optional[int] = None,
+        ) -> None: 
+        """Fit the data.
+
+        Parameters
+        ----------
+        X : np.ndarray
+            The X data to fit. If 1d, will be reshaped to 2d.
+            First column = times, second column = bands, third column = errors.
+        y : np.ndarray
+            The y data to fit.
+        orig_num_times : the original number of datapoints. Important when calculating
+            a score based on DOF with an artificially padded input. Defaults to the
+            length of X.
+        """
+        super().fit(X,y,orig_num_times)
+
+        self._mcmc.run(
+            self._rng,
+            obsflux=y,
+            t=X[:,0],
+            uncertainties=X[:,2],
+            max_flux=1,
         )
+        params = self._mcmc.get_samples()
 
-        posterior_samples = mcmc.get_samples()
-        
-        posterior_cube, aux_bands = get_numpyro_cube(
-            posterior_samples,
-            max_flux,
-            priors.reference_band,
-            priors.ordered_bands
-        )
-        
-        padded_idxs = lc.flux_errors == 1e10
-        
-        red_chisq = calculate_chi_squareds(
-            posterior_cube,
-            lc.times[~padded_idxs],
-            lc.fluxes[~padded_idxs],
-            lc.flux_errors[~padded_idxs],
-            lc.bands[~padded_idxs],
-            max_flux,
-            ordered_bands=priors.ordered_bands,
-            ref_band=priors.reference_band,
-        )
+        self._process_samples(params)
 
-        posterior_cubes = [
-            np.hstack((posterior_cube, red_chisq[np.newaxis, :].T)),
-        ]
 
-    elif sampler == "svi":
-        optimizer = numpyro.optim.Adam(step_size=0.001)
-        svi = SVI(jax_model, jax_guide, optimizer, loss=Trace_ELBO())
+class SVISampler(NumpyroSampler):
+    """SVI sampling using numpyro."""
 
-        num_iter = 10_000
-        lax_jit = jit(lax_helper_function, static_argnums=(0, 2))
+    def __init__(
+            self,
+            priors: MultibandPriors,
+            num_iter=10_000,
+            step_size=0.001,
+            random_state: int = None,
+        ):
+        super().__init__(priors, random_state)
 
-        if not batch:
-            lc = [
-                lc,
-            ]
+        optimizer = numpyro.optim.Adam(step_size=step_size)
+        self._svi = SVI(self._jax_model, self._jax_guide, optimizer, loss=Trace_ELBO())
+        self._num_iter = num_iter
+        self._lax_jit = jit(lax_helper_function, static_argnums=(0, 2))
+        self._svi_state = None
 
-        bad_prev_fit = True
-        posterior_cubes = []
-        for i, lc_single in enumerate(lc):
-            if i % 100 == 0:
-                print(i)
+    def fit(
+            self, X: NDArray[jnp.object_], # pylint: disable=invalid-name
+            y: NDArray[jnp.float32],
+            orig_num_times: Optional[int] = None,
+        ) -> None: 
+        """Fit the data.
 
-            """
-            # Require data in all bands.
-            for unique_band in priors.ordered_bands:
-                if lc_single.obs_count(unique_band) == 0:
-                    posterior_cubes.append(None)
-                    break
-            """
+        Parameters
+        ----------
+        X : np.ndarray
+            The X data to fit. If 1d, will be reshaped to 2d.
+            First column = times, second column = bands, third column = errors.
+        y : np.ndarray
+            The y data to fit.
+        orig_num_times : the original number of datapoints. Important when calculating
+            a score based on DOF with an artificially padded input. Defaults to the
+            length of X.
+        """
+        super().fit(X,y,orig_num_times)
 
-            if bad_prev_fit:
-                svi_state = None #reinitialize
-            
-            max_flux, _ = lc_single.find_max_flux(band=priors.reference_band)
-            posterior_cube, red_chisq, svi_state = _svi_helper_no_recompile(
-                lc_single,
-                max_flux,
-                priors,
-                svi,
-                svi_state,
-                lax_jit,
-                num_iter,
-                seed2,
-                ref_params,
+        if self._svi_state is None:
+            self._svi_state = self._svi.init(
+                random.PRNGKey(1),
+                obsflux=y,
+                t=X[:,0],
+                uncertainties=X[:,2],
             )
+    
+        self._svi_state = self._lax_jit(
+            self._svi,
+            self._svi_state,
+            self._num_iter,
+            obsflux=y,
+            t=X[:,0],
+            uncertainties=X[:,2],
+        )
 
-            #bad_prev_fit = np.mean(red_chisq) 
-
-            posterior_cube = np.hstack((posterior_cube, red_chisq[np.newaxis, :].T))
-            posterior_cubes.append(posterior_cube)
-
-    else:
-        raise ValueError("'sampler' must be 'NUTS' or 'svi'")
-
-    return posterior_cubes
+        params = self._svi.get_params(self._svi_state)
+        self._process_samples(params)

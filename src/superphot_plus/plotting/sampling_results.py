@@ -173,7 +173,7 @@ def compare_oversampling(
         labels=labels,
         chisq_cutoff=1.2
     )
-    psg = PosteriorSamplesGroup(all_post_objs)
+    psg = PosteriorSamplesGroup(all_post_objs, random_seed=42)
     psg.canonicalize_labels()
     features_gaussian, labels_gaussian = psg.oversample()
     features_smote, labels_smote = psg.oversample_smote()
@@ -206,6 +206,7 @@ def compare_oversampling(
     clipped_features_smote = np.asarray(clipped_features_smote)
     #feature_medians = np.asarray(feature_medians)
     
+    print(aux_bands)
     params, save_labels = param_labels(aux_bands)
 
     for i, param_1 in enumerate(params):
@@ -261,7 +262,7 @@ def compare_oversampling(
                 transform=smote_ax.transAxes,
             )
             gauss_ax.text(
-                0.01, 0.99, "Oversampling\nMultiple Fits\nPer Lightcurve",
+                0.01, 0.99, "Oversampling\nMultiple Fits\nper Light Curve",
                 horizontalalignment='left',
                 verticalalignment='top',
                 c="black",

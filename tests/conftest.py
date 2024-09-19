@@ -5,10 +5,8 @@ import pandas as pd
 import pytest
 from jax import random
 
-from superphot_plus.lightcurve import Lightcurve
 from superphot_plus.model.mlp import SuperphotMLP
 from superphot_plus.trainer import SuperphotTrainer
-#from superphot_plus.model.lightgbm import SuperphotLightGBM
 
 from superphot_plus.surveys.surveys import Survey
 
@@ -27,27 +25,6 @@ def test_data_dir():
 @pytest.fixture
 def training_csv(test_data_dir):
     return os.path.join(test_data_dir, "training_set.csv")
-
-
-@pytest.fixture
-def single_ztf_lightcurve(test_data_dir):
-    return os.path.join(test_data_dir, "ZTF22abvdwik.csv")
-
-
-@pytest.fixture
-def single_ztf_lightcurve_compressed(test_data_dir):
-    return os.path.join(test_data_dir, "ZTF22abvdwik.npz")
-
-
-@pytest.fixture
-def single_ztf_lightcurve_object(single_ztf_lightcurve_compressed):
-    return Lightcurve.from_file(single_ztf_lightcurve_compressed)
-
-
-@pytest.fixture
-def single_ztf_eqwt_compressed(test_data_dir):
-    return os.path.join(test_data_dir, "ZTF22abvdwik_eqwt.npz")
-
 
 @pytest.fixture
 def single_ztf_sn_id():
@@ -72,6 +49,7 @@ def single_ztf_lightcurve_fit():
         -0.19222715,
         0.49539004
     ]
+
 
 @pytest.fixture
 def jax_key():

@@ -3,22 +3,20 @@ import os
 import numpy as np
 import pytest
 
-from superphot_plus.file_utils import get_posterior_samples
-from superphot_plus.lightcurve import Lightcurve
 from superphot_plus.config import SuperphotConfig
-from superphot_plus.surveys.surveys import Survey
+from superphot_plus.supernova_class import SupernovaClass
+
 from superphot_plus.utils import (
     calc_accuracy,
-    calculate_log_likelihood,
-    calculate_mse,
-    calculate_chi_squareds,
     f1_score,
-    flux_model,
-    get_band_extinctions,
+    #flux_model,
     get_numpyro_cube,
     get_session_metrics,
     log_metrics_to_tensorboard,
     params_valid,
+    clip_lightcurve_end,
+    import_labels_only,
+    normalize_features
 )
 
 
@@ -99,15 +97,6 @@ def test_f1_score() -> None:
     )
     assert pytest.approx(s) == (1.0 / 3.0)
 
-
-def test_get_band_extinctions() -> None:
-    """This is currently a change detection test where we are just confirming
-    the function runs correctly returns the same value as it used to.
-    """
-    ext_list = get_band_extinctions(0.0, 10.0, [4741.64, 6173.23])
-    assert np.all(ext_list == pytest.approx([0.3133, 0.2202], 0.01))
-
-
 def test_params_valid(ztf_priors):
     """Test the params_valid function."""
 
@@ -145,134 +134,6 @@ def test_get_numpyro_cube(ztf_priors):
     assert cube.shape == (20, 14)
     assert len(ordered_bands) == 2
     assert np.mean(cube[:, 1]) == np.mean(dummy_param_dict["beta"])
-
-
-def test_calculate_log_likelihood_simple():
-    """Do a very simple test where we can compute the LL by hand."""
-    tdata = np.array([10.60606061, 12.12121212])
-    bands = ["r", "g"]
-    bdata = np.array(bands)
-    edata = np.array([0.01, 0.05])
-
-    # Generate clean fluxes from the model with extra sigma = 0.0
-    cube = Survey.ZTF().priors.to_numpy()[:,2] # mean vals
-    cube[6] = -1e5
-    cube[7] = 0. # remove extra sigma terms
-    ftrue = flux_model(cube, tdata, bdata, 1, bands, "r")
-    assert np.allclose(ftrue, np.array([0.91639224, 0.73648907]))
-
-    # r+0.01 and b-0.025
-    fdata = np.array([1.01, 0.73648907-0.025])
-
-    # Compute the true probabilities and the log likelihood via the gaussian equation.
-    sigma_sq = np.square(edata)
-    print(fdata, ftrue, sigma_sq)
-
-    probs = (
-        1.0 / np.sqrt(2 * np.pi * sigma_sq) * np.exp(-0.5 * np.divide(np.square(fdata - ftrue), sigma_sq))
-    )
-    LogLTrue = np.sum(np.log(probs))
-    lc1 = Lightcurve(tdata, fdata, edata, bdata)
-    LogL1 = calculate_log_likelihood(cube, lc1, bands, "r")
-    assert LogL1 == pytest.approx(LogLTrue)
-
-
-def test_calculate_log_likelihood():
-    num_observations = 100
-    tdata = np.linspace(-50.0, 100.0, num_observations)
-    bands = ["r", "g"]
-    bdata = np.array([bands[i % 2] for i in range(num_observations)])
-    edata = np.array([0.01] * num_observations)
-
-    # Generate clean fluxes from the model.
-    cube = Survey.ZTF().priors.to_numpy()[:,2] # mean vals
-    fdata = flux_model(cube, tdata, bdata, 1, bands, "r")
-
-    # rescale so max_flux = 1 for timestamps
-    lc1 = Lightcurve(tdata, fdata, edata, bdata)
-    true_max_flux = lc1.find_max_flux(band='r')[0]
-    fdata /= true_max_flux
-    lc1 = Lightcurve(tdata, fdata, edata, bdata)
-    LogL1 = calculate_log_likelihood(cube, lc1, bands, "r")
-    assert LogL1 == pytest.approx(257.9803730518384)  # Change detection only
-
-    # Test noisy models
-    for diff in [-0.1, 0.1, 0.5, 1.0]:
-        lc2 = Lightcurve(tdata, fdata + diff, edata, bdata)
-        test_ll = calculate_log_likelihood(cube, lc2, bands, "r")
-        assert LogL1 > test_ll
-
-    # Test error conditions.
-    with pytest.raises(ValueError) as err:
-        _ = calculate_log_likelihood(cube, lc1, bands, "u")
-    assert str(err.value) == "Reference band not included in unique_bands."
-
-    with pytest.raises(ValueError) as err:
-        _ = calculate_log_likelihood(cube, lc1, ["r"], "r")
-    assert str(err.value) == "Size mismatch with curve parameters. Expected 7. Found 14."
-
-    lc_empty = Lightcurve(np.array([]), np.array([]), np.array([]), np.array([]))
-    with pytest.raises(ValueError) as err:
-        _ = calculate_log_likelihood(cube, lc_empty, bands, "r")
-    assert str(err.value) == "Empty light curve provided."
-
-
-def test_calculate_mse():
-    num_observations = 100
-    tdata = np.linspace(-50.0, 100.0, num_observations)
-    bands = ["r", "g"]
-    bdata = np.array([bands[i % 2] for i in range(num_observations)])
-    edata = np.array([0.01] * num_observations)
-
-    # Generate clean fluxes from the model.
-    cube = Survey.ZTF().priors.to_numpy()[:,2] # mean vals
-    fdata = flux_model(cube, tdata, bdata, 1, bands, "r")
-    
-    # there's an amp vs max_flux degeneracy when generating from nothing,
-    # we have to recalculate cube[0] based on the actual max_flux
-    max_flux = np.max(fdata[bdata == 'r'] - edata[bdata == 'r'])
-    cube[0] -= np.log10(max_flux)
-    lc1 = Lightcurve(tdata, fdata, edata, bdata)
-    mse1 = calculate_mse(cube, lc1, bands, "r")
-    assert mse1 == pytest.approx(0.0)
-
-    # Test noisy models
-    for diff in [-0.1, 0.1, 0.5, 1.0]:
-        lc2 = Lightcurve(tdata, fdata + diff, edata, bdata)
-        test_mse = calculate_mse(cube, lc2, bands, "r")
-        
-        # calc amp shift
-        fdata_normed = fdata / (10**cube[0] * max_flux)
-        amp_shifts = 10**cube[0] * diff * fdata_normed - diff
-        assert test_mse == pytest.approx(np.sum(amp_shifts**2) / num_observations)
-
-    # Test error conditions.
-    with pytest.raises(ValueError) as err:
-        _ = calculate_mse(cube, lc1, bands, "u")
-    assert str(err.value) == "Reference band not included in unique_bands."
-
-    with pytest.raises(ValueError) as err:
-        _ = calculate_mse(cube, lc1, ["r"], "r")
-    assert str(err.value) == "Size mismatch with curve parameters. Expected 7. Found 14."
-
-    lc_empty = Lightcurve(np.array([]), np.array([]), np.array([]), np.array([]))
-    with pytest.raises(ValueError) as err:
-        _ = calculate_mse(cube, lc_empty, ["r", "g"], "r")
-    assert str(err.value) == "Empty light curve provided."
-
-
-def test_chi_squareds(single_ztf_lightcurve_compressed, test_data_dir, single_ztf_sn_id):
-    """This is currently a change detection test where we are just confirming
-    the function runs correctly returns the same value as it used to.
-    """
-    posts = get_posterior_samples(single_ztf_sn_id, fits_dir=test_data_dir, sampler="dynesty")[0]
-    lc = Lightcurve.from_file(single_ztf_lightcurve_compressed)
-
-    max_flux, _ = lc.find_max_flux(band="r")
-    sn_data = [lc.times, lc.fluxes, lc.flux_errors, lc.bands, max_flux]
-    result = calculate_chi_squareds(posts, *sn_data)
-    assert np.isclose(np.mean(result), 0.4667, rtol=0.1)
-
 
 def test_get_session_metrics():
     """Checks that we compute the correct train session metrics."""
@@ -377,3 +238,130 @@ def test_log_metrics_to_tensorboard(tmp_path):
     )
     assert os.path.exists(os.path.join(tmp_path, trial_id))
     assert os.path.exists(os.path.join(tmp_path, trial_id, "config.yaml"))
+
+def test_clip_lightcurve_end(single_ztf_lightcurve):
+    """Test that we clip the flat part of a light curve."""
+
+    # Start with 10 points in r with 3 to clip. Flat slope.
+    times = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+    fluxes = [0.5, 0.8, 10.0, 200.0, 199.0, 189.9, 50.0, 0.1, 0.1, 0.1]
+    bands = ["r"] * 10
+    errors = [0.1] * 10
+
+    # Add 8 points in g with 4 to clip. Small downward slope.
+    times.extend([0, 1, 2, 3, 4, 5, 6, 7])
+    fluxes.extend([19.0, 19.5, 19.1, 15.0, 0.2, 0.15, 0.1, 0.1])
+    bands.extend(["g"] * 8)
+    errors.extend([0.1] * 8)
+
+    # Add 5 points in u with 0 to clip. No flat part.
+    times.extend([0, 1, 2, 3, 4])
+    fluxes.extend([19.0, 19.5, 19.1, 15.0, 14.0])
+    bands.extend(["u"] * 5)
+    errors.extend([0.1] * 5)
+
+    # Add 3 points in i with the max as the last point
+    times.extend([2, 3, 4])
+    fluxes.extend([14.1, 19.0, 19.5])
+    bands.extend(["i"] * 3)
+    errors.extend([0.1] * 3)
+
+    (t_clip, f_clip, e_clip, b_clip) = clip_lightcurve_end(
+        np.array(times),
+        np.array(fluxes),
+        np.array(errors),
+        np.array(bands),
+    )
+
+    t_clip = np.array(t_clip)
+    f_clip = np.array(f_clip)
+    e_clip = np.array(e_clip)
+    b_clip = np.array(b_clip)
+
+    # Check r.
+    r_inds = b_clip == "r"
+    assert len(b_clip[r_inds]) == 7
+    assert np.all(f_clip[r_inds] > 0.2)
+    assert np.all(t_clip[r_inds] <= 6)
+    assert np.all(e_clip[r_inds] == 0.1)
+
+    # Check g.
+    g_inds = b_clip == "g"
+    assert len(b_clip[g_inds]) == 4
+    assert np.all(f_clip[g_inds] > 0.5)
+    assert np.all(t_clip[g_inds] <= 3)
+    assert np.all(e_clip[g_inds] == 0.1)
+
+    # Check u.
+    u_inds = b_clip == "u"
+    assert len(b_clip[u_inds]) == 5
+    assert np.all(f_clip[u_inds] > 0.5)
+    assert np.all(t_clip[u_inds] <= 4)
+    assert np.all(e_clip[u_inds] == 0.1)
+
+    # Check i.
+    i_inds = b_clip == "i"
+    assert len(b_clip[i_inds]) == 3
+
+def test_import_labels_only(tmp_path):
+    """Test loading a file of labels and applying filters"""
+    csv_file = os.path.join(tmp_path, "labels.csv")
+    with open(csv_file, "w+", encoding="utf-8") as new_csv:
+        csv_writer = csv.writer(new_csv, delimiter=",")
+        csv_writer.writerow(["NAME", "CLASS", "Z"])
+        csv_writer.writerow(["ZTF_SN_1234", "SN Ic", 4.5])
+        csv_writer.writerow(["ZTF_SN_1234", "SN IIn", 4.5])
+        csv_writer.writerow(["ZTF_SN_4567", "SN Ib-Ca-rich", 5.6])
+
+    ## With no weighted fits, we skip all of the inputs
+    names, labels, redshifts = import_labels_only(
+        [csv_file],
+        SupernovaClass.all_classes(),
+    )
+
+    assert len(names) == 0
+    assert len(labels) == 0
+    assert len(redshifts) == 0
+
+    ## Add one weighted fit file and we should pick up that label.
+    fits_dir = os.path.join(tmp_path, "fits")
+    os.makedirs(fits_dir, exist_ok=True)
+    Path(os.path.join(fits_dir, "ZTF_SN_1234_eqwt.npz")).touch()
+
+    names, labels, redshifts = import_labels_only(
+        [csv_file],
+        SupernovaClass.all_classes(),
+        fits_dir=fits_dir
+    )
+
+    ## Should not include duplicate label.
+    assert names == ["ZTF_SN_1234"]
+    assert labels == ["SN Ibc"]
+    assert redshifts == [4.5]
+
+    ## Remove that class from the allowed types and we're back to nothing.
+    names, labels, redshifts = import_labels_only(
+        [csv_file], [SupernovaClass.SUPERLUMINOUS_SUPERNOVA_I], fits_dir=fits_dir
+    )
+
+    assert len(names) == 0
+    assert len(labels) == 0
+    assert len(redshifts) == 0
+
+def test_normalize_features():
+    # Feature #1: mean = 1.0, std ~= 0.81649658
+    # Feature #2: mean = 0.75, std ~= 0.54006172
+    # Feature #3: mean = 1.0, std == 0.0
+    features = np.array([[1.0, 1.0, 1.0], [0.0, 0.0, 1.0], [2.0, 1.25, 1.0]])
+    expected = np.array(
+        [
+            [0.0, 0.25 / 0.54006172, 0.0],
+            [-1.0 / 0.81649658, -0.75 / 0.54006172, 0.0],
+            [1.0 / 0.81649658, 0.5 / 0.54006172, 0.0],
+        ]
+    )
+    computed, mean, std = normalize_features(features)
+
+    assert np.allclose(mean, [1.0, 0.75, 1.0])
+    assert np.allclose(std, [0.81649658, 0.54006172, 0.0])
+    assert np.allclose(computed, expected)

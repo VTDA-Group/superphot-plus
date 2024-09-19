@@ -1,19 +1,20 @@
 """Gradient slope fitting using iminuit."""
 import numpy as np
 from numpy.typing import NDArray
+import pandas as pd
 from iminuit import Minuit
 from iminuit.cost import UnbinnedNLL
 from scipy.stats import truncnorm
-from snapi import Sampler, SamplerResult
+from snapi import SamplerResult
 from sklearn.utils import check_random_state
 
 from superphot_plus.surveys.fitting_priors import MultibandPriors
 from superphot_plus.utils import (
     flux_model, villar_fit_constraint
 )
+from superphot_plus.samplers.superphot_sampler import SuperphotSampler
 
-
-class IminuitSampler(Sampler):
+class IminuitSampler(SuperphotSampler):
     """Negative log-likelihood optimization with iminuit's migrad."""
 
     def __init__(
@@ -21,14 +22,8 @@ class IminuitSampler(Sampler):
             random_state: int = None,
         ):
         prior_clip_a, prior_clip_b, self._prior_mean, self._prior_std = priors.to_numpy().T.copy()
-        self._ref_band = priors.reference_band
-
-        self._nparams = 6 # PER BAND
-        self._unique_bands = priors.ordered_bands
-        self._ref_band_idx = np.argmax(self._unique_bands == self._ref_band)
         random_state = check_random_state(random_state)
         self._rng = np.random.default_rng(random_state)
-        self._start_idx = 7 * self._ref_band_idx
 
         # Precompute the vectors of trunc_gauss a and b values.
         self._tg_a = (prior_clip_a - self._prior_mean) / self._prior_std
@@ -61,8 +56,6 @@ class IminuitSampler(Sampler):
         self._parameters = {'__mock': None}
         # Here we assign boundaries to the parameters
         self._parameters.update({name: (a, b) for name, a, b in zip(self._param_names, prior_clip_a, prior_clip_b)})
-
-        self.result = None
 
     def fit(
             self, X: NDArray[np.object_], # pylint: disable=invalid-name
@@ -165,35 +158,3 @@ class IminuitSampler(Sampler):
             samples_df, sampler_name='superphot_iminuit'
         )
         self.result.score = self.score(self._X, self._y)
-
-    def predict(self, X):
-        """Predicts the flux of a light curve using the model."""
-        super().predict(X)
-
-        return flux_model(
-            self.result.samples,
-            X[:, 0], X[:, 1],
-            self._unique_bands,
-            self._ref_band
-        )
-    
-    def _eff_variance(self, X):
-        """Calculate the effective variance of the data."""
-        log_extra_sigma_arr = np.ones(X.shape[1]) * self.results.samples['log_extra_sigma']
-        
-        for ordered_band in enumerate(self._unique_bands):
-            log_extra_sigma_arr[X[:,1] == ordered_band] += self.results.samples[f'log_extra_sigma_{ordered_band}']
-        
-        return X[:,2]**2 + (10**log_extra_sigma_arr)**2
-    
-    def _create_param_names(self):
-        """Creates the parameter names."""
-        param_names = ['log_A', 'beta', 'log_gamma', 't0', 'log_tau_rise', 'log_tau_fall', 'log_extra_sigma']
-        for band in self._unique_bands:
-            if band == self._ref_band:
-                continue
-            param_names += [
-                f'log_A_{band}', f'beta_{band}', f'log_gamma_{band}', f't0_{band}',
-                f'log_tau_rise_{band}', f'log_tau_fall_{band}', f'log_extra_sigma_{band}'
-            ]
-        return param_names

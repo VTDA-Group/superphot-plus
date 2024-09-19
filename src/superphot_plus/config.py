@@ -19,7 +19,7 @@ class SuperphotConfig:
     relative_dirs: Optional[bool] = True
     # File paths
     data_dir: Optional[str] = "."
-    fits_dir: Optional[str] = "fits"
+    #fits_dir: Optional[str] = "fits"
     input_csvs: Optional[list] = field(default_factory=lambda: [ "training_set.csv", ])
     models_dir: Optional[str] = 'models'
     
@@ -35,7 +35,6 @@ class SuperphotConfig:
     prefix: Optional[str] = 'best-model'
     
     # single-target options
-    target_label: Optional[str] = None
     prob_threshhold: Optional[float] = 0.5
     
     # Nontunable parameters
@@ -49,7 +48,6 @@ class SuperphotConfig:
     neurons_per_layer: Optional[int] = None
     num_hidden_layers: Optional[int] = None
     goal_per_class: Optional[int] = 4500
-    num_folds: Optional[int] = None
     num_epochs: Optional[int] = None
     batch_size: Optional[int] = None
     learning_rate: Optional[float] = None
@@ -61,7 +59,7 @@ class SuperphotConfig:
     def __post_init__(self):
         """Ensure subdirectory structure exists."""
         if self.relative_dirs:
-            self.fits_dir = os.path.join(self.data_dir, self.fits_dir)
+            #self.fits_dir = os.path.join(self.data_dir, self.fits_dir)
             self.input_csvs = [
                 os.path.join(self.data_dir, x) for x in self.input_csvs
             ]
@@ -79,7 +77,7 @@ class SuperphotConfig:
     
         if self.create_dirs:
             for x_dir in [
-                self.fits_dir, self.models_dir, self.figs_dir, self.metrics_dir,
+                self.models_dir, self.figs_dir, self.metrics_dir,
                 self.fit_plots_dir, self.cm_dir, self.wrongly_classified_dir,
                 self.probs_dir
             ]:

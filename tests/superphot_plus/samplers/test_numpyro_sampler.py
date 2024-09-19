@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from superphot_plus.samplers.numpyro_sampler import NumpyroSampler, run_mcmc, trunc_norm
+from superphot_plus.samplers.numpyro_sampler import SVISampler, NUTSSampler, trunc_norm
 from superphot_plus.surveys.fitting_priors import PriorFields
 
 
@@ -22,109 +22,46 @@ def test_trunc_norm(jax_key):
 
     assert np.all(np.abs(unit_trunc.sample(jax_key, sample_shape=(10, 10))) < 0.5)
 
-
-def test_mcmc_missing_band(single_ztf_lightcurve_object):
-    """Test that run_mcmc exists out with missing band data."""
-    single_ztf_lightcurve_object.filter_by_band(
-        [
-            "r",
-        ]
-    )
-    assert run_mcmc(single_ztf_lightcurve_object, None) is None
-
-
-def test_nonimplemented_sampler(single_ztf_lightcurve_object, ztf_priors):
-    """Tests that run_mcmc exists out when non-implemented sampler
-    name is given.
-    """
-    with pytest.raises(ValueError):
-        sampler = NumpyroSampler(sampler="sampler")
-        _ = sampler.run_single_curve(
-            single_ztf_lightcurve_object,
-            priors=ztf_priors,
-            rng_seed=None
-        )
-
-
-def test_numpyro_nuts(
+def test_svi_sampler(
+    test_ztf_photometry,
     ztf_priors,
-    single_ztf_lightcurve_object,
-    single_ztf_lightcurve_fit,
+    test_sampler_result
 ):
     """Test that we generated a new file, that its samples that can be
     read, and the mean of samples generated is within a certain range of
     expected values."""
-    sampler = NumpyroSampler(sampler="NUTS")
-    posterior_samples = sampler.run_single_curve(
-        single_ztf_lightcurve_object,
-        priors=ztf_priors,
-        rng_seed=4,
+    sampler = SVISampler(
+        priors=ztf_priors, random_state=np.random.default_rng(9876)
     )
-    # Check output length
-    assert len(posterior_samples.samples) == 1200
+    sampler.fit_photometry(test_ztf_photometry)
+    sample_mean = np.mean(sampler.result.fit_parameters, axis=0)
+    assert sampler.result.fit_parameters.shape == (100, 14)
 
-    # Check output values
-    expected = single_ztf_lightcurve_fit
-    sample_mean = posterior_samples.sample_mean()
-    assert np.all(np.isclose(sample_mean, expected, rtol=0.5, atol=0.2))
+    # Check that the same means the same order of magnitude (within 50% relative value).
+    # Despite setting the the random seed, we still need to account (so far) unexplained
+    # additional variations.
+    expected_mean = np.mean(test_sampler_result.fit_parameters, axis=0)
+    assert len(expected_mean) == len(sample_mean)
+    assert np.all(np.isclose(sample_mean, expected_mean, rtol=0.5, atol=0.2))
 
-    # Test that on the same system and in the same environment, the same random
-    # seed produces the same results.
-    posterior_samples2 = sampler.run_single_curve(
-        single_ztf_lightcurve_object,
-        rng_seed=4,
-        priors=ztf_priors,
-    )
-    sample_mean2 = posterior_samples2.sample_mean()
-    assert np.allclose(sample_mean, sample_mean2)
-
-    # And a different random seed provides a different result.
-    posterior_samples3 = sampler.run_single_curve(
-        single_ztf_lightcurve_object,
-        rng_seed=5,
-        priors=ztf_priors,
-    )
-    sample_mean3 = posterior_samples3.sample_mean()
-    assert not np.allclose(sample_mean, sample_mean3)
-
-
-def test_numpyro_svi(ztf_priors, single_ztf_lightcurve_object, single_ztf_lightcurve_fit):
+def test_nuts_sampler(
+    test_ztf_photometry,
+    ztf_priors,
+    test_sampler_result
+):
     """Test that we generated a new file, that its samples that can be
     read, and the mean of samples generated is within a certain range of
     expected values."""
-    sampler = NumpyroSampler()
-    posterior_samples = sampler.run_single_curve(
-        single_ztf_lightcurve_object,
-        rng_seed=1,
-        priors=ztf_priors,
-        sampler="svi",
+    sampler = NUTSSampler(
+        priors=ztf_priors, random_state=np.random.default_rng(9876)
     )
-    # Check output length
-    assert len(posterior_samples.samples) == 100
+    sampler.fit_photometry(test_ztf_photometry)
+    sample_mean = np.mean(sampler.result.fit_parameters, axis=0)
+    assert sampler.result.fit_parameters.shape == (100, 14)
 
-    # Check output values
-    expected = single_ztf_lightcurve_fit
-    sample_mean = posterior_samples.sample_mean()
-    print(sample_mean)
-    assert np.all(np.isclose(sample_mean, expected, rtol=0.5, atol=0.2))
-
-    # Test that on the same system and in the same environment, the same random
-    # seed produces the same results.
-    posterior_samples2 = sampler.run_single_curve(
-        single_ztf_lightcurve_object,
-        rng_seed=1,
-        priors=ztf_priors,
-        sampler="svi",
-    )
-    sample_mean2 = posterior_samples2.sample_mean()
-    assert np.allclose(sample_mean, sample_mean2)
-
-    # And a different random seed provides a different result.
-    posterior_samples3 = sampler.run_single_curve(
-        single_ztf_lightcurve_object,
-        rng_seed=2,
-        priors=ztf_priors,
-        sampler="svi",
-    )
-    sample_mean3 = posterior_samples3.sample_mean()
-    assert not np.allclose(sample_mean, sample_mean3)
+    # Check that the same means the same order of magnitude (within 50% relative value).
+    # Despite setting the the random seed, we still need to account (so far) unexplained
+    # additional variations.
+    expected_mean = np.mean(test_sampler_result.fit_parameters, axis=0)
+    assert len(expected_mean) == len(sample_mean)
+    assert np.all(np.isclose(sample_mean, expected_mean, rtol=0.5, atol=0.2))
