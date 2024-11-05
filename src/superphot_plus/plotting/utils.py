@@ -9,7 +9,6 @@ import pandas as pd
 from alerce.core import Alerce
 from scipy.stats import binned_statistic
 
-from superphot_plus.lightcurve import Lightcurve
 from superphot_plus.supernova_class import SupernovaClass as SnClass
 
 

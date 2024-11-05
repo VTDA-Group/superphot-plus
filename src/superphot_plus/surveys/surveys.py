@@ -11,7 +11,6 @@ from typing_extensions import Self
 
 import superphot_plus
 from superphot_plus.surveys.fitting_priors import MultibandPriors
-from superphot_plus.utils import get_band_extinctions
 
 
 @dataclass
@@ -46,34 +45,6 @@ class Survey:
         for band in self.priors.ordered_bands:
             ordered_wvs.append(self.wavelengths[band])
         return np.array(ordered_wvs)
-
-    def get_extinctions(self, ra, dec, mwebv=None):
-        """Get band extinctions at a specific coordinate.
-
-        Parameters
-        ----------
-        ra : float
-            The right ascension of the object of interest, in degrees.
-        dec : float
-            The declination of the object of interest, in degrees.
-        mwebv : float
-            Milky Way extinction value. If given, use this directly.
-
-        Returns
-        ----------
-        ext_dict : dict
-            Maps bands to extinction magnitudes.
-        """
-        ordered_b = self.priors.ordered_bands
-        ordered_wvs = self.get_ordered_wavelengths()
-        
-        if mwebv is not None:
-            ext_list = get_band_extinctions_from_mwebv(mwebv, ordered_wvs)
-        else:
-            ext_list = get_band_extinctions(ra, dec, ordered_wvs)
-            
-        ext_dict = {ordered_b[i]: ext_list[i] for i in range(len(ext_list))}
-        return ext_dict
 
     def write_to_file(self, file: str):
         """Write per-band curve priors to a yaml file."""

@@ -6,8 +6,8 @@ import torch
 from torch.utils.data import TensorDataset
 from torch.utils.tensorboard import SummaryWriter
 import jax.numpy as jnp
-from snapi import LightCurve
 from snapi.analysis import SamplerResult
+from snapi import LightCurve
 
 from superphot_plus.supernova_class import SupernovaClass as SnClass
 
@@ -121,7 +121,7 @@ def flux_model(cube, t_data, b_data, ordered_bands, ref_band):
         The flux model for the given set of time and band data.
     """
     if cube.ndim == 1:
-        cube = np.atleast_2d(cube).T
+        cube = np.atleast_2d(cube)
 
     cube = np.repeat(cube.T[:,:,np.newaxis], len(t_data), axis=2)
     t_data = np.repeat(t_data[np.newaxis,:], cube.shape[1], axis=0)
@@ -199,7 +199,7 @@ def villar_fit_constraint(x):
     )
 
     
-def get_numpyro_cube(params, max_flux, ref_band, ordered_bands):
+def get_numpyro_cube(params, ref_band, ordered_bands):
     """
     Convert output param dict from numpyro sampler to match that
     of dynesty.
@@ -221,12 +221,12 @@ def get_numpyro_cube(params, max_flux, ref_band, ordered_bands):
     aux_bands : np.ndarray
         Auxiliary bands, including those inferred if input arg was None.
     """
-    logA, beta, log_gamma = params["logA"], params["beta"], params["log_gamma"]
+    logA, beta, log_gamma = params['logA'], params['beta'], params['log_gamma']
     t0, log_tau_rise, log_tau_fall, log_extra_sigma = (
-        params["t0"],
-        params["log_tau_rise"],
-        params["log_tau_fall"],
-        params["log_extra_sigma"],
+        params['t0'],
+        params['log_tau_rise'],
+        params['log_tau_fall'],
+        params['log_extra_sigma'],
     )
     
     cube = []

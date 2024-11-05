@@ -6,7 +6,7 @@ from torch.utils.data import TensorDataset
 from imblearn.over_sampling import SMOTE
 from sklearn.model_selection import train_test_split
 from astropy.cosmology import Planck13 as cosmo
-from snapi.analysis import SamplingResult
+from snapi.analysis import SamplerResult
 
 from superphot_plus.supernova_class import SupernovaClass as SnClass
 
@@ -15,7 +15,7 @@ from superphot_plus.supernova_class import SupernovaClass as SnClass
 class PosteriorSamplesGroup:
     """Holds data from multiple objects' posterior objects."""
 
-    posterior_objects: List[SamplingResult]
+    posterior_objects: List[SamplerResult]
     use_redshift_info: Optional[bool] = False
     ignore_param_idxs: Optional[List[int]] = field(default_factory=list)
     random_seed: Optional[int] = None

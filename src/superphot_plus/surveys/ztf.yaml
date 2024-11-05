@@ -13,7 +13,7 @@ priors:
         mean: 0.0957
         std: 0.0575
       beta:
-        clip_a: 0.0
+        clip_a: -0.01
         clip_b: 0.03
         mean: 0.00833
         std: 0.00385
@@ -49,10 +49,10 @@ priors:
         mean: -0.0766
         std: 0.1096
       beta:
-        clip_a: -2.0
-        clip_b: 1.0
-        mean: -0.2068
-        std: 0.2704
+        clip_a: -0.01
+        clip_b: 0.03
+        mean: 0.0
+        std: 0.004
       gamma:
         clip_a: -1.5
         clip_b: 1.5

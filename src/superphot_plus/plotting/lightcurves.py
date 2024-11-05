@@ -5,13 +5,9 @@ import os
 import matplotlib.pyplot as plt
 import numpy as np
 
-from superphot_plus.file_utils import get_posterior_samples
-from superphot_plus.import_utils import clip_lightcurve_end, import_lc
-from superphot_plus.lightcurve import Lightcurve
 from superphot_plus.plotting.utils import lighten_color
-from superphot_plus.utils import flux_model, get_numpyro_cube
+from superphot_plus.utils import flux_model, get_numpyro_cube, clip_lightcurve_end
 from superphot_plus.plotting.format_params import *
-from superphot_plus.posterior_samples import PosteriorSamples
 
 set_global_plot_formatting()
 

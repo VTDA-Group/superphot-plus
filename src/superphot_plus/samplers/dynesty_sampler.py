@@ -83,7 +83,8 @@ class DynestySampler(SuperphotSampler):
             np.ndarray
                 Array of parameters.
             """
-            return truncnorm.ppf(cube, tg_a, tg_b, loc=self._all_priors[2], scale=self._all_priors[3])
+            x = truncnorm.ppf(cube, tg_a, tg_b, loc=self._all_priors[2], scale=self._all_priors[3])
+            return x
         
         self._prior_func = create_prior
 
@@ -172,7 +173,6 @@ class DynestySampler(SuperphotSampler):
             res.samples_equal(rstate=self._rng),
             columns=self._create_param_names()
         )
-
         self.result = SamplerResult(samples_df, sampler_name=self._sampler_name)
         self._is_fitted = True
         self.result.score = self.score(self._X, self._y)

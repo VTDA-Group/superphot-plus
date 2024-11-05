@@ -17,7 +17,7 @@ from superphot_plus.plotting.utils import gaussian
 from superphot_plus.supernova_class import SupernovaClass as SnClass
 from superphot_plus.surveys.surveys import Survey
 from superphot_plus.model.data import PosteriorSamplesGroup
-from superphot_plus.format_data_ztf import retrieve_posterior_set
+from superphot_plus.utils import retrieve_posterior_set
 
 OVERSAMPLE_SIZE = 4000
 

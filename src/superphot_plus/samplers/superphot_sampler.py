@@ -12,7 +12,7 @@ class SuperphotSampler(Sampler):
     def __init__(
         self,
         *args,
-        priors: Optional[MultibandPriors]=Survey.ZTF().priors,
+        priors: MultibandPriors=Survey.ZTF().priors,
         **kwargs
     ):
         super().__init__()
@@ -50,13 +50,20 @@ class SuperphotSampler(Sampler):
         
         return X[:,2:3].T.astype(np.float32)**2 + (10**log_extra_sigma_arr)**2
 
-    def predict(self, X):
+    def predict(self, X, num_fits=None):
         """Predicts the flux of a light curve using the model."""
-        super().predict(X)
+        _, val_x = super().predict(X)
+        if num_fits:
+            return flux_model(
+                self.result.fit_parameters.to_numpy()[:num_fits],
+                val_x[:, 0].astype(np.float32), val_x[:, 1],
+                self._unique_bands,
+                self._ref_band
+            ), val_x
 
         return flux_model(
-            self.result.samples,
-            X[:, 0], X[:, 1],
+            self.result.fit_parameters.to_numpy(),
+            val_x[:, 0].astype(np.float32), val_x[:, 1],
             self._unique_bands,
             self._ref_band
-        )
+        ), val_x

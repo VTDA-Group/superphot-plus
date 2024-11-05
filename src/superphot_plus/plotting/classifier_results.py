@@ -14,9 +14,7 @@ from astropy.cosmology import Planck13 as cosmo
 from scipy.stats import binned_statistic
 
 from superphot_plus.plotting.format_params import set_global_plot_formatting, CUSTOM_COLORSET
-from superphot_plus.file_utils import get_multiple_posterior_samples
-from superphot_plus.format_data_ztf import import_labels_only, retrieve_posterior_set
-from superphot_plus.posterior_samples import PosteriorSamples
+from superphot_plus.utils import import_labels_only, retrieve_posterior_set
 
 from superphot_plus.plotting.utils import (
     histedges_equalN, read_probs_csv,

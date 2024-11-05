@@ -16,9 +16,7 @@ classifiers = [
 dynamic = ["version"]
 dependencies = [
     "astropy",
-    "dustmaps>=1.0.13",
     "joblib>=1.4.0",
-    "extinction>=0.4.6",
     "lightgbm>=4.3.0",
     "numpy<1.26.3",
     "pandas>=2.0.0",
@@ -43,10 +41,6 @@ dev = [
     "sphinx-rtd-theme", # Used to render documentation
     "sphinx-autoapi", # Used to automatically generate api documentation
     "pylint", # Used for static linting of files
-]
-data-generation = [
-    "alerce>=1.2.0",
-    "antares_client>=1.8.0",
 ]
 sampling = [
     "dynesty>=2.1.3",
