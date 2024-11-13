@@ -1,6 +1,7 @@
 import dataclasses
 import os
 from functools import partial
+import copy
 
 import numpy as np
 import ray
@@ -10,14 +11,10 @@ from ray.tune import CLIReporter
 from ray.tune.search.optuna import OptunaSearch
 from joblib import Parallel, delayed
 
-
-from superphot_plus.model.lightgbm import SuperphotLightGBM
 from superphot_plus.config import SuperphotConfig
-from superphot_plus.model.data import TrainData, PosteriorSamplesGroup
 from superphot_plus.trainer_base import TrainerBase
 from superphot_plus.utils import (
-    create_dataset, get_session_metrics, log_metrics_to_tensorboard,
-    normalize_features, tally_each_class
+    get_session_metrics, log_metrics_to_tensorboard,
 )
 
 
@@ -48,16 +45,20 @@ class SuperphotTuner(TrainerBase):
 
     def generate_hp_sample(self):
         """Generates random set of hyperparameters for tuning."""
-        return SuperphotConfig(
-            neurons_per_layer=tune.choice([128, 256, 512]),
-            num_hidden_layers=tune.choice([3, 4, 5]),
-            goal_per_class=tune.choice([100, 500, 1000]),
-            num_epochs=tune.choice([250, 500, 750]),
-            batch_size=tune.choice([32, 64, 128]),
-            learning_rate=tune.loguniform(1e-4, 1e-1),
-        )
+        config_copy = copy.deepcopy(self.config)
+        config_copy.neurons_per_layer = tune.choice([128, 256, 512])
+        config_copy.num_hidden_layers = tune.choice([2, 3, 4, 5])
+        config_copy.fits_per_majority = tune.choice([1, 5, 10])
+        config_copy.num_epochs = tune.choice([250, 500, 750])
+        config_copy.batch_size = tune.choice([32, 64, 128])
+        config_copy.learning_rate = tune.loguniform(1e-4, 1e-1)
 
-    def run(self, input_csvs=None, num_hp_samples=10):
+    def run(
+        self,
+        transient_data: Optional[TransientGroup] = None,
+        sampler_results: Optional[SamplerResultGroup] = None,
+        num_hp_samples=10
+    ):
         """Performs model tuning with cross-validation to get
         the best set of hyperparameters.
 
@@ -69,9 +70,17 @@ class SuperphotTuner(TrainerBase):
             The number of hyperparameters sets to sample from (for model tuning).
             Defaults to 10.
         """
-        train_data, _ = self.split_train_test(input_csvs)
+        if sampler_results is None:
+            sampler_results = SamplerResultGroup.load(self.config.sampler_results_fn)
+        if transient_data is None:
+            transient_data = TransientGroup.load(self.config.transient_data_fn)
+            
+        train_data, _, _ = self.split_train_test(transient_data, sampler_results) # 1st K-fold
+        
         best_config = self.tune_model(train_data, num_hp_samples)
-        best_config.write_to_file(os.path.join(best_config.models_dir, "best-config.yaml"))
+        best_config.write_to_file(
+            os.path.join(best_config.models_dir, "best-config.yaml")
+        )
         return best_config
 
     def tune_model(self, train_data, num_hp_samples=10):
@@ -126,7 +135,7 @@ class SuperphotTuner(TrainerBase):
 
         return SuperphotConfig(**best_trial.config)
 
-    def run_cross_validation(self, config, train_data: PosteriorSamplesGroup):
+    def run_cross_validation(self, config, train_data: tuple):
         """Runs cross-fold validation to estimate the best set of
         hyperparameters for the model.
 
@@ -136,8 +145,8 @@ class SuperphotTuner(TrainerBase):
             The configuration for model training, drawn from the default
             ModelConfig values. Used as a Dict to comply with the Tune
             API requirements.
-        train_data : PosteriorSamplesGroup
-            Contains the ZTF object names, classes and redshifts for training.
+        train_data : pd.DataFrame
+            Contains all samples and classes info.
         """
         trial_id = tune.get_trial_id()
 
@@ -147,45 +156,32 @@ class SuperphotTuner(TrainerBase):
         # Construct training config from dict
         config = SuperphotConfig(**config)
 
-        tally_each_class(train_data.labels)
-
         def run_single_fold(fold):
-            train_index, val_index = fold
+            train_df, val_df = self.split(train_data[0], split_indices=groups)
+            train_srg = train_data[1].filter(train_df.index)
+            val_srg = train_data[1].filter(val_df.index)
+            
+            class_dict = {x.index, x['label'] for x in train_df}
+            train_srg.balance_classes(class_dict, config.fits_per_majority) # custom config's fits per majority
+            class_dict = {x.index, x['label'] for x in val_df}
+            val_srg.balance_classes(class_dict, config.fits_per_majority)
+            
+            train_df = self.retrieve_sampler_results(self, train_srg, train_df, balance_classes=False)[config.input_features]
+            val_df = self.retrieve_sampler_results(self, val_srg, val_df, balance_classes=False)[config.input_features]
 
-            train_features, train_classes, val_features, val_classes = self.generate_train_data(
-                train_data=train_data,
-                goal_per_class=config.goal_per_class,
-                train_index=train_index,
-                val_index=val_index,
-            )
-            train_features, mean, std = normalize_features(train_features)
-            val_features, mean, std = normalize_features(val_features, mean, std)
-
-            train_dataset = create_dataset(train_features, train_classes)
-            val_dataset = create_dataset(val_features, val_classes)
-
-            model = SuperphotLightGBM.create(
-                    config=SuperphotConfig(
-                    input_dim=train_features.shape[1],
-                    output_dim=len(self.allowed_types),
-                    neurons_per_layer=config.neurons_per_layer,
-                    num_hidden_layers=config.num_hidden_layers,
-                    batch_size=config.batch_size,
-                    learning_rate=config.learning_rate,
-                    normalization_means=mean.tolist(),
-                    normalization_stddevs=std.tolist(),
-                )
-            )
-
+            model = self._create_model_instance(config)
+            
             # Train and validate multi-layer perceptron
             return model.train_and_validate(
-                train_data=TrainData(train_dataset, val_dataset),
+                train_data=(train_features, train_df['label']),
+                val_data=(val_features, val_df['label']),
                 num_epochs=config.num_epochs,
+                rng_seed=config.random_seed,
             )
 
         # Process each fold in parallel.
         fold_metrics = Parallel(n_jobs=-1)(
-            delayed(run_single_fold)(fold) for fold in self.kf.split(train_data.names, train_data.labels)
+            delayed(run_single_fold)(fold) for fold in self.kf.split(train_data[0].index, train_data[0]['label'])
         )
 
         # Report mean metrics for the current hyperparameter set.

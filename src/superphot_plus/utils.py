@@ -254,7 +254,7 @@ def get_numpyro_cube(params, ref_band, ordered_bands):
     return np.array(cube).T, np.array(ordered_bands)
 
 
-def create_dataset(features, labels):
+def create_dataset(features, labels, device='cpu'):
     """Creates a PyTorch dataset object from numpy arrays.
 
     Parameters
@@ -271,8 +271,8 @@ def create_dataset(features, labels):
     torch.utils.data.TensorDataset
         The created dataset.
     """
-    tensor_x = torch.tensor(features, dtype=torch.float, device='cpu')  # transform to torch tensor
-    tensor_y = torch.tensor(labels, dtype=torch.int64, device='cpu')
+    tensor_x = torch.tensor(features, dtype=torch.float, device=device)  # transform to torch tensor
+    tensor_y = torch.tensor(labels, dtype=torch.int64, device=device)
     return TensorDataset(tensor_x, tensor_y)
 
 def calculate_accuracy(y_pred, y):
@@ -315,54 +315,7 @@ def epoch_time(start_time, end_time):
     elapsed_mins = int(elapsed_time / 60)
     elapsed_secs = int(elapsed_time - (elapsed_mins * 60))
     return elapsed_mins, elapsed_secs
-
-
-def save_test_probabilities(
-    obj_names,
-    pred_probabilities,
-    output_path,
-    true_labels=None,
-    target_label=None
-):
-    """Saves probabilities to a separate file for ROC curve generation.
-
-    Parameters
-    ----------
-    output_filename : str
-        The file name to save to.
-    pred_probabilities : array-like
-        The prediction probabilities.
-    true_label : str or int
-        The true label.
-    output_dir: str
-        Where to store the generated file.
-    """
-    if true_labels is None:
-        true_labels = np.ones(len(obj_names)) * -1
-        
-    if target_label is None:
-        #TODO: de-hard-code the headers
-        df_dict = {
-            'Name': obj_names,
-            'Label': true_labels,
-            'pSNIa': pred_probabilities[:,0],
-            'pSNII': pred_probabilities[:,1],
-            'pSNIIn': pred_probabilities[:,2],
-            'pSLSNI': pred_probabilities[:,3],
-            'pSNIbc': pred_probabilities[:,4]
-        }
-    else:
-        df_dict = {
-            'Name': obj_names,
-            'Label': true_labels,
-            f'p{target_label.replace(" ", "")}': pred_probabilities[:,1],
-            'pOther': pred_probabilities[:,0],
-        }
     
-    df = pd.DataFrame(df_dict)
-    df.to_csv(output_path, index=False)
-    
-
 def write_metrics_to_file(
     config,
     true_classes,
@@ -527,74 +480,6 @@ def clip_lightcurve_end(light_curve: LightCurve):
     return light_curve.copy()
 
 
-def import_labels_only(input_csvs, allowed_types, fits_dir=None, needs_posteriors=True, sampler=None):
-    """Filters CSVs for rows where label is in allowed_types and returns
-    names, labels.
-
-    Parameters
-    ----------
-    input_csvs : list of str
-        List of input CSV file paths.
-    allowed_types : list
-        List of allowed types for labels.
-    fits_dir : str, optional
-        Directory path for FITS files. Defaults to None.
-    needs_posteriors: boolean, optional
-        Indicates whether to load posterior samples.
-    sampler : str, optional
-        The sampler to get posteriors from.
-
-    Returns
-    -------
-    tuple of np.ndarray
-        Tuple of names, labels and redshifts.
-
-    Notes
-    -----
-    Maps groups of similar labels to a single representative label name
-    (eg, "SN Ic", "SNIc-BL", and "21" all become "SN Ibc").
-    """
-    
-    labels = []
-    labels_orig = []
-    repeat_ct = 0
-    names = []
-    redshifts = []
-    
-    for input_csv in input_csvs:
-        df = pd.read_csv(input_csv)
-        names_all = df.NAME.to_numpy()
-        labels_all = df.CLASS.to_numpy()
-        redshifts_all = df.Z.to_numpy()
-        
-        for i, name in enumerate(names_all):
-            if needs_posteriors and (
-                    fits_dir is None or not has_posterior_samples(
-                    lc_name=name, fits_dir=fits_dir, sampler=sampler
-                )
-            ):
-                continue
-                
-            label_orig = labels_all[i]
-            row_label = SnClass.canonicalize(label_orig)
-
-            if row_label not in allowed_types:
-                continue
-
-            if name not in names:
-                names.append(name)
-                labels.append(row_label)
-                labels_orig.append(label_orig)
-                redshifts.append(float(redshifts_all[i]))
-            else:
-                repeat_ct += 1
-
-    tally_each_class(labels_orig)
-    print(repeat_ct)
-
-    return np.array(names), np.array(labels), np.array(redshifts)
-
-
 def tally_each_class(labels):
     """Prints the number of samples with each class label.
 
@@ -607,80 +492,3 @@ def tally_each_class(labels):
     for u, c in zip(un_labels, cts):
         print(f"{u}: {c}")
     print()
-
-
-def retrieve_posterior_set(
-    lc_names, fits_dir, sampler=None,
-    redshifts=None, labels=None,
-    chisq_cutoff=np.inf,
-):
-    """Retrieve all sets of posterior samples, excluding
-    poor median fits and invalid redshift values.
-    
-    Parameters
-    ----------
-    lc_names : str
-        Lightcurve names.
-    fits_dir : str
-        Where fit parameters are stored.
-    sampler : str, optional
-        The name of the sampler to use.
-    redshifts : list, optional
-        List of redshift values.
-    chisq_cutoff : float, optional
-        Ignore all fit sets with median chisq above this value.
-    """
-    samples = []
-    if redshifts is None:
-        redshifts = np.ones(len(lc_names))
-
-    for i, name in enumerate(lc_names):
-        if np.isnan(redshifts[i]) or redshifts[i] <= 0:
-            continue
-        try:
-            post_obj = SamplerResult.load(
-                name=name,
-                input_dir=fits_dir,
-                sampling_method=sampler
-            )
-        except:
-            continue
-        # bandaid: add redshifts to PosteriorSamples object here
-        post_obj.redshift = redshifts[i]
-        if labels is not None:
-            post_obj.sn_class = labels[i]        
-        if post_obj.score > chisq_cutoff:
-            continue
-        
-        samples.append(post_obj)
-
-    return np.array(samples)
-
-
-def normalize_features(features, mean=None, std=None):
-    """Normalizes the features for feeding into the neural network.
-
-    Parameters
-    ----------
-    features : numpy array
-        Input features. Must be a 2-d array where each row corresponds
-        to a data point and each entry to a feature.
-    mean : ndarray, optional
-        Mean values for normalization. Defaults to None.
-    std : ndarray, optional
-        Standard deviation values for normalization. Defaults to None.
-
-    Returns
-    -------
-    tuple of np.ndarray
-        Tuple containing normalized features, mean values, and standard
-        deviation values.
-    """
-    if mean is None:
-        mean = features.mean(axis=0)
-    if std is None:
-        std = features.std(axis=0)
-
-    safe_std = np.copy(std)
-    safe_std[std == 0.0] = 1.0
-    return (features - mean) / safe_std, mean, std
