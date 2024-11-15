@@ -98,7 +98,7 @@ def f1_score(pred_classes, true_classes, class_average=False):
     return f1_sum / len(true_classes)
 
 
-def flux_model(cube, t_data, b_data, ordered_bands, ref_band):
+def flux_model(cube, t_data, b_data):
     """Given "cube" of fit parameters, returns the flux measurements for
     a given set of time and band data.
 
@@ -120,43 +120,24 @@ def flux_model(cube, t_data, b_data, ordered_bands, ref_band):
     f_model : numpy array
         The flux model for the given set of time and band data.
     """
-    if cube.ndim == 1:
-        cube = np.atleast_2d(cube)
-
-    cube = np.repeat(cube.T[:,:,np.newaxis], len(t_data), axis=2)
-    t_data = np.repeat(t_data[np.newaxis,:], cube.shape[1], axis=0)
-    b_data = np.repeat(b_data[np.newaxis,:], cube.shape[1], axis=0)
-
-    ref_band_idx = np.argmax(ref_band == np.array(ordered_bands))
-    si = ref_band_idx * 7
-
-    gamma = 10**cube[si + 2]
-    phase = t_data - cube[si + 3]
-    f_model = 10**cube[si] / (1.0 + np.exp(-phase / 10**cube[si + 4]))
-    f_model = np.where(phase >= gamma, f_model * (1.0 - cube[si+1] * gamma) * np.exp((gamma - phase) / 10**cube[si + 5]), f_model)
-    f_model = np.where(phase < gamma, f_model * (1.0 - cube[si+1] * phase), f_model)
-
-    for band_idx, ordered_band in enumerate(ordered_bands):
-        if ordered_band == ref_band:
-            continue
-        si2 = 7 * band_idx
-        amp_b = 10**(cube[si] + cube[si2])
-        beta_b = cube[si2 + 1] + cube[si + 1]
-        gamma_b = gamma * 10**cube[si2 + 2]
-        tau_rise_b = 10**(cube[si + 4] + cube[si2 + 4])
-        tau_fall_b = 10**(cube[si + 5] + cube[si2 + 5])
-
-        inc_band_ix = b_data[0] == ordered_band
-        phase_b = phase - cube[si2 + 3]
-
-        f_model = np.where(inc_band_ix, amp_b / (1.0 + np.exp(-phase_b / tau_rise_b)), f_model)
-        f_model = np.where(inc_band_ix & (phase - cube[si2 + 3] >= gamma_b), f_model * (1.0 - beta_b * gamma_b) * np.exp((gamma_b - phase_b) / tau_fall_b), f_model)
-        f_model = np.where(inc_band_ix & (phase - cube[si2 + 3] < gamma_b), f_model * (1.0 - phase_b * beta_b), f_model)
-
+    if cube.ndim == 2:
+        cube = np.atleast_3d(cube) # (num_params, num_times, num_fits)
+    # flip last two dimensions
+    amp, beta, gamma, t0, tau_rise, tau_fall, _ = cube.transpose(0,2,1)
+    
+    t_data = np.repeat(t_data[np.newaxis,:], cube.shape[2], axis=0)
+    b_data = np.repeat(b_data[np.newaxis,:], cube.shape[2], axis=0)
+    phase = np.clip(t_data - t0, a_min = -100. * tau_rise, a_max = None)
+    f_model = amp / (1.0 + np.exp(-phase / tau_rise))
+    f_model = np.where(
+        phase >= gamma,
+        f_model * (1.0 - beta * gamma) * np.exp((gamma - phase) / tau_fall),
+        f_model * (1.0 - phase * gamma)
+    )
     return f_model
 
 
-def params_valid(beta, gamma, tau_rise, tau_fall):
+def params_valid(cube):
     """Check if parameters are valid given certain model constraints.
 
     Parameters
@@ -176,13 +157,13 @@ def params_valid(beta, gamma, tau_rise, tau_fall):
         True if parameters are valid, False otherwise.
     """
 
-    if np.any(
-        np.isnan([beta, gamma, tau_rise, tau_fall])
-    ):
+    if np.any(np.isnan(cube)):
         return False
 
     # ensure dF2/dtheta < dF1/dtheta at gamma
-    if (beta > 0.0) and (gamma > (1.0 - beta * tau_fall) / beta): # no constraint if beta <= 0
+    if np.any(
+        (cube[1] > 0.0) & (cube[2] > (1.0 - cube[1] * cube[5]) / cube[1])
+    ): # no constraint if beta <= 0
         return False
 
     # ensure dF_rise/dtheta < 0 at gamma

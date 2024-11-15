@@ -1,15 +1,14 @@
 """MCMC sampling using dynesty."""
 
 from typing import List, Optional
+from functools import partial
 
 import numpy as np
 from dynesty import NestedSampler
-from scipy.stats import truncnorm
-from snapi import SamplerResult
+from snapi.analysis import SamplerResult, SamplerPrior
 import pandas as pd
 
 from superphot_plus.constants import DLOGZ, MAX_ITER, NLIVE
-from superphot_plus.surveys.fitting_priors import MultibandPriors
 from superphot_plus.utils import flux_model, params_valid
 from superphot_plus.samplers.superphot_sampler import SuperphotSampler
 
@@ -20,7 +19,7 @@ class DynestySampler(SuperphotSampler):
 
     def __init__(
             self,
-            priors: MultibandPriors,
+            priors: SamplerPrior,
             random_state: Optional[int]=None,
             max_iter: int=MAX_ITER,
             dlogz: float=DLOGZ,
@@ -65,28 +64,7 @@ class DynestySampler(SuperphotSampler):
         self._nlive = nlive
         self._verbose = verbose
         self._sampler_name = 'superphot_dynesty'
-
-        # Precompute the vectors of trunc_gauss a and b values.
-        tg_a = (self._all_priors[0] - self._all_priors[2]) / self._all_priors[3]
-        tg_b = (self._all_priors[1] - self._all_priors[2]) / self._all_priors[3]
-
-        def create_prior(cube):
-            """Define the prior function.
-
-            Parameters
-            ----------
-            cube : np.ndarray
-                Array of parameters.
-
-            Returns
-            -------
-            np.ndarray
-                Array of parameters.
-            """
-            x = truncnorm.ppf(cube, tg_a, tg_b, loc=self._all_priors[2], scale=self._all_priors[3])
-            return x
-        
-        self._prior_func = create_prior
+        self._prior_func = partial(self._priors.sample, numpyro=False)
 
     def fit(self, X, y):
         """Runs dynesty importance nested sampling on a set of light curves; saves set
@@ -110,6 +88,17 @@ class DynestySampler(SuperphotSampler):
         for band in self._unique_bands:
             if band not in self._X[:, 1]:
                 return None
+        
+        # map time steps to param values
+        self._param_map = np.zeros((self._nparams+1, len(self._X)), dtype=int)
+        for i, param in enumerate(self._base_params):
+            for b in self._unique_bands:
+                b_idxs = self._X[:,1] == b
+                self._param_map[i,b_idxs] = np.where(self._params == f'{param}_{b}')[0][0]
+        
+        self._param_map = np.array(self._param_map)
+        t = self._X[:,0].astype(np.float32)
+        err = self._X[:,2].astype(np.float32)
 
         def create_logL(cube):
             """Define the log-likelihood function.
@@ -127,40 +116,23 @@ class DynestySampler(SuperphotSampler):
             float
                 Log-likelihood value.
             """
-            beta = cube[self._start_idx+1]
-            gamma = 10**cube[self._start_idx+2]
-            tau_rise = 10**cube[self._start_idx+4]
-            tau_fall = 10**cube[self._start_idx+5]
-            
-            if not params_valid(beta, gamma, tau_rise, tau_fall):
+            new_cube = self._reformat_cube(cube)
+
+            if not params_valid(new_cube):
+                return -np.inf
+            if np.any(new_cube[-1] > 10**-0.8):
                 return -np.inf
             
-            f_model = flux_model(cube, self._X[:,0].astype(np.float32), self._X[:,1], self._unique_bands, self._ref_band)
-            extra_sigma_arr = np.ones(self._X.shape[0]) * 10**cube[7*self._ref_band_idx + 6]
-
-            for band_idx, ordered_band in enumerate(self._unique_bands):
-                if ordered_band == self._ref_band:
-                    continue
-                if cube[7 * band_idx + 6] + cube[7*self._ref_band_idx + 6] > -0.8:
-                    return -np.inf
-                
-                beta_g = beta + cube[7*band_idx+1]
-                gamma_g = gamma * 10**cube[7*band_idx+2]
-                tau_rise_g = tau_rise * 10**cube[7*band_idx+4]
-                tau_fall_g = tau_fall * 10**cube[7*band_idx+5]
-                                                    
-                if not params_valid(beta_g, gamma_g, tau_rise_g, tau_fall_g):
-                    return -np.inf
-                
-                extra_sigma_arr[self._X[:,1] == ordered_band] *= 10**cube[7 * band_idx + 6]
-
-            sigma_sq = self._X[:,2].astype(np.float32)**2 + extra_sigma_arr**2
+            f_model = flux_model(new_cube, t, self._X[:,1])
+            extra_sigma_arr = new_cube[-1]
+            sigma_sq = err**2 + extra_sigma_arr**2
+            
             logL = np.sum(
                 np.log(1.0 / np.sqrt(2.0 * np.pi * sigma_sq))
                 - 0.5 * (f_model - self._y) ** 2 / sigma_sq
             )
             return logL
-
+        
         sampler = NestedSampler(
             create_logL, self._prior_func, (self._nparams + 1) * len(self._unique_bands),
             sample=self._sample_strategy, bound=self._bound, nlive=self._nlive,
@@ -171,7 +143,7 @@ class DynestySampler(SuperphotSampler):
 
         samples_df = pd.DataFrame(
             res.samples_equal(rstate=self._rng),
-            columns=self._create_param_names()
+            columns=self._params
         )
         self.result = SamplerResult(samples_df, sampler_name=self._sampler_name)
         self._is_fitted = True

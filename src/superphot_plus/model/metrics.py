@@ -64,3 +64,57 @@ class ModelMetrics:
         print(f"Epoch: {self.curr_epoch:02} | Epoch Time: {epoch_mins}m {epoch_secs}s")
         print(f"\tTrain Loss: {train_loss:.3f} | Train Acc: {train_acc*100:.2f}%")
         print(f"\t Val. Loss: {val_loss:.3f} |  Val. Acc: {val_acc*100:.2f}%")
+        
+    def plot(self, ax, formatter=Formatter()):
+        """Plots training and validation results.
+        """
+        num_epochs = len(self.train_acc)
+        
+        try:
+            ax1, ax2 = ax
+        else:
+            ax2 = ax.twinx()
+            ax1 = ax
+        
+        # Plot accuracy
+        ax1.plot(
+            np.arange(0, num_epochs),
+            self.train_acc,
+            label="Training",
+            color=formatter.edge_color,
+            linestyle=formatter.line_style
+        )
+        ax2.plot(
+            np.arange(0, num_epochs),
+            self.train_loss,
+            label="Training",
+            color=formatter.edge_color,
+            linestyle=formatter.line_style
+        )
+        formatter.rotate_colors()
+        formatter.rotate_markers()
+        
+        ax.plot(
+            np.arange(0, num_epochs),
+            self.val_acc,
+            label="Validation",
+            color=formatter.edge_color,
+            linestyle=formatter.line_style
+        )
+        ax2.plot(
+            np.arange(0, num_epochs),
+            self.val_loss,
+            label="Validation",
+            color=formatter.edge_color,
+            linestyle=formatter.line_style
+        )
+        formatter.reset_colors()
+        formatter.reset_markers()
+        
+        ax1.set_xlabel("Epoch")
+        ax1.set_ylabel("Accuracy")
+        ax2.xlabel("Epoch")
+        ax2.ylabel("Loss")
+        ax2.set_yscale("log")
+        
+        return (ax1, ax2)

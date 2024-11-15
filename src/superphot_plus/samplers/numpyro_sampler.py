@@ -13,10 +13,9 @@ from jax._src import config
 from numpyro.distributions import constraints
 from numpyro.infer import MCMC, NUTS, SVI, Trace_ELBO
 from numpyro.infer.initialization import init_to_uniform
-from snapi import SamplerResult
+from snapi.analysis import SamplerPrior, SamplerResult
 from sklearn.utils import check_random_state
 
-from superphot_plus.surveys.fitting_priors import MultibandPriors, PriorFields
 from superphot_plus.samplers.superphot_sampler import SuperphotSampler
 from superphot_plus.utils import (
     get_numpyro_cube,
@@ -30,51 +29,6 @@ numpyro.set_host_device_count(1)
 #numpyro.enable_x64()
 
 
-def prior_helper(priors, aux_b=None):
-    """Helper function to sample prior values. If aux_b is not None,
-    appends aux_b to value names.
-
-    Parameters
-    ----------
-    priors : CurvePriors
-        The priors for one band
-    max_flux : float
-        Max flux of the light curve.
-    aux_b : str, optional
-        The name of the auxiliary band, if it is auxiliary. Defaults to None, which
-        assumes it's the base band.
-    """
-    if aux_b is None:
-        amp = 10 ** numpyro.sample("logA", trunc_norm(priors.amp))
-        beta = numpyro.sample(
-            "beta",
-            trunc_norm(priors.beta, high = 1.0/(10**priors.tau_fall.clip_a + 10**priors.gamma.clip_a)),
-        )
-        t_0 = numpyro.sample("t0", trunc_norm(priors.t_0))
-        tau_rise = 10 ** numpyro.sample("log_tau_rise", trunc_norm(priors.tau_rise))
-        tau_fall = 10 ** numpyro.sample(
-            "log_tau_fall",
-            trunc_norm(priors.tau_fall, high = jnp.log10(1./beta - 10**priors.gamma.clip_a))
-        )
-        gamma = 10 ** numpyro.sample(
-            "log_gamma",
-            trunc_norm(priors.gamma, high=jnp.log10((1.0 - beta * tau_fall) / beta))
-        )
-        extra_sigma = 10 ** numpyro.sample("log_extra_sigma", trunc_norm(priors.extra_sigma))
-        
-    else:
-        suffix = "_" + str(aux_b)
-        amp = 10**numpyro.sample(f"A{suffix}", trunc_norm(priors.amp))
-        beta = numpyro.sample(f"beta{suffix}", trunc_norm(priors.beta))
-        gamma = 10**numpyro.sample(f"gamma{suffix}", trunc_norm(priors.gamma))
-        t_0 = numpyro.sample(f"t0{suffix}", trunc_norm(priors.t_0))
-        tau_rise = 10**numpyro.sample(f"tau_rise{suffix}", trunc_norm(priors.tau_rise))
-        tau_fall = 10**numpyro.sample(f"tau_fall{suffix}", trunc_norm(priors.tau_fall))
-        extra_sigma = 10**numpyro.sample(f"extra_sigma{suffix}", trunc_norm(priors.extra_sigma))
-
-    return amp, beta, gamma, t_0, tau_rise, tau_fall, extra_sigma
-
-
 def lax_helper_function(svi, svi_state, num_iters, *args, **kwargs):
     """Helper function using LAX to speed up SVI state updates."""
 
@@ -85,38 +39,11 @@ def lax_helper_function(svi, svi_state, num_iters, *args, **kwargs):
     u, _ = lax.scan(update_svi, svi_state, jnp.arange(num_iters), length=num_iters)
     return u
 
-
-def trunc_norm(fields: PriorFields, low=None, high=None):
-    """Provides keyword parameters to numpyro's TruncatedNormal, using the fields in PriorFields.
-
-    Parameters
-    ----------
-    fields : PriorFields
-        The (low, high, mean, standard deviation) fields of the truncated normal distribution.
-
-    Returns
-    -------
-    numpyro.distributions.TruncatedDistribution
-        A truncated normal distribution.
-    """
-    if high is None:
-        high = fields.clip_b
-    else:
-        high = jnp.minimum(high, fields.clip_b)
-    if low is None:
-        low = fields.clip_a
-    else:
-        low = jnp.maximum(low, fields.clip_b)
-        
-    return dist.TruncatedNormal(
-        loc=fields.mean, scale=fields.std, low=low, high=high, validate_args=True
-    )
-
 class NumpyroSampler(SuperphotSampler):
     """Samplers which use numpyro."""
     def __init__(
             self,
-            priors: MultibandPriors,
+            priors: SamplerPrior,
             random_state: int,
             pad_size: int,
             *args,
@@ -125,6 +52,7 @@ class NumpyroSampler(SuperphotSampler):
         super().__init__(priors)
         self._rng = random.key(random_state)
         self._pad_size = concrete_or_error(int, pad_size, "pad_size must be static")
+        self._ref_priors = self._priors[self._ref_params]
 
         def create_jax_model(
             t=None,
@@ -146,11 +74,10 @@ class NumpyroSampler(SuperphotSampler):
             priors : MultibandPriors
                 priors for all bands in lightcurves
             """
-            ref_priors = priors.bands[priors.reference_band]
             (
                 amp, beta, gamma, t_0,
                 tau_rise, tau_fall, extra_sigma
-            ) = prior_helper(ref_priors)
+            ) = prior_helper(self._ref_priors)
 
             constraint = villar_fit_constraint([beta, gamma, tau_rise, tau_fall])
 
@@ -167,12 +94,6 @@ class NumpyroSampler(SuperphotSampler):
                 (1 - beta * phase),
                 (1 - beta * gamma) * jnp.exp(-(phase - gamma) / tau_fall)
             )
-            """
-            flux = flux_const * (
-                (1 - sigmoid) * (1 - beta * phase)
-                + sigmoid * (1 - beta * gamma) * jnp.exp(-(phase - gamma) / tau_fall)
-            )
-            """
             
             sigma_tot = jnp.sqrt(uncertainties**2 + extra_sigma**2)
 
@@ -237,11 +158,6 @@ class NumpyroSampler(SuperphotSampler):
 
         def create_jax_guide(t=None, obsflux=None, uncertainties=None):
             """JAX guide function for MCMC.
-
-            Parameters
-            ----------
-            priors : MultibandPriors
-                priors for all bands in lightcurves
             """
 
             def numpyro_sample(prefix: str, fields: PriorFields, param_constraint: float):
@@ -373,7 +289,7 @@ class NUTSSampler(NumpyroSampler):
 
     def __init__(
             self,
-            priors: MultibandPriors,
+            priors: SamplerPrior,
             pad_size: int,
             num_warmup: int=10_000,
             num_samples: int=10_000,
@@ -431,7 +347,7 @@ class SVISampler(NumpyroSampler):
 
     def __init__(
             self,
-            priors: MultibandPriors,
+            priors: SamplerPrior,
             pad_size: int,
             num_iter=10_000,
             step_size=0.001,
