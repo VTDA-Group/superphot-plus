@@ -64,7 +64,7 @@ class DynestySampler(SuperphotSampler):
         self._nlive = nlive
         self._verbose = verbose
         self._sampler_name = 'superphot_dynesty'
-        self._prior_func = partial(self._priors.sample, numpyro=False)
+        self._prior_func = partial(self._priors.sample, use_numpyro=False)
 
     def fit(self, X, y):
         """Runs dynesty importance nested sampling on a set of light curves; saves set

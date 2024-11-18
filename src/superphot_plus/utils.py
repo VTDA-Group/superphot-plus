@@ -127,12 +127,13 @@ def flux_model(cube, t_data, b_data):
     
     t_data = np.repeat(t_data[np.newaxis,:], cube.shape[2], axis=0)
     b_data = np.repeat(b_data[np.newaxis,:], cube.shape[2], axis=0)
-    phase = np.clip(t_data - t0, a_min = -100. * tau_rise, a_max = None)
+    phase = np.clip(t_data - t0, a_min = -50. * tau_rise, a_max = None)
+    phase = np.clip(phase, a_min = gamma - 50. * tau_fall, a_max = None)
     f_model = amp / (1.0 + np.exp(-phase / tau_rise))
     f_model = np.where(
         phase >= gamma,
         f_model * (1.0 - beta * gamma) * np.exp((gamma - phase) / tau_fall),
-        f_model * (1.0 - phase * gamma)
+        f_model * (1.0 - beta * phase)
     )
     return f_model
 
@@ -173,67 +174,10 @@ def params_valid(cube):
     return True
 
 def villar_fit_constraint(x):
-    beta, gamma, tau_rise, tau_fall = x
     return (
-        jnp.maximum(gamma - (1.0 - beta * tau_fall) / beta, 0.) +
-        jnp.maximum(jnp.exp(-gamma / tau_rise) * (1.0/beta - tau_rise - gamma) - tau_rise, 0.)
+        jnp.maximum(x[2] - (1.0 - x[1] * x[5]) / x[1], 0.) +
+        jnp.maximum(jnp.exp(-x[2] / x[4]) * (1.0 / x[1] - x[4] - x[2]) - x[4], 0.)
     )
-
-    
-def get_numpyro_cube(params, ref_band, ordered_bands):
-    """
-    Convert output param dict from numpyro sampler to match that
-    of dynesty.
-
-    Parameters
-    ----------
-    params : dict
-        Parameter dictionary
-    max_flux : float
-        Max flux of light curve
-    aux_bands : array-like, optional
-        The names of auxiliary bands, in order. If None or excluded,
-        attempts to infer them from the dictionary.
-
-    Returns
-    ----------
-    cube : np.ndarray
-        Array of all equal-weight parameter draws
-    aux_bands : np.ndarray
-        Auxiliary bands, including those inferred if input arg was None.
-    """
-    logA, beta, log_gamma = params['logA'], params['beta'], params['log_gamma']
-    t0, log_tau_rise, log_tau_fall, log_extra_sigma = (
-        params['t0'],
-        params['log_tau_rise'],
-        params['log_tau_fall'],
-        params['log_extra_sigma'],
-    )
-    
-    cube = []
-
-    for b in ordered_bands:
-        if b == ref_band:
-            cube.extend(
-            [
-                logA, beta, log_gamma, t0,
-                log_tau_rise, log_tau_fall, log_extra_sigma
-            ]
-        )
-        else:
-            cube.extend(
-                [
-                    params[f"A_{b}"],
-                    params[f"beta_{b}"],
-                    params[f"gamma_{b}"],
-                    params[f"t0_{b}"],
-                    params[f"tau_rise_{b}"],
-                    params[f"tau_fall_{b}"],
-                    params[f"extra_sigma_{b}"],
-                ]
-            )
-    return np.array(cube).T, np.array(ordered_bands)
-
 
 def create_dataset(features, labels, device='cpu'):
     """Creates a PyTorch dataset object from numpy arrays.

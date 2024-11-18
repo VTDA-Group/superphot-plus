@@ -38,10 +38,18 @@ class SuperphotSampler(Sampler):
         return X[:,2:3].T.astype(np.float32)**2 + (extra_sigma_arr.T)**2
 
     def predict(self, X, num_fits=None):
-        """Predicts the flux of a light curve using the model."""
+        """Predicts the flux of a light curve using the model."""  
+        _, val_x = super().predict(X)
+        self._param_map = np.zeros((self._nparams+1, len(val_x)), dtype=int)
+        
+        for i, param in enumerate(self._base_params):
+            for b in self._unique_bands:
+                b_idxs = val_x[:,1] == b
+                self._param_map[i,b_idxs] = np.where(self._params == f'{param}_{b}')[0][0]
+                
         fit_param_numpy = self.result.fit_parameters[self._params].to_numpy().T # each entry is a parameter
         cube = self._reformat_cube(fit_param_numpy) # (num_params, num_times, num_fits)
-        _, val_x = super().predict(X)
+        
         if num_fits:
             return flux_model(
                 cube[:,:,:num_fits],

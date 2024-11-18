@@ -1,5 +1,6 @@
 """MCMC sampling using numpyro."""
 from typing import Optional
+from functools import partial
 
 from numpy.typing import NDArray
 import numpy as np
@@ -17,10 +18,8 @@ from snapi.analysis import SamplerPrior, SamplerResult
 from sklearn.utils import check_random_state
 
 from superphot_plus.samplers.superphot_sampler import SuperphotSampler
-from superphot_plus.utils import (
-    get_numpyro_cube,
-    villar_fit_constraint
-)
+from superphot_plus.utils import villar_fit_constraint
+
 
 numpyro.set_host_device_count(1)
 #config.update("jax_enable_x64", True)
@@ -52,7 +51,7 @@ class NumpyroSampler(SuperphotSampler):
         super().__init__(priors)
         self._rng = random.key(random_state)
         self._pad_size = concrete_or_error(int, pad_size, "pad_size must be static")
-        self._ref_priors = self._priors[self._ref_params]
+        self._prior_func = partial(self._priors.sample, cube=None, use_numpyro=True)
 
         def create_jax_model(
             t=None,
@@ -74,19 +73,26 @@ class NumpyroSampler(SuperphotSampler):
             priors : MultibandPriors
                 priors for all bands in lightcurves
             """
+            cube = self._prior_func()
+            # convert cube to (num_params x len(t))
             (
                 amp, beta, gamma, t_0,
                 tau_rise, tau_fall, extra_sigma
-            ) = prior_helper(self._ref_priors)
+            ) = self._reformat_cube(cube)
 
-            constraint = villar_fit_constraint([beta, gamma, tau_rise, tau_fall])
+            constraint = villar_fit_constraint(cube) # FIX THIS
 
             numpyro.factor(
                 "vf_constraint",
                 -1000. * constraint
             )
+            numpyro.factor(
+                f"sigma_constraint",
+                -1000. * jnp.maximum(extra_sigma - 10**(-0.8), 0.)
+            )
                 
-            phase = t - t_0
+            phase = jnp.clip(t - t_0, min=-50.*tau_rise, max=None)
+            phase = jnp.clip(phase, min=-50.*tau_fall + gamma, max=None)
             flux_const = amp / (1.0 + jnp.exp(-phase / tau_rise))
 
             flux = flux_const * jnp.where(
@@ -96,100 +102,26 @@ class NumpyroSampler(SuperphotSampler):
             )
             
             sigma_tot = jnp.sqrt(uncertainties**2 + extra_sigma**2)
-
-            # auxiliary bands
-            for b_idx, uniq_b in enumerate(self._unique_bands):
-                if uniq_b == self._ref_band:
-                    continue
-                    
-                b_priors = priors.bands[uniq_b]
-
-                (
-                    amp_ratio,
-                    beta_shift,
-                    gamma_ratio,
-                    t0_shift,
-                    tau_rise_ratio,
-                    tau_fall_ratio,
-                    extra_sigma_ratio,
-                ) = prior_helper(b_priors, uniq_b)
-
-                amp_b = amp * amp_ratio
-                beta_b = beta + beta_shift
-                gamma_b = gamma * gamma_ratio
-                t0_b = t_0 + t0_shift
-                tau_rise_b = tau_rise * tau_rise_ratio
-                tau_fall_b = tau_fall * tau_fall_ratio
-                extra_sigma_b = extra_sigma * extra_sigma_ratio
-                
-                constraint = villar_fit_constraint([beta_b, gamma_b, tau_rise_b, tau_fall_b])
-
-                numpyro.factor(
-                    f"vf_constraint_{uniq_b}",
-                    -1000. * constraint
-                )
-                
-                numpyro.factor(
-                    f"sigma_constraint_{uniq_b}",
-                    -1000. * jnp.maximum(extra_sigma_b - 10**(-0.8), 0.)
-                )
-
-                # base inc_band_ix on ordered_bands
-                # ISSUE: CHANGE FOR LOOP TO LAX.SCAN OR FORILOOP (SEE GPT RESPONSE)
-                inc_band_ix = jnp.arange(b_idx * self._pad_size, (b_idx+1) * self._pad_size)
-
-                phase_b = (t - t0_b)[inc_band_ix]
-                flux_const_b = amp_b / (1.0 + jnp.exp(-phase_b / tau_rise_b))
-                #z = jnp.clip(10.0 * (gamma_b - phase_b), -88.0, 88.0)  # exp(88) is near the max float32 can handle
-                #sigmoid_b = 1.0 / (1.0 + jnp.exp(z))
-
-                flux = flux.at[inc_band_ix].set(
-                    flux_const_b * jnp.where(
-                        gamma_b - phase_b >= 0,
-                        (1 - beta_b * phase_b),
-                        (1 - beta_b * gamma_b) * jnp.exp(-(phase_b - gamma_b) / tau_fall_b)
-                    )
-                )
-
-                sigma_tot = sigma_tot.at[inc_band_ix].set(
-                    jnp.sqrt(uncertainties[inc_band_ix] ** 2 + extra_sigma_b**2)
-                )
+            
             _ = numpyro.sample("obs", dist.Normal(flux, sigma_tot), obs=obsflux)
 
         def create_jax_guide(t=None, obsflux=None, uncertainties=None):
             """JAX guide function for MCMC.
             """
 
-            def numpyro_sample(prefix: str, fields: PriorFields, param_constraint: float):
+            def numpyro_sample(prior: pd.Series, param_constraint: float):
+                prefix = prior['param']
                 param_mu = numpyro.param(
                     f"{prefix}_mu",
-                    fields.mean,
-                    constraint=constraints.interval(fields.clip_a, fields.clip_b),
+                    prior['mean'],
+                    constraint=constraints.interval(prior['min'], prior['max']),
                 )
                 param_sigma = numpyro.param(f"{prefix}_sigma", param_constraint, constraint=constraints.positive)
                 out = numpyro.sample(prefix, dist.Normal(param_mu, param_sigma, validate_args=True))
 
-            ref_priors = priors.bands[priors.reference_band]
-            numpyro_sample("logA", ref_priors.amp, 1e-3)
-            numpyro_sample("beta", ref_priors.beta, 1e-5)
-            numpyro_sample("log_gamma", ref_priors.gamma, 1e-3)
-            numpyro_sample("t0", ref_priors.t_0, 1e-3)
-            numpyro_sample("log_tau_rise", ref_priors.tau_rise, 1e-3)
-            numpyro_sample("log_tau_fall", ref_priors.tau_fall, 1e-3)
-            numpyro_sample("log_extra_sigma", ref_priors.extra_sigma, 1e-3)
-
-            # aux bands
-            for uniq_b in self._unique_bands:
-                if uniq_b == self._ref_band:
-                    continue
-                b_priors = priors.bands[uniq_b]
-                numpyro_sample("A_" + uniq_b, b_priors.amp, 1e-3)
-                numpyro_sample("beta_" + uniq_b, b_priors.beta, 1e-5)
-                numpyro_sample("gamma_" + uniq_b, b_priors.gamma, 1e-3)
-                numpyro_sample("t0_" + uniq_b, b_priors.t_0, 1e-3)
-                numpyro_sample("tau_rise_" + uniq_b, b_priors.tau_rise, 1e-3)
-                numpyro_sample("tau_fall_" + uniq_b, b_priors.tau_fall, 1e-3)
-                numpyro_sample("extra_sigma_" + uniq_b, b_priors.extra_sigma, 1e-3)
+            for _, row in self._priors.dataframe.iterrows():
+                numpyro_sample(row, 1e-5)
+                
         self._jax_model = create_jax_model
         self._jax_guide = create_jax_guide
         self._orig_num_times: Optional[int] = None
@@ -225,32 +157,20 @@ class NumpyroSampler(SuperphotSampler):
         if orig_num_times is not None:
             self._orig_num_times = orig_num_times
         
-        self._rearrange_inputs()
         self._y = jnp.array(self._y, dtype=jnp.float32)
+        
+        self._param_map = jnp.zeros((self._nparams+1, len(self._X)), dtype=int)
+        for i, param in enumerate(self._base_params):
+            for b in self._unique_bands:
+                b_idxs = self._X[:,1] == b
+                self._param_map = self._param_map.at[i,b_idxs].set(
+                    jnp.where(self._params == f'{param}_{b}')[0][0]
+                )
 
-    def _rearrange_inputs(self):
-        """Rearrange X and y so padded band order matches self._unique_bands"""
-        rearranged_X = np.zeros(self._X.shape, dtype=self._X.dtype)
-        rearranged_y = np.zeros(self._y.shape, dtype=self._y.dtype)
-        for i, b in enumerate(self._unique_bands):
-            b_mask = self._X[:,1] == b
-            rearranged_X[self._padded_len*i:self._padded_len*(i+1)] = self._X[b_mask]
-            rearranged_y[self._padded_len*i:self._padded_len*(i+1)] = self._y[b_mask]
-
-        self._X = rearranged_X
-        self._y = rearranged_y
-
-    def _process_samples(self, params):
+    def _process_samples(self, samples_df):
         """Convert parameter dict from numpyro to SamplerResult."""
-        posterior_cube = get_numpyro_cube(
-            params, self._ref_band, self._unique_bands
-        )[0]
-
-        samples_df = pd.DataFrame(
-            posterior_cube,
-            columns=self._create_param_names()
-        )
-
+        # transform log-Gaussian and relative params
+        samples_df = self._priors.transform(samples_df)
         self.result = SamplerResult(samples_df, sampler_name=self._sampler_name)
         self._is_fitted = True
         self.result.score = self.score(self._X, self._y, orig_num_times=self._orig_num_times)
@@ -339,7 +259,7 @@ class NUTSSampler(NumpyroSampler):
         )
         params = self._mcmc.get_samples()
 
-        self._process_samples(params)
+        self._process_samples(pd.DataFrame(params))
 
 
 class SVISampler(NumpyroSampler):
@@ -409,7 +329,7 @@ class SVISampler(NumpyroSampler):
 
         params = self._svi.get_params(self._svi_state)
 
-        posterior_samples = {}
+        posterior_samples = pd.DataFrame(columns=self._params)
         for param in params:
             if param[-2:] == "mu":
                 mu = params[param][()]
