@@ -9,14 +9,11 @@ import pandas as pd
 
 from sklearn.metrics import confusion_matrix
 from matplotlib.ticker import AutoMinorLocator
-
 from astropy.cosmology import Planck13 as cosmo
 from scipy.stats import binned_statistic
+from snapi import Formatter
 
-from superphot_plus.plotting.utils import (
-    histedges_equalN,
-    get_survey_fracs, retrieve_four_class_info,
-)
+from superphot_plus.plotting.utils import histedges_equalN
 
 def plot_redshifts_abs_mags(fig, z_ax, mag_ax, transient_group, classifier_result, formatter=Formatter()):
     """

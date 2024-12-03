@@ -160,23 +160,35 @@ def params_valid(cube):
 
     if np.any(np.isnan(cube)):
         return False
-
-    # ensure dF2/dtheta < dF1/dtheta at gamma
-    if np.any(
-        (cube[1] > 0.0) & (cube[2] > (1.0 - cube[1] * cube[5]) / cube[1])
-    ): # no constraint if beta <= 0
+    
+    if np.any(cube[1] > 1. / cube[2]):
         return False
-
-    # ensure dF_rise/dtheta < 0 at gamma
-    #if np.exp(-gamma / tau_rise) * (1/tau_rise - beta - beta*gamma/tau_rise) > beta:
-    #    return False
+    
+    if np.any(
+        np.exp(-cube[2]/cube[4]) * (cube[5]/cube[4] - 1.) > 1.0
+    ):
+        return False
+    
+    if np.any(
+        cube[1] * cube[5] > 1. - cube[1] * cube[2]
+    ):
+        return False
+    """
+    if np.any(
+        np.exp(-cube[2]/cube[4]) * (1. - cube[1]*cube[2] - 2.*cube[1]*cube[4]) > 1.0 - cube[1]*cube[2] + 2.*cube[1]*cube[4]
+    ):
+        return False
+    """
 
     return True
 
 def villar_fit_constraint(x):
+
     return (
-        jnp.maximum(x[2] - (1.0 - x[1] * x[5]) / x[1], 0.) +
-        jnp.maximum(jnp.exp(-x[2] / x[4]) * (1.0 / x[1] - x[4] - x[2]) - x[4], 0.)
+        jnp.maximum(x[2] * x[1] - 1., 0.) +
+        jnp.maximum(jnp.exp(-x[2]/x[4])*(x[5]/x[4]-1) - 1., 0.) +
+        jnp.maximum(x[1]*x[5] - 1. + x[1]*x[2], 0.)
+        #jnp.maximum(jnp.exp(-x[2] / x[4]) * (1.0 / x[1] - x[4] - x[2]) - x[4], 0.)
     )
 
 def create_dataset(features, labels, device='cpu'):
@@ -243,9 +255,8 @@ def epoch_time(start_time, end_time):
     
 def write_metrics_to_file(
     config,
-    true_classes,
-    pred_classes,
-    prob_above_07,
+    model,
+    probs_df,
 ):
     """Calculates the accuracy and f1 score metrics for the
     test set and outputs them to a log file.
@@ -263,11 +274,14 @@ def write_metrics_to_file(
     log_file : str
         The file where the metrics information will be written.
     """
+    true_classes = probs_df['true_class'].to_numpy()
+    pred_classes = probs_df['pred_class'].to_numpy()
+    
     test_acc = calc_accuracy(pred_classes, true_classes)
     test_f1_score = f1_score(pred_classes, true_classes, class_average=True)
 
     with open(config.log_fn, "a+", encoding="utf-8") as the_file:
-        the_file.write(str(config.goal_per_class) + " samples per class\n")
+        the_file.write(str(config.fits_per_majority) + " samples per majority class event\n")
         the_file.write(
             str(config.neurons_per_layer)
             + " neurons per each of "
@@ -275,12 +289,9 @@ def write_metrics_to_file(
             + " layers\n"
         )
         the_file.write(str(config.num_epochs) + " epochs\n")
-        the_file.write(
-            "HOW MANY CERTAIN " + str(len(true_classes)) + " " + str(len(true_classes[prob_above_07])) + "\n"
-        )
         the_file.write(f"MLP class-averaged F1-score: {test_f1_score:.04f}\n")
         the_file.write(f"Accuracy: {test_acc:.04f}\n")
-        the_file.write(f"Best Validation Loss: {config.best_val_loss:.04f}\n\n")
+        the_file.write(f"Best Validation Loss: {model.best_val_loss:.04f}\n\n")
 
 
 def get_session_metrics(metrics):

@@ -4,12 +4,11 @@ import numpy as np
 import lightgbm
 from torch.utils.data import DataLoader
 
-from superphot_plus.config import SuperphotConfig
-from superphot_plus.model.metrics import ModelMetrics
-from superphot_plus.utils import (
-    save_test_probabilities,
-    normalize_features
-)
+from ..config import SuperphotConfig
+from ..constants import EPOCHS
+from ..model.metrics import ModelMetrics
+from .classifier import SuperphotClassifier
+
 
 class SuperphotLightGBM(SuperphotClassifier):
     """The LightGBM model.
@@ -27,6 +26,7 @@ class SuperphotLightGBM(SuperphotClassifier):
         self,
         train_data,
         val_data,
+        num_epochs=EPOCHS,
         rng_seed=None,
         **kwargs,
     ):
@@ -51,16 +51,16 @@ class SuperphotLightGBM(SuperphotClassifier):
         
         train_feats = self.normalize(train_feats)
         val_feats = self.normalize(val_feats)
-
+        
         lightgbm_params = {
-            "boosting": "dart",
-            "data_sample_strategy": "goss",
-            "verbosity": -1,
+            "boosting": kwargs.get('boosting', 'dart'),
+            "data_sample_strategy": kwargs.get('data_sample_strategy', "goss"),
+            "verbosity": kwargs.get('verbosity', -1),
             "random_state": rng_seed,
-            'max_depth': 5,
-            'num_leaves': 20,
-            'lambda_l1': 5.0,
-            'n_estimators': 250,
+            'max_depth': kwargs.get('max_depth', 5),
+            'num_leaves': kwargs.get('num_leaves', 20),
+            'lambda_l1': kwargs.get('lambda_l1', 5.0),
+            'n_estimators': num_epochs,
         }
         
         if self.target_label is not None:
@@ -117,4 +117,4 @@ class SuperphotLightGBM(SuperphotClassifier):
         # Store best validation loss
         self.set_best_val_loss(float(best_val_loss))
 
-        return metrics.get_values()
+        return metrics

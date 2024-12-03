@@ -2,6 +2,7 @@ import dataclasses
 import os
 from functools import partial
 import copy
+from typing import Optional
 
 import numpy as np
 import ray
@@ -10,6 +11,7 @@ from ray.air import session
 from ray.tune import CLIReporter
 from ray.tune.search.optuna import OptunaSearch
 from joblib import Parallel, delayed
+from snapi import TransientGroup, SamplerResultGroup
 
 from superphot_plus.config import SuperphotConfig
 from superphot_plus.trainer_base import TrainerBase
@@ -161,13 +163,22 @@ class SuperphotTuner(TrainerBase):
             train_srg = train_data[1].filter(train_df.index)
             val_srg = train_data[1].filter(val_df.index)
             
-            class_dict = {x.index, x['label'] for x in train_df}
+            class_dict = {x.Index: x.label for x in train_df.itertuples()}
             train_srg.balance_classes(class_dict, config.fits_per_majority) # custom config's fits per majority
-            class_dict = {x.index, x['label'] for x in val_df}
+            class_dict = {x.Index: x.label for x in val_df.itertuples()}
             val_srg.balance_classes(class_dict, config.fits_per_majority)
             
-            train_df = self.retrieve_sampler_results(self, train_srg, train_df, balance_classes=False)[config.input_features]
-            val_df = self.retrieve_sampler_results(self, val_srg, val_df, balance_classes=False)[config.input_features]
+            train_df = self.retrieve_sampler_results(self, train_srg, train_df, balance_classes=False)
+            val_df = self.retrieve_sampler_results(self, val_srg, val_df, balance_classes=False)
+            
+            if self.config.input_features is None:
+                input_features = train_df.columns[~train_df.columns.isin(['label', 'score', 'sampler'])]
+        
+            if self.config.use_redshift_features:
+                input_features = np.append(input_features, ['redshift', 'abs_mag'])
+                
+            train_features = train_df.loc[:, input_features]
+            val_features = val_df.loc[:, input_features]
 
             model = self._create_model_instance(config)
             

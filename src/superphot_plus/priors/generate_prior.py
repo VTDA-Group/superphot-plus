@@ -2,7 +2,7 @@ import os
 
 import pandas as pd
 
-from snapi import SamplerPrior
+from .superphot_prior import SuperphotPrior
 
 def generate_priors(filts: list[str], reference_band: str='ZTF_r'):
     """Generate SamplerPrior for Superphot+ samplers, given a list of
@@ -24,5 +24,5 @@ def generate_priors(filts: list[str], reference_band: str='ZTF_r'):
         else:
             concat_df = pd.concat([concat_df, prior_df], ignore_index=True)
         
-    return SamplerPrior(concat_df)
+    return SuperphotPrior(concat_df)
     

@@ -13,7 +13,6 @@ from superphot_plus.utils import flux_model, params_valid
 from superphot_plus.samplers.superphot_sampler import SuperphotSampler
 
 
-
 class DynestySampler(SuperphotSampler):
     """ "MCMC sampling using dynesty."""
 
@@ -59,12 +58,55 @@ class DynestySampler(SuperphotSampler):
             raise ValueError("dlogz must be greater than 0.")
         self._max_iter = max_iter
         self._dlogz = dlogz
-        self._bound = bound
-        self._sample_strategy = sample_strategy
-        self._nlive = nlive
         self._verbose = verbose
         self._sampler_name = 'superphot_dynesty'
         self._prior_func = partial(self._priors.sample, use_numpyro=False)
+        self._param_map = None
+        
+        self._nested_sampler = NestedSampler(
+            self._logL, self._prior_func, (self._nparams + 1) * len(self._unique_bands),
+            sample=sample_strategy, bound=bound, nlive=nlive,
+            rstate=self._rng
+        )
+
+    def _logL(self, cube):
+        """Define the log-likelihood function.
+
+        Is proportional to chi-squared of data's fit to generated flux
+        model.
+
+        Parameters
+        ----------
+        cube : np.ndarray
+            Array of parameters.
+
+        Returns
+        -------
+        float
+            Log-likelihood value.
+        """
+        if self._param_map is None:
+            return -1.0 # placeholder
+        
+        new_cube = self._reformat_cube(cube)
+
+        if not params_valid(new_cube):
+            return -np.inf
+        
+        f_model = flux_model(new_cube, self._t, self._X[:,1])
+        extra_sigma_arr = new_cube[-1]
+        sigma_sq = self._err**2 + extra_sigma_arr**2
+
+        logL = np.sum(
+            np.log(1.0 / np.sqrt(2.0 * np.pi * sigma_sq))
+            - 0.5 * (f_model - self._y) ** 2 / sigma_sq
+        )
+        return logL
+    
+    def reset(self):
+        """Reset the nested sampler."""
+        self._nested_sampler.loglikelihood.pool = None # post-pickling fix
+        self._nested_sampler.reset()
 
     def fit(self, X, y):
         """Runs dynesty importance nested sampling on a set of light curves; saves set
@@ -88,6 +130,9 @@ class DynestySampler(SuperphotSampler):
         for band in self._unique_bands:
             if band not in self._X[:, 1]:
                 return None
+            
+        self._t = self._X[:,0].astype(np.float32)
+        self._err = self._X[:,2].astype(np.float32)
         
         # map time steps to param values
         self._param_map = np.zeros((self._nparams+1, len(self._X)), dtype=int)
@@ -97,54 +142,20 @@ class DynestySampler(SuperphotSampler):
                 self._param_map[i,b_idxs] = np.where(self._params == f'{param}_{b}')[0][0]
         
         self._param_map = np.array(self._param_map)
-        t = self._X[:,0].astype(np.float32)
-        err = self._X[:,2].astype(np.float32)
-
-        def create_logL(cube):
-            """Define the log-likelihood function.
-
-            Is proportional to chi-squared of data's fit to generated flux
-            model.
-
-            Parameters
-            ----------
-            cube : np.ndarray
-                Array of parameters.
-
-            Returns
-            -------
-            float
-                Log-likelihood value.
-            """
-            new_cube = self._reformat_cube(cube)
-
-            if not params_valid(new_cube):
-                return -np.inf
-            if np.any(new_cube[-1] > 10**-0.8):
-                return -np.inf
-            
-            f_model = flux_model(new_cube, t, self._X[:,1])
-            extra_sigma_arr = new_cube[-1]
-            sigma_sq = err**2 + extra_sigma_arr**2
-            
-            logL = np.sum(
-                np.log(1.0 / np.sqrt(2.0 * np.pi * sigma_sq))
-                - 0.5 * (f_model - self._y) ** 2 / sigma_sq
-            )
-            return logL
-        
-        sampler = NestedSampler(
-            create_logL, self._prior_func, (self._nparams + 1) * len(self._unique_bands),
-            sample=self._sample_strategy, bound=self._bound, nlive=self._nlive,
-            rstate=self._rng
+    
+        self.reset()        
+        self._nested_sampler.run_nested(
+            maxiter=self._max_iter,
+            dlogz=self._dlogz,
+            print_progress=self._verbose
         )
-        sampler.run_nested(maxiter=self._max_iter, dlogz=self._dlogz, print_progress=self._verbose)
-        res = sampler.results
+        res = self._nested_sampler.results
+        samples_equal = res.samples_equal(rstate=self._rng)
 
         samples_df = pd.DataFrame(
-            res.samples_equal(rstate=self._rng),
+            samples_equal,
             columns=self._params
         )
-        self.result = SamplerResult(samples_df, sampler_name=self._sampler_name)
         self._is_fitted = True
+        self.result = SamplerResult(samples_df, sampler_name=self._sampler_name)
         self.result.score = self.score(self._X, self._y)

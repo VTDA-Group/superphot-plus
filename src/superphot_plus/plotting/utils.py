@@ -9,6 +9,7 @@ import numpy as np
 import pandas as pd
 from alerce.core import Alerce
 from scipy.stats import binned_statistic
+from snapi import Transient, TransientGroup
 
 from superphot_plus.supernova_class import SupernovaClass as SnClass
 

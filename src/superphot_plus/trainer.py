@@ -1,21 +1,20 @@
 import os
 import copy
-
+from typing import Optional
 
 import numpy as np
+import matplotlib.pyplot as plt
 import pandas as pd
 from sklearn.model_selection import train_test_split
 from snapi.analysis import SamplerResult
+from snapi import TransientGroup, SamplerResultGroup
 
-from superphot_plus.model.mlp import SuperphotMLP
-from superphot_plus.model.lightgbm import SuperphotLightGBM
-from superphot_plus.config import SuperphotConfig
-from superphot_plus.model.data import TestData, TrainData, PosteriorSamplesGroup
-from superphot_plus.plotting.classifier_results import plot_model_metrics
-from superphot_plus.plotting.confusion_matrices import plot_matrices
-from superphot_plus.supernova_class import SupernovaClass as SnClass
-from superphot_plus.trainer_base import TrainerBase
-from superphot_plus.utils import write_metrics_to_file
+from .model.mlp import SuperphotMLP
+from .model.lightgbm import SuperphotLightGBM
+from .plotting.confusion_matrices import plot_matrices
+from .supernova_class import SupernovaClass as SnClass
+from .trainer_base import TrainerBase
+from .utils import write_metrics_to_file
 
 
 class SuperphotTrainer(TrainerBase):
@@ -34,7 +33,7 @@ class SuperphotTrainer(TrainerBase):
     sampler : str
         The type of sampler used for the lightcurve fits. Defaults to "dynesty".
     """
-    def setup_model(self, load_checkpoint=False):
+    def setup_model(self):
         """Reads model configuration from disk and loads the
         saved checkpoint if load_checkpoint flag was enabled.
 
@@ -43,32 +42,27 @@ class SuperphotTrainer(TrainerBase):
         load_checkpoint : bool
             If true, load pretrained model checkpoint.
         """
-        model_path = os.path.join(self.config.models_dir, self.config.prefix)
             
         for i in range(self.config.n_folds):
-            if load_checkpoint:
-                model_i = self._load_model_instance(f"{path}_{i}.pt")
+            if self.config.load_checkpoint:
+                model_i = self._load_model_instance(f"{self.config.model_prefix}_{i}.pt")
                 self.models.append(model_i)
             else:
                 self.models.append(None)
 
-        self.load_checkpoint = load_checkpoint
-
     def _load_model_instance(self, model_file):
-        if self.model_type == 'LightGBM':
+        if self.config.model_type == 'LightGBM':
             return SuperphotLightGBM.load(model_file)
-        elif self.model_type == 'MLP':
+        elif self.config.model_type == 'MLP':
             return SuperphotMLP.load(model_file)
         else:
             raise ValueError
     
-    def _create_model_instance(self, config=None):
-        if config is None:
-            config = self.config
-        if config.model_type == 'LightGBM':
-            return SuperphotLightGBM(config)
-        elif config.model_type == 'MLP':
-            return SuperphotMLP.create(config)
+    def _create_model_instance(self):
+        if self.config.model_type == 'LightGBM':
+            return SuperphotLightGBM(self.config)
+        elif self.config.model_type == 'MLP':
+            return SuperphotMLP.create(self.config)
         else:
             raise ValueError
     
@@ -76,7 +70,6 @@ class SuperphotTrainer(TrainerBase):
         self,
         transient_data: Optional[TransientGroup] = None,
         sampler_results: Optional[SamplerResultGroup] = None,
-        load_checkpoint=False
     ):
         """Runs the machine learning workflow.
 
@@ -96,7 +89,7 @@ class SuperphotTrainer(TrainerBase):
             If true, load pretrained model checkpoint.
         """
         # Loads model and config
-        self.setup_model(load_checkpoint)
+        self.setup_model()
         
         if sampler_results is None:
             sampler_results = SamplerResultGroup.load(self.config.sampler_results_fn)
@@ -104,9 +97,9 @@ class SuperphotTrainer(TrainerBase):
             transient_data = TransientGroup.load(self.config.transient_data_fn)
         
         if self.config.n_folds <= 1:
-            k_folded_data = [self.split_train_test(transient_group, srg),]
+            k_folded_data = [self.split_train_test(transient_data, sampler_results),]
         else:
-            k_folded_data = self.k_fold_split_train_test(transient_group, srg)
+            k_folded_data = self.k_fold_split_train_test(transient_data, sampler_results)
             
         concat_df = None
         
@@ -123,7 +116,10 @@ class SuperphotTrainer(TrainerBase):
                 concat_df = pd.concat([concat_df, probs_df], axis=0)
             
         concat_df.to_csv(self.config.probs_fn)
-    
+        
+        if self.config.plot: # Plot joint confusion matrix
+            plot_matrices(self.config, concat_df)
+            
     def return_new_classifications(
         self,
         transient_group: TransientGroup,
@@ -171,15 +167,21 @@ class SuperphotTrainer(TrainerBase):
         train_data : PosteriorSamplesGroup
             Contains the ZTF object names, classes and redshifts for training.
         """
-        train_df = self.retrieve_sampler_results(self, train_data[1], train_data[0], balance_classes=True)
-        val_df = self.retrieve_sampler_results(self, val_data[1], val_data[0], balance_classes=True)
+        train_df = self.retrieve_sampler_results(train_data[1], train_data[0], balance_classes=True)
+        val_df = self.retrieve_sampler_results(val_data[1], val_data[0], balance_classes=True)
+                
+        if self.config.input_features is None:
+            input_features = train_df.columns[~train_df.columns.isin(['label', 'score', 'sampler'])]
+            
+        if self.config.use_redshift_features:
+            input_features = np.append(input_features, ['redshift', 'abs_mag'])
         
         # extract features
-        train_features = train_df[self.config.input_features]
-        val_features = val_df[self.config.input_features]
-
-        if not self.load_checkpoint:
-            self.models[i] = self._create_model_instance(self.config)
+        train_features = train_df.loc[:, input_features]
+        val_features = val_df.loc[:, input_features]
+        
+        if not self.config.load_checkpoint:
+            self.models[i] = self._create_model_instance()
 
         # Train and validate multi-layer perceptron
         metrics = self.models[i].train_and_validate(
@@ -190,20 +192,14 @@ class SuperphotTrainer(TrainerBase):
         )
 
         # Save model checkpoint
-        prefix = os.path.join(self.config.models_dir, self.config.prefix)
-        self.models[i].save(prefix, suffix=i)
-        
-        run_id = f"final_{i}"
+        self.models[i].save(self.config.model_prefix + f"_{i}")
+                
         if self.config.plot:
             # Plot training and validation metrics
-            plot_model_metrics(
-                metrics=metrics,
-                plot_name=run_id,
-                metrics_dir=self.config.metrics_dir,
-            )
-
-        if self.config.logging:
-            log_metrics_to_tensorboard(metrics=[metrics], config=self.config, trial_id=run_id)
+            fig, ax = plt.subplots(1, 2, figsize=(12,6))
+            metrics.plot(ax=ax)
+            fig.savefig(self.config.metrics_prefix + f"_{i}.pdf")
+            plt.close()
 
         
     def evaluate(self, k_fold, test_data):
@@ -227,29 +223,39 @@ class SuperphotTrainer(TrainerBase):
         model = self.models[k_fold]
         if model is None:
             raise ValueError("Cannot evaluate uninitialized model.")
+            
+        test_df = self.retrieve_sampler_results(test_data[1], test_data[0])
 
-        test_df = self.retrieve_sampler_results(self, test_data[1], test_data[0])
-        probs_avg = model.evaluate(test_data=test_df[self.config.input_features])
+        if self.config.input_features is None:
+            input_features = test_df.columns[~test_df.columns.isin(['label', 'score', 'sampler'])]
+        
+        if self.config.use_redshift_features:
+            input_features = np.append(input_features, ['redshift', 'abs_mag'])
+            
+        probs_avg = model.evaluate(test_df[input_features])
         
         if self.config.target_label is None:
-            probs_avg['pred_class'] = SnClass.get_labels_from_classes(probs_avg.idxmax(axis=1))
+            probs_avg.columns = self.config.allowed_types
+            probs_avg['pred_class'] = probs_avg.idxmax(axis=1)
         else:
             pred_target = probs_avg.iloc[:,1] > self.prob_threshhold
             probs_avg['pred_class'] = 1 - pred_target.astype(int)
             #TODO: check this
             
-        probs_avg['true_class'] = SnClass.get_labels_from_classes(test_df['label'])
-        probs_avg['fold'] = i
+        probs_avg['true_class'] = SnClass.get_labels_from_classes(
+            test_df['label'].groupby(test_df.index).first()
+        )
+        probs_avg['fold'] = k_fold
         
+        """
         if self.config.logging:
             # Log evaluation metrics
             write_metrics_to_file(
-                config=self.config,
-                probs_avg
+                self.config, probs_avg
             )
+        """
         if self.config.plot:
             plot_matrices(
-                config=self.config,
-                probs_avg
-            )        
+                self.config, probs_avg
+            )
         return probs_avg

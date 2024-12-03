@@ -1,6 +1,8 @@
 from dataclasses import dataclass, field
 from typing import List
 
+import numpy as np
+from snapi import Formatter
 
 @dataclass
 class ModelMetrics:
@@ -68,53 +70,44 @@ class ModelMetrics:
     def plot(self, ax, formatter=Formatter()):
         """Plots training and validation results.
         """
+        ax1, ax2 = ax
         num_epochs = len(self.train_acc)
-        
-        try:
-            ax1, ax2 = ax
-        else:
-            ax2 = ax.twinx()
-            ax1 = ax
-        
+
         # Plot accuracy
         ax1.plot(
             np.arange(0, num_epochs),
             self.train_acc,
             label="Training",
             color=formatter.edge_color,
-            linestyle=formatter.line_style
         )
         ax2.plot(
             np.arange(0, num_epochs),
             self.train_loss,
             label="Training",
             color=formatter.edge_color,
-            linestyle=formatter.line_style
         )
         formatter.rotate_colors()
         formatter.rotate_markers()
         
-        ax.plot(
+        ax1.plot(
             np.arange(0, num_epochs),
             self.val_acc,
             label="Validation",
             color=formatter.edge_color,
-            linestyle=formatter.line_style
         )
         ax2.plot(
             np.arange(0, num_epochs),
             self.val_loss,
             label="Validation",
             color=formatter.edge_color,
-            linestyle=formatter.line_style
         )
         formatter.reset_colors()
         formatter.reset_markers()
         
         ax1.set_xlabel("Epoch")
         ax1.set_ylabel("Accuracy")
-        ax2.xlabel("Epoch")
-        ax2.ylabel("Loss")
+        ax2.set_xlabel("Epoch")
+        ax2.set_ylabel("Loss")
         ax2.set_yscale("log")
-        
+                
         return (ax1, ax2)

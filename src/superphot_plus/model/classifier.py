@@ -1,15 +1,13 @@
 import pickle
 
 import numpy as np
+import pandas as pd
 import lightgbm
 from torch.utils.data import DataLoader
 
-from superphot_plus.config import SuperphotConfig
-from superphot_plus.model.metrics import ModelMetrics
-from superphot_plus.utils import (
-    save_test_probabilities,
-    normalize_features
-)
+from ..constants import EPOCHS
+from ..config import SuperphotConfig
+from .metrics import ModelMetrics
 
 class SuperphotClassifier:
     """Base classifier model.
@@ -27,9 +25,9 @@ class SuperphotClassifier:
         # Model state dictionary
         self.best_model = None
         self.best_val_loss = np.inf
-        self.target_label = self.config.target_label
-        self.prob_threshhold = self.config.prob_threshhold
-        self.probs_fn = self.config.probs_fn
+        self.target_label = config.target_label
+        self.prob_threshhold = config.prob_threshhold
+        self.probs_fn = config.probs_fn
         self.normalization_means = None
         self.normalization_stddevs = None
     
@@ -48,6 +46,7 @@ class SuperphotClassifier:
         self,
         train_data,
         val_data,
+        num_epochs=EPOCHS,
         rng_seed=None,
         **kwargs,
     ):
@@ -92,7 +91,10 @@ class SuperphotClassifier:
         if not normalized:
             test_features = self.normalize(test_features)
             
-        probabilities = self.best_model.predict_proba(test_features)
+        probabilities = pd.DataFrame(
+            self.best_model.predict_proba(test_features),
+            index=test_features.index
+        )
         probs_avg = probabilities.groupby(test_features.index).mean()
         
         return probs_avg
@@ -101,7 +103,7 @@ class SuperphotClassifier:
         """Sets the best validation loss from training."""
         self.best_val_loss = best_val_loss
             
-    def save(self, config_prefix, suffix=''):
+    def save(self, config_prefix):
         """Save the classifier as file.
 
         Parameters
@@ -109,7 +111,7 @@ class SuperphotClassifier:
         models_dir : str
             Directory to write to
         """
-        with open(f"{config_prefix}_{suffix}.pt", 'wb') as f:
+        with open(f"{config_prefix}.pt", 'wb') as f:
             pickle.dump(self, f)
         
     @classmethod

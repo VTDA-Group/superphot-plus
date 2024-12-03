@@ -9,16 +9,15 @@ import torch.nn.functional as F
 from torch import nn, optim
 from torch.utils.data import DataLoader, TensorDataset
 
-from superphot_plus.constants import EPOCHS, HIDDEN_DROPOUT_FRAC, INPUT_DROPOUT_FRAC
-from superphot_plus.config import SuperphotConfig
-from superphot_plus.model.metrics import ModelMetrics
-from superphot_plus.utils import (
+from ..constants import EPOCHS, HIDDEN_DROPOUT_FRAC, INPUT_DROPOUT_FRAC
+from ..config import SuperphotConfig
+from ..utils import (
     create_dataset,
     epoch_time,
-    save_test_probabilities,
     calculate_accuracy,
-    normalize_features
 )
+from .metrics import ModelMetrics
+from .classifier import SuperphotClassifier
 
 
 class SuperphotMLP(SuperphotClassifier, nn.Module):
@@ -101,6 +100,7 @@ class SuperphotMLP(SuperphotClassifier, nn.Module):
         val_data,
         num_epochs=EPOCHS,
         rng_seed=None,
+        **kwargs
     ):
         """
         Run the MLP initialization and training.
@@ -255,7 +255,7 @@ class SuperphotMLP(SuperphotClassifier, nn.Module):
 
         return epoch_loss / len(iterator), epoch_acc / len(iterator)
 
-    def evaluate(self, test_features, test_classes, normalized=False):
+    def evaluate(self, test_features, normalized=False):
         """Runs model over a group of test samples.
 
         Parameters
@@ -273,7 +273,7 @@ class SuperphotMLP(SuperphotClassifier, nn.Module):
         if not normalized:
             test_features = self.normalize(test_features)
             
-        test_dataset = create_dataset(test_features, test_classes)
+        test_dataset = create_dataset(test_features, np.zeros(len(test_features)))
         test_iterator = DataLoader(dataset=test_dataset, batch_size=self.batch_size, shuffle=False)
 
         probs = self.get_predictions(test_iterator)
@@ -300,7 +300,7 @@ class SuperphotMLP(SuperphotClassifier, nn.Module):
         probs = []
 
         with torch.no_grad():
-            for x, y in iterator:
+            for x, _ in iterator:
                 x = x.to(self.device)
                 y_pred, _ = self(x)
                 y_prob = F.softmax(y_pred, dim=-1)
