@@ -35,7 +35,7 @@ class TrainerBase:
             label_name = 'canonical_class'
         
         if self.config.use_redshift_features:
-            transient_group.add_col('abs_mag', lambda x: x.photometry.absolute.peak['mag'])
+            transient_group.add_col('abs_mag', lambda x: x.photometry.absolute(x.redshift).detections['mag'].dropna().min())
             metadata = transient_group.metadata.loc[:,['abs_mag','redshift',label_name]]
         else:
             metadata = transient_group.metadata.loc[:,[label_name,]]

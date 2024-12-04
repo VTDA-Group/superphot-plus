@@ -172,9 +172,6 @@ class SuperphotTrainer(TrainerBase):
                 
         if self.config.input_features is None:
             input_features = train_df.columns[~train_df.columns.isin(['label', 'score', 'sampler'])]
-            
-        if self.config.use_redshift_features:
-            input_features = np.append(input_features, ['redshift', 'abs_mag'])
         
         # extract features
         train_features = train_df.loc[:, input_features]
@@ -228,9 +225,6 @@ class SuperphotTrainer(TrainerBase):
 
         if self.config.input_features is None:
             input_features = test_df.columns[~test_df.columns.isin(['label', 'score', 'sampler'])]
-        
-        if self.config.use_redshift_features:
-            input_features = np.append(input_features, ['redshift', 'abs_mag'])
             
         probs_avg = model.evaluate(test_df[input_features])
         
@@ -253,9 +247,9 @@ class SuperphotTrainer(TrainerBase):
             write_metrics_to_file(
                 self.config, probs_avg
             )
-        """
         if self.config.plot:
             plot_matrices(
                 self.config, probs_avg
             )
+        """
         return probs_avg

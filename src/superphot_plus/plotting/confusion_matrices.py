@@ -2,16 +2,13 @@
 light curve data."""
 
 import os
-import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
 
 from sklearn.metrics import confusion_matrix
 from sklearn.utils.multiclass import unique_labels
 
-from superphot_plus.supernova_class import SupernovaClass as SnClass
 from superphot_plus.utils import calc_accuracy, f1_score
-from superphot_plus.constants import BIGGER_SIZE, MEDIUM_SIZE, SMALL_SIZE
 
 
 def plot_confusion_matrix(ax, probs_df, purity=False, cmap="Purples"):
@@ -31,8 +28,8 @@ def plot_confusion_matrix(ax, probs_df, purity=False, cmap="Purples"):
     cmap : matplotlib.colors.Colormap, optional
         Color map for the plot. Default is plt.cm.Purples.
     """
-    true_classes = probs_df['true_class'].to_numpy()
-    pred_classes = probs_df['pred_class'].to_numpy()
+    y_true = probs_df['true_class'].to_numpy()
+    y_pred = probs_df['pred_class'].to_numpy()
     folds = probs_df.get('fold', default=None)
     
     if (folds is None) or (len(np.unique(folds)) == 1): # all the same K-fold
@@ -40,14 +37,14 @@ def plot_confusion_matrix(ax, probs_df, purity=False, cmap="Purples"):
         f1_avg = f1_score(y_pred, y_true, class_average=True)
         
         if purity:
-            title = rf"Purity\n$N = {len(y_pred)}, A = {acc:.2f}, F_1 = {f1_avg:.2f}$"
+            title = "Purity\n"+rf"$N = {len(y_pred)}, A = {acc:.2f}, F_1 = {f1_avg:.2f}$"
             cm_vals = confusion_matrix(y_true, y_pred, normalize="pred")
         else:
-            title = rf"Completeness\n$N = {len(y_pred)}, A = {acc:.2f}, F_1 = {f1_avg:.2f}$"
+            title = "Completeness\n"+rf"$N = {len(y_pred)}, A = {acc:.2f}, F_1 = {f1_avg:.2f}$"
             cm_vals = confusion_matrix(y_true, y_pred, normalize="true")
             
     else:
-        folds = np.array(folds)
+        folds = folds.to_numpy()
         accs = []
         f1s = []
         cm_vals_all = []
@@ -85,16 +82,15 @@ def plot_confusion_matrix(ax, probs_df, purity=False, cmap="Purples"):
         
         # plt.rcParams["figure.figsize"] = (16, 16)
         if purity:
-            title = f"Purity\n$N = {len(y_pred)}, "
+            title = "Purity\n" +rf"$N = {len(y_pred)}, "
         else:
-            title = f"Completeness\n$N = {len(y_pred)}, "
+            title = "Completeness\n" + rf"$N = {len(y_pred)}, "
             
-        title += f"A = {acc:.2f}^{{+{acc_high:.2f}}}_{{-{acc_low:.2f}}}, "
-        title += f"F_1 = {f1_avg:.2f}^{{+{f1_high:.2f}}}_{{-{f1_low:.2f}}}$"
+        title += rf"A = {acc:.2f}^{{+{acc_high:.2f}}}_{{-{acc_low:.2f}}}, "
+        title += rf"F_1 = {f1_avg:.2f}^{{+{f1_high:.2f}}}_{{-{f1_low:.2f}}}$"
 
     classes = unique_labels(y_true, y_pred)
 
-    N_class = len(np.unique(y_true))
     _ = ax.imshow(cm_vals, interpolation="nearest", vmin=0.0, vmax=1.0, cmap=cmap)
 
     ax.set(
@@ -119,11 +115,11 @@ def plot_confusion_matrix(ax, probs_df, purity=False, cmap="Purples"):
             class_i = classes[i]
             class_j = classes[j]
             num_in_cell = len(y_pred[(y_pred == class_j) & (y_true == class_i)])
-            if folds is None:
+            if (folds is None) or (len(np.unique(folds)) == 1):
                 ax.text(
                     j,
                     i,
-                    f"${cm_vals[i, j]:.2f}\n({num_in_cell})$",
+                    rf"${cm_vals[i, j]:.2f}$"+ "\n" + rf"$({num_in_cell})$",
                     ha="center",
                     va="center",
                     color="white" if cm_vals[i, j] > thresh else "black",
@@ -132,7 +128,7 @@ def plot_confusion_matrix(ax, probs_df, purity=False, cmap="Purples"):
                 ax.text(
                     j,
                     i,
-                    f"${cm_vals[i, j]:.2f}^{{+{cm_high[i, j]:.2f}}}_{{-{cm_low[i, j]:.2f}}}$" + f"\n({num_in_cell})",
+                    rf"${cm_vals[i, j]:.2f}^{{+{cm_high[i, j]:.2f}}}_{{-{cm_low[i, j]:.2f}}}$" + "\n" + rf"$({num_in_cell})$",
                     ha="center",
                     va="center",
                     color="white" if cm_vals[i, j] > thresh else "black",
@@ -167,18 +163,18 @@ def plot_matrices(
     
     folds = probs_df.get('fold', None)
     if (folds is not None) and (len(np.unique(folds)) == 1):
-        cm_prefix += f"_{folds[0]}"
+        cm_prefix += f"_{folds.iloc[0]}"
         
     prefix = os.path.join(cm_folder, cm_prefix)
 
     fig, ax = plt.subplots(figsize=(7, 7))
-    ax = plot_confusion_matrix(ax, probs_df, purity=True)
+    ax = plot_confusion_matrix(ax, probs_df, purity=False)
     fig.tight_layout()
     fig.savefig(prefix + "_completeness.pdf", bbox_inches='tight')
     plt.close()
 
     fig, ax = plt.subplots(figsize=(7, 7))
-    ax = plot_confusion_matrix(ax, probs_df, purity=False)
+    ax = plot_confusion_matrix(ax, probs_df, purity=True)
     fig.tight_layout()
     fig.savefig(prefix+"_purity.pdf", bbox_inches='tight')
     plt.close()

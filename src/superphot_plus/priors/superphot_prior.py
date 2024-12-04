@@ -253,7 +253,6 @@ class SuperphotPrior(SamplerPrior):
         
         # un-relative samples
         samples_shuffled.iloc[:,self._relative_mask] = samples_shuffled.iloc[:,self._relative_mask].sub(
-            samples_shuffled.iloc[:,self._relative_idxs]
+            samples_shuffled.iloc[:,self._relative_idxs].to_numpy()
         )
-        
         return samples_shuffled

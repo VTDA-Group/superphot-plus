@@ -8,12 +8,7 @@ import numpyro
 import numpyro.distributions as dist
 import pandas as pd
 import jax.numpy as jnp
-from jax import random, lax, jit, value_and_grad, grad
-from jax.core import concrete_or_error
-from jax._src import config
-import traceback
-import pickle
-from numpyro.distributions import constraints
+from jax import random, lax, jit
 from numpyro.infer import MCMC, NUTS, SVI, Trace_ELBO
 from numpyro.infer.initialization import init_to_uniform
 from snapi.analysis import SamplerPrior, SamplerResult
@@ -34,28 +29,7 @@ def lax_helper_function(svi, svi_state, num_iters, *args, **kwargs):
     """Helper function using LAX to speed up SVI state updates."""
     @jit
     def update_svi(s, i):
-        return svi.update(s, *args, **kwargs)
-
-        """
-        # Extract parameters
-        params = svi.get_params(s)
-
-        # Define a function to compute the ELBO manually
-        def elbo_fn(param_dict):
-            return -svi.loss(rng_key=s.rng_key, param_map=param_dict, model=svi.model, guide=svi.guide, *args, **kwargs)
-        
-        # Compute the gradient of the ELBO with respect to params
-        grad_fn = value_and_grad(elbo_fn)
-        elbo, gradients = grad_fn(params)
-        
-        
-        # Print ELBO and gradients at certain intervals
-        print(f"Step {i}, ELBO: {elbo}")
-        print("Gradients:", gradients)
-            
-        return svi.update(s, *args, **kwargs)
-        """
-
+        return svi.stable_update(s, *args, **kwargs)
         
     u, losses = lax.scan(update_svi, svi_state, jnp.arange(num_iters), length=num_iters)
     return u, losses
@@ -93,11 +67,11 @@ class NumpyroSampler(SuperphotSampler):
         # convert cube to (num_params x len(t))
         new_cube = cube[parameter_map]
         
-        constraint = villar_fit_constraint(new_cube) # FIX THIS
+        constraint = villar_fit_constraint(new_cube)
         
         numpyro.factor(
             "vf_constraint",
-            -1000. * constraint
+            -1000. * jnp.max(constraint)
         )
 
         (

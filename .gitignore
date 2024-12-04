@@ -3,6 +3,7 @@ models/
 fits/
 probabilities/
 figs/
+docs/notebooks/skipped_names.txt
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

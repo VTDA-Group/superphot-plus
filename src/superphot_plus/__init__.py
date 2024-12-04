@@ -4,7 +4,6 @@ from .priors import generate_priors
 from .samplers import DynestySampler, SVISampler, NUTSSampler
 from .trainer import SuperphotTrainer
 from .config import SuperphotConfig
-from .tuner import SuperphotTuner
 
 __all__ = [
     "DynestySampler",
@@ -16,7 +15,6 @@ __all__ = [
     "SuperphotLightGBM",
     "SuperphotMLP",
     "SuperphotTrainer",
-    "SuperphotTuner",
     "SVISampler",
 ]
 

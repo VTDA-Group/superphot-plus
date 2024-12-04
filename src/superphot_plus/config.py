@@ -3,6 +3,7 @@ import os
 from dataclasses import dataclass, field
 from typing import List, Optional
 
+import numpy as np
 import torch
 import yaml
 from typing_extensions import Self
@@ -89,10 +90,10 @@ class SuperphotConfig:
             self.log_fn = os.path.join(self.data_dir, self.log_fn)
             self.probs_dir = os.path.join(self.data_dir, self.probs_dir)
             
-        self.model_prefix = os.path.join(self.models_dir, f"model_{self.__str__}")
-        self.metrics_prefix = os.path.join(self.metrics_dir, f"metrics_{self.__str__}")
-        self.cm_prefix = os.path.join(self.cm_dir, f"cm_{self.__str__}")
-        self.probs_fn = os.path.join(self.probs_dir, f"probs_{self.__str__}.csv")
+        self.model_prefix = os.path.join(self.models_dir, f"model_{self.__str__()}")
+        self.metrics_prefix = os.path.join(self.metrics_dir, f"metrics_{self.__str__()}")
+        self.cm_prefix = os.path.join(self.cm_dir, f"cm_{self.__str__()}")
+        self.probs_fn = os.path.join(self.probs_dir, f"probs_{self.__str__()}.csv")
     
         if self.create_dirs:
             for x_dir in [
@@ -103,6 +104,9 @@ class SuperphotConfig:
                 
         if self.allowed_types is None:
             self.allowed_types = SnClass.all_classes()
+
+        allowed_classes = SnClass.get_classes_from_labels(self.allowed_types)
+        self.allowed_types = np.array(self.allowed_types)[np.argsort(allowed_classes)]
 
         if self.n_folds < 1:
             raise ValueError("Number of K-folds must be positive")

@@ -110,7 +110,7 @@ def import_all_names(
     pool = multiprocessing.Pool(n_cores)
     
     # make file for skipped names
-    skipped_names_fn = os.path.join(save_dir, "skipped_names.txt")
+    skipped_names_fn ="skipped_names.txt"
     skipped_names = []
     if (not overwrite) and (os.path.exists(skipped_names_fn)):
         with open(skipped_names_fn, "r") as f:
