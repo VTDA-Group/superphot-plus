@@ -1,0 +1,8 @@
+param,min,max,mean,stddev,logged,relative_op
+A,-1.0,1.0,-0.0766,0.3,True,*
+beta,-0.01,0.03,0.0,0.01,False,+
+gamma,-1.5,1.5,-0.0452,0.45,True,*
+t_0,-50.0,30.0,-3.4065,12,False,+
+tau_rise,-1.5,1.5,-0.1510,0.6,True,*
+tau_fall,-1.5,1.5,-0.1486,0.75,True,*
+extra_sigma,-1.5,1.0,-0.1509,0.75,True,*

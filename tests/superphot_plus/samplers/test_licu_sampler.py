@@ -1,25 +1,24 @@
 import numpy as np
-from numpy.testing import assert_allclose
 
 from superphot_plus.samplers.licu_sampler import LiCuSampler
 
-
 def test_licu_single_file(
-    single_ztf_lightcurve_object,
-    single_ztf_lightcurve_fit,
-    ztf_priors
+    test_ztf_photometry,
+    ztf_priors,
+    test_sampler_result
 ):
     """Just test that we generated a new file with fits"""
-    sampler = LiCuSampler(algorithm="mcmc-ceres", mcmc_niter=1000)
-    posterior_samples = sampler.run_single_curve(
-        single_ztf_lightcurve_object, priors=ztf_priors, rstate=np.random.default_rng(9876)
+    sampler = LiCuSampler(
+        priors=ztf_priors, random_state=np.random.default_rng(9876),
+        mcmc_niter=1000, algorithm='mcmc-ceres'
     )
+    sampler.fit_photometry(test_ztf_photometry)
+    sample_mean = np.mean(sampler.result.fit_parameters, axis=0)
+    assert sampler.result.fit_parameters.shape == (1, 14)
 
-    sample_mean = posterior_samples.sample_mean()
-    assert len(sample_mean) == 15
-
-    # Kinda of a diff test
-    expected = single_ztf_lightcurve_fit
-    assert len(expected) == len(sample_mean)
-    #assert_allclose(sample_mean, expected, rtol=1e-5)
-    assert posterior_samples.samples.shape == (1, 15)
+    # Check that the same means the same order of magnitude (within 50% relative value).
+    # Despite setting the the random seed, we still need to account (so far) unexplained
+    # additional variations.
+    expected_mean = np.mean(test_sampler_result.fit_parameters, axis=0)
+    assert len(expected_mean) == len(sample_mean)
+    assert np.all(np.isclose(sample_mean, expected_mean, rtol=0.5, atol=0.2))

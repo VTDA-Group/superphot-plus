@@ -4,11 +4,11 @@ import numpy as np
 import pandas as pd
 import pytest
 from jax import random
+from snapi import Transient
+from snapi.analysis import SamplerResult
 
-from superphot_plus.lightcurve import Lightcurve
 from superphot_plus.model.mlp import SuperphotMLP
 from superphot_plus.trainer import SuperphotTrainer
-#from superphot_plus.model.lightgbm import SuperphotLightGBM
 
 from superphot_plus.surveys.surveys import Survey
 
@@ -28,50 +28,30 @@ def test_data_dir():
 def training_csv(test_data_dir):
     return os.path.join(test_data_dir, "training_set.csv")
 
-
-@pytest.fixture
-def single_ztf_lightcurve(test_data_dir):
-    return os.path.join(test_data_dir, "ZTF22abvdwik.csv")
-
-
-@pytest.fixture
-def single_ztf_lightcurve_compressed(test_data_dir):
-    return os.path.join(test_data_dir, "ZTF22abvdwik.npz")
-
-
-@pytest.fixture
-def single_ztf_lightcurve_object(single_ztf_lightcurve_compressed):
-    return Lightcurve.from_file(single_ztf_lightcurve_compressed)
-
-
-@pytest.fixture
-def single_ztf_eqwt_compressed(test_data_dir):
-    return os.path.join(test_data_dir, "ZTF22abvdwik_eqwt.npz")
-
-
 @pytest.fixture
 def single_ztf_sn_id():
     return "ZTF22abvdwik"
 
 @pytest.fixture
-def single_ztf_lightcurve_fit():
-    return [
-        0.10701995,
-        0.00953622,
-        1.23953683,
-        -5.10189513,
-        0.50944826,
-        1.32378597,
-        -1.7695045,
-        -0.03006368,
-        -0.25154109,
-        0.02070548,
-        -1.65427578,
-        -0.08849417,
-        -0.16305463,
-        -0.19222715,
-        0.49539004
-    ]
+def test_ztf_transient(test_data_dir):
+    return Transient.load(
+        os.path.join(test_data_dir, "2022abfi.h5")
+    )
+
+@pytest.fixture
+def test_ztf_photometry(test_ztf_transient):
+    return test_ztf_transient.photometry
+
+@pytest.fixture
+def ztf_priors():
+    return Survey.ZTF().priors
+
+@pytest.fixture
+def test_sampler_result(test_data_dir):
+    return SamplerResult.load(
+       load_prefix="2022abfi_result",
+       load_folder=test_data_dir
+    )
 
 @pytest.fixture
 def jax_key():
@@ -86,11 +66,6 @@ def class_probs_csv(test_data_dir):
 @pytest.fixture
 def class_probs_snr_csv(test_data_dir):
     return os.path.join(test_data_dir, "probs_snr.csv")
-
-
-@pytest.fixture
-def ztf_priors():
-    return Survey.ZTF().priors
 
 
 @pytest.fixture

@@ -3,6 +3,8 @@ data from the Alerce API."""
 
 import csv
 import os
+import ast
+
 import pandas as pd
 
 from alerce.core import Alerce
@@ -30,7 +32,9 @@ def add_stamp_column(input_filename, output_filename):  # pragma: no cover
     names = input_df.NAME.to_numpy()
     stamp = []
     
-    for name in names:
+    for i,name in enumerate(names):
+        if i % 100 == 0:
+            print(i)
         try:
             p = alerce.query_probabilities(oid=name, format="pandas")
 
@@ -46,7 +50,7 @@ def add_stamp_column(input_filename, output_filename):  # pragma: no cover
     input_df.to_csv(output_filename, index=False)
 
 
-def get_all_unclassified_samples(save_csv):  # pragma: no cover
+def get_all_unclassified_samples(save_csv, start_i=0):  # pragma: no cover
     """Get all unclassified samples and save them to a CSV file.
 
     Parameters
@@ -58,8 +62,8 @@ def get_all_unclassified_samples(save_csv):  # pragma: no cover
 
     classifiers = alerce.query_classifiers()
     print(classifiers)
-    i = 0
     repeat_names = set()
+    i = start_i
     
     if os.path.exists(save_csv):
         with open(save_csv, "r", encoding="utf-8") as sc:
@@ -78,12 +82,13 @@ def get_all_unclassified_samples(save_csv):  # pragma: no cover
                     #classifier_version="hierarchical_random_forest_1.0.0",
                     class_name="Transient",
                     format="pandas",
-                    page_size=2000,
+                    page_size=1000,
                     probability=0.5,
                     page=i,
                 )
                 break
             except:
+                print("trying again")
                 pass
 
         if len(objs) == 0:  # finished
@@ -112,50 +117,3 @@ def get_all_unclassified_samples(save_csv):  # pragma: no cover
                     print("skipped")
                     continue
         i += 1
-
-
-def generate_flux_files(master_csv, save_folder):  # pragma: no cover
-    """Generates flux files for all ZTF samples in the master CSV file,
-    using ALeRCE's API.
-
-    Parameters
-    ----------
-    master_csv : str
-        Path to the master CSV file.
-    save_folder : str
-        Path to the folder where the flux files will be saved.
-    """
-    global alerce
-    os.makedirs(save_folder, exist_ok=True)
-    df = pd.read_csv(master_csv)
-    names = df.NAME
-    for ztf_name in names:
-        try:
-            if os.path.exists(os.path.join(save_folder, ztf_name + ".csv")):
-                continue
-            # print(ztf_name)
-            # Getting detections for an object
-            detections = alerce.query_detections(ztf_name, format="pandas")
-            detections.to_csv(os.path.join(save_folder, ztf_name + ".csv"), index=False)
-        except:
-            continue
-
-
-def generate_single_flux_file(ztf_name, save_folder):
-    """Generates a flux file for a single ZTF sample in the master CSV
-    file, using ALeRCE's API.
-
-    Parameters
-    ----------
-    ztf_name : str
-        Name of the ZTF sample.
-    save_folder : str
-        Path to the folder where the flux file will be saved.
-    """
-    global alerce
-    os.makedirs(save_folder, exist_ok=True)
-
-    # Getting detections for an object
-    detections = alerce.query_detections(ztf_name, format="pandas")
-    print(os.path.join(save_folder, ztf_name + ".csv"))
-    detections.to_csv(os.path.join(save_folder, ztf_name + ".csv"), index=False)

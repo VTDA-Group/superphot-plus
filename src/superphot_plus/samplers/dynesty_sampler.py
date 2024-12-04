@@ -1,138 +1,75 @@
 """MCMC sampling using dynesty."""
 
-from typing import List
+from typing import List, Optional
+from functools import partial
 
 import numpy as np
 from dynesty import NestedSampler
-from scipy.stats import truncnorm
+from snapi.analysis import SamplerResult, SamplerPrior
+import pandas as pd
 
 from superphot_plus.constants import DLOGZ, MAX_ITER, NLIVE
-from superphot_plus.lightcurve import Lightcurve
-from superphot_plus.posterior_samples import PosteriorSamples
-from superphot_plus.samplers.sampler import Sampler
-from superphot_plus.surveys.fitting_priors import MultibandPriors
-from superphot_plus.surveys.surveys import Survey
-from superphot_plus.utils import flux_model, params_valid, calculate_chi_squareds
+from superphot_plus.utils import flux_model, params_valid
+from superphot_plus.samplers.superphot_sampler import SuperphotSampler
 
 
-class DynestySampler(Sampler):
+class DynestySampler(SuperphotSampler):
     """ "MCMC sampling using dynesty."""
 
-    def __init__(self):
-        pass
-
-    def run_single_curve(
-        self, lightcurve: Lightcurve, priors: MultibandPriors, rstate=None, **kwargs
-    ) -> PosteriorSamples:
-        """Perform model fitting using dynesty on a single light curve.
-
-        This function runs the dynesty importance nested sampling algorithm
-        on a single light curve.
-
-        Parameters
-        ----------
-        lightcurve : Lightcurve object
-            The light curve of interest.
-        rstate : int, optional
-            Random state that is seeded. if none, use machine entropy.
-        plot : bool, optional
-            Flag to enable/disable plotting. Defaults to False.
-        rstate : int, optional
-            Random state that is seeded. if none, use machine entropy.
-
-        Returns
-        -------
-        samples: PosteriorSamples
-            Return the MCMC samples or None if the fitting is
-            skipped or encounters an error.
-        """
-        return run_mcmc(lightcurve, priors=priors, rstate=rstate)
-
-    def run_multi_curve(self, lightcurves, priors, rstate=None, **kwargs) -> List[PosteriorSamples]:
-        """Not yet implemented."""
-        ps_set = []
-        for i, lightcurve in enumerate(lightcurves):
-            
-            if i % 20 == 0:
-                print(i)
-                
-            ps_set.append(run_mcmc(lightcurve, priors=priors, rstate=rstate))
-            
-        return ps_set
-
-
-def run_mcmc(lightcurve, priors=Survey.ZTF().priors, rstate=None):
-    """Runs dynesty importance nested sampling on a single light curve; returns set
-    of equally weighted posteriors (sets of fit parameters).
-
-    Parameters
-    ----------
-    lightcurve : Lightcurve object
-        The lightcurve of interest
-    priors : str, optional
-        Prior information. Defaults to ZTF.
-    rstate : int, optional
-        Random state that is seeded. if none, use machine entropy.
-
-    Returns
-    -------
-    PosteriorSamples or None
-        Equally weighted posteriors, or None if the data is invalid.
-    """
-    all_priors = priors.to_numpy().T
-    ref_band = priors.reference_band
-
-    n_params = len(all_priors.T)
-    unique_bands = priors.ordered_bands
-    ref_band_idx = np.argmax(unique_bands == ref_band)
-
-    # Require data in all bands
-    for band in unique_bands:
-        if lightcurve.obs_count(band) == 0:
-            return None
-
-    # Precompute the information about the maximum flux in the reference band.
-    max_flux, max_flux_loc = lightcurve.find_max_flux(band=ref_band)
-
-    start_idx = 7 * ref_band_idx
-
-    # Create copies of the prior vectors with the value for t0 overwritten for the
-    # current lightcurve.
-    prior_clip_a = np.copy(all_priors[0])
-    prior_clip_a[start_idx + 3] += max_flux_loc
-
-    prior_clip_b = np.copy(all_priors[1])
-    prior_clip_b[start_idx + 3] += max_flux_loc
-
-    prior_mean = np.copy(all_priors[2])
-    prior_mean[start_idx + 3] += max_flux_loc
-
-    prior_std = np.copy(all_priors[3])
-
-    # Precompute the vectors of trunc_gauss a and b values.
-    tg_a = (prior_clip_a - prior_mean) / prior_std
-    tg_b = (prior_clip_b - prior_mean) / prior_std
-
-    def create_prior(cube):
-        """Creates prior for pymultinest, where each side of the "cube"
-        is a value sampled between 0 and 1 representing each parameter.
+    def __init__(
+            self,
+            priors: SamplerPrior,
+            random_state: Optional[int]=None,
+            max_iter: int=MAX_ITER,
+            dlogz: float=DLOGZ,
+            bound: str='single',
+            sample_strategy: str='rwalk',
+            nlive: int=NLIVE,
+            verbose: bool=False
+        ):
+        """Initialize the DynestySampler object.
 
         Parameters
         ----------
-        cube : np.ndarray
-            Array of parameters.
-
-        Returns
-        -------
-        np.ndarray
-            Updated array of parameters.
+        priors : MultibandPriors
+            The priors for the fit.
+        random_state : int, optional
+            The random state for the fit.
+        max_iter : int, optional
+            The maximum number of iterations.
+        dlogz : float, optional
+            The dlogz value.
+        bound : str, optional
+            The bound type.
+        sample_strategy : str, optional
+            The sample strategy.
+        nlive : int, optional
+            The number of live points.
+        verbose : bool, optional
+            Whether to print progress.
         """
-        # Compute the truncated Gaussian distribution for all values at once.
-        tg_vals = truncnorm.ppf(cube, tg_a, tg_b, loc=prior_mean, scale=prior_std)
-        return tg_vals
+        super().__init__(priors)
 
+        # set all parameters
+        self._rng = np.random.default_rng(random_state)
+        if max_iter < 1:
+            raise ValueError("max_iter must be greater than 0.")
+        if dlogz <= 0:
+            raise ValueError("dlogz must be greater than 0.")
+        self._max_iter = max_iter
+        self._dlogz = dlogz
+        self._verbose = verbose
+        self._sampler_name = 'superphot_dynesty'
+        self._prior_func = partial(self._priors.sample, use_numpyro=False)
+        self._param_map = None
+        
+        self._nested_sampler = NestedSampler(
+            self._logL, self._prior_func, (self._nparams + 1) * len(self._unique_bands),
+            sample=sample_strategy, bound=bound, nlive=nlive,
+            rstate=self._rng
+        )
 
-    def create_logL(cube):
+    def _logL(self, cube):
         """Define the log-likelihood function.
 
         Is proportional to chi-squared of data's fit to generated flux
@@ -148,73 +85,77 @@ def run_mcmc(lightcurve, priors=Survey.ZTF().priors, rstate=None):
         float
             Log-likelihood value.
         """
-        beta = cube[start_idx+1]
-        gamma = 10**cube[start_idx+2]
-        tau_rise = 10**cube[start_idx+4]
-        tau_fall = 10**cube[start_idx+5]
+        if self._param_map is None:
+            return -1.0 # placeholder
         
-        if not params_valid(beta, gamma, tau_rise, tau_fall):
+        new_cube = self._reformat_cube(cube)
+
+        if not params_valid(new_cube):
             return -np.inf
         
-        
-        f_model = flux_model(cube, lightcurve.times, lightcurve.bands, max_flux, unique_bands, ref_band)
-        extra_sigma_arr = np.ones(len(lightcurve.times)) * 10**cube[7*ref_band_idx + 6] * max_flux
+        f_model = flux_model(new_cube, self._t, self._X[:,1])
+        extra_sigma_arr = new_cube[-1]
+        sigma_sq = self._err**2 + extra_sigma_arr**2
 
-        for band_idx, ordered_band in enumerate(unique_bands):
-            if ordered_band == ref_band:
-                continue
-            if cube[7 * band_idx + 6] + cube[7*ref_band_idx + 6] > -0.8:
-                return -np.inf
-            
-            beta_g = beta * 10**cube[7*band_idx+1]
-            gamma_g = gamma * 10**cube[7*band_idx+2]
-            tau_rise_g = tau_rise * 10**cube[7*band_idx+4]
-            tau_fall_g = tau_fall * 10**cube[7*band_idx+5]
-                                                  
-            if not params_valid(beta_g, gamma_g, tau_rise_g, tau_fall_g):
-                return -np.inf
-               
-            extra_sigma_arr[lightcurve.bands == ordered_band] *= 10**cube[7 * band_idx + 6]
-
-        sigma_sq = lightcurve.flux_errors**2 + extra_sigma_arr**2
         logL = np.sum(
             np.log(1.0 / np.sqrt(2.0 * np.pi * sigma_sq))
-            - 0.5 * (f_model - lightcurve.fluxes) ** 2 / sigma_sq
+            - 0.5 * (f_model - self._y) ** 2 / sigma_sq
         )
         return logL
+    
+    def reset(self):
+        """Reset the nested sampler."""
+        self._nested_sampler.loglikelihood.pool = None # post-pickling fix
+        self._nested_sampler.reset()
 
-    #while True:
-    sampler = NestedSampler(
-        create_logL, create_prior, n_params, sample="rwalk", bound="single", nlive=NLIVE, rstate=rstate
-    )
-    sampler.run_nested(maxiter=MAX_ITER, dlogz=DLOGZ, print_progress=False)
-    res = sampler.results
+    def fit(self, X, y):
+        """Runs dynesty importance nested sampling on a set of light curves; saves set
+        of equally weighted posteriors (sets of fit parameters).
 
-    #red_chisq = res.logl / len(lightcurve.times)  # pylint: disable=no-member
+        Parameters
+        ----------
+        X: np.ndarray
+            Array of light curve times, bands, and flux errors (in that order).
+        y: np.ndarray
+            Array of light curve fluxes.
 
-    samples = res.samples  # pylint: disable=no-member
-    eq_wt_samples = res.samples_equal(rstate=rstate)
+        Returns
+        -------
+        SamplerResult or None
+            Stores info on equally weighted posteriors, or None if the data is invalid.
+        """
+        super().fit(X, y)
+        
+        # Require data in all bands
+        for band in self._unique_bands:
+            if band not in self._X[:, 1]:
+                return None
+            
+        self._t = self._X[:,0].astype(np.float32)
+        self._err = self._X[:,2].astype(np.float32)
+        
+        # map time steps to param values
+        self._param_map = np.zeros((self._nparams+1, len(self._X)), dtype=int)
+        for i, param in enumerate(self._base_params):
+            for b in self._unique_bands:
+                b_idxs = self._X[:,1] == b
+                self._param_map[i,b_idxs] = np.where(self._params == f'{param}_{b}')[0][0]
+        
+        self._param_map = np.array(self._param_map)
+    
+        self.reset()        
+        self._nested_sampler.run_nested(
+            maxiter=self._max_iter,
+            dlogz=self._dlogz,
+            print_progress=self._verbose
+        )
+        res = self._nested_sampler.results
+        samples_equal = res.samples_equal(rstate=self._rng)
 
-    eq_wt_red_chisq = calculate_chi_squareds(
-        eq_wt_samples,
-        lightcurve.times,
-        lightcurve.fluxes,
-        lightcurve.flux_errors,
-        lightcurve.bands,
-        max_flux,
-        ordered_bands=unique_bands,
-        ref_band=priors.reference_band,
-    )
-
-    #orig_idxs = np.array([np.argmin(np.sum((e - samples) ** 2, axis=1)) for e in eq_wt_samples])
-    #eq_wt_red_chisq = red_chisq[orig_idxs]
-
-    eq_wt_samples = np.append(eq_wt_samples, eq_wt_red_chisq[np.newaxis, :].T, 1)
-
-    return PosteriorSamples(
-        eq_wt_samples,
-        name=lightcurve.name,
-        sampling_method="dynesty",
-        sn_class=lightcurve.sn_class,
-        max_flux=max_flux
-    )
+        samples_df = pd.DataFrame(
+            samples_equal,
+            columns=self._params
+        )
+        self._is_fitted = True
+        self.result = SamplerResult(samples_df, sampler_name=self._sampler_name)
+        self.result.score = self.score(self._X, self._y)

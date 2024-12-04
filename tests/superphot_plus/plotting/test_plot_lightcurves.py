@@ -3,7 +3,6 @@ import os
 import numpy as np
 import pytest
 
-from superphot_plus.file_utils import get_posterior_samples
 from superphot_plus.plotting.lightcurves import (
     plot_lc_fit,
     plot_lightcurve_clipping,

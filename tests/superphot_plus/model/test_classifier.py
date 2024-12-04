@@ -1,4 +1,3 @@
-import csv
 import datetime
 import os
 import time
@@ -9,13 +8,18 @@ import pandas as pd
 from sklearn.model_selection import train_test_split
 
 from superphot_plus.constants import BATCH_SIZE, LEARNING_RATE, TRAINED_MODEL_PARAMS
-from superphot_plus.format_data_ztf import normalize_features
 from superphot_plus.model.mlp import SuperphotMLP
 from superphot_plus.config import SuperphotConfig
 from superphot_plus.model.data import TestData, TrainData
 from superphot_plus.plotting.classifier_results import plot_model_metrics
 from superphot_plus.supernova_class import SupernovaClass as SnClass
-from superphot_plus.utils import calculate_accuracy, create_dataset, epoch_time, log_metrics_to_tensorboard
+from superphot_plus.utils import (
+    calculate_accuracy,
+    create_dataset,
+    epoch_time,
+    log_metrics_to_tensorboard,
+    normalize_features
+)
 
 
 def test_run_trainer(tmp_path):

@@ -9,19 +9,18 @@ import torch.nn.functional as F
 from torch import nn, optim
 from torch.utils.data import DataLoader, TensorDataset
 
-from superphot_plus.constants import EPOCHS, HIDDEN_DROPOUT_FRAC, INPUT_DROPOUT_FRAC
-from superphot_plus.format_data_ztf import normalize_features
-from superphot_plus.config import SuperphotConfig
-from superphot_plus.model.metrics import ModelMetrics
-from superphot_plus.utils import (
+from ..constants import EPOCHS, HIDDEN_DROPOUT_FRAC, INPUT_DROPOUT_FRAC
+from ..config import SuperphotConfig
+from ..utils import (
     create_dataset,
     epoch_time,
-    save_test_probabilities,
     calculate_accuracy,
 )
+from .metrics import ModelMetrics
+from .classifier import SuperphotClassifier
 
 
-class SuperphotMLP(nn.Module):
+class SuperphotMLP(SuperphotClassifier, nn.Module):
     """The Multi-Layer Perceptron.
 
     Parameters
@@ -31,13 +30,14 @@ class SuperphotMLP(nn.Module):
     """
 
     def __init__(self, config: SuperphotConfig):
+        
         super().__init__()
-
-        # Initialize MLP architecture
-        self.config = config
-
+        
         n_neurons = config.neurons_per_layer
-        self.input_fc = nn.Linear(config.input_dim, n_neurons)
+        input_dim = len(config.input_features)
+        output_dim = len(config.allowed_types)
+        
+        self.input_fc = nn.Linear(input_dim, n_neurons)
 
         assert config.num_hidden_layers >= 1
 
@@ -50,11 +50,15 @@ class SuperphotMLP(nn.Module):
         for _ in range(config.num_hidden_layers):
             self.dropouts.append(nn.Dropout(HIDDEN_DROPOUT_FRAC))
 
-        self.output_fc = nn.Linear(n_neurons, config.output_dim)
+        self.output_fc = nn.Linear(n_neurons, output_dim)
 
         # Optimizer and criterion
         self.optimizer = optim.Adam(self.parameters(), lr=config.learning_rate)
         self.criterion = nn.CrossEntropyLoss()
+        
+        # training loop params
+        self.batch_size = config.batch_size
+        self.device = config.device
 
         # Model state dictionary
         self.best_model = None
@@ -93,8 +97,10 @@ class SuperphotMLP(nn.Module):
     def train_and_validate(
         self,
         train_data,
+        val_data,
         num_epochs=EPOCHS,
         rng_seed=None,
+        **kwargs
     ):
         """
         Run the MLP initialization and training.
@@ -123,17 +129,24 @@ class SuperphotMLP(nn.Module):
             torch.manual_seed(rng_seed)
             torch.cuda.manual_seed(rng_seed)
             torch.backends.cudnn.deterministic = True
-
-        train_dataset, valid_dataset = train_data
+            
+        (train_feats, train_classes) = train_data
+        (val_feats, val_classes) = val_data
+        
+        train_feats = self.normalize(train_feats)
+        val_feats = self.normalize(val_feats)
+            
+        train_dataset = create_dataset(train_feats, train_classes)
+        val_dataset = create_dataset(val_feats, val_classes)
 
         train_iterator = DataLoader(
             dataset=train_dataset, shuffle=True,
-            batch_size=self.config.batch_size,
+            batch_size=self.batch_size,
             pin_memory=True
         )
         valid_iterator = DataLoader(
             dataset=valid_dataset,
-            batch_size=self.config.batch_size,
+            batch_size=self.batch_size,
             pin_memory=True
         )
 
@@ -170,7 +183,7 @@ class SuperphotMLP(nn.Module):
         self.load_state_dict(best_model)
 
         # Store best validation loss
-        self.config.set_best_val_loss(best_val_loss)
+        self.set_best_val_loss(best_val_loss)
 
         return metrics.get_values()
 
@@ -193,9 +206,6 @@ class SuperphotMLP(nn.Module):
         self.train()
 
         for x, y in iterator:
-            #x = x.to(self.config.device)
-            #y = y.to(self.config.device)
-
             self.optimizer.zero_grad()
 
             y_pred, _ = self(x)
@@ -232,8 +242,8 @@ class SuperphotMLP(nn.Module):
 
         with torch.no_grad():
             for x, y in iterator:
-                x = x.to(self.config.device)
-                y = y.to(self.config.device)
+                x = x.to(self.device)
+                y = y.to(self.device)
 
                 y_pred, _ = self(x)
                 loss = self.criterion(y_pred, y)
@@ -245,7 +255,7 @@ class SuperphotMLP(nn.Module):
 
         return epoch_loss / len(iterator), epoch_acc / len(iterator)
 
-    def evaluate(self, test_data):
+    def evaluate(self, test_features, normalized=False):
         """Runs model over a group of test samples.
 
         Parameters
@@ -260,54 +270,20 @@ class SuperphotMLP(nn.Module):
             A tuple containing the labels, names, predicted labels
             and maximum probabilities.
         """
-        test_features, test_classes, test_names = test_data
+        if not normalized:
+            test_features = self.normalize(test_features)
+            
+        test_dataset = create_dataset(test_features, np.zeros(len(test_features)))
+        test_iterator = DataLoader(dataset=test_dataset, batch_size=self.batch_size, shuffle=False)
 
-        # Write output file header
-        with open(self.config.probs_fn, "w+", encoding="utf-8") as probs_file:
-            probs_file.write("Name,Label,pSNIa,pSNII,pSNIIn,pSLSNI,pSNIbc\n")
-
-        labels, pred_labels, max_probs, names, probs_avgs = [], [], [], [], []
-
-        for test_name in test_names:
-            group_idx_set = (test_names == test_name)
-            test_dataset = create_dataset(
-                test_features[group_idx_set],
-                test_classes[group_idx_set],
-            )
-
-            test_iterator = DataLoader(
-                dataset=test_dataset, batch_size=self.config.batch_size
-            )
-
-            _, labels_indiv, probs = self.get_predictions(
-                test_iterator
-            )
-            probs_avg = np.mean(probs.numpy(), axis=0)
-
-            labels_indiv = labels_indiv.numpy()
-
-            pred_labels.append(np.argmax(probs_avg))
-            max_probs.append(np.amax(probs_avg))
-            labels.append(labels_indiv[0])
-            names.append(test_name)
-            probs_avgs.append(probs_avg)
-
-        save_test_probabilities(
-            names,
-            np.array(probs_avgs),
-            self.config.probs_fn,
-            true_labels=labels,
-        )
-        return (
-            np.array(labels).astype(int),
-            np.array(names),
-            np.array(pred_labels).astype(int),
-            np.array(max_probs).astype(float),
-        )
+        probs = self.get_predictions(test_iterator)
+        probs_df = pd.DataFrame(probs, index=test_features.index)
+        probs_avg = probs_df.groupby(probs_df.index).mean(axis=1)
+        return probs_avg
+        
 
     def get_predictions(self, iterator):
-        """Given a trained model, returns the test images, test labels, and
-        prediction probabilities across all the test labels.
+        """Given a trained model, returns the prediction probabilities across all the inputs.
 
         Parameters
         ----------
@@ -316,95 +292,21 @@ class SuperphotMLP(nn.Module):
 
         Returns
         -------
-        tuple
-            A tuple containing the test images, test labels, sample indices,
-            and prediction probabilities.
+        torch tensor
+            probabilities
         """
         self.eval()
 
-        images = []
-        labels = []
         probs = []
 
         with torch.no_grad():
-            for x, y in iterator:
-                x = x.to(self.config.device)
-
+            for x, _ in iterator:
+                x = x.to(self.device)
                 y_pred, _ = self(x)
-
                 y_prob = F.softmax(y_pred, dim=-1)
-
-                images.append(x.cpu())
-                labels.append(y.cpu())
                 probs.append(y_prob.cpu())
 
-        images = torch.cat(images, dim=0)
-        labels = torch.cat(labels, dim=0)
-        probs = torch.cat(probs, dim=0)
-
-        return images, labels, probs
-
-    def get_predictions_from_fit_params(self, iterator):
-        """Given a trained model, returns the test images, test labels, and
-        prediction probabilities across all the test labels.
-
-        Parameters
-        ----------
-        iterator : torch.utils.DataLoader
-            The data iterator.
-
-        Returns
-        -------
-        tuple
-            A tuple containing the test images and prediction probabilities.
-        """
-        self.eval()
-
-        images = []
-        probs = []
-
-        with torch.no_grad():
-            for x in iterator:
-                x = x[0].to(self.config.device)
-
-                y_pred, _ = self(x)
-
-                y_prob = F.softmax(y_pred, dim=-1)
-
-                images.append(x.cpu())
-                probs.append(y_prob.cpu())
-
-        images = torch.cat(images, dim=0)
-        probs = torch.cat(probs, dim=0)
-
-        return images, probs
-
-    def classify_from_fit_params(self, fit_params):
-        """Classify one or multiple light curves solely from the fit parameters
-        used in the classifier. Excludes t0 and, for redshift-exclusive
-        classifier, A. Includes chi-squared value.
-
-        Parameters
-        ----------
-        fit_params : np.ndarray
-            Set of model fit parameters.
-
-        Returns
-        ----------
-        np.ndarray
-            Probability of each light curve being each SN type.
-            Sums to 1 along each row.
-        """
-        fit_params_2d = np.atleast_2d(fit_params)  # cast to 2D if only 1 light curve
-        test_features, _, _ = normalize_features(
-            fit_params_2d,
-            self.config.normalization_means,
-            self.config.normalization_stddevs,
-        )
-        test_data = TensorDataset(torch.Tensor(test_features))
-        test_iterator = DataLoader(test_data, batch_size=self.config.batch_size)
-        _, probs = self.get_predictions_from_fit_params(test_iterator)
-        return probs.numpy()
+        return torch.cat(probs, dim=0)
 
 
     def save(self, models_dir, suffix=""):
@@ -416,10 +318,7 @@ class SuperphotMLP(nn.Module):
             Where to store pretrained models and their configurations.
         """
         file_prefix = f"{models_dir}-{suffix}"
-
-        # Save configuration to disk
-        self.config.write_to_file(f"{file_prefix}.yaml")
-
+        
         # Save Pytorch model to disk
         torch.save(self.best_model, f"{file_prefix}.pt")
 
@@ -445,7 +344,7 @@ class SuperphotMLP(nn.Module):
         return model
 
     @classmethod
-    def load(cls, filename, config_filename):
+    def load(cls, filename):
         """Load a trained MLP for subsequent classification of new objects.
 
         Parameters
@@ -460,7 +359,5 @@ class SuperphotMLP(nn.Module):
         tuple
             The pre-trained classifier object and the respective model config.
         """
-        config = SuperphotConfig.from_file(config_filename)
-        model = SuperphotMLP.create(config)  # set up empty multi-layer perceptron
-        model.load_state_dict(torch.load(filename))  # load trained state dict to the MLP
-        return model, config
+        model = torch.load(filename)
+        return model
