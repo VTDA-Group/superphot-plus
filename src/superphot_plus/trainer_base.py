@@ -25,45 +25,62 @@ class TrainerBase:
         else:
             self.kf = None
 
-    def retrieve_transient_metadata(self, transient_group: TransientGroup):
+    def retrieve_transient_metadata(self, transient_group: TransientGroup, keep_original_labels: bool=False):
         """Filter transient group info and return relevant metadata."""
+
+        transient_group.canonicalize_classes(SnClass.canonicalize)
+
         if self.config.target_label is not None:
             transient_group.add_binary_class(self.config.target_label)
             label_name = f'binary_class_{self.config.target_label}'
         else:
-            transient_group.canonicalize_classes(SnClass.canonicalize)
             label_name = 'canonical_class'
         
         if self.config.use_redshift_features:
             transient_group.add_col('abs_mag', lambda x: x.photometry.absolute(x.redshift).detections['mag'].dropna().min())
-            metadata = transient_group.metadata.loc[:,['abs_mag','redshift',label_name]]
+
+        metadata = transient_group.metadata
+        if not keep_original_labels:
+            metadata = metadata[metadata['canonical_class'].isin(self.config.allowed_types)]
+
+        if self.config.use_redshift_features:
+            metadata = metadata.loc[:,['abs_mag','redshift',label_name]].dropna(subset=['abs_mag', 'redshift'])
         else:
-            metadata = transient_group.metadata.loc[:,[label_name,]]
-        
-        metadata.dropna(inplace=True)
-        metadata = metadata[metadata[label_name].isin(self.config.allowed_types)]
-            
+            metadata = metadata.loc[:,[label_name,]]
+                    
         if self.config.target_label is None:
-            metadata['label'] = SnClass.get_classes_from_labels(metadata['canonical_class'])
+            metadata['label'] = metadata['canonical_class']
         else:
-            metadata['label'] = metadata[f'binary_class_{self.config.target_label}'].astype(int) # 1 if label, 0 otherwise
-        
+            metadata['label'] = np.where(
+                metadata[f'binary_class_{self.config.target_label}'],
+                self.config.target_label,
+                "other"
+            )
+
         return metadata
             
     def retrieve_sampler_results(self, srg: SamplerResultGroup, metadata: pd.DataFrame, balance_classes=False):
         """From transient group info, retrieve dataframe
         containing all sampling posterior info.
-                """
+        """
+        new_sr = []
+        for sr in srg:
+            if sr.sampler != self.config.sampler:
+                continue
+            sr.fit_parameters = sr.fit_parameters.loc[np.array(sr.score <= self.config.chisq_cutoff),:]
+
+            if len(sr.fit_parameters) == 0:
+                continue
+            
+            sr.score = np.array(sr.score[sr.score <= self.config.chisq_cutoff])
+            new_sr.append(sr)
+
+        filt_srg = SamplerResultGroup(new_sr)
         if balance_classes:
             class_dict = {x.Index: x.label for x in metadata.itertuples()}
-            srg.balance_classes(class_dict, self.config.fits_per_majority)
+            filt_srg.balance_classes(class_dict, self.config.fits_per_majority)
             
-        all_samples = srg.all_samples
-        filt_samples = all_samples.loc[
-            (all_samples['score'] <= self.config.chisq_cutoff) & (
-                all_samples['sampler'] == self.config.sampler
-            )
-        ]
+        filt_samples = filt_srg.all_samples
         
         if self.config.use_redshift_features:
             df = pd.merge(

@@ -1,21 +1,15 @@
-import os
-import copy
 from typing import Optional
 
 import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
-from sklearn.model_selection import train_test_split
-from snapi.analysis import SamplerResult
+import multiprocess as mp
 from snapi import TransientGroup, SamplerResultGroup
 
 from .model.mlp import SuperphotMLP
 from .model.lightgbm import SuperphotLightGBM
 from .plotting.confusion_matrices import plot_matrices
-from .supernova_class import SupernovaClass as SnClass
 from .trainer_base import TrainerBase
-from .utils import write_metrics_to_file
-
 
 class SuperphotTrainer(TrainerBase):
     """
@@ -66,6 +60,13 @@ class SuperphotTrainer(TrainerBase):
         else:
             raise ValueError
     
+    def run_single_fold(self, data):
+        """Run single fold training + evaluation."""
+        i, (train_data, val_data, test_data) = data
+        self.train(i, train_data, val_data)
+        probs_df = self.evaluate(i, test_data)
+        return probs_df
+        
     def run(
         self,
         transient_data: Optional[TransientGroup] = None,
@@ -101,20 +102,10 @@ class SuperphotTrainer(TrainerBase):
         else:
             k_folded_data = self.k_fold_split_train_test(transient_data, sampler_results)
             
-        concat_df = None
-        
-        for i in range(self.config.n_folds):
-            print(f"Running fold {i}")
-            train_data, val_data, test_data = k_folded_data[i]
-            self.train(i, train_data, val_data)
-            probs_df = self.evaluate(i, test_data)
-            
-            # save to probability csv
-            if concat_df is None:
-                concat_df = probs_df
-            else:
-                concat_df = pd.concat([concat_df, probs_df], axis=0)
-            
+        ctx = mp.get_context('spawn')
+        pool = ctx.Pool(self.config.n_parallel)
+        probs_df = pool.map(self.run_single_fold, zip(np.arange(self.config.n_folds), k_folded_data))
+        concat_df = pd.concat(probs_df)
         concat_df.to_csv(self.config.probs_fn)
         
         if self.config.plot: # Plot joint confusion matrix
@@ -133,8 +124,8 @@ class SuperphotTrainer(TrainerBase):
         
         concat_df = None
         
-        for i in range(self.n_folds):
-            probs_df = self.evaluate(i, meta_df, sr_group)
+        for i in range(self.config.n_folds):
+            probs_df = self.evaluate(i, (meta_df, sr_group))
             
             # save to probability csv
             if concat_df is None:
@@ -144,14 +135,15 @@ class SuperphotTrainer(TrainerBase):
             
         concat_probs = concat_df.drop('pred_class', axis=1)
         probs_avg = concat_probs.groupby(concat_probs.index).mean()
-        probs_avg['true_class'] = input_df['label']
+        probs_avg['true_class'] = concat_probs.groupby(concat_probs.index)['true_class'].first()
         
         if self.config.target_label is None:
-            probs_avg['pred_class'] = SnClass.get_labels_from_classes(probs_avg.idxmax(axis=1))
+            probs_avg.columns = np.sort(self.config.allowed_types)
+            probs_avg['pred_class'] = probs_avg.idxmax(axis=1)
         else:
-            pred_target = probs_avg.iloc[:,1] > self.prob_threshhold
-            probs_avg['pred_class'] = 1 - pred_target.astype(int)
-            #TODO: check this
+            probs_avg.columns = np.sort([self.config.target_label, "other"])
+            pred_target = probs_avg[self.config.target_label] > self.config.prob_threshhold
+            probs_avg['pred_class'] = np.where(pred_target, self.config.target_label, "other")
         
         probs_avg['fold'] = -1 # all combined
         concat_df = pd.concat([concat_df, probs_avg], ignore_index=False)
@@ -171,11 +163,11 @@ class SuperphotTrainer(TrainerBase):
         val_df = self.retrieve_sampler_results(val_data[1], val_data[0], balance_classes=True)
                 
         if self.config.input_features is None:
-            input_features = train_df.columns[~train_df.columns.isin(['label', 'score', 'sampler'])]
-        
+            self.config.input_features = train_df.columns[~train_df.columns.isin(['label', 'score', 'sampler'])]
+
         # extract features
-        train_features = train_df.loc[:, input_features]
-        val_features = val_df.loc[:, input_features]
+        train_features = train_df.loc[:, self.config.input_features]
+        val_features = val_df.loc[:, self.config.input_features]
         
         if not self.config.load_checkpoint:
             self.models[i] = self._create_model_instance()
@@ -224,21 +216,19 @@ class SuperphotTrainer(TrainerBase):
         test_df = self.retrieve_sampler_results(test_data[1], test_data[0])
 
         if self.config.input_features is None:
-            input_features = test_df.columns[~test_df.columns.isin(['label', 'score', 'sampler'])]
-            
-        probs_avg = model.evaluate(test_df[input_features])
+            self.config.input_features = test_df.columns[~test_df.columns.isin(['label', 'score', 'sampler'])]
+
+        probs_avg = model.evaluate(test_df[self.config.input_features])
         
         if self.config.target_label is None:
-            probs_avg.columns = self.config.allowed_types
+            probs_avg.columns = np.sort(self.config.allowed_types)
             probs_avg['pred_class'] = probs_avg.idxmax(axis=1)
         else:
-            pred_target = probs_avg.iloc[:,1] > self.prob_threshhold
-            probs_avg['pred_class'] = 1 - pred_target.astype(int)
-            #TODO: check this
+            probs_avg.columns = np.sort([self.config.target_label, "other"])
+            pred_target = probs_avg[self.config.target_label] > self.config.prob_threshhold
+            probs_avg['pred_class'] = np.where(pred_target, self.config.target_label, "other")
             
-        probs_avg['true_class'] = SnClass.get_labels_from_classes(
-            test_df['label'].groupby(test_df.index).first()
-        )
+        probs_avg['true_class'] = test_df['label'].groupby(test_df.index).first()
         probs_avg['fold'] = k_fold
         
         """

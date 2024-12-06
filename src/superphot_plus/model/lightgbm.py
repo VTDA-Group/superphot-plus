@@ -1,10 +1,6 @@
-import pickle
-
 import numpy as np
 import lightgbm
-from torch.utils.data import DataLoader
 
-from ..config import SuperphotConfig
 from ..constants import EPOCHS
 from ..model.metrics import ModelMetrics
 from .classifier import SuperphotClassifier
@@ -18,9 +14,6 @@ class SuperphotLightGBM(SuperphotClassifier):
     config : SuperphotConfig
         The MLP architecture configuration.
     """
-
-    def __init__(self, config: SuperphotConfig):
-        super().__init__(config)
     
     def train_and_validate(
         self,
@@ -51,7 +44,7 @@ class SuperphotLightGBM(SuperphotClassifier):
         
         train_feats = self.normalize(train_feats)
         val_feats = self.normalize(val_feats)
-        
+
         lightgbm_params = {
             "boosting": kwargs.get('boosting', 'dart'),
             "data_sample_strategy": kwargs.get('data_sample_strategy', "goss"),
@@ -85,13 +78,12 @@ class SuperphotLightGBM(SuperphotClassifier):
                 (val_feats, val_classes),
             ],
             eval_names=['train', 'val'],
+            eval_metric=['multi_logloss', 'multi_error',],
             callbacks=[
-                lightgbm.log_evaluation,
-                lightgbm.record_evaluation(eval_results)
-            ],
-            eval_metric=['multi_logloss', 'multi_error',]
+                lightgbm.record_evaluation(eval_results),
+                lightgbm.early_stopping(stopping_rounds=20, first_metric_only=True)
+            ]
         )
-        
         if self.target_label is None:
             metrics = ModelMetrics(
                 train_acc = 1. - np.array(eval_results['train']['multi_error']),

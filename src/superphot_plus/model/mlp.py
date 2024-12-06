@@ -1,13 +1,13 @@
 """This module implements the Multi-Layer Perceptron (MLP) model for classification."""
-import os
 import random
 import time
 
 import numpy as np
+import pandas as pd
 import torch
 import torch.nn.functional as F
 from torch import nn, optim
-from torch.utils.data import DataLoader, TensorDataset
+from torch.utils.data import DataLoader
 
 from ..constants import EPOCHS, HIDDEN_DROPOUT_FRAC, INPUT_DROPOUT_FRAC
 from ..config import SuperphotConfig
@@ -31,11 +31,15 @@ class SuperphotMLP(SuperphotClassifier, nn.Module):
 
     def __init__(self, config: SuperphotConfig):
         
-        super().__init__()
+        super().__init__(config)
         
         n_neurons = config.neurons_per_layer
         input_dim = len(config.input_features)
-        output_dim = len(config.allowed_types)
+        
+        if config.target_label is not None:
+            output_dim = 2
+        else:
+            output_dim = len(config.allowed_types)
         
         self.input_fc = nn.Linear(input_dim, n_neurons)
 
@@ -135,9 +139,12 @@ class SuperphotMLP(SuperphotClassifier, nn.Module):
         
         train_feats = self.normalize(train_feats)
         val_feats = self.normalize(val_feats)
+
+        self._unique_labels, train_classes = np.unique(train_classes, return_inverse=True)
+        val_classes = np.unique(val_classes, return_inverse=True)[1]
             
-        train_dataset = create_dataset(train_feats, train_classes)
-        val_dataset = create_dataset(val_feats, val_classes)
+        train_dataset = create_dataset(train_feats.to_numpy(), train_classes)
+        val_dataset = create_dataset(val_feats.to_numpy(), val_classes)
 
         train_iterator = DataLoader(
             dataset=train_dataset, shuffle=True,
@@ -145,7 +152,7 @@ class SuperphotMLP(SuperphotClassifier, nn.Module):
             pin_memory=True
         )
         valid_iterator = DataLoader(
-            dataset=valid_dataset,
+            dataset=val_dataset,
             batch_size=self.batch_size,
             pin_memory=True
         )
@@ -175,7 +182,7 @@ class SuperphotMLP(SuperphotClassifier, nn.Module):
                 epoch_time=epoch_time(start_time, end_time),
             )
 
-            if epoch % 50 == 0:
+            if epoch % 25 == 0:
                 metrics.print_last()
 
         # Save best model state
@@ -185,7 +192,7 @@ class SuperphotMLP(SuperphotClassifier, nn.Module):
         # Store best validation loss
         self.set_best_val_loss(best_val_loss)
 
-        return metrics.get_values()
+        return metrics
 
     def train_epoch(self, iterator):
         """Does one epoch of training for a given torch model.
@@ -273,12 +280,16 @@ class SuperphotMLP(SuperphotClassifier, nn.Module):
         if not normalized:
             test_features = self.normalize(test_features)
             
-        test_dataset = create_dataset(test_features, np.zeros(len(test_features)))
+        test_dataset = create_dataset(test_features.to_numpy(), np.zeros(len(test_features)))
         test_iterator = DataLoader(dataset=test_dataset, batch_size=self.batch_size, shuffle=False)
 
         probs = self.get_predictions(test_iterator)
-        probs_df = pd.DataFrame(probs, index=test_features.index)
-        probs_avg = probs_df.groupby(probs_df.index).mean(axis=1)
+        probs_df = pd.DataFrame(
+            probs,
+            index=test_features.index,
+            columns=self._unique_labels,
+        )
+        probs_avg = probs_df.groupby(probs_df.index).mean()
         return probs_avg
         
 
@@ -309,7 +320,7 @@ class SuperphotMLP(SuperphotClassifier, nn.Module):
         return torch.cat(probs, dim=0)
 
 
-    def save(self, models_dir, suffix=""):
+    def save(self, config_prefix):
         """Stores the trained model and respective configuration.
 
         Parameters
@@ -317,10 +328,8 @@ class SuperphotMLP(SuperphotClassifier, nn.Module):
         models_dir : str, optional
             Where to store pretrained models and their configurations.
         """
-        file_prefix = f"{models_dir}-{suffix}"
-        
         # Save Pytorch model to disk
-        torch.save(self.best_model, f"{file_prefix}.pt")
+        torch.save(self.best_model, f"{config_prefix}.pt")
 
         
     @classmethod
