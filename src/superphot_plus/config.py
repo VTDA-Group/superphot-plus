@@ -59,8 +59,6 @@ class SuperphotConfig:
     allowed_types: Optional[list[str]] = None
     
     # MLP parameters
-    input_dim: Optional[int] = None
-    output_dim: Optional[int] = None
     neurons_per_layer: Optional[int] = None
     num_hidden_layers: Optional[int] = None
     learning_rate: Optional[float] = None
@@ -104,9 +102,7 @@ class SuperphotConfig:
                 
         if self.allowed_types is None:
             self.allowed_types = SnClass.all_classes()
-
-        allowed_classes = SnClass.get_classes_from_labels(self.allowed_types)
-        self.allowed_types = np.array(self.allowed_types)[np.argsort(allowed_classes)]
+        self.allowed_types = [SnClass.canonicalize(x) for x in self.allowed_types]
 
         if self.n_folds < 1:
             raise ValueError("Number of K-folds must be positive")
@@ -121,8 +117,7 @@ class SuperphotConfig:
         string += f"_{self.fits_per_majority}_{self.target_label}_{self.n_folds}_{self.num_epochs}_{self.random_seed}"
         
         if self.model_type == 'MLP':
-            string += f"_{self.input_dim}_{self.output_dim}_{self.neurons_per_layer}"
-            string += f"_{self.num_hidden_layers}_{self.learning_rate}_{self.batch_size}"
+            string += f"_{self.neurons_per_layer}_{self.num_hidden_layers}_{self.learning_rate}_{self.batch_size}"
             
         return string
 
