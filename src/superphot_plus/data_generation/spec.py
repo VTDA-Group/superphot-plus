@@ -9,13 +9,13 @@ from snapi import Transient, Photometry, TransientGroup
 from snapi.query_agents import TNSQueryAgent, ALeRCEQueryAgent
 
 
-def single_worker_import(name_batch, skipped_names_fn):
+def single_worker_import(batch, skipped_names_fn):
     """Single worker's script to run in parallel."""
-    
+    name_batch, tns_agent, alerce_agent = batch
     single_name_import_static = partial(
         single_name_import,
-        tns_agent=TNSQueryAgent(),
-        alerce_agent=ALeRCEQueryAgent(),
+        tns_agent=tns_agent,
+        alerce_agent=alerce_agent,
         skipped_names_fn=skipped_names_fn
     )
     
@@ -53,18 +53,28 @@ def single_name_import(
             f.write(f"{n}: No photometry.\n")
         return
 
-    transient.photometry.filter_subset(["ZTF_r", "ZTF_g"], inplace=True)
+    phot = transient.photometry
+    phot.filter_subset(["ZTF_r", "ZTF_g"], inplace=True)
 
-    if len(transient.photometry) < 2:
+    if len(phot.detections['filter'].unique()) < 2:
+        with open(skipped_names_fn, "a") as f:
+            f.write(f"{n}: Data in fewer than two filters.\n")
+        return
+    
+    phot.phase(inplace=True)
+    phot.truncate(min_t=-50., max_t=100.)
+    phot.correct_extinction(coordinates=transient.coordinates, inplace=True)
+    phot.normalize(inplace=True)
+
+    if len(phot.detections['filter'].unique()) < 2:
         with open(skipped_names_fn, "a") as f:
             f.write(f"{n}: Data in fewer than two filters.\n")
         return
 
-    high_snr_detections = transient.photometry.detections.loc[
-        transient.photometry.detections['mag_error'] <= (5 / 6. / np.log(10))
+    high_snr_detections = phot.detections.loc[
+        phot.detections['mag_error'] <= (5 / 6. / np.log(10))
     ]
 
-    good_quality = True
     for b in ['ZTF_r', 'ZTF_g']:
         # SNR >= 3
         high_snr_b = high_snr_detections.loc[high_snr_detections['filter'] == b]
@@ -75,21 +85,19 @@ def single_name_import(
             return
 
         # variability cut
-        if (
-            np.max(high_snr_b['mag']) - np.min(high_snr_b['mag'])
-         ) < 3 * np.mean(high_snr_b['mag_error']):
+        if np.ptp(high_snr_b['mag']) < 3 * high_snr_b['mag_error'].mean():
             with open(skipped_names_fn, "a") as f:
                 f.write(f"{n}: Amplitude too small\n")
             return
 
         # second variability cut
-        if np.std(high_snr_b['mag']) < np.mean(high_snr_b['mag_error']):
+        if high_snr_b['mag'].std() < high_snr_b['mag_error'].mean():
             with open(skipped_names_fn, "a") as f:
                 f.write(f"{n}: Variability too small\n")
             return
-        
-    return transient
     
+    transient.photometry = phot
+    return transient
     
     
 def import_all_names(
@@ -119,6 +127,7 @@ def import_all_names(
         
         if os.path.exists(save_dir):
             tg = TransientGroup.load(save_dir)
+            print(f"{len(tg.metadata.index)} events already saved.")
             skipped_names.extend(list(tg.metadata.index))
             transients = [t for t in tg]
     else:
@@ -138,10 +147,13 @@ def import_all_names(
     if checkpoint_freq is not None:
         num_checkpoints = len(names_keep) // checkpoint_freq
         checkpoint_batches = [names_keep[i::num_checkpoints] for i in range(num_checkpoints)]
-        for i, cb in enumerate(checkpoint_batches):
+        tns_agents = [TNSQueryAgent() for _ in range(num_checkpoints)]
+        alerce_agents = [ALeRCEQueryAgent() for _ in range(num_checkpoints)]
+
+        for _, cb in enumerate(checkpoint_batches):
             name_batches = [cb[i::n_cores] for i in range(n_cores)]
             print(f"Processing {len(cb)} transients in batch")
-            result = pool.map(single_worker_import_static, name_batches)
+            result = pool.map(single_worker_import_static, zip(name_batches, tns_agents, alerce_agents))
             transients_loop = list(itertools.chain(*result))
             print("Finished processing, making transient group now")
             transients.extend(filter(None, transients_loop))
@@ -151,8 +163,10 @@ def import_all_names(
             
     else:
         names_batches = [names_keep[i::n_cores] for i in range(n_cores)]
+        tns_agents = [TNSQueryAgent() for _ in range(n_cores)]
+        alerce_agents = [ALeRCEQueryAgent() for _ in range(n_cores)]
         transients.extend(
-            pool.map(single_worker_import_static, names_batches)
+            pool.map(single_worker_import_static, zip(names_batches, tns_agents, alerce_agents))
         )
         transient_group = TransientGroup(filter(None, transients))
         transient_group.save(save_dir)
