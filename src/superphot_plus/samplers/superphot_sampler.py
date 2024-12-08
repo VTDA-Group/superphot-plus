@@ -14,7 +14,7 @@ class SuperphotSampler(Sampler):
         **kwargs
     ):
         super().__init__()
-        self._nparams = 6
+        self._nparams = 4 # effective DOF using first piecewise part
         self._priors = priors
         self._params = self._priors.dataframe['param'].to_numpy()
         self._unique_bands = []
@@ -40,7 +40,7 @@ class SuperphotSampler(Sampler):
     def predict(self, X, num_fits=None):
         """Predicts the flux of a light curve using the model."""  
         _, val_x = super().predict(X)
-        self._param_map = np.zeros((self._nparams+1, len(val_x)), dtype=int)
+        self._param_map = np.zeros((self._nparams+3, len(val_x)), dtype=int)
         
         for i, param in enumerate(self._base_params):
             for b in self._unique_bands:

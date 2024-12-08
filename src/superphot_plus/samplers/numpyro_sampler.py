@@ -148,7 +148,7 @@ class NumpyroSampler(SuperphotSampler):
         
         self._y = jnp.array(self._y, dtype=jnp.float32)
         
-        self._param_map = jnp.zeros((self._nparams+1, len(self._X)), dtype=int)
+        self._param_map = jnp.zeros((self._nparams+3, len(self._X)), dtype=int)
         for i, param in enumerate(self._base_params):
             for b in self._unique_bands:
                 b_idxs = self._X[:,1] == b

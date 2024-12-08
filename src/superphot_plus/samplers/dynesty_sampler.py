@@ -64,7 +64,7 @@ class DynestySampler(SuperphotSampler):
         self._param_map = None
         
         self._nested_sampler = NestedSampler(
-            self._logL, self._prior_func, (self._nparams + 1) * len(self._unique_bands),
+            self._logL, self._prior_func, (self._nparams + 3) * len(self._unique_bands),
             sample=sample_strategy, bound=bound, nlive=nlive,
             rstate=self._rng
         )
@@ -135,7 +135,7 @@ class DynestySampler(SuperphotSampler):
         self._err = self._X[:,2].astype(np.float32)
         
         # map time steps to param values
-        self._param_map = np.zeros((self._nparams+1, len(self._X)), dtype=int)
+        self._param_map = np.zeros((self._nparams+3, len(self._X)), dtype=int)
         for i, param in enumerate(self._base_params):
             for b in self._unique_bands:
                 b_idxs = self._X[:,1] == b
