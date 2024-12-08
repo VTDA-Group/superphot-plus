@@ -162,7 +162,9 @@ class NumpyroSampler(SuperphotSampler):
         samples_df = self._priors.transform(samples_df)
         self.result = SamplerResult(samples_df, sampler_name=self._sampler_name)
         self._is_fitted = True
-        self.result.score = self.score(self._X, self._y, orig_num_times=self._orig_num_times)
+        self.result.score = np.array(
+            self.score(self._X, self._y, orig_num_times=self._orig_num_times)
+        )
 
     def _reduced_chi_squared(self, X, y, y_pred, orig_num_times: Optional[int]=None):
         """Returns the reduced chi-squared value of the model.
