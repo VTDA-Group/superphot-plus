@@ -129,7 +129,7 @@ def import_all_names(
             tg = TransientGroup.load(save_dir)
             print(f"{len(tg.metadata.index)} events already saved.")
             skipped_names.extend(list(tg.metadata.index))
-            transients = [t for t in tg]
+            transients = [t for t in tg if t.id in names]
     else:
         with open(skipped_names_fn, "w") as f:
             f.write("")

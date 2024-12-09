@@ -326,7 +326,7 @@ class SVISampler(NumpyroSampler):
         #print(params_loc, params_scale)
 
         param_arr = params_loc + random.normal(
-            key=self._rng, shape=(100,)
+            key=self._rng, shape=(1000,)
         )[:,jnp.newaxis] * params_scale
 
         posterior_samples = pd.DataFrame(np.array(param_arr), columns=self._params)

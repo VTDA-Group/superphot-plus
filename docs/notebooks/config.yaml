@@ -6,7 +6,7 @@ chisq_cutoff: 1.2
 plot: True
 model_type: "LightGBM"
 use_redshift_features: False
-fits_per_majority: 5
+fits_per_majority: 25
 prob_threshhold: 0.5
 n_folds: 10
 num_epochs: 100
