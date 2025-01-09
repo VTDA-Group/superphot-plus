@@ -1,6 +1,7 @@
 import pandas as pd
 import jax.numpy as jnp
 import jax
+from jax import debug
 import numpy as np
 import numpyro.distributions as dist
 import numpyro
@@ -9,6 +10,7 @@ from snapi.analysis import SamplerPrior
 
 #jax.config.update("jax_disable_jit", True)
 jax.config.update('jax_platform_name', 'cpu')
+#jax.config.update("jax_debug_nans", True)
 
 class SuperphotPrior(SamplerPrior):
     """Stores prior information for sampler. Only supports Gaussianity
@@ -51,7 +53,7 @@ class SuperphotPrior(SamplerPrior):
             index = self._df[self._df['param'] == rel_val].index
             self._relative_idxs.append(index[0])  # Storing the first matching index
         
-        
+        """
         self._df.loc[
             self._relative_mask, 'min'
         ] = self._df.iloc[self._relative_idxs]['min'].to_numpy()
@@ -59,7 +61,7 @@ class SuperphotPrior(SamplerPrior):
         self._df.loc[
             self._relative_mask, 'max'
         ] = self._df.iloc[self._relative_idxs]['max'].to_numpy()
-        
+        """
                     
         self._tga = ((self._df['min'] - self._df['mean']) / self._df['stddev']).to_numpy()
         self._tgb = ((self._df['max'] - self._df['mean']) / self._df['stddev']).to_numpy()
@@ -103,52 +105,122 @@ class SuperphotPrior(SamplerPrior):
             validate_args=False
         )
     
-    def sample(self, cube, use_numpyro=False):
+    def sample(self, cube, use_numpyro=False, num_events=None):
         """Sample from priors. If numpyro=True, then
         use the numpyro framework.
         """
+        
         if use_numpyro:
-            min_vals, max_vals, init_loc, init_scale = self._numpyro_sample_arr[:,self._static_base_mask]
-            
-            with numpyro.plate("base_params", len(min_vals)):
+            min_vals_base, max_vals_base, init_loc_base, init_scale_base = self._numpyro_sample_arr[:,self._static_base_mask]
+            min_vals_rel, max_vals_rel, init_loc_rel, init_scale_rel = self._numpyro_sample_arr[:, self._static_relative_mask]
+
+            if num_events:
+                # Global priors for base parameters
+                global_mu_base = numpyro.sample(
+                    "global_mu_base",
+                    dist.TruncatedNormal(
+                        loc=init_loc_base,
+                        scale=init_scale_base,
+                        low=min_vals_base,
+                        high=max_vals_base,
+                    )
+                )
+                global_sigma_base = numpyro.sample("global_sigma_base", dist.HalfNormal(init_scale_base))
+
+                # Global priors for relative parameters
+                global_mu_rel = numpyro.sample(
+                    "global_mu_rel",
+                    dist.TruncatedNormal(
+                        loc=init_loc_rel,
+                        scale=init_scale_rel,
+                        low=min_vals_rel,
+                        high=max_vals_rel
+                    )
+                )
+                global_sigma_rel = numpyro.sample("global_sigma_rel", dist.HalfNormal(init_scale_rel))
+
+                with numpyro.plate("events", num_events, dim=-2):   # Assume self.num_events defines the number of events
+                    with numpyro.plate("base_params", len(init_loc_base), dim=-1):
+                        # Base values for each event
+                        global_mu_base_arr = jnp.tile(global_mu_base, (num_events, 1))
+                        base_vals = numpyro.sample(
+                            "base_samples",
+                            dist.TruncatedNormal(
+                                loc=global_mu_base_arr,
+                                scale=global_sigma_base,
+                                low=min_vals_base,
+                                high=max_vals_base
+                            )
+                        )
+
+                    # Compute relative shifts
+                    relative_shifts = base_vals[:,self._relative_idxs_jax]
+
+                    # Adjust locations based on relative shifts
+                    adjusted_locs = global_mu_rel + relative_shifts
+                    # Constrain adjusted locations within bounds
+                    adjusted_locs_constrained = jnp.clip(
+                        adjusted_locs, min_vals_base[self._relative_idxs_jax] + 1e-6,
+                        max_vals_base[self._relative_idxs_jax] - 1e-6
+                    )
+                    with numpyro.plate("relative_params", len(min_vals_rel), dim=-1):
+                        resampled_vals = numpyro.sample(
+                            "relative_samples",
+                            dist.TruncatedNormal(
+                                loc=adjusted_locs_constrained,
+                                scale=global_sigma_rel,
+                                low=min_vals_base[self._relative_idxs_jax],
+                                high=max_vals_base[self._relative_idxs_jax],
+                            )
+                        )
+
+                    # Combine base and relative values for each event
+                    vals = jnp.concatenate([
+                        base_vals,
+                        resampled_vals
+                    ], axis=1)
+
+                    # Apply transformations to logged values if necessary
+                    vals = vals.at[:,self._logged_jax].set(10 ** vals[:,self._logged_jax])
+
+
+            else:
                 base_vals = numpyro.sample(
                     "base_samples",
                     dist.TruncatedNormal(
-                        loc=init_loc,
-                        scale=init_scale,
-                        low=min_vals,
-                        high=max_vals
+                        loc=init_loc_base,
+                        scale=init_scale_base,
+                        low=min_vals_base,
+                        high=max_vals_base,
                     )
                 )
 
-            # Compute the adjustment only for relative ones
-            relative_shifts = base_vals[self._relative_idxs_jax]
+                # Compute the adjustment only for relative ones
+                relative_shifts = base_vals[self._relative_idxs_jax]
+                adjusted_locs = init_loc_rel + relative_shifts
 
-            min_vals, max_vals, init_loc, init_scale = self._numpyro_sample_arr[:,self._static_relative_mask]
-            adjusted_locs = init_loc + relative_shifts
+                # Reapply the constraints to adjusted_locs to make sure they stay within bounds
+                adjusted_locs_constrained = jnp.clip(adjusted_locs, min_vals_rel + 1e-6, max_vals_rel - 1e-6)
 
-            # Reapply the constraints to adjusted_locs to make sure they stay within bounds
-            adjusted_locs_constrained = jnp.clip(adjusted_locs, min_vals + 1e-6, max_vals - 1e-6)
-
-            with numpyro.plate("relative_params", len(min_vals)):
-                # Re-sample using the adjusted means only for relative parameters
-                resampled_vals = numpyro.sample(
-                    "relative_samples",
-                    dist.TruncatedNormal(
-                        loc=adjusted_locs_constrained,
-                        scale=init_scale,
-                        low=min_vals,
-                        high=max_vals,
+                with numpyro.plate("relative_params", len(min_vals_rel)):
+                    # Re-sample using the adjusted means only for relative parameters
+                    resampled_vals = numpyro.sample(
+                        "relative_samples",
+                        dist.TruncatedNormal(
+                            loc=adjusted_locs_constrained,
+                            scale=init_scale_rel,
+                            low=min_vals_rel,
+                            high=max_vals_rel,
+                        )
                     )
-                )
             
-            vals = jnp.concatenate([
-                base_vals,
-                resampled_vals
-            ])
+                vals = jnp.concatenate([
+                    base_vals,
+                    resampled_vals
+                ])
 
-            vals = vals.at[self._logged_jax].set(10**vals[self._logged_jax])
-            
+                vals = vals.at[self._logged_jax].set(10**vals[self._logged_jax])
+                
         else:
             if cube is None:
                 cube = self._rng.uniform(size=len(self._df))
@@ -172,77 +244,238 @@ class SuperphotPrior(SamplerPrior):
             
             # log transformations
             vals[self._logged] = 10**vals[self._logged]
+
         return vals
     
     
-    def jax_guide(self):
+    def jax_guide(self, num_events=None):
         """Guide for numpyro-based samplers."""
         
-        min_vals, max_vals, init_loc, init_scale = self._numpyro_sample_arr[:,self._static_base_mask]
-            
-        with numpyro.plate("base_params", len(min_vals)):
-            # Create learnable parameters with initial constraints
-            svi_loc_base = numpyro.param(
-                "loc_base",
-                init_value=init_loc,
-                constraint=dist.constraints.interval(min_vals, max_vals)
+        min_vals_base, max_vals_base, init_loc_base, init_scale_base = self._numpyro_sample_arr[:,self._static_base_mask]
+        min_vals_rel, max_vals_rel, init_loc_rel, init_scale_rel = self._numpyro_sample_arr[:, self._static_relative_mask]
+
+        if num_events:
+            global_mu_base_loc = numpyro.param(
+                "global_mu_base_loc",
+                init_value=init_loc_base,
+                constraint=dist.constraints.interval(min_vals_base, max_vals_base)
             )
 
-            svi_scale_base = numpyro.param(
-                "scale_base", 
-                init_value=init_scale / 10.,
+            global_mu_base_sigma = numpyro.param(
+                "global_mu_base_sigma",
+                init_value=init_scale_base / 10.,
                 constraint=dist.constraints.positive
             )
-            
-            base_vals = numpyro.sample(
-                "base_samples",
+
+            # Sample global base parameters in the guide
+            numpyro.sample(
+                "global_mu_base",
                 dist.TruncatedNormal(
-                    loc=svi_loc_base,
-                    scale=svi_scale_base,
-                    low=min_vals,
-                    high=max_vals
+                    loc=global_mu_base_loc,
+                    scale=global_mu_base_sigma,
+                    low=min_vals_base,
+                    high=max_vals_base
                 )
             )
 
-        # Compute the adjustment only for relative ones
-        relative_shifts = base_vals[self._relative_idxs_jax]
-        
-        min_vals, max_vals, init_loc, init_scale = self._numpyro_sample_arr[:,self._static_relative_mask]
-        adjusted_locs = init_loc[self._static_relative_mask] + relative_shifts
-        adjusted_locs_constrained = jnp.clip(adjusted_locs, min_vals + 1e-6, max_vals - 1e-6)
-        
-
-        with numpyro.plate("relative_params", len(min_vals)):
-            # Re-sample using the adjusted means only for relative parameters
-            svi_loc = numpyro.param(
-                "loc_relative",
-                init_value=adjusted_locs_constrained,
-                constraint=dist.constraints.interval(min_vals, max_vals)
-            )
-
-            svi_scale = numpyro.param(
-                "scale_relative", 
-                init_value=init_scale / 10.,
+            global_sigma_base_loc = numpyro.param(
+                "global_sigma_base_loc",
+                init_value=init_scale_base,
                 constraint=dist.constraints.positive
             )
-            
-            resampled_vals = numpyro.sample(
-                "relative_samples",
+
+            global_sigma_base_sigma = numpyro.param(
+                "global_sigma_base_sigma",
+                init_value=init_scale_base / 10.,
+                constraint=dist.constraints.positive
+            )
+
+            numpyro.sample("global_sigma_base", dist.Normal(global_sigma_base_loc, global_sigma_base_sigma))
+
+            # global relative
+            global_mu_rel_loc = numpyro.param(
+                "global_mu_rel_loc",
+                init_value=init_loc_rel,
+                constraint=dist.constraints.interval(min_vals_rel, max_vals_rel)
+            )
+
+            global_mu_rel_sigma = numpyro.param(
+                "global_mu_rel_sigma",
+                init_value=init_scale_rel / 10.,
+                constraint=dist.constraints.positive
+            )
+
+            # Sample global base parameters in the guide
+            numpyro.sample(
+                "global_mu_rel",
                 dist.TruncatedNormal(
-                    loc=svi_loc,
-                    scale=svi_scale,
-                    low=min_vals,
-                    high=max_vals,
+                    loc=global_mu_rel_loc,
+                    scale=global_mu_rel_sigma,
+                    low=min_vals_rel,
+                    high=max_vals_rel
                 )
             )
+
+            global_sigma_rel_loc = numpyro.param(
+                "global_sigma_rel_loc",
+                init_value=init_scale_rel,
+                constraint=dist.constraints.positive
+            )
+
+            global_sigma_rel_sigma = numpyro.param(
+                "global_sigma_rel_sigma",
+                init_value=init_scale_rel / 10.,
+                constraint=dist.constraints.positive
+            )
+
+            numpyro.sample("global_sigma_rel", dist.Normal(global_sigma_rel_loc, global_sigma_rel_sigma))
+
+            """
+            debug.print("Global mu base: {}", global_mu_base_loc)
+            debug.print("Global sigma base: {}", global_mu_base_sigma)
+            debug.print("Global mu rel: {}", global_mu_rel_loc)
+            debug.print("Global sigma rel: {}", global_mu_rel_sigma)
+            """
+ 
+            with numpyro.plate("events", num_events, dim=-2):
+                with numpyro.plate("base_params", len(init_loc_base), dim=-1):
+
+                    init_loc_base_arr = jnp.tile(init_loc_base, (num_events, 1))
+                    init_scale_base_arr = jnp.tile(init_scale_base, (num_events, 1))
+
+                    # Define learnable parameters for base values per event
+                    svi_loc_base = numpyro.param(
+                        "loc_base",
+                        init_value=init_loc_base_arr,
+                        constraint=dist.constraints.interval(min_vals_base, max_vals_base)
+                    )
+
+                    svi_scale_base = numpyro.param(
+                        f"scale_base",
+                        init_value=init_scale_base_arr / 10.0,
+                        constraint=dist.constraints.positive
+                    )
+
+                    # Sample base values per event
+                    base_vals = numpyro.sample(
+                        f"base_samples",
+                        dist.TruncatedNormal(
+                            loc=svi_loc_base,
+                            scale=svi_scale_base,
+                            low=min_vals_base,
+                            high=max_vals_base,
+                        )
+                    )
+
+                    #debug.print("{}", base_vals)
+
+                # Compute the shifts for relative parameters
+                relative_shifts = svi_loc_base[:,self._relative_idxs_jax]
+                adjusted_locs = init_loc_rel + relative_shifts
+                adjusted_locs_constrained = jnp.clip(
+                    adjusted_locs,
+                    min_vals_rel[jnp.newaxis,:] + 1e-6,
+                    max_vals_rel[jnp.newaxis,:] - 1e-6
+                )
+
+                with numpyro.plate("relative_params", len(init_loc_rel), dim=-1):
+                    init_scale_rel_arr = jnp.tile(init_scale_rel, (num_events, 1))
+
+                    svi_loc_relative = numpyro.param(
+                        "loc_relative",
+                        init_value=adjusted_locs_constrained,
+                        constraint=dist.constraints.interval(
+                            min_vals_base[self._relative_idxs_jax],
+                            max_vals_base[self._relative_idxs_jax]
+                        )
+                    )
+
+                    svi_scale_relative = numpyro.param(
+                        "scale_relative",
+                        init_value=init_scale_rel_arr / 10.0,
+                        constraint=dist.constraints.positive
+                    )
+
+                    # Sample relative values per event
+                    relative_vals = numpyro.sample(
+                        "relative_samples",
+                        dist.TruncatedNormal(
+                            loc=svi_loc_relative,
+                            scale=svi_scale_relative,
+                            low=min_vals_base[self._relative_idxs_jax],
+                            high=max_vals_base[self._relative_idxs_jax]
+                        )
+                    )
+
+
+
+        else:
+            with numpyro.plate("base_params", len(min_vals_base)):
+                # Create learnable parameters with initial constraints
+                svi_loc_base = numpyro.param(
+                    "loc_base",
+                    init_value=init_loc_base,
+                    constraint=dist.constraints.interval(min_vals_base, max_vals_base)
+                )
+
+                svi_scale_base = numpyro.param(
+                    "scale_base", 
+                    init_value=init_scale_base / 10.,
+                    constraint=dist.constraints.positive
+                )
+                
+                base_vals = numpyro.sample(
+                    "base_samples",
+                    dist.TruncatedNormal(
+                        loc=svi_loc_base,
+                        scale=svi_scale_base,
+                        low=min_vals_base,
+                        high=max_vals_base
+                    )
+                )
+
+            # Compute the adjustment only for relative ones
+            relative_shifts = base_vals[self._relative_idxs_jax]
+            
+            adjusted_locs = init_loc_rel + relative_shifts
+            adjusted_locs_constrained = jnp.clip(adjusted_locs, min_vals_rel + 1e-6, max_vals_rel - 1e-6)
+            
+            with numpyro.plate("relative_params", len(min_vals_rel)):
+                # Re-sample using the adjusted means only for relative parameters
+                svi_loc = numpyro.param(
+                    "loc_relative",
+                    init_value=adjusted_locs_constrained,
+                    constraint=dist.constraints.interval(min_vals_rel, max_vals_rel)
+                )
+
+                svi_scale = numpyro.param(
+                    "scale_relative", 
+                    init_value=init_scale_rel / 10.,
+                    constraint=dist.constraints.positive
+                )
+                
+                resampled_vals = numpyro.sample(
+                    "relative_samples",
+                    dist.TruncatedNormal(
+                        loc=svi_loc,
+                        scale=svi_scale,
+                        low=min_vals_rel,
+                        high=max_vals_rel,
+                    )
+                )
             
     
-    def transform(self, samples):
+    def transform(self, samples, relative=False):
         """Transform relative and log-Gaussian samples
         from gaussian-sampled values.
         """
-        samples.loc[:,self._params[self._logged]] = 10**samples.loc[:,self._params[self._logged]]
-        return samples
+        samples_copy = samples.loc[:,self._params]
+        if relative:
+            samples_copy.iloc[:,self._relative_mask] = samples_copy.iloc[:,self._relative_mask].add(
+                samples_copy.iloc[:,self._relative_idxs].to_numpy()
+            )
+        samples_copy.loc[:,self._params[self._logged]] = 10**samples_copy.loc[:,self._params[self._logged]]
+        return samples_copy
     
     def reverse_transform(self, samples: pd.DataFrame):
         """From relative, log-Gaussian samples, return original

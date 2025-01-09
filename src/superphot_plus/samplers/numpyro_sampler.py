@@ -3,39 +3,130 @@ from typing import Optional
 from functools import partial
 
 from numpy.typing import NDArray
+#from numpyro.distributions import constraints
+#from numpyro.distributions.transforms import biject_to
 import numpy as np
 import numpyro
 import numpyro.distributions as dist
+from numpyro.infer.util import (
+    _without_rsample_stop_gradient,
+    get_importance_trace,
+    is_identically_one,
+    log_density,
+)
+from numpyro.util import _validate_model, check_model_guide_match, find_stack_level
 import pandas as pd
 import jax.numpy as jnp
-from jax import random, lax, jit
+from jax import random, lax, jit, vmap, config, debug, grad
 from numpyro.infer import MCMC, NUTS, SVI, Trace_ELBO
 from numpyro.infer.initialization import init_to_uniform
+from numpyro.infer.elbo import ELBO
+from numpyro.infer.svi import _make_loss_fn, SVIState
+from numpyro.handlers import replay, seed, substitute, trace
 from snapi.analysis import SamplerPrior, SamplerResult
 from sklearn.utils import check_random_state
 
 from superphot_plus.samplers.superphot_sampler import SuperphotSampler
 from superphot_plus.utils import villar_fit_constraint
 
-
-numpyro.set_host_device_count(1)
+#numpyro.set_host_device_count(1)
 #config.update("jax_enable_x64", True)
 #config.update("jax_disable_jit", True)
 #config.update("jax_debug_nans", True)
 #numpyro.enable_x64()
 
-
 def lax_helper_function(svi, svi_state, num_iters, *args, **kwargs):
     """Helper function using LAX to speed up SVI state updates."""
     @jit
     def update_svi(s, i):
-        return svi.stable_update(s, *args, **kwargs)
+        u, l = svi.stable_update(s, *args, **kwargs)
+        return (u,l)
         
     u, losses = lax.scan(update_svi, svi_state, jnp.arange(num_iters), length=num_iters)
     return u, losses
 
 class NumpyroSampler(SuperphotSampler):
     """Samplers which use numpyro."""
+
+    def single_hierarchical_event(
+        self, event_idx, t, obsflux, uncertainties, parameter_map,
+        start_idx, end_idx, cube
+    ):
+        max_length = 300
+        # parameter_map.shape = (7, len(t)), cube.shape = (28,)
+        new_cube_all = jnp.take(cube, parameter_map)
+        
+        # Create a mask for the current event
+        mask = jnp.arange(max_length) < (end_idx - start_idx)
+        
+        # Extract data for the current event using the mask
+        t_event = jnp.where(mask, lax.dynamic_slice(t, (start_idx,), (max_length,)), 0.)
+        obsflux_event = jnp.where(mask, lax.dynamic_slice(obsflux, (start_idx,), (max_length,)), 0.)
+        uncertainties_event = jnp.where(mask, lax.dynamic_slice(uncertainties, (start_idx,), (max_length,)), 1.)
+
+        new_cube = jnp.where(
+            mask[None, :],
+            lax.dynamic_slice(new_cube_all, (0, start_idx), (7, max_length)),
+            jnp.zeros((7, max_length))
+        )
+
+        updated_column1 = jnp.where(mask, new_cube[4], jnp.ones(max_length))
+        updated_column2 = jnp.where(mask, new_cube[5], jnp.ones(max_length))
+
+        new_cube = new_cube.at[4,:].set(updated_column1)
+        new_cube = new_cube.at[5,:].set(updated_column2)
+
+        fit_constraint = jnp.max(villar_fit_constraint(new_cube))
+
+        amp, beta, gamma, t_0, tau_rise, tau_fall, extra_sigma = new_cube
+        phase = jnp.clip(t_event - t_0, min=-50.*tau_rise, max=None)
+        phase = jnp.clip(phase, min=-50.*tau_fall + gamma, max=None)
+        flux_const = amp / (1.0 + jnp.exp(-phase / tau_rise))
+
+        flux = flux_const * jnp.where(
+            gamma - phase >= 0,
+            (1 - beta * phase),
+            (1 - beta * gamma) * jnp.exp(-(phase - gamma) / tau_fall)
+        )
+
+        sigma_tot = jnp.sqrt(uncertainties_event**2 + extra_sigma**2)
+
+        #print(jnp.sum((flux - obsflux_event)**2 / sigma_tot**2) / jnp.sum(mask))
+
+        return flux, sigma_tot, mask, fit_constraint, obsflux_event
+
+    def create_hierarchical_jax_model(
+        self,
+        t=None,
+        obsflux=None,
+        uncertainties=None,
+        parameter_map=None,
+        start_idxs=None,
+        end_idxs=None
+    ):
+        cube_all_events = self._prior_func()
+
+        if t is None:
+            return None
+                
+        num_events = len(start_idxs)
+        index_array = jnp.arange(num_events)
+
+        fluxes, sigma_tots, masks, factors, obsfluxes = vmap(self.single_hierarchical_event, in_axes=(0, None, None, None, None, 0, 0, 0))(
+            index_array, t, obsflux, uncertainties, parameter_map,
+            start_idxs, end_idxs, cube_all_events
+        )
+
+        factors = factors[:, jnp.newaxis]
+        event_idx = index_array[:, jnp.newaxis]
+
+        with numpyro.plate("events", num_events, dim=-2):
+            numpyro.factor(
+                f"vf_constraint_{event_idx}",
+                -1000. * factors
+            )
+            numpyro.sample(f"obs_{event_idx}", dist.Normal(fluxes, sigma_tots).mask(masks), obs=obsfluxes)
+
             
     def create_jax_model(
         self,
@@ -93,25 +184,37 @@ class NumpyroSampler(SuperphotSampler):
         
         numpyro.sample("obs", dist.Normal(flux, sigma_tot), obs=obsflux)
         
-    def create_jax_guide(self, t=None, obsflux=None, uncertainties=None, parameter_map=None):
+    def create_jax_guide(
+            self,
+            num_events=None,
+            t=None,
+            obsflux=None,
+            uncertainties=None,
+            parameter_map=None,
+            start_idxs=None,
+            end_idxs=None
+        ):
         """JAX guide function for MCMC.
         """
-        self._priors.jax_guide()
+        self._priors.jax_guide(num_events=num_events)
             
     def __init__(
             self,
             priors: SamplerPrior,
             random_state: int,
+            num_events=None,
             *args,
             **kwargs,
         ):
         super().__init__(priors)
         self._rng = random.key(random_state)
-        self._prior_func = partial(self._priors.sample, cube=None, use_numpyro=True)
-        self._jax_model = self.create_jax_model
-        self._jax_guide = self.create_jax_guide
+        self._prior_func = partial(self._priors.sample, cube=None, use_numpyro=True, num_events=num_events)
+        if num_events:
+            self._jax_model = self.create_hierarchical_jax_model
+        else:
+            self._jax_model = self.create_jax_model
+        self._jax_guide = partial(self.create_jax_guide, num_events=num_events)
         self._orig_num_times: Optional[int] = None
-        self._padded_len = 0
         self._X = jnp.array([])
         self._y = jnp.array([])
         
@@ -121,7 +224,8 @@ class NumpyroSampler(SuperphotSampler):
     def fit(
             self, X: NDArray[jnp.object_], # pylint: disable=invalid-name
             y: NDArray[jnp.float32],
-            orig_num_times: Optional[int] = None,
+            orig_num_times=None,
+            event_indices=None,
         ) -> None: 
         """Fit the data.
 
@@ -136,13 +240,14 @@ class NumpyroSampler(SuperphotSampler):
             a score based on DOF with an artificially padded input. Defaults to the
             length of X.
         """
-        super().fit(X,y)
+        super().fit(X,y,event_indices=event_indices)
+
+        """
         _, band_counts = np.unique(X[:, 1], return_counts=True)
+        print(band_counts)
         if not jnp.all(jnp.diff(band_counts) == 0): # if different counts
             raise ValueError("There must be same number of points in each band.")
-
-        self._padded_len = band_counts[0]
-
+        """
         if orig_num_times is not None:
             self._orig_num_times = orig_num_times
         
@@ -165,6 +270,48 @@ class NumpyroSampler(SuperphotSampler):
         self.result.score = np.array(
             self.score(self._X, self._y, orig_num_times=self._orig_num_times)
         )
+
+    def _process_samples_hierarchical(
+            self, prior_loc_samples,
+            prior_scale_samples, indiv_samples
+        ):
+        """Convert parameter dict from numpyro to SamplerResult."""
+        self.result_arr = []
+        self._is_fitted = True
+
+        # first handle global priors
+        prior_mu_df = pd.DataFrame(np.array(prior_loc_samples), columns=self._params)
+        prior_mu_transformed = self._priors.transform(prior_mu_df, relative=True)
+        self.result = SamplerResult(prior_mu_transformed, sampler_name=self._sampler_name)
+        self.result.score = np.nan * np.ones(len(prior_loc_samples))
+        self.result_arr.append(self.result)
+
+        prior_sigma_df = pd.DataFrame(np.array(prior_scale_samples), columns=self._params)
+        prior_sigma_transformed = self._priors.transform(prior_sigma_df, relative=True)
+        self.result = SamplerResult(prior_sigma_transformed, sampler_name=self._sampler_name)
+        self.result.score = np.nan * np.ones(len(prior_scale_samples))
+        self.result_arr.append(self.result)
+
+        for i, s in enumerate(indiv_samples):
+            samples_df = pd.DataFrame(np.array(s), columns=self._params)
+            s_transformed = self._priors.transform(samples_df)
+
+            print(prior_mu_transformed.mean(axis=0).sub(s_transformed.mean(axis=0)) / s_transformed.std(axis=0))
+            print(prior_mu_transformed.mean(axis=0).sub(s_transformed.mean(axis=0)) / prior_sigma_transformed.mean(axis=0))
+
+            self.result = SamplerResult(s_transformed, sampler_name=self._sampler_name)
+            
+            self.result.score = np.array(
+                self.score(
+                    self._X[self._idxs[i,0]:self._idxs[i,1]],
+                    self._y[self._idxs[i,0]:self._idxs[i,1]],
+                    orig_num_times=self._orig_num_times[i]
+                )
+            )
+            self.result_arr.append(self.result)
+
+        self.result = self.result_arr        
+        
 
     def _reduced_chi_squared(self, X, y, y_pred, orig_num_times: Optional[int]=None):
         """Returns the reduced chi-squared value of the model.
@@ -219,7 +366,6 @@ class NUTSSampler(NumpyroSampler):
             jit_model_args=True,
         )
 
-
     def fit(
             self, X: NDArray[jnp.object_], # pylint: disable=invalid-name
             y: NDArray[jnp.float32],
@@ -245,11 +391,12 @@ class NUTSSampler(NumpyroSampler):
             obsflux=self._y,
             t=jnp.array(self._X[:,0], dtype=jnp.float32), # type: ignore
             uncertainties=jnp.array(self._X[:,2], dtype=jnp.float32), # type: ignore
-            param_map=self._param_map,
+            parameter_map=self._param_map,
         )
         params = self._mcmc.get_samples()
+        params_concat = np.append(params['base_samples'], params['relative_samples'], axis=1)
 
-        self._process_samples(pd.DataFrame(params))
+        self._process_samples(pd.DataFrame(params_concat, columns=self._params))
 
 
 class SVISampler(NumpyroSampler):
@@ -261,10 +408,11 @@ class SVISampler(NumpyroSampler):
             num_iter=10_000,
             step_size=0.001,
             random_state: int = 42,
+            num_events=None,
         ):
-        super().__init__(priors, random_state)
+        super().__init__(priors, random_state, num_events)
         self._sampler_name = 'superphot_svi'
-        self.step_size= step_size
+        self.step_size = step_size
         self.num_iter = num_iter
         
         optimizer = numpyro.optim.Adam(self.step_size)
@@ -282,6 +430,7 @@ class SVISampler(NumpyroSampler):
             self, X: NDArray[jnp.object_], # pylint: disable=invalid-name
             y: NDArray[jnp.float32],
             orig_num_times: Optional[int] = None,
+            event_indices = None
         ) -> None: 
         """Fit the data.
 
@@ -296,38 +445,107 @@ class SVISampler(NumpyroSampler):
             a score based on DOF with an artificially padded input. Defaults to the
             length of X.
         """
-        super().fit(X,y,orig_num_times)
+        
+        if event_indices is not None:
+            # pad end of arrays for masking later
+            X_padding = np.repeat([[999_999, self._unique_bands[0], 1.0],], 1000, axis=0)
+            X_pad = np.concatenate([X, X_padding], axis=0)
+            y_padding = np.zeros(1000)
+            y_pad = np.append(y, y_padding)
+        else:
+            X_pad = X
+            y_pad = y
+
+        super().fit(
+            X_pad,
+            y_pad,
+            orig_num_times=orig_num_times,
+            event_indices=event_indices
+        )
 
         if self._svi_state is None:
             self.reset()
-    
-        self._svi_state, elbo_losses = self._lax_jit(
-            self._svi,
-            self._svi_state,
-            self.num_iter,
-            obsflux=self._y,
-            t=jnp.array(self._X[:,0], dtype=jnp.float32),
-            uncertainties=jnp.array(self._X[:,2], dtype=jnp.float32),
-            parameter_map=self._param_map,
-        )
+
+        if event_indices is not None: #hierarchical
+            self._svi_state, elbo_losses = self._lax_jit(
+                self._svi,
+                self._svi_state,
+                self.num_iter,
+                obsflux=self._y,
+                t=jnp.array(self._X[:,0], dtype=jnp.float32),
+                uncertainties=jnp.array(self._X[:,2], dtype=jnp.float32),
+                start_idxs=jnp.array(self._idxs[:,0], dtype=int),
+                end_idxs=jnp.array(self._idxs[:,1], dtype=int),
+                parameter_map=self._param_map,
+            )
+
+        else:
+            self._svi_state, elbo_losses = self._lax_jit(
+                self._svi,
+                self._svi_state,
+                self.num_iter,
+                obsflux=self._y,
+                t=jnp.array(self._X[:,0], dtype=jnp.float32),
+                uncertainties=jnp.array(self._X[:,2], dtype=jnp.float32),
+                parameter_map=self._param_map,
+            )
 
         params = self._svi.get_params(self._svi_state)
-        
-        params_loc = jnp.concatenate([
-            params['loc_base'],
-            params['loc_relative']
-        ])
-        params_scale = jnp.concatenate([
-            params['scale_base'],
-            params['scale_relative']
-        ])
-        
-        #print(elbo_losses)
-        #print(params_loc, params_scale)
 
-        param_arr = params_loc + random.normal(
-            key=self._rng, shape=(1000,)
-        )[:,jnp.newaxis] * params_scale
+        if event_indices is not None:
+            params_loc = jnp.concatenate([
+                params['loc_base'],
+                params['loc_relative']
+            ], axis=1)
+            params_scale = jnp.concatenate([
+                params['scale_base'],
+                params['scale_relative']
+            ], axis=1)
 
-        posterior_samples = pd.DataFrame(np.array(param_arr), columns=self._params)
-        self._process_samples(posterior_samples)
+            global_mu_loc = jnp.concatenate([
+                params['global_mu_base_loc'],
+                params['global_mu_rel_loc']
+            ])
+            global_mu_scale = jnp.concatenate([
+                params['global_mu_base_sigma'],
+                params['global_mu_rel_sigma']
+            ])
+
+            global_scale_loc = jnp.concatenate([
+                params['global_sigma_base_loc'],
+                params['global_sigma_rel_loc']
+            ])
+            global_scale_scale = jnp.concatenate([
+                params['global_sigma_base_sigma'],
+                params['global_sigma_rel_sigma']
+            ])
+
+            global_mu_arr = global_mu_loc + random.normal(
+                key=self._rng, shape=(1000,)
+            )[:,jnp.newaxis] * global_mu_scale
+            global_scale_arr = global_scale_loc + random.normal(
+                key=self._rng, shape=(1000,)
+            )[:,jnp.newaxis] * global_scale_scale
+
+            indiv_param_arr = params_loc[:,jnp.newaxis,:] + random.normal(
+                key=self._rng, shape=(len(event_indices), 1000)
+            )[:,:,jnp.newaxis] * params_scale[:,jnp.newaxis,:]
+
+            self._process_samples_hierarchical(global_mu_arr, global_scale_arr, indiv_param_arr)
+
+        else:
+            params_loc = jnp.concatenate([
+                params['loc_base'],
+                params['loc_relative']
+            ])
+            params_scale = jnp.concatenate([
+                params['scale_base'],
+                params['scale_relative']
+            ])
+
+            param_arr = params_loc + random.normal(
+                key=self._rng, shape=(1000,)
+            )[:,jnp.newaxis] * params_scale
+
+            posterior_samples = pd.DataFrame(np.array(param_arr), columns=self._params)
+            self._process_samples(posterior_samples)
