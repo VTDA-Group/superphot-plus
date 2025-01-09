@@ -4,7 +4,7 @@ from typing import List, Optional
 from functools import partial
 
 import numpy as np
-from dynesty import NestedSampler
+from dynesty import DynamicNestedSampler, NestedSampler
 from snapi.analysis import SamplerResult, SamplerPrior
 import pandas as pd
 
@@ -25,6 +25,7 @@ class DynestySampler(SuperphotSampler):
             bound: str='single',
             sample_strategy: str='rwalk',
             nlive: int=NLIVE,
+            dynamic: bool=False,
             verbose: bool=False
         ):
         """Initialize the DynestySampler object.
@@ -45,6 +46,8 @@ class DynestySampler(SuperphotSampler):
             The sample strategy.
         nlive : int, optional
             The number of live points.
+        dynamic: bool, optional
+            Whether to use dynamic sampling. Defaults to false.
         verbose : bool, optional
             Whether to print progress.
         """
@@ -62,12 +65,20 @@ class DynestySampler(SuperphotSampler):
         self._sampler_name = 'superphot_dynesty'
         self._prior_func = partial(self._priors.sample, use_numpyro=False)
         self._param_map = None
-        
-        self._nested_sampler = NestedSampler(
-            self._logL, self._prior_func, (self._nparams + 3) * len(self._unique_bands),
-            sample=sample_strategy, bound=bound, nlive=nlive,
-            rstate=self._rng
-        )
+        self._dynamic = dynamic
+
+        if dynamic:
+            self._nested_sampler = DynamicNestedSampler(
+                self._logL, self._prior_func, (self._nparams + 3) * len(self._unique_bands),
+                sample=sample_strategy, bound=bound, nlive=nlive,
+                rstate=self._rng, #walks=50,
+            )
+        else:
+            self._nested_sampler = NestedSampler(
+                self._logL, self._prior_func, (self._nparams + 3) * len(self._unique_bands),
+                sample=sample_strategy, bound=bound, nlive=nlive,
+                rstate=self._rng, #walks=50
+            )
 
     def _logL(self, cube):
         """Define the log-likelihood function.
@@ -108,6 +119,7 @@ class DynestySampler(SuperphotSampler):
         self._nested_sampler.loglikelihood.pool = None # post-pickling fix
         self._nested_sampler.reset()
 
+
     def fit(self, X, y):
         """Runs dynesty importance nested sampling on a set of light curves; saves set
         of equally weighted posteriors (sets of fit parameters).
@@ -125,12 +137,6 @@ class DynestySampler(SuperphotSampler):
             Stores info on equally weighted posteriors, or None if the data is invalid.
         """
         super().fit(X, y)
-        
-        # Require data in all bands
-        for band in self._unique_bands:
-            if band not in self._X[:, 1]:
-                return None
-            
         self._t = self._X[:,0].astype(np.float32)
         self._err = self._X[:,2].astype(np.float32)
         
@@ -142,13 +148,26 @@ class DynestySampler(SuperphotSampler):
                 self._param_map[i,b_idxs] = np.where(self._params == f'{param}_{b}')[0][0]
         
         self._param_map = np.array(self._param_map)
+
+        # Require data in all bands
+        for band in self._unique_bands:
+            if band not in self._X[:, 1]:
+                return None
     
-        self.reset()        
-        self._nested_sampler.run_nested(
-            maxiter=self._max_iter,
-            dlogz=self._dlogz,
-            print_progress=self._verbose
-        )
+        self.reset()
+
+        if self._dynamic:
+            self._nested_sampler.run_nested(
+                maxiter_init=self._max_iter,
+                n_effective=10_000, dlogz_init=self._dlogz,
+                print_progress=self._verbose
+            )
+        else:
+            self._nested_sampler.run_nested(
+                maxiter=self._max_iter,
+                dlogz=self._dlogz,
+                print_progress=self._verbose
+            )
         res = self._nested_sampler.results
         samples_equal = res.samples_equal(rstate=self._rng)
 

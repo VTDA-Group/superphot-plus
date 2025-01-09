@@ -27,6 +27,31 @@ class SuperphotSampler(Sampler):
                 self._base_params.append(c.replace("_" +self._unique_bands[0], ""))
         self.result = None
 
+    def fit(self, X, y, event_indices=None):
+        """Remove elements where filter not included in priors.
+        """
+        mask = np.isin(X[:,1], self._unique_bands)
+
+        if event_indices is not None:
+            # Prepare new index ranges
+            cumsum_mask = np.cumsum(mask)
+
+            # Prepare new index ranges
+            new_index_ranges = []
+
+            for original_start, original_end in event_indices:
+                # Adjust the start and end indices based on the cumulative mask
+                num_retained_before_start = cumsum_mask[original_start - 1] if original_start > 0 else 0
+                num_retained_before_end = cumsum_mask[original_end - 1] - mask[0]
+
+                # Append the updated range directly
+                new_index_ranges.append((num_retained_before_start, num_retained_before_end))
+
+            super().fit(X[mask], y[mask], new_index_ranges)
+
+        else:
+            super().fit(X[mask], y[mask])
+
     def _reformat_cube(self, cube):
         """Reformat cube based on self._param_map"""
         return cube[self._param_map]
@@ -38,8 +63,11 @@ class SuperphotSampler(Sampler):
         return X[:,2:3].T.astype(np.float32)**2 + (extra_sigma_arr.T)**2
 
     def predict(self, X, num_fits=None):
-        """Predicts the flux of a light curve using the model."""  
-        _, val_x = super().predict(X)
+        """Predicts the flux of a light curve using the model."""
+        mask = np.isin(X[:,1], self._unique_bands)
+        if np.all(~mask):
+            return np.array([]), np.array([])
+        _, val_x = super().predict(X[mask])
         self._param_map = np.zeros((self._nparams+3, len(val_x)), dtype=int)
         
         for i, param in enumerate(self._base_params):
@@ -52,7 +80,7 @@ class SuperphotSampler(Sampler):
         
         if num_fits:
             return flux_model(
-                cube[:,:,:num_fits],
+                cube[:,:,-1*num_fits:],
                 val_x[:, 0].astype(np.float32), val_x[:, 1]
             ), val_x
 

@@ -1,18 +1,22 @@
 import os
+from typing import Optional
 
 import pandas as pd
 
 from .superphot_prior import SuperphotPrior
 
-def generate_priors(filts: list[str], reference_band: str='ZTF_r'):
+def generate_priors(filts: list[str], reference_band: str='ZTF_r', priors_dir: Optional[str]=None):
     """Generate SamplerPrior for Superphot+ samplers, given a list of
     SNAPI filters and a reference band. Assumes relative priors.
     """
+    if priors_dir is None:
+        priors_dir = os.path.dirname(os.path.realpath(__file__))
     concat_df = None
+
     for f in filts:
         prior_df = pd.read_csv(
             os.path.join(
-                os.path.dirname(os.path.realpath(__file__)),
+                priors_dir,
                 f'priors_{f}.csv'
             )
         )
