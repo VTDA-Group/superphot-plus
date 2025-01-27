@@ -102,7 +102,7 @@ class SuperphotTrainer(TrainerBase):
         else:
             k_folded_data = self.k_fold_split_train_test(transient_data, sampler_results)
 
-        if self.config.parallelize:
+        if self.config.n_parallel > 1:
             ctx = mp.get_context('spawn')
             pool = ctx.Pool(self.config.n_parallel)
             probs_df = pool.map(self.run_single_fold, zip(np.arange(self.config.n_folds), k_folded_data))
