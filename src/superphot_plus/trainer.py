@@ -227,10 +227,9 @@ class SuperphotTrainer(TrainerBase):
             probs_avg.columns = np.sort([self.config.target_label, "other"])
             pred_target = probs_avg[self.config.target_label] > self.config.prob_threshhold
             probs_avg['pred_class'] = np.where(pred_target, self.config.target_label, "other")
-            
+
         probs_avg['true_class'] = test_df['label'].groupby(test_df.index).first()
         probs_avg['fold'] = k_fold
-        
         """
         if self.config.logging:
             # Log evaluation metrics

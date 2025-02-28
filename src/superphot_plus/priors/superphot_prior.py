@@ -1,16 +1,18 @@
 import pandas as pd
+from jax import debug, config
+from typing import Optional
 import jax.numpy as jnp
-import jax
-from jax import debug
 import numpy as np
 import numpyro.distributions as dist
 import numpyro
 from scipy.stats import truncnorm
 from snapi.analysis import SamplerPrior
 
-#jax.config.update("jax_disable_jit", True)
-jax.config.update('jax_platform_name', 'cpu')
-#jax.config.update("jax_debug_nans", True)
+#num_cpus = psutil.cp#u_count(logical=False)
+#numpyro.set_host_device_count(num_cpus)
+#config.update("jax_disable_jit", True)
+config.update('jax_platform_name', 'cpu')
+#config.update("jax_debug_nans", True)
 
 class SuperphotPrior(SamplerPrior):
     """Stores prior information for sampler. Only supports Gaussianity
@@ -19,15 +21,18 @@ class SuperphotPrior(SamplerPrior):
     
     def __init__(
         self,
-        prior_info: pd.DataFrame
+        prior_info: Optional[pd.DataFrame] = None
     ):
         """Stores prior information for the Sampler."""
+        self._df = None
         super().__init__(prior_info)
-        for k in ['param', 'mean', 'stddev', 'min', 'max', 'logged', 'relative', 'relative_op']:
-            if k not in prior_info:
-                raise ValueError(f"column {k} not in prior_info!")
-        self._df.loc[:,'logged'] = self._df.loc[:,'logged'].astype(bool)
-        self.update()
+
+        if self._df is not None:
+            for k in ['param', 'mean', 'stddev', 'min', 'max', 'logged', 'relative', 'relative_op']:
+                if k not in self._df.columns:
+                    raise ValueError(f"column {k} not in prior_info!")
+            self._df.loc[:,'logged'] = self._df.loc[:,'logged'].astype(bool)
+            self.update()
         
     def update(self) -> None:
         """Rearrange priors so correlated priors are sampled
@@ -125,6 +130,9 @@ class SuperphotPrior(SamplerPrior):
                         high=max_vals_base,
                     )
                 )
+                #debug.print("Global base - min vals sample: {}", jnp.min(jnp.sign(global_mu_base - min_vals_base)))
+                #debug.print("Global Max - base vals sample: {}", jnp.min(jnp.sign(max_vals_base - global_mu_base)))
+
                 global_sigma_base = numpyro.sample("global_sigma_base", dist.HalfNormal(init_scale_base))
 
                 # Global priors for relative parameters
@@ -134,9 +142,12 @@ class SuperphotPrior(SamplerPrior):
                         loc=init_loc_rel,
                         scale=init_scale_rel,
                         low=min_vals_rel,
-                        high=max_vals_rel
+                        high=max_vals_rel,
                     )
                 )
+
+                #debug.print("Global Rel - min vals sample: {}", global_mu_rel - min_vals_rel)
+                #debug.print("Global Max - rel vals sample: {}", max_vals_rel - global_mu_rel)
                 global_sigma_rel = numpyro.sample("global_sigma_rel", dist.HalfNormal(init_scale_rel))
 
                 with numpyro.plate("events", num_events, dim=-2):   # Assume self.num_events defines the number of events
@@ -145,35 +156,46 @@ class SuperphotPrior(SamplerPrior):
                         global_mu_base_arr = jnp.tile(global_mu_base, (num_events, 1))
                         base_vals = numpyro.sample(
                             "base_samples",
-                            dist.TruncatedNormal(
+                            dist.Normal(
                                 loc=global_mu_base_arr,
                                 scale=global_sigma_base,
-                                low=min_vals_base,
-                                high=max_vals_base
+                                #low=min_vals_base,
+                                #high=max_vals_base,
                             )
+                        )
+                        base_vals = jnp.clip(
+                            base_vals, min_vals_base + 1e-6,
+                            max_vals_base - 1e-6
                         )
 
                     # Compute relative shifts
                     relative_shifts = base_vals[:,self._relative_idxs_jax]
+                    min_constraint = jnp.maximum(min_vals_rel + base_vals[:,self._relative_idxs_jax], min_vals_base[self._relative_idxs_jax])
+                    max_constraint = jnp.minimum(max_vals_rel + base_vals[:,self._relative_idxs_jax], max_vals_base[self._relative_idxs_jax])
 
                     # Adjust locations based on relative shifts
                     adjusted_locs = global_mu_rel + relative_shifts
                     # Constrain adjusted locations within bounds
                     adjusted_locs_constrained = jnp.clip(
-                        adjusted_locs, min_vals_base[self._relative_idxs_jax] + 1e-6,
-                        max_vals_base[self._relative_idxs_jax] - 1e-6
+                        adjusted_locs, min_constraint + 1e-6,
+                        max_constraint - 1e-6
                     )
+
                     with numpyro.plate("relative_params", len(min_vals_rel), dim=-1):
                         resampled_vals = numpyro.sample(
                             "relative_samples",
-                            dist.TruncatedNormal(
+                            dist.Normal(
                                 loc=adjusted_locs_constrained,
                                 scale=global_sigma_rel,
-                                low=min_vals_base[self._relative_idxs_jax],
-                                high=max_vals_base[self._relative_idxs_jax],
+                                #low=min_constraint,
+                                #high=max_constraint,
                             )
                         )
 
+                    resampled_vals = jnp.clip(
+                        resampled_vals, min_constraint + 1e-6,
+                        max_constraint - 1e-6
+                    )
                     # Combine base and relative values for each event
                     vals = jnp.concatenate([
                         base_vals,
@@ -182,6 +204,7 @@ class SuperphotPrior(SamplerPrior):
 
                     # Apply transformations to logged values if necessary
                     vals = vals.at[:,self._logged_jax].set(10 ** vals[:,self._logged_jax])
+                    #debug.print("vals: {}", vals)
 
 
             else:
@@ -197,10 +220,13 @@ class SuperphotPrior(SamplerPrior):
 
                 # Compute the adjustment only for relative ones
                 relative_shifts = base_vals[self._relative_idxs_jax]
+                min_constraint = jnp.maximum(min_vals_rel + base_vals[self._relative_idxs_jax], min_vals_base[self._relative_idxs_jax])
+                max_constraint = jnp.minimum(max_vals_rel + base_vals[self._relative_idxs_jax], max_vals_base[self._relative_idxs_jax])
+
                 adjusted_locs = init_loc_rel + relative_shifts
 
                 # Reapply the constraints to adjusted_locs to make sure they stay within bounds
-                adjusted_locs_constrained = jnp.clip(adjusted_locs, min_vals_rel + 1e-6, max_vals_rel - 1e-6)
+                adjusted_locs_constrained = jnp.clip(adjusted_locs, min_constraint + 1e-6, max_constraint - 1e-6)
 
                 with numpyro.plate("relative_params", len(min_vals_rel)):
                     # Re-sample using the adjusted means only for relative parameters
@@ -209,8 +235,8 @@ class SuperphotPrior(SamplerPrior):
                         dist.TruncatedNormal(
                             loc=adjusted_locs_constrained,
                             scale=init_scale_rel,
-                            low=min_vals_rel,
-                            high=max_vals_rel,
+                            low=min_constraint,
+                            high=max_constraint
                         )
                     )
             
@@ -263,34 +289,39 @@ class SuperphotPrior(SamplerPrior):
 
             global_mu_base_sigma = numpyro.param(
                 "global_mu_base_sigma",
-                init_value=init_scale_base / 10.,
-                constraint=dist.constraints.positive
+                init_value=init_scale_base / 5.,
+                constraint=dist.constraints.interval(1e-6, init_scale_base)
             )
 
             # Sample global base parameters in the guide
             numpyro.sample(
                 "global_mu_base",
-                dist.TruncatedNormal(
+                dist.Normal(
                     loc=global_mu_base_loc,
                     scale=global_mu_base_sigma,
-                    low=min_vals_base,
-                    high=max_vals_base
+                    #low=min_vals_base,
+                    #high=max_vals_base,
                 )
             )
 
             global_sigma_base_loc = numpyro.param(
                 "global_sigma_base_loc",
                 init_value=init_scale_base,
-                constraint=dist.constraints.positive
+                constraint=dist.constraints.interval(1e-6, 3 * init_scale_base)
             )
+            #debug.print("Global beta/gamma mu: {}", global_mu_base_loc[1:5])
+            #debug.print("Global gamma1 sigma: {}", global_sigma_base_loc[1:5])
 
             global_sigma_base_sigma = numpyro.param(
                 "global_sigma_base_sigma",
-                init_value=init_scale_base / 10.,
-                constraint=dist.constraints.positive
+                init_value=init_scale_base / 5.,
+                constraint=dist.constraints.interval(1e-6, init_scale_base)
             )
 
-            numpyro.sample("global_sigma_base", dist.Normal(global_sigma_base_loc, global_sigma_base_sigma))
+            numpyro.sample(
+                "global_sigma_base",
+                dist.TruncatedNormal(global_sigma_base_loc, global_sigma_base_sigma, low=1e-5, high=None)
+            )
 
             # global relative
             global_mu_rel_loc = numpyro.param(
@@ -301,41 +332,43 @@ class SuperphotPrior(SamplerPrior):
 
             global_mu_rel_sigma = numpyro.param(
                 "global_mu_rel_sigma",
-                init_value=init_scale_rel / 10.,
-                constraint=dist.constraints.positive
+                init_value=init_scale_rel / 5.,
+                constraint=dist.constraints.interval(1e-6, init_scale_rel)
             )
+            #debug.print("Global mu rel sigma: {}", global_mu_rel_sigma)
 
             # Sample global base parameters in the guide
             numpyro.sample(
                 "global_mu_rel",
-                dist.TruncatedNormal(
+                dist.Normal(
                     loc=global_mu_rel_loc,
                     scale=global_mu_rel_sigma,
-                    low=min_vals_rel,
-                    high=max_vals_rel
+                    #low=min_vals_rel,
+                    #high=max_vals_rel,
                 )
             )
 
             global_sigma_rel_loc = numpyro.param(
                 "global_sigma_rel_loc",
-                init_value=init_scale_rel,
-                constraint=dist.constraints.positive
+                init_value= init_scale_rel,
+                constraint=dist.constraints.interval(1e-6, 3 * init_scale_rel)
             )
 
             global_sigma_rel_sigma = numpyro.param(
                 "global_sigma_rel_sigma",
-                init_value=init_scale_rel / 10.,
-                constraint=dist.constraints.positive
+                init_value=init_scale_rel / 5.,
+                constraint=dist.constraints.interval(1e-6, init_scale_rel)
             )
 
-            numpyro.sample("global_sigma_rel", dist.Normal(global_sigma_rel_loc, global_sigma_rel_sigma))
+            numpyro.sample(
+                "global_sigma_rel",
+                dist.TruncatedNormal(global_sigma_rel_loc, global_sigma_rel_sigma, low=1e-5, high=None)
+            )
 
-            """
-            debug.print("Global mu base: {}", global_mu_base_loc)
-            debug.print("Global sigma base: {}", global_mu_base_sigma)
-            debug.print("Global mu rel: {}", global_mu_rel_loc)
-            debug.print("Global sigma rel: {}", global_mu_rel_sigma)
-            """
+            #debug.print("Global mu base: {}", global_mu_base_loc)
+            #debug.print("Global sigma base: {}", global_sigma_base_loc)
+            #debug.print("Global mu rel: {}", global_mu_rel_loc)
+            #debug.print("Global sigma rel: {}", global_sigma_rel_loc[:7])
  
             with numpyro.plate("events", num_events, dim=-2):
                 with numpyro.plate("base_params", len(init_loc_base), dim=-1):
@@ -351,31 +384,30 @@ class SuperphotPrior(SamplerPrior):
                     )
 
                     svi_scale_base = numpyro.param(
-                        f"scale_base",
-                        init_value=init_scale_base_arr / 10.0,
-                        constraint=dist.constraints.positive
+                        "scale_base",
+                        init_value=init_scale_base_arr / 5.,
+                        constraint=dist.constraints.interval(1e-5, 3 * init_scale_base_arr)
                     )
 
-                    # Sample base values per event
-                    base_vals = numpyro.sample(
-                        f"base_samples",
-                        dist.TruncatedNormal(
+                    numpyro.sample(
+                        "base_samples",
+                        dist.Normal(
                             loc=svi_loc_base,
                             scale=svi_scale_base,
-                            low=min_vals_base,
-                            high=max_vals_base,
                         )
                     )
-
-                    #debug.print("{}", base_vals)
 
                 # Compute the shifts for relative parameters
                 relative_shifts = svi_loc_base[:,self._relative_idxs_jax]
                 adjusted_locs = init_loc_rel + relative_shifts
+
+                min_constraint = jnp.maximum(min_vals_rel + svi_loc_base[:,self._relative_idxs_jax], min_vals_base[self._relative_idxs_jax])
+                max_constraint = jnp.minimum(max_vals_rel + svi_loc_base[:,self._relative_idxs_jax], max_vals_base[self._relative_idxs_jax])
+                
                 adjusted_locs_constrained = jnp.clip(
                     adjusted_locs,
-                    min_vals_rel[jnp.newaxis,:] + 1e-6,
-                    max_vals_rel[jnp.newaxis,:] - 1e-6
+                    min_constraint + 1e-6,
+                    max_constraint - 1e-6
                 )
 
                 with numpyro.plate("relative_params", len(init_loc_rel), dim=-1):
@@ -385,29 +417,24 @@ class SuperphotPrior(SamplerPrior):
                         "loc_relative",
                         init_value=adjusted_locs_constrained,
                         constraint=dist.constraints.interval(
-                            min_vals_base[self._relative_idxs_jax],
-                            max_vals_base[self._relative_idxs_jax]
+                            min_constraint, max_constraint
                         )
                     )
 
                     svi_scale_relative = numpyro.param(
                         "scale_relative",
-                        init_value=init_scale_rel_arr / 10.0,
-                        constraint=dist.constraints.positive
+                        init_value=init_scale_rel_arr / 5.,
+                        constraint=dist.constraints.interval(1e-6, 3 * init_scale_rel_arr)
                     )
 
                     # Sample relative values per event
-                    relative_vals = numpyro.sample(
+                    numpyro.sample(
                         "relative_samples",
-                        dist.TruncatedNormal(
+                        dist.Normal(
                             loc=svi_loc_relative,
                             scale=svi_scale_relative,
-                            low=min_vals_base[self._relative_idxs_jax],
-                            high=max_vals_base[self._relative_idxs_jax]
                         )
                     )
-
-
 
         else:
             with numpyro.plate("base_params", len(min_vals_base)):
@@ -419,48 +446,54 @@ class SuperphotPrior(SamplerPrior):
                 )
 
                 svi_scale_base = numpyro.param(
-                    "scale_base", 
-                    init_value=init_scale_base / 10.,
-                    constraint=dist.constraints.positive
+                    "scale_base",
+                    init_value=init_scale_base / 5.,
+                    constraint=dist.constraints.interval(1e-5, 3 * init_scale_base)
                 )
                 
-                base_vals = numpyro.sample(
+                numpyro.sample(
                     "base_samples",
-                    dist.TruncatedNormal(
+                    dist.Normal(
                         loc=svi_loc_base,
                         scale=svi_scale_base,
-                        low=min_vals_base,
-                        high=max_vals_base
                     )
                 )
 
-            # Compute the adjustment only for relative ones
-            relative_shifts = base_vals[self._relative_idxs_jax]
-            
+            # Compute the shifts for relative parameters
+            relative_shifts = svi_loc_base[self._relative_idxs_jax]
             adjusted_locs = init_loc_rel + relative_shifts
-            adjusted_locs_constrained = jnp.clip(adjusted_locs, min_vals_rel + 1e-6, max_vals_rel - 1e-6)
+
+            min_constraint = jnp.maximum(min_vals_rel + svi_loc_base[self._relative_idxs_jax], min_vals_base[self._relative_idxs_jax])
+            max_constraint = jnp.minimum(max_vals_rel + svi_loc_base[self._relative_idxs_jax], max_vals_base[self._relative_idxs_jax])
+            
+            adjusted_locs_constrained = jnp.clip(
+                adjusted_locs,
+                min_constraint + 1e-6,
+                max_constraint - 1e-6
+            )
             
             with numpyro.plate("relative_params", len(min_vals_rel)):
                 # Re-sample using the adjusted means only for relative parameters
-                svi_loc = numpyro.param(
+                svi_loc_relative = numpyro.param(
                     "loc_relative",
                     init_value=adjusted_locs_constrained,
-                    constraint=dist.constraints.interval(min_vals_rel, max_vals_rel)
+                    constraint=dist.constraints.interval(
+                        min_constraint, max_constraint
+                    )
                 )
 
-                svi_scale = numpyro.param(
-                    "scale_relative", 
-                    init_value=init_scale_rel / 10.,
-                    constraint=dist.constraints.positive
+                svi_scale_relative = numpyro.param(
+                    "scale_relative",
+                    init_value=init_scale_rel / 5.0,
+                    constraint=dist.constraints.interval(1e-6, 3 * init_scale_rel)
                 )
-                
-                resampled_vals = numpyro.sample(
+
+                # Sample relative values per event
+                numpyro.sample(
                     "relative_samples",
-                    dist.TruncatedNormal(
-                        loc=svi_loc,
-                        scale=svi_scale,
-                        low=min_vals_rel,
-                        high=max_vals_rel,
+                    dist.Normal(
+                        loc=svi_loc_relative,
+                        scale=svi_scale_relative,
                     )
                 )
             

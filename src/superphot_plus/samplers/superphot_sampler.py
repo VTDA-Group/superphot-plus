@@ -27,6 +27,8 @@ class SuperphotSampler(Sampler):
                 self._base_params.append(c.replace("_" +self._unique_bands[0], ""))
         self.result = None
 
+        print(self._params, self._base_params)
+
     def fit(self, X, y, event_indices=None):
         """Remove elements where filter not included in priors.
         """
@@ -42,7 +44,7 @@ class SuperphotSampler(Sampler):
             for original_start, original_end in event_indices:
                 # Adjust the start and end indices based on the cumulative mask
                 num_retained_before_start = cumsum_mask[original_start - 1] if original_start > 0 else 0
-                num_retained_before_end = cumsum_mask[original_end - 1] - mask[0]
+                num_retained_before_end = cumsum_mask[original_end - 1]
 
                 # Append the updated range directly
                 new_index_ranges.append((num_retained_before_start, num_retained_before_end))
@@ -61,6 +63,9 @@ class SuperphotSampler(Sampler):
         fit_param_numpy = self.result.fit_parameters[self._params].to_numpy().T # each entry is a parameter
         extra_sigma_arr = self._reformat_cube(fit_param_numpy)[-1] # (num_times, num_fits)
         return X[:,2:3].T.astype(np.float32)**2 + (extra_sigma_arr.T)**2
+    
+    def flux_model(self, cube, t, b):
+        return flux_model(cube, t, b)
 
     def predict(self, X, num_fits=None):
         """Predicts the flux of a light curve using the model."""
@@ -79,12 +84,12 @@ class SuperphotSampler(Sampler):
         cube = self._reformat_cube(fit_param_numpy) # (num_params, num_times, num_fits)
         
         if num_fits:
-            return flux_model(
+            return self.flux_model(
                 cube[:,:,-1*num_fits:],
                 val_x[:, 0].astype(np.float32), val_x[:, 1]
             ), val_x
 
-        return flux_model(
+        return self.flux_model(
             cube,
             val_x[:, 0].astype(np.float32), val_x[:, 1]
         ), val_x

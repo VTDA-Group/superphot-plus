@@ -3,66 +3,121 @@ from typing import Optional
 from functools import partial
 
 from numpy.typing import NDArray
-#from numpyro.distributions import constraints
-#from numpyro.distributions.transforms import biject_to
 import numpy as np
 import numpyro
 import numpyro.distributions as dist
-from numpyro.infer.util import (
-    _without_rsample_stop_gradient,
-    get_importance_trace,
-    is_identically_one,
-    log_density,
-)
-from numpyro.util import _validate_model, check_model_guide_match, find_stack_level
 import pandas as pd
 import jax.numpy as jnp
-from jax import random, lax, jit, vmap, config, debug, grad
+from jax import jit, lax, random, value_and_grad, vmap, config, debug
+from numpyro.infer.svi import SVIState
+from jax.flatten_util import ravel_pytree
 from numpyro.infer import MCMC, NUTS, SVI, Trace_ELBO
 from numpyro.infer.initialization import init_to_uniform
-from numpyro.infer.elbo import ELBO
-from numpyro.infer.svi import _make_loss_fn, SVIState
-from numpyro.handlers import replay, seed, substitute, trace
 from snapi.analysis import SamplerPrior, SamplerResult
-from sklearn.utils import check_random_state
 
 from superphot_plus.samplers.superphot_sampler import SuperphotSampler
 from superphot_plus.utils import villar_fit_constraint
 
-#numpyro.set_host_device_count(1)
-#config.update("jax_enable_x64", True)
-#config.update("jax_disable_jit", True)
-#config.update("jax_debug_nans", True)
-#numpyro.enable_x64()
+
+config.update('jax_platform_name', 'cpu')
+
+def _make_loss_fn(
+    elbo,
+    rng_key,
+    constrain_fn,
+    model,
+    guide,
+    args,
+    kwargs,
+    static_kwargs,
+):
+    def loss_fn(params):
+        params = constrain_fn(params)
+        return elbo.loss(
+            rng_key, params, model, guide, *args, **kwargs, **static_kwargs
+        )
+
+    return loss_fn
+
+
+def stablish_update(svi, svi_state, *args, forward_mode_differentiation=False, **kwargs):
+    """
+    Take a single step of SVI (possibly on a batch / minibatch of data),
+    using the optimizer.
+
+    :param svi_state: current state of SVI.
+    :param args: arguments to the model / guide (these can possibly vary during
+        the course of fitting).
+    :param forward_mode_differentiation: boolean flag indicating whether to use forward mode differentiation.
+        Defaults to False.
+    :param kwargs: keyword arguments to the model / guide (these can possibly vary
+        during the course of fitting).
+    :return: tuple of `(svi_state, loss)`.
+    """
+    rng_key, rng_key_step = random.split(svi_state.rng_key)
+    loss_fn = _make_loss_fn(
+        svi.loss,
+        rng_key_step,
+        svi.constrain_fn,
+        svi.model,
+        svi.guide,
+        args,
+        kwargs,
+        svi.static_kwargs,
+    )
+    state = svi_state.optim_state
+    params = svi.optim.get_params(state)
+    #debug.print("Params: {}", params)
+    loss_val, grads = value_and_grad(loss_fn)(params)
+
+    optim_state = lax.cond(
+        jnp.isfinite(ravel_pytree(grads)[0]).all(),
+        lambda _: svi.optim.update(grads, state),
+        lambda _: state,
+        None,
+    )
+    #debug.print("Optim: {}", optim_state)
+    return SVIState(optim_state, None, rng_key), loss_val
+
 
 def lax_helper_function(svi, svi_state, num_iters, *args, **kwargs):
     """Helper function using LAX to speed up SVI state updates."""
     @jit
     def update_svi(s, i):
-        u, l = svi.stable_update(s, *args, **kwargs)
-        return (u,l)
+        return stablish_update(svi, s, *args, **kwargs)
+
+    """
+    for i in range(num_iters):
+        svi_state, _ = update_svi(svi_state, i)
+    return svi_state
+    """
         
-    u, losses = lax.scan(update_svi, svi_state, jnp.arange(num_iters), length=num_iters)
-    return u, losses
+    u, _ = lax.scan(update_svi, svi_state, jnp.arange(num_iters), length=num_iters)
+    return u
 
 class NumpyroSampler(SuperphotSampler):
     """Samplers which use numpyro."""
 
     def single_hierarchical_event(
-        self, event_idx, t, obsflux, uncertainties, parameter_map,
+        self, t, obsflux, uncertainties, parameter_map,
         start_idx, end_idx, cube
     ):
-        max_length = 300
+        max_length = self.max_length
+        
         # parameter_map.shape = (7, len(t)), cube.shape = (28,)
         new_cube_all = jnp.take(cube, parameter_map)
         
         # Create a mask for the current event
+        # Add padding mask to existing event mask
         mask = jnp.arange(max_length) < (end_idx - start_idx)
-        
+
         # Extract data for the current event using the mask
-        t_event = jnp.where(mask, lax.dynamic_slice(t, (start_idx,), (max_length,)), 0.)
-        obsflux_event = jnp.where(mask, lax.dynamic_slice(obsflux, (start_idx,), (max_length,)), 0.)
-        uncertainties_event = jnp.where(mask, lax.dynamic_slice(uncertainties, (start_idx,), (max_length,)), 1.)
+        sliced_t = lax.dynamic_slice(t, (start_idx,), (max_length,))
+        t_event = jnp.where(mask, sliced_t, jnp.zeros(max_length))
+        sliced_obsflux = lax.dynamic_slice(obsflux, (start_idx,), (max_length,))
+        obsflux_event = jnp.where(mask, sliced_obsflux, jnp.zeros(max_length))
+        sliced_unc = lax.dynamic_slice(uncertainties, (start_idx,), (max_length,))
+        uncertainties_event = jnp.where(mask, sliced_unc, jnp.ones(max_length))
 
         new_cube = jnp.where(
             mask[None, :],
@@ -79,8 +134,9 @@ class NumpyroSampler(SuperphotSampler):
         fit_constraint = jnp.max(villar_fit_constraint(new_cube))
 
         amp, beta, gamma, t_0, tau_rise, tau_fall, extra_sigma = new_cube
+        gamma = jnp.clip(gamma, min=0.0, max=None)
         phase = jnp.clip(t_event - t_0, min=-50.*tau_rise, max=None)
-        phase = jnp.clip(phase, min=-50.*tau_fall + gamma, max=None)
+
         flux_const = amp / (1.0 + jnp.exp(-phase / tau_rise))
 
         flux = flux_const * jnp.where(
@@ -91,10 +147,9 @@ class NumpyroSampler(SuperphotSampler):
 
         sigma_tot = jnp.sqrt(uncertainties_event**2 + extra_sigma**2)
 
-        #print(jnp.sum((flux - obsflux_event)**2 / sigma_tot**2) / jnp.sum(mask))
-
         return flux, sigma_tot, mask, fit_constraint, obsflux_event
 
+    
     def create_hierarchical_jax_model(
         self,
         t=None,
@@ -108,24 +163,40 @@ class NumpyroSampler(SuperphotSampler):
 
         if t is None:
             return None
-                
+        
         num_events = len(start_idxs)
-        index_array = jnp.arange(num_events)
 
-        fluxes, sigma_tots, masks, factors, obsfluxes = vmap(self.single_hierarchical_event, in_axes=(0, None, None, None, None, 0, 0, 0))(
-            index_array, t, obsflux, uncertainties, parameter_map,
-            start_idxs, end_idxs, cube_all_events
-        )
+        batch_size = 100
+        num_events = len(start_idxs)
+        num_batches = (num_events + batch_size - 1) // batch_size
 
-        factors = factors[:, jnp.newaxis]
-        event_idx = index_array[:, jnp.newaxis]
-
-        with numpyro.plate("events", num_events, dim=-2):
-            numpyro.factor(
-                f"vf_constraint_{event_idx}",
-                -1000. * factors
+        # Pre-pad arrays to ensure fixed shapes for JIT
+        pad_size = num_batches * batch_size - num_events
+        start_idxs_padded = jnp.pad(start_idxs, (0, pad_size))
+        end_idxs_padded = jnp.pad(end_idxs, (0, pad_size))
+        cube_padded = jnp.pad(cube_all_events, ((0, pad_size), (0, 0)))
+        
+        for batch_idx in range(num_batches):
+            start = batch_idx * batch_size
+            # No need for min() since we pre-padded
+            batch_slice = slice(start, start + batch_size)
+            
+            # Process each batch with vmap
+            fluxes, sigma_tots, masks, factors, obsfluxes = vmap(self.single_hierarchical_event, in_axes=(None, None, None, None, 0, 0, 0))(
+                t, obsflux, uncertainties, parameter_map,
+                start_idxs_padded[batch_slice], 
+                end_idxs_padded[batch_slice],
+                cube_padded[batch_slice]
             )
-            numpyro.sample(f"obs_{event_idx}", dist.Normal(fluxes, sigma_tots).mask(masks), obs=obsfluxes)
+            batch_indices = jnp.arange(batch_size)
+
+            with numpyro.plate(f"obs_plate_{batch_idx}", batch_size, dim=-2):
+                numpyro.factor(
+                    f"vf_constraint_{batch_idx}_{batch_indices}",
+                    -10_000. * factors
+                )
+
+                numpyro.sample(f"obs_{batch_idx}_{batch_indices}", dist.Normal(fluxes, sigma_tots).mask(masks), obs=obsfluxes)
 
             
     def create_jax_model(
@@ -162,16 +233,13 @@ class NumpyroSampler(SuperphotSampler):
         
         numpyro.factor(
             "vf_constraint",
-            -1000. * jnp.max(constraint)
+            -10_000. * jnp.max(constraint)
         )
 
-        (
-            amp, beta, gamma, t_0,
-            tau_rise, tau_fall, extra_sigma
-        ) = new_cube
-
+        amp, beta, gamma, t_0, tau_rise, tau_fall, extra_sigma = new_cube
+        gamma = jnp.clip(gamma, min=0.0, max=None)
         phase = jnp.clip(t - t_0, min=-50.*tau_rise, max=None)
-        phase = jnp.clip(phase, min=-50.*tau_fall + gamma, max=None)
+
         flux_const = amp / (1.0 + jnp.exp(-phase / tau_rise))
 
         flux = flux_const * jnp.where(
@@ -179,10 +247,10 @@ class NumpyroSampler(SuperphotSampler):
             (1 - beta * phase),
             (1 - beta * gamma) * jnp.exp(-(phase - gamma) / tau_fall)
         )
-        
+
         sigma_tot = jnp.sqrt(uncertainties**2 + extra_sigma**2)
-        
         numpyro.sample("obs", dist.Normal(flux, sigma_tot), obs=obsflux)
+
         
     def create_jax_guide(
             self,
@@ -203,10 +271,12 @@ class NumpyroSampler(SuperphotSampler):
             priors: SamplerPrior,
             random_state: int,
             num_events=None,
+            max_length=1000,
             *args,
             **kwargs,
         ):
         super().__init__(priors)
+        self.max_length = max_length
         self._rng = random.key(random_state)
         self._prior_func = partial(self._priors.sample, cube=None, use_numpyro=True, num_events=num_events)
         if num_events:
@@ -252,7 +322,11 @@ class NumpyroSampler(SuperphotSampler):
             self._orig_num_times = orig_num_times
         
         self._y = jnp.array(self._y, dtype=jnp.float32)
+        self._generate_param_map()
         
+    
+    def _generate_param_map(self):
+        """Generate param map."""
         self._param_map = jnp.zeros((self._nparams+3, len(self._X)), dtype=int)
         for i, param in enumerate(self._base_params):
             for b in self._unique_bands:
@@ -295,9 +369,6 @@ class NumpyroSampler(SuperphotSampler):
         for i, s in enumerate(indiv_samples):
             samples_df = pd.DataFrame(np.array(s), columns=self._params)
             s_transformed = self._priors.transform(samples_df)
-
-            print(prior_mu_transformed.mean(axis=0).sub(s_transformed.mean(axis=0)) / s_transformed.std(axis=0))
-            print(prior_mu_transformed.mean(axis=0).sub(s_transformed.mean(axis=0)) / prior_sigma_transformed.mean(axis=0))
 
             self.result = SamplerResult(s_transformed, sampler_name=self._sampler_name)
             
@@ -409,8 +480,9 @@ class SVISampler(NumpyroSampler):
             step_size=0.001,
             random_state: int = 42,
             num_events=None,
+            max_length=1000,
         ):
-        super().__init__(priors, random_state, num_events)
+        super().__init__(priors, random_state, num_events, max_length)
         self._sampler_name = 'superphot_svi'
         self.step_size = step_size
         self.num_iter = num_iter
@@ -425,6 +497,7 @@ class SVISampler(NumpyroSampler):
     def reset(self):
         """Reset sampler, in the case it gets stuck in poor local minima."""
         self._svi_state = self._svi.init(self._rng)
+        #self._svi_state = init(self._svi, self._rng)
         
     def fit(
             self, X: NDArray[jnp.object_], # pylint: disable=invalid-name
@@ -466,8 +539,9 @@ class SVISampler(NumpyroSampler):
         if self._svi_state is None:
             self.reset()
 
+
         if event_indices is not None: #hierarchical
-            self._svi_state, elbo_losses = self._lax_jit(
+            self._svi_state = self._lax_jit(
                 self._svi,
                 self._svi_state,
                 self.num_iter,
@@ -480,7 +554,7 @@ class SVISampler(NumpyroSampler):
             )
 
         else:
-            self._svi_state, elbo_losses = self._lax_jit(
+            self._svi_state = self._lax_jit(
                 self._svi,
                 self._svi_state,
                 self.num_iter,
@@ -544,8 +618,8 @@ class SVISampler(NumpyroSampler):
             ])
 
             param_arr = params_loc + random.normal(
-                key=self._rng, shape=(1000,)
-            )[:,jnp.newaxis] * params_scale
+                key=self._rng, shape=(1000, len(params_loc))
+            ) * params_scale
 
             posterior_samples = pd.DataFrame(np.array(param_arr), columns=self._params)
             self._process_samples(posterior_samples)
