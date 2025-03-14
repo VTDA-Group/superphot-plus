@@ -1,17 +1,24 @@
 # Changes here will be overwritten by Copier
-_commit: v1.4.2
+_commit: v2.0.1
 _src_path: gh:lincc-frameworks/python-project-template
 author_email: kmd6851@psu.edu
 author_name: Kaylee de Soto
 create_example_module: false
 custom_install: true
+enforce_style:
+- pylint
+- black
+- isort
+failure_notification: []
 include_benchmarks: true
 include_docs: true
 include_notebooks: true
 mypy_type_checking: none
 package_name: superphot_plus
-preferred_linter: pylint
 project_license: MIT
 project_name: superphot-plus
-use_gitlfs: none
-use_isort: true
+project_organization: VTDA-Group
+python_versions:
+- '3.9'
+- '3.10'
+- '3.11'
