@@ -5,6 +5,7 @@ import itertools
 import multiprocessing
 from functools import partial
 
+from astropy.cosmology import Planck15  # pylint: disable=no-name-in-module
 from snapi import Transient, Photometry, TransientGroup
 from snapi.query_agents import TNSQueryAgent, ALeRCEQueryAgent
 
@@ -39,6 +40,17 @@ def single_name_import(
         return
     for result in qr_tns:
         transient.ingest_query_info(result.to_dict())
+
+    ztf_name = None
+    for n in transient.internal_names:
+        if n[:3] == "ZTF":
+            ztf_name = n
+
+    if ztf_name is None:
+        with open(skipped_names_fn, "a") as f:
+            f.write(f"{n}: No ZTF\n")
+        return
+    
     qr_alerce, success = alerce_agent.query_transient(transient)
     if not success:
         with open(skipped_names_fn, "a") as f:
@@ -64,7 +76,16 @@ def single_name_import(
     phot.phase(inplace=True)
     phot.truncate(min_t=-50., max_t=100.)
     phot.correct_extinction(coordinates=transient.coordinates, inplace=True)
-    phot.normalize(inplace=True)
+    try:
+        peak_idx = (phot.detections['flux'] - phot.detections['flux_error']).dropna().idxmax()
+        transient.max_flux = np.max(phot.detections.loc[peak_idx, 'flux'])
+        phot.normalize(inplace=True)
+    except:
+        print(phot.detections)
+        return
+    
+    transient.peak_abs_mag = calculate_absolute_magnitude(transient)
+    transient.meta_attrs.extend(['max_flux', 'peak_abs_mag'])
 
     if len(phot.detections['filter'].unique()) < 2:
         with open(skipped_names_fn, "a") as f:
@@ -96,6 +117,9 @@ def single_name_import(
                 f.write(f"{n}: Variability too small\n")
             return
     
+    if ~np.isnan(transient.redshift) and (transient.redshift > 0):
+        phot.times /= (1. + transient.redshift)
+
     transient.photometry = phot
     return transient
     
@@ -170,5 +194,13 @@ def import_all_names(
         )
         transient_group = TransientGroup(filter(None, transients))
         transient_group.save(save_dir)
+
+
+def calculate_absolute_magnitude(transient):
+    k_corr = 2.5 * np.log10(1.0 + transient.redshift)
+    distmod = Planck15.distmod(transient.redshift).value
+    peak_mag = -2.5 * np.log10(transient.max_flux) + 23.9 - distmod + k_corr
+    print(peak_mag)
+    return peak_mag
         
         

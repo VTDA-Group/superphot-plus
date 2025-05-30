@@ -1,15 +1,12 @@
 import os
 
-import pandas as pd
 import numpy as np
 import torch
 from torch.utils.data import TensorDataset
 from torch.utils.tensorboard import SummaryWriter
 import jax.numpy as jnp
-from snapi.analysis import SamplerResult
 from snapi import LightCurve
 
-from superphot_plus.supernova_class import SupernovaClass as SnClass
 
 LOW_SNR_FILE="low_snr_classes.dat"
 LOW_VAR_FILE="low_var_classes.dat"
