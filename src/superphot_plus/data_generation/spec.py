@@ -9,6 +9,8 @@ from astropy.cosmology import Planck15  # pylint: disable=no-name-in-module
 from snapi import Transient, Photometry, TransientGroup
 from snapi.query_agents import TNSQueryAgent, ALeRCEQueryAgent
 
+import warnings
+warnings.simplefilter("ignore")
 
 def single_worker_import(batch, skipped_names_fn):
     """Single worker's script to run in parallel."""
@@ -127,6 +129,7 @@ def single_name_import(
 def import_all_names(
     names,
     save_dir,
+    skipped_names_fn="skipped_names.txt",
     max_n = 100_000,
     checkpoint_freq = None,
     n_cores: int = 1,
@@ -142,7 +145,6 @@ def import_all_names(
     pool = multiprocessing.Pool(n_cores)
     
     # make file for skipped names
-    skipped_names_fn ="skipped_names.txt"
     skipped_names = []
     if (not overwrite) and (os.path.exists(skipped_names_fn)):
         with open(skipped_names_fn, "r") as f:
@@ -154,6 +156,11 @@ def import_all_names(
             print(f"{len(tg.metadata.index)} events already saved.")
             skipped_names.extend(list(tg.metadata.index))
             transients = [t for t in tg if t.id in names]
+
+        else:
+            with open(skipped_names_fn, "w") as f:
+                f.write("")
+            transients = []
     else:
         with open(skipped_names_fn, "w") as f:
             f.write("")
@@ -200,7 +207,6 @@ def calculate_absolute_magnitude(transient):
     k_corr = 2.5 * np.log10(1.0 + transient.redshift)
     distmod = Planck15.distmod(transient.redshift).value
     peak_mag = -2.5 * np.log10(transient.max_flux) + 23.9 - distmod + k_corr
-    print(peak_mag)
     return peak_mag
         
         

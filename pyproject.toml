@@ -15,12 +15,13 @@ classifiers = [
 ]
 dynamic = ["version"]
 dependencies = [
-    "astropy",
+    "astropy>=5.1.1",
     "joblib>=1.4.0",
     "lightgbm>=4.3.0",
-    "numpy<1.26.3",
+    "numpy>=1.24.4,<2.0.0",
     "pandas>=2.0.0",
     "scikit-learn>=1.3.2",
+    "snapi @ git+https://github.com/kdesoto-astro/snapi.git@v0.0.3",
     "torch>=2.0.0",
     "tensorboard>=2.14.0",
     "tensorflow_probability>=0.21.0"
@@ -42,6 +43,19 @@ dev = [
     "sphinx-autoapi", # Used to automatically generate api documentation
     "pylint", # Used for static linting of files
 ]
+tutorial = [
+    "ipykernel",
+    "alerce", # 1.3 or later for forced photometry
+    "antares-client",
+    "marshmallow<4.0",
+    "dynesty>=2.1.3",
+    "numpyro>=0.14.0",
+]
+data = [
+    "alerce",
+    "antares-client",
+    "marshmallow<4.0",
+]
 sampling = [
     "dynesty>=2.1.3",
     "numpyro>=0.14.0",
@@ -55,7 +69,7 @@ plotting = [
     "corner>=2.2.2",
     "matplotlib>=3.8.4",
     "pacmap>=0.7.2",
-    "scipy==1.12.0"
+    "scipy>=1.12.0"
 ]
 tuning = [
     "ray[tune]>=2.11.0", # Hyperparameter tuning library

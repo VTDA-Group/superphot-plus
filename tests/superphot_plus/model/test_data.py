@@ -1,8 +1,7 @@
-from superphot_plus.model.data import PosteriorSamplesGroup
-from superphot_plus.utils import retrieve_posterior_set
+from snapi import SamplerResultGroup
 
 
-def test_oversample_using_posteriors(test_data_dir, single_ztf_sn_id):
+def test_oversample_using_posteriors(test_sampler_results, single_ztf_sn_id):
     """Test oversampling using posteriors"""
 
     names = [single_ztf_sn_id] * 3
@@ -12,35 +11,18 @@ def test_oversample_using_posteriors(test_data_dir, single_ztf_sn_id):
     # Oversampling from a set of unique supernova classes.
     classes = [4, 1, 2]  # Classes for "Sn Ibc", "SN II" and "SN IIn"
     
-    all_post_objs = retrieve_posterior_set(
-        names,
-        test_data_dir,
-        sampler='dynesty',
-        redshifts=None, # ignore redshift constraints
-        labels=classes
+    srg = SamplerResultGroup.load(
+        test_sampler_results
     )
-    psg = PosteriorSamplesGroup(
-        all_post_objs,
-        use_redshift_info=False
-    )
-    features, labels = psg.oversample(samples_per_majority_class)
+    # oversample using trainer
+    # TODO!!!
 
     # We should have 30 samples in total, 10 for each class.
     assert len(features) == len(labels) == 30
     assert len(labels[labels == 4]) == len(labels[labels == 1]) == len(labels[labels == 2]) == 10
 
-    all_post_objs2 = retrieve_posterior_set(
-        names,
-        test_data_dir,
-        sampler='dynesty',
-        redshifts=redshifts,
-        labels=classes
-    )
-    psg2 = PosteriorSamplesGroup(
-        all_post_objs2,
-        use_redshift_info=True
-    )
-    features, labels = psg2.oversample(samples_per_majority_class)
+    # add redshifts and oversample here!!!
+    # TODO!!!
 
     # We should have 30 samples in total, 10 for each class.
     assert len(features) == len(labels) == 20
@@ -48,8 +30,8 @@ def test_oversample_using_posteriors(test_data_dir, single_ztf_sn_id):
     assert len(labels[labels == 2]) == 0
     
     # Oversampling from a set with repeated supernova classes.
-    psg.labels = [4, 1, 1]  # Classes for "Sn Ibc" and "SN II"
-    features, labels = psg.oversample(samples_per_majority_class)
+    # Modify labels here and oversample
+    # TODO!!!
 
     # Due to repeated class, we draw 2*10 PER CLASS
     assert len(features) == len(labels) == 40

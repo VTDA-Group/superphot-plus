@@ -9,8 +9,7 @@ from snapi.analysis import SamplerResult
 
 from superphot_plus.model.mlp import SuperphotMLP
 from superphot_plus.trainer import SuperphotTrainer
-
-from superphot_plus.surveys.surveys import Survey
+from superphot_plus.priors import generate_priors
 
 TEST_DIR = os.path.dirname(__file__)
 
@@ -35,7 +34,7 @@ def single_ztf_sn_id():
 @pytest.fixture
 def test_ztf_transient(test_data_dir):
     return Transient.load(
-        os.path.join(test_data_dir, "2022abfi.h5")
+        os.path.join(test_data_dir, "2022abfi")
     )
 
 @pytest.fixture
@@ -44,7 +43,7 @@ def test_ztf_photometry(test_ztf_transient):
 
 @pytest.fixture
 def ztf_priors():
-    return Survey.ZTF().priors
+    return generate_priors(['ZTF_r', 'ZTF_g'])
 
 @pytest.fixture
 def test_sampler_result(test_data_dir):

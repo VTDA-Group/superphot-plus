@@ -124,6 +124,17 @@ class SuperphotConfig:
     def write_to_file(self, file: str):
         """Save configuration data to a YAML file."""
         args = dataclasses.asdict(self)
+        if self.relative_dirs: # undo file add-ons
+            args['transient_data_fn'] = self.transient_data_fn.removeprefix(self.data_dir+"/")
+            args['models_dir'] = self.models_dir.removeprefix(self.data_dir+"/")
+            args['sampler_results_fn'] = self.sampler_results_fn.removeprefix(self.data_dir+"/")
+            args['figs_dir'] = self.figs_dir.removeprefix(self.data_dir+"/")
+            args['metrics_dir'] = self.metrics_dir.removeprefix(self.figs_dir+"/")
+            args['fit_plots_dir'] = self.fit_plots_dir.removeprefix(self.figs_dir+"/")
+            args['cm_dir'] = self.cm_dir.removeprefix(self.figs_dir+"/")
+            args['log_fn'] = self.log_fn.removeprefix(self.data_dir+"/")
+            args['probs_dir'] = self.probs_dir.removeprefix(self.data_dir+"/")
+
         encoded_string = yaml.dump(args, sort_keys=False, default_flow_style=False)
         with open(file, "w", encoding="utf-8") as file_handle:
             file_handle.write(encoded_string)

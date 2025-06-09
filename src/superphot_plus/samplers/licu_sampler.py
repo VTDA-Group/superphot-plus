@@ -6,7 +6,6 @@ from numpy.typing import NDArray
 from snapi import SamplerResult
 import pandas as pd
 
-from superphot_plus.surveys.fitting_priors import MultibandPriors
 from superphot_plus.samplers.superphot_sampler import SuperphotSampler
 
 
@@ -70,7 +69,7 @@ class LiCuSampler(SuperphotSampler):
 
     def __init__(
             self,
-            priors: MultibandPriors,
+            priors,
             **licu_kwargs
         ):
         super().__init__(priors)

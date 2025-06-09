@@ -2,6 +2,7 @@ import os
 
 import numpy as np
 import pytest
+from snapi import LightCurve
 
 from superphot_plus.config import SuperphotConfig
 from superphot_plus.supernova_class import SupernovaClass
@@ -10,13 +11,10 @@ from superphot_plus.utils import (
     calc_accuracy,
     f1_score,
     #flux_model,
-    get_numpyro_cube,
     get_session_metrics,
     log_metrics_to_tensorboard,
     params_valid,
     clip_lightcurve_end,
-    import_labels_only,
-    normalize_features
 )
 
 
@@ -100,40 +98,36 @@ def test_f1_score() -> None:
 def test_params_valid(ztf_priors):
     """Test the params_valid function."""
 
-    means = ztf_priors.to_numpy().T[2]
+    means = ztf_priors.dataframe['mean'].to_numpy()
+    means[8] = means[1]*means[8]
+    means[9] = 10**(means[2] + means[9])
+    means[11] = 10**(means[4] + means[11])
+    means[12] = 10**(means[5] + means[12])
+
+    means[2] = 10**means[2]
+    means[4] = 10**means[4]
+    means[5] = 10**means[5]
+
     # Prior ZTF values are valid.
-    assert params_valid(
-        means[1], 10**means[2],
-        10**means[4], 10**means[5]
-    )
-    assert params_valid(
-        means[1]*10**means[8],
-        10**(means[2] + means[9]),
-        10**(means[4] + means[11]),
-        10**(means[5] + means[12])
-    )
+    assert params_valid(means)
+    assert params_valid(means[7:])
 
-    # Invalid combinations
-    assert not params_valid(1.0, 10**1.1391, 10**0.599, 10**2.0)
-    assert not params_valid(1.0, 10**2.0, 10**0.599, 10**1.0)
-    assert not params_valid(1.0, 10**0.0, 10**1.0, 10**2.1)
+    means[1] = 1.0
+    means[2] = 10**1.1391
+    means[4] = 10**0.599
+    means[5] = 10**2.0
+    assert not params_valid(means)
 
+    means[2] = 10**2.0
+    means[4] = 10**0.599
+    means[5] = 10**1.0
+    assert not params_valid(means)
 
-def test_get_numpyro_cube(ztf_priors):
-    """Test converting numpyro param dict to an array of all
-    sampled parameter vectors.
-    """
-    dummy_param_dict = generate_dummy_posterior_sample_dict(batch=False)
-    cube, ordered_bands = get_numpyro_cube(
-        dummy_param_dict,
-        1e3,
-        ref_band=ztf_priors.reference_band,
-        ordered_bands=ztf_priors.ordered_bands,
-    )
+    means[2] = 10**0.0
+    means[4] = 10**1.0
+    means[5] = 10**2.1
+    assert not params_valid(means)
 
-    assert cube.shape == (20, 14)
-    assert len(ordered_bands) == 2
-    assert np.mean(cube[:, 1]) == np.mean(dummy_param_dict["beta"])
 
 def test_get_session_metrics():
     """Checks that we compute the correct train session metrics."""
@@ -239,7 +233,7 @@ def test_log_metrics_to_tensorboard(tmp_path):
     assert os.path.exists(os.path.join(tmp_path, trial_id))
     assert os.path.exists(os.path.join(tmp_path, trial_id, "config.yaml"))
 
-def test_clip_lightcurve_end(single_ztf_lightcurve):
+def test_clip_lightcurve_end():
     """Test that we clip the flat part of a light curve."""
 
     # Start with 10 points in r with 3 to clip. Flat slope.
@@ -266,17 +260,17 @@ def test_clip_lightcurve_end(single_ztf_lightcurve):
     bands.extend(["i"] * 3)
     errors.extend([0.1] * 3)
 
-    (t_clip, f_clip, e_clip, b_clip) = clip_lightcurve_end(
-        np.array(times),
-        np.array(fluxes),
-        np.array(errors),
-        np.array(bands),
+    out_lc = clip_lightcurve_end(
+        LightCurve.from_arrays(
+            np.array(times),
+            np.array(fluxes),
+            np.array(errors),
+            np.array(bands),
+            phased=True
+        )
     )
 
-    t_clip = np.array(t_clip)
-    f_clip = np.array(f_clip)
-    e_clip = np.array(e_clip)
-    b_clip = np.array(b_clip)
+    t_clip = out_lc.phase
 
     # Check r.
     r_inds = b_clip == "r"
@@ -302,66 +296,3 @@ def test_clip_lightcurve_end(single_ztf_lightcurve):
     # Check i.
     i_inds = b_clip == "i"
     assert len(b_clip[i_inds]) == 3
-
-def test_import_labels_only(tmp_path):
-    """Test loading a file of labels and applying filters"""
-    csv_file = os.path.join(tmp_path, "labels.csv")
-    with open(csv_file, "w+", encoding="utf-8") as new_csv:
-        csv_writer = csv.writer(new_csv, delimiter=",")
-        csv_writer.writerow(["NAME", "CLASS", "Z"])
-        csv_writer.writerow(["ZTF_SN_1234", "SN Ic", 4.5])
-        csv_writer.writerow(["ZTF_SN_1234", "SN IIn", 4.5])
-        csv_writer.writerow(["ZTF_SN_4567", "SN Ib-Ca-rich", 5.6])
-
-    ## With no weighted fits, we skip all of the inputs
-    names, labels, redshifts = import_labels_only(
-        [csv_file],
-        SupernovaClass.all_classes(),
-    )
-
-    assert len(names) == 0
-    assert len(labels) == 0
-    assert len(redshifts) == 0
-
-    ## Add one weighted fit file and we should pick up that label.
-    fits_dir = os.path.join(tmp_path, "fits")
-    os.makedirs(fits_dir, exist_ok=True)
-    Path(os.path.join(fits_dir, "ZTF_SN_1234_eqwt.npz")).touch()
-
-    names, labels, redshifts = import_labels_only(
-        [csv_file],
-        SupernovaClass.all_classes(),
-        fits_dir=fits_dir
-    )
-
-    ## Should not include duplicate label.
-    assert names == ["ZTF_SN_1234"]
-    assert labels == ["SN Ibc"]
-    assert redshifts == [4.5]
-
-    ## Remove that class from the allowed types and we're back to nothing.
-    names, labels, redshifts = import_labels_only(
-        [csv_file], [SupernovaClass.SUPERLUMINOUS_SUPERNOVA_I], fits_dir=fits_dir
-    )
-
-    assert len(names) == 0
-    assert len(labels) == 0
-    assert len(redshifts) == 0
-
-def test_normalize_features():
-    # Feature #1: mean = 1.0, std ~= 0.81649658
-    # Feature #2: mean = 0.75, std ~= 0.54006172
-    # Feature #3: mean = 1.0, std == 0.0
-    features = np.array([[1.0, 1.0, 1.0], [0.0, 0.0, 1.0], [2.0, 1.25, 1.0]])
-    expected = np.array(
-        [
-            [0.0, 0.25 / 0.54006172, 0.0],
-            [-1.0 / 0.81649658, -0.75 / 0.54006172, 0.0],
-            [1.0 / 0.81649658, 0.5 / 0.54006172, 0.0],
-        ]
-    )
-    computed, mean, std = normalize_features(features)
-
-    assert np.allclose(mean, [1.0, 0.75, 1.0])
-    assert np.allclose(std, [0.81649658, 0.54006172, 0.0])
-    assert np.allclose(computed, expected)

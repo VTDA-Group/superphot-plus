@@ -2,65 +2,12 @@ import matplotlib.pyplot as plt
 import numpy as np
 from scipy.stats import truncnorm
 
-from superphot_plus.lightcurve import Lightcurve
+from snapi import LightCurve, Filter, Photometry
 from superphot_plus.utils import flux_model, params_valid
-from superphot_plus.surveys.surveys import Survey
-
-DEFAULT_MAX_FLUX = 1.0
-
-def trunc_gauss(quantile, clip_a, clip_b, mean, std):
-    """Truncated Gaussian distribution.
-
-    Parameters
-    ----------
-    quantile : float
-        The quantile at which to evaluate the ppf. Should be a value
-        between 0 and 1.
-    clip_a : float
-        Lower clip value.
-    clip_b : float
-        Upper clip value.
-    mean : float
-        Mean of the distribution.
-    std : float
-        Standard deviation of the distribution.
-
-    Returns
-    -------
-    scipy.stats.truncnorm.ppf
-        Percent point function of the truncated Gaussian.
-    """
-    a, b = (clip_a - mean) / std, (clip_b - mean) / std
-    return truncnorm.ppf(quantile, a, b, loc=mean, scale=std)
+from superphot_plus.priors import generate_priors
 
 
-def create_prior(cube, priors=Survey.ZTF().priors):
-    """Creates prior for dynesty, where each side of the "cube"
-    is a value sampled between 0 and 1 representing each parameter.
-    Slightly altered from ztf_transient_fit.py
-
-    Parameters
-    ----------
-    cube : np.ndarray
-        Array of parameters.
-
-    Returns
-    -------
-    np.ndarray
-        Updated array of parameters.
-    """
-    priors=Survey.ZTF().priors
-    all_priors = priors.to_numpy().T
-
-    # Precompute the vectors of trunc_gauss a and b values.
-    tg_a = (all_priors[0] - all_priors[2]) / all_priors[3]
-    tg_b = (all_priors[1] - all_priors[2]) / all_priors[3]
-    
-    return truncnorm.ppf(
-        cube, tg_a, tg_b, loc=all_priors[2], scale=all_priors[3]
-    )
-
-def ztf_noise_model(mag, band, snr_range_g=None, snr_range_r=None):
+def ztf_noise_model(mag, snr_range=None):
     """A very, very simple noise model which assumes the dimmest magnitude is at SNR = 1,
     and the brightest mag is at SNR = 10.
 
@@ -80,27 +27,19 @@ def ztf_noise_model(mag, band, snr_range_g=None, snr_range_r=None):
     snr : np.ndarray
         Signal-to-noise ratios (SNR) of the observations.
     """
-    if not snr_range_g:
-        snr_range_g = [1, 10]
-    if not snr_range_r:
-        snr_range_r = [1, 10]
+    if not snr_range:
+        snr_range = [1, 10]
 
-    snr = mag * 0  # set up a dummy array for the snr
-    gind_g = np.where(band == "g")  # let's do g-band first
-    range_g = np.max(mag[gind_g]) - np.min(mag[gind_g])
-    snr[gind_g] = (snr_range_g[1] - snr_range_g[0]) * (
-        mag[gind_g] - np.min(mag[gind_g])
-    ) / range_g + snr_range_g[0]
+    mag_range = np.max(mag) - np.min(mag)
 
-    gind_r = np.where(band == "r")  # r-band
-    range_r = np.max(mag[gind_r]) - np.min(mag[gind_r])
-    snr[gind_r] = (snr_range_r[1] - snr_range_r[0]) * (
-        mag[gind_r] - np.min(mag[gind_r])
-    ) / range_r + snr_range_r[0]
+    snr = (snr_range[1] - snr_range[0]) * (
+        mag - np.min(mag)
+    ) / mag_range + snr_range[0]
+
     return snr
 
 
-def create_clean_models(nmodels, num_times=100, priors=Survey.ZTF().priors):
+def create_clean_models(nmodels, num_times=100):
     """Generate 'clean' (noiseless) models from the prior
 
     Parameters
@@ -121,34 +60,48 @@ def create_clean_models(nmodels, num_times=100, priors=Survey.ZTF().priors):
     lcs : array-like of numpy arrays
         The array of individual light curves for each model generated.
     """
-    params = []
-    lcs = []
+    params = []    
+    bands = ["ZTF_r", "ZTF_g"]
     
-    bands = priors.ordered_bands
-    ref_band = priors.reference_band
-    
-    tdata = np.linspace(-100, 100, num_times)
-    bdata = np.asarray([bands[i % len(bands)] for i in range(num_times)], dtype=str)
+    tdata = np.linspace(-50, 150, num_times)
     edata = np.asarray([1e-6] * num_times, dtype=float)
 
-    while len(lcs) < nmodels:
-        cube = np.random.uniform(0, 1, 7 * len(bands))
-        cube = create_prior(cube, priors)
-        A, beta, gamma, t0, tau_rise, tau_fall, es = cube[:7]  # pylint: disable=unused-variable
+    priors = generate_priors(["ZTF_r", "ZTF_g"])
+    params = []
+    all_phots = []
 
-        # Try again if we picked invalid priors.
-        if not params_valid(beta, 10**gamma, 10**tau_rise, 10**tau_fall):
-            continue
-            
-        params.append(cube)
+    while len(all_phots) < nmodels:
+        valid = True
+        orig_cube = priors.sample(cube=None)
+        lcs = []
 
-        f_model = flux_model(
-            cube, tdata, bdata,
-            DEFAULT_MAX_FLUX, bands, ref_band
-        )
-        lcs.append(Lightcurve(tdata, f_model, edata, bdata))
+        for i, b in enumerate(bands):
+            band_mask = [b in param for param in priors.dataframe.param]
+            cube = orig_cube[band_mask][:,np.newaxis]
 
-    return params, lcs
+            # Try again if we picked invalid priors.
+            if not params_valid(cube):
+                valid = False
+                break
+                
+            f_model = flux_model(cube, tdata, None)[0]
+            lc = LightCurve.from_arrays(
+                phase=tdata,
+                flux=f_model,
+                flux_unc=edata,
+                filt=Filter(
+                    instrument='ZTF',
+                    band=b.split("_")[1],
+                    center=np.nan
+                )
+            )
+            lcs.append(lc)
+        if valid:
+            params.append(orig_cube)
+            phot = Photometry.from_light_curves(lcs, phased=True)
+            all_phots.append(phot)
+
+    return params, all_phots
 
 
 def create_ztf_model(plot=False):
@@ -173,50 +126,63 @@ def create_ztf_model(plot=False):
         Uncertainties of each dirty flux value.
     """
     # This is going to random simulate some observation every 2-3 days across 2 filters
-    num_observations = 130
-    tdata = np.random.uniform(-100, 100, num_observations)
-    filter_data = np.random.choice(["g", "r"], size=num_observations)
+    params = []    
+    bands = ["ZTF_r", "ZTF_g"]
+    
+    num_times = 100
+    tdata = np.linspace(-50, 150, num_times)
 
-    found_valid = False
-    num_tried = 0
+    priors = generate_priors(["ZTF_r", "ZTF_g"])
+    phot = None
+    orig_cube = None
+    valid = False
 
-    # Now re-attempts to regenerate until it gets a "good" model
-    while not found_valid and num_tried < 100:
-        cube = np.random.uniform(0, 1, 14)
-        params = create_prior(np.copy(cube))
-        A, beta, gamma, t0, tau_rise, tau_fall, es = params[:7]  # pylint: disable=unused-variable
-        found_valid = params_valid(
-            beta, 10**gamma, 10**tau_rise, 10**tau_fall
-        )
-        num_tried += 1
+    while not valid:
+        valid = True
+        orig_cube = priors.sample(cube=None)
+        lcs = []
 
-    if not found_valid:
-        return "Failure"
+        for _, b in enumerate(bands):
+            band_mask = [b in param for param in priors.dataframe.param]
+            cube = orig_cube[band_mask][:, np.newaxis]
 
-    f_model = flux_model(
-        params, tdata, filter_data,
-        DEFAULT_MAX_FLUX,
-        ["r", "g"], "r"
-    )
-    snr = ztf_noise_model(f_model, filter_data)
+            # Try again if we picked invalid priors.
+            if not params_valid(cube):
+                valid = False
+                break
+                
+            f_model = flux_model(cube, tdata, None)[0]
+            snr = ztf_noise_model(f_model)
+            gind = np.where(snr > 3)  # any points with SNR < 3 are ignored
+            snr = snr[gind]
+            f_model = f_model[gind]
+            tdata = tdata[gind]
+            sigmas = f_model / snr
+            dirty_model = f_model + np.random.normal(0, sigmas)
 
-    gind = np.where(snr > 3)  # any points with SNR < 3 are ignored
-    snr = snr[gind]
-    f_model = f_model[gind]
-    tdata = tdata[gind]
-    filter_data = filter_data[gind]
-    print(f_model)
-    sigmas = f_model / snr
-
-    dirty_model = f_model + np.random.normal(0, sigmas)
+            lc = LightCurve.from_arrays(
+                phase=tdata,
+                flux=dirty_model,
+                flux_unc=sigmas,
+                filt=Filter(
+                    instrument='ZTF',
+                    band=b.split("_")[1],
+                    center=np.nan
+                )
+            )
+            lcs.append(lc)
+            
+        if valid:
+            phot = Photometry.from_light_curves(lcs, phased=True)
 
     if plot:
-        plt.scatter(tdata, dirty_model, color=filter_data)
-        plt.errorbar(tdata, dirty_model, yerr=sigmas, color="grey", alpha=0.2, linestyle="None")
-        plt.xlabel("Time (days)")
-        plt.ylabel("Flux (arbitrary units)")
+        _, ax = plt.subplots()
+        phot.plot(ax=ax)
+        ax.set_xlabel("Time (days)")
+        ax.set_ylabel("Flux (arbitrary units)")
         plt.show()
-    return params[:7], tdata, filter_data, dirty_model, sigmas
+
+    return orig_cube, phot
 
 
 # Can run this with create_model(plot=True)
