@@ -21,7 +21,7 @@ dependencies = [
     "numpy>=1.24.4,<2.0.0",
     "pandas>=2.0.0",
     "scikit-learn>=1.3.2",
-    "snapi @ git+https://github.com/kdesoto-astro/snapi.git@v0.0.3",
+    "snapi @ git+https://github.com/kdesoto-astro/snapi.git",
     "torch>=2.0.0",
     "tensorboard>=2.14.0",
     "tensorflow_probability>=0.21.0"
