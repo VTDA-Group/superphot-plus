@@ -1,6 +1,7 @@
 """This module implements the Multi-Layer Perceptron (MLP) model for classification."""
 import random
 import time
+import copy
 
 import numpy as np
 import pandas as pd
@@ -65,8 +66,14 @@ class SuperphotMLP(SuperphotClassifier, nn.Module):
         self.device = config.device
 
         # Model state dictionary
-        self.best_model = None
+        self.best_state = None
+        self.feature_name_ = None
 
+
+    #@property
+    #def best_model(self):
+    #    return self
+    
     def forward(self, x):
         """Forward pass of the Multi-Layer Perceptron model.
 
@@ -142,7 +149,9 @@ class SuperphotMLP(SuperphotClassifier, nn.Module):
 
         self._unique_labels, train_classes = np.unique(train_classes, return_inverse=True)
         val_classes = np.unique(val_classes, return_inverse=True)[1]
-            
+        
+        self.feature_name_ = np.array(train_feats.columns)
+
         train_dataset = create_dataset(train_feats.to_numpy(), train_classes)
         val_dataset = create_dataset(val_feats.to_numpy(), val_classes)
 
@@ -158,12 +167,11 @@ class SuperphotMLP(SuperphotClassifier, nn.Module):
         )
 
         metrics = ModelMetrics()
-
-        best_model = None
+        
+        best_state = None
         best_val_loss = float("inf")
 
-        for epoch in np.arange(0, num_epochs):
-            
+        for epoch in np.arange(0, num_epochs):            
             start_time = time.monotonic()
 
             train_loss, train_acc = self.train_epoch(train_iterator)
@@ -171,7 +179,7 @@ class SuperphotMLP(SuperphotClassifier, nn.Module):
 
             if val_loss < best_val_loss:
                 best_val_loss = val_loss
-                best_model = self.state_dict()
+                best_state = self.state_dict()
 
             end_time = time.monotonic()
 
@@ -186,11 +194,12 @@ class SuperphotMLP(SuperphotClassifier, nn.Module):
                 metrics.print_last()
 
         # Save best model state
-        self.best_model = best_model
-        self.load_state_dict(best_model)
+        self.best_state = best_state
+        self.load_state_dict(best_state)
 
         # Store best validation loss
         self.set_best_val_loss(best_val_loss)
+        self.best_model = copy.deepcopy(self)
 
         return metrics
 
@@ -329,7 +338,7 @@ class SuperphotMLP(SuperphotClassifier, nn.Module):
             Where to store pretrained models and their configurations.
         """
         # Save Pytorch model to disk
-        torch.save(self.best_model, f"{config_prefix}.pt")
+        torch.save(self, f"{config_prefix}.pt")
 
         
     @classmethod
@@ -368,5 +377,5 @@ class SuperphotMLP(SuperphotClassifier, nn.Module):
         tuple
             The pre-trained classifier object and the respective model config.
         """
-        model = torch.load(filename)
+        model = torch.load(filename, weights_only=False)
         return model

@@ -104,8 +104,8 @@ class SuperphotTrainer(TrainerBase):
 
         if self.config.n_parallel > 1:
             ctx = mp.get_context('spawn')
-            pool = ctx.Pool(self.config.n_parallel)
-            probs_df = pool.map(self.run_single_fold, zip(np.arange(self.config.n_folds), k_folded_data))
+            with ctx.Pool(self.config.n_parallel) as pool:
+                probs_df = list(pool.imap_unordered(self.run_single_fold, zip(np.arange(self.config.n_folds), k_folded_data)))
         else:
             probs_df = []
             for fold in range(self.config.n_folds):

@@ -14,11 +14,11 @@ log_fn: results.log
 plot: true
 load_checkpoint: false
 models_dir: models
-model_type: LightGBM
+model_type: MLP
 probs_dir: probabilities
 input_features: null
 use_redshift_features: false
-fits_per_majority: 25
+fits_per_majority: 10
 target_label: null
 prob_threshhold: 0.5
 allowed_types:
@@ -32,7 +32,7 @@ neurons_per_layer: 64
 num_hidden_layers: 3
 learning_rate: 0.001
 batch_size: 64
-n_folds: 10
+n_folds: 5
 num_epochs: 100
 n_parallel: 8
 random_seed: 42

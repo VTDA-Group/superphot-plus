@@ -2,7 +2,7 @@
 import os
 import numpy as np
 import itertools
-import multiprocessing
+import multiprocessing as mp
 from functools import partial
 
 from astropy.cosmology import Planck15  # pylint: disable=no-name-in-module
@@ -52,8 +52,7 @@ def single_name_import(
         with open(skipped_names_fn, "a") as f:
             f.write(f"{n}: No ZTF\n")
         return
-    
-    qr_alerce, success = alerce_agent.query_transient(transient)
+    qr_alerce, success = alerce_agent.query_transient(transient, only_photometry=True)
     if not success:
         with open(skipped_names_fn, "a") as f:
             f.write(f"{n}: ALeRCE query failed\n")
@@ -83,7 +82,6 @@ def single_name_import(
         transient.max_flux = np.max(phot.detections.loc[peak_idx, 'flux'])
         phot.normalize(inplace=True)
     except:
-        print(phot.detections)
         return
     
     transient.peak_abs_mag = calculate_absolute_magnitude(transient)
@@ -133,7 +131,8 @@ def import_all_names(
     max_n = 100_000,
     checkpoint_freq = None,
     n_cores: int = 1,
-    overwrite: bool = False
+    overwrite: bool = False,
+    tns_db_path = None,
 ): # pylint: disable=invalid-name
     """Extract all spectroscopic SNe II from TNS and save with SNAPI.
 
@@ -142,8 +141,7 @@ def import_all_names(
     save_dir : str
         Directory to save extracted data.
     """
-    pool = multiprocessing.Pool(n_cores)
-    
+    ctx = mp.get_context('spawn')
     # make file for skipped names
     skipped_names = []
     if (not overwrite) and (os.path.exists(skipped_names_fn)):
@@ -178,13 +176,13 @@ def import_all_names(
     if checkpoint_freq is not None:
         num_checkpoints = len(names_keep) // checkpoint_freq
         checkpoint_batches = [names_keep[i::num_checkpoints] for i in range(num_checkpoints)]
-        tns_agents = [TNSQueryAgent() for _ in range(num_checkpoints)]
+        tns_agents = [TNSQueryAgent(db_path=tns_db_path) for _ in range(num_checkpoints)]
         alerce_agents = [ALeRCEQueryAgent() for _ in range(num_checkpoints)]
-
         for _, cb in enumerate(checkpoint_batches):
             name_batches = [cb[i::n_cores] for i in range(n_cores)]
             print(f"Processing {len(cb)} transients in batch")
-            result = pool.map(single_worker_import_static, zip(name_batches, tns_agents, alerce_agents))
+            with ctx.Pool(n_cores) as pool:
+                result = list(pool.imap_unordered(single_worker_import_static, zip(name_batches, tns_agents, alerce_agents)))
             transients_loop = list(itertools.chain(*result))
             print("Finished processing, making transient group now")
             transients.extend(filter(None, transients_loop))
@@ -196,9 +194,10 @@ def import_all_names(
         names_batches = [names_keep[i::n_cores] for i in range(n_cores)]
         tns_agents = [TNSQueryAgent() for _ in range(n_cores)]
         alerce_agents = [ALeRCEQueryAgent() for _ in range(n_cores)]
-        transients.extend(
-            pool.map(single_worker_import_static, zip(names_batches, tns_agents, alerce_agents))
-        )
+        with ctx.Pool(n_cores) as pool:
+            transients.extend(
+                list(pool.imap_unordered(single_worker_import_static, zip(names_batches, tns_agents, alerce_agents)))
+            )
         transient_group = TransientGroup(filter(None, transients))
         transient_group.save(save_dir)
 
