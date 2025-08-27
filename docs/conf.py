@@ -32,12 +32,25 @@ extensions = ["sphinx.ext.mathjax", "sphinx.ext.napoleon", "sphinx.ext.viewcode"
 extensions.append("autoapi.extension")
 extensions.append("nbsphinx")
 
+# -- sphinx-copybutton configuration ----------------------------------------
+extensions.append("sphinx_copybutton")
+## sets up the expected prompt text from console blocks, and excludes it from
+## the text that goes into the clipboard.
+copybutton_exclude = ".linenos, .gp"
+copybutton_prompt_text = ">> "
+
+## lets us suppress the copy button on select code blocks.
+copybutton_selector = "div:not(.no-copybutton) > div.highlight > pre"
+
 templates_path = []
 exclude_patterns = ["_build", "**.ipynb_checkpoints"]
 
-master_doc = "index"  # This assumes that sphinx-build is called from the root directory
-html_show_sourcelink = False  # Remove 'view source code' from top of page (for html, not python)
-add_module_names = False  # Remove namespaces from class/method signatures
+# This assumes that sphinx-build is called from the root directory
+master_doc = "index"
+# Remove 'view source code' from top of page (for html, not python)
+html_show_sourcelink = False
+# Remove namespaces from class/method signatures
+add_module_names = False
 
 autoapi_type = "python"
 autoapi_dirs = ["../src", "../scripts"]
