@@ -18,16 +18,18 @@ class SuperphotSampler(Sampler):
         self._priors = priors
         self._params = self._priors.dataframe['param'].to_numpy()
         self._unique_bands = []
+
         for c in self._params:
-            if c[0] == 'A':
-                self._unique_bands.append(c[2:])
+            band_suffix = "_".join(c.split("_")[-2:])
+            if band_suffix not in self._unique_bands:
+                self._unique_bands.append(band_suffix)
+
         self._base_params = []
         for c in self._params:
             if self._unique_bands[0] in c:
                 self._base_params.append(c.replace("_" +self._unique_bands[0], ""))
         self.result = None
 
-        print(self._params, self._base_params)
 
     def fit(self, X, y, event_indices=None):
         """Remove elements where filter not included in priors.
@@ -53,6 +55,7 @@ class SuperphotSampler(Sampler):
 
         else:
             super().fit(X[mask], y[mask])
+
 
     def _reformat_cube(self, cube):
         """Reformat cube based on self._param_map"""
@@ -93,3 +96,20 @@ class SuperphotSampler(Sampler):
             cube,
             val_x[:, 0].astype(np.float32), val_x[:, 1]
         ), val_x
+    
+
+    def plot_fit_abs_mag(
+        self, ax, formatter=None, photometry=None, X=None, dense=True,
+    ):
+        """Plots the model fit in absolute magnitude space.
+
+        Parameters
+        ----------
+        X : np.ndarray
+            The x data to plot.
+        y : np.ndarray
+            The y data to plot.
+        dense : bool, optional
+            Whether to make time array dense for better plotting.
+        """
+        pass

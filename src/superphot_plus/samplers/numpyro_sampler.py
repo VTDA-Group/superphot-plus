@@ -67,8 +67,10 @@ def stablish_update(svi, svi_state, *args, forward_mode_differentiation=False, *
     )
     state = svi_state.optim_state
     params = svi.optim.get_params(state)
-    #debug.print("Params: {}", params)
+    debug.print("Params: {}", params)
     loss_val, grads = value_and_grad(loss_fn)(params)
+    debug.print("Loss_val: {}", loss_val)
+    debug.print("Grads: {}", grads)
 
     optim_state = lax.cond(
         jnp.isfinite(ravel_pytree(grads)[0]).all(),
@@ -311,7 +313,6 @@ class NumpyroSampler(SuperphotSampler):
             length of X.
         """
         super().fit(X,y,event_indices=event_indices)
-
         """
         _, band_counts = np.unique(X[:, 1], return_counts=True)
         print(band_counts)
@@ -341,6 +342,7 @@ class NumpyroSampler(SuperphotSampler):
         samples_df = self._priors.transform(samples_df)
         self.result = SamplerResult(samples_df, sampler_name=self._sampler_name)
         self._is_fitted = True
+        print(self.result.fit_parameters)
         self.result.score = np.array(
             self.score(self._X, self._y, orig_num_times=self._orig_num_times)
         )
@@ -535,6 +537,7 @@ class SVISampler(NumpyroSampler):
             orig_num_times=orig_num_times,
             event_indices=event_indices
         )
+        debug.print("B: {}", self._X[:,1])
 
         if self._svi_state is None:
             self.reset()
@@ -565,6 +568,7 @@ class SVISampler(NumpyroSampler):
             )
 
         params = self._svi.get_params(self._svi_state)
+        print(params)
 
         if event_indices is not None:
             params_loc = jnp.concatenate([
@@ -608,14 +612,18 @@ class SVISampler(NumpyroSampler):
             self._process_samples_hierarchical(global_mu_arr, global_scale_arr, indiv_param_arr)
 
         else:
-            params_loc = jnp.concatenate([
-                params['loc_base'],
-                params['loc_relative']
-            ])
-            params_scale = jnp.concatenate([
-                params['scale_base'],
-                params['scale_relative']
-            ])
+            if 'loc_relative' in params:
+                params_loc = jnp.concatenate([
+                    params['loc_base'],
+                    params['loc_relative']
+                ])
+                params_scale = jnp.concatenate([
+                    params['scale_base'],
+                    params['scale_relative']
+                ])
+            else:
+                params_loc = params['loc_base']
+                params_scale = params['scale_base']
 
             param_arr = params_loc + random.normal(
                 key=self._rng, shape=(1000, len(params_loc))

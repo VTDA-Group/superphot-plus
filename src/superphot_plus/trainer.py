@@ -172,6 +172,10 @@ class SuperphotTrainer(TrainerBase):
             self.config.input_features = train_df.columns[~train_df.columns.isin(['label', 'score', 'sampler'])]
 
         # extract features
+        train_df.replace([np.inf, -np.inf], np.nan, inplace=True)
+        val_df.replace([np.inf, -np.inf], np.nan, inplace=True)
+        train_df.dropna(axis=0, how='any', subset=self.config.input_features, inplace=True)
+        val_df.dropna(axis=0, how='any', subset=self.config.input_features, inplace=True)
         train_features = train_df.loc[:, self.config.input_features]
         val_features = val_df.loc[:, self.config.input_features]
         
@@ -224,7 +228,11 @@ class SuperphotTrainer(TrainerBase):
         if self.config.input_features is None:
             self.config.input_features = test_df.columns[~test_df.columns.isin(['label', 'score', 'sampler'])]
 
-        probs_avg = model.evaluate(test_df[self.config.input_features])
+        test_df.replace([np.inf, -np.inf], np.nan, inplace=True)
+        test_df.dropna(axis=0, how='any', subset=self.config.input_features, inplace=True)
+        test_features = test_df.loc[:, self.config.input_features]
+
+        probs_avg = model.evaluate(test_features)
         
         if self.config.target_label is None:
             probs_avg.columns = np.sort(self.config.allowed_types)
