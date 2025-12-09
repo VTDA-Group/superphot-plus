@@ -72,7 +72,7 @@ class SuperphotPrior(SamplerPrior):
         self._tgb = ((self._df['max'] - self._df['mean']) / self._df['stddev']).to_numpy()
             
         # faster sample calls
-        self._logged = self._df['logged'].to_numpy()
+        self._logged = self._df['logged'].to_numpy().astype(bool)
         self._mean = self._df['mean'].to_numpy()
         self._std = self._df['stddev'].to_numpy()
         self._numpyro_sample_arr = jnp.array(
@@ -218,55 +218,65 @@ class SuperphotPrior(SamplerPrior):
                     )
                 )
 
-                # Compute the adjustment only for relative ones
-                relative_shifts = base_vals[self._relative_idxs_jax]
-                min_constraint = jnp.maximum(min_vals_rel + base_vals[self._relative_idxs_jax], min_vals_base[self._relative_idxs_jax])
-                max_constraint = jnp.minimum(max_vals_rel + base_vals[self._relative_idxs_jax], max_vals_base[self._relative_idxs_jax])
+                if len(self._relative_idxs_jax) > 0:
 
-                adjusted_locs = init_loc_rel + relative_shifts
+                    # Compute the adjustment only for relative ones
+                    relative_shifts = base_vals[self._relative_idxs_jax]
+                    min_constraint = jnp.maximum(min_vals_rel + base_vals[self._relative_idxs_jax], min_vals_base[self._relative_idxs_jax])
+                    max_constraint = jnp.minimum(max_vals_rel + base_vals[self._relative_idxs_jax], max_vals_base[self._relative_idxs_jax])
 
-                # Reapply the constraints to adjusted_locs to make sure they stay within bounds
-                adjusted_locs_constrained = jnp.clip(adjusted_locs, min_constraint + 1e-6, max_constraint - 1e-6)
+                    adjusted_locs = init_loc_rel + relative_shifts
 
-                with numpyro.plate("relative_params", len(min_vals_rel)):
-                    # Re-sample using the adjusted means only for relative parameters
-                    resampled_vals = numpyro.sample(
-                        "relative_samples",
-                        dist.TruncatedNormal(
-                            loc=adjusted_locs_constrained,
-                            scale=init_scale_rel,
-                            low=min_constraint,
-                            high=max_constraint
+                    # Reapply the constraints to adjusted_locs to make sure they stay within bounds
+                    adjusted_locs_constrained = jnp.clip(adjusted_locs, min_constraint + 1e-6, max_constraint - 1e-6)
+
+                    with numpyro.plate("relative_params", len(min_vals_rel)):
+                        # Re-sample using the adjusted means only for relative parameters
+                        resampled_vals = numpyro.sample(
+                            "relative_samples",
+                            dist.TruncatedNormal(
+                                loc=adjusted_locs_constrained,
+                                scale=init_scale_rel,
+                                low=min_constraint,
+                                high=max_constraint
+                            )
                         )
-                    )
-            
-                vals = jnp.concatenate([
-                    base_vals,
-                    resampled_vals
-                ])
+                
+                    vals = jnp.concatenate([
+                        base_vals,
+                        resampled_vals
+                    ])
+                else:
+                    vals = base_vals
 
                 vals = vals.at[self._logged_jax].set(10**vals[self._logged_jax])
                 
         else:
             if cube is None:
                 cube = self._rng.uniform(size=len(self._df))
+
             vals = np.zeros(len(cube))
-            
-            vals[~self._relative_mask] = truncnorm.ppf(
-                cube[~self._relative_mask],
-                self._tga[~self._relative_mask],
-                self._tgb[~self._relative_mask],
-                loc=self._mean[~self._relative_mask],
-                scale=self._std[~self._relative_mask],
-            )
-            
-            vals[self._relative_mask] = truncnorm.ppf(
-                cube[self._relative_mask],
-                self._tga[self._relative_mask],
-                self._tgb[self._relative_mask],
-                loc=self._mean[self._relative_mask] + vals[self._relative_idxs],
-                scale=self._std[self._relative_mask]
-            )
+
+            if (len(self._relative_mask) > 0) and np.any(self._relative_mask):
+                vals[~self._relative_mask] = truncnorm.ppf(
+                    cube[~self._relative_mask],
+                    self._tga[~self._relative_mask],
+                    self._tgb[~self._relative_mask],
+                    loc=self._mean[~self._relative_mask],
+                    scale=self._std[~self._relative_mask],
+                )
+                
+                vals[self._relative_mask] = truncnorm.ppf(
+                    cube[self._relative_mask],
+                    self._tga[self._relative_mask],
+                    self._tgb[self._relative_mask],
+                    loc=self._mean[self._relative_mask] + vals[self._relative_idxs],
+                    scale=self._std[self._relative_mask]
+                )
+            else:
+                vals = truncnorm.ppf(
+                    cube, self._tga, self._tgb, loc=self._mean, scale=self._std
+                )
             
             # log transformations
             vals[self._logged] = 10**vals[self._logged]
@@ -451,7 +461,7 @@ class SuperphotPrior(SamplerPrior):
                     constraint=dist.constraints.interval(1e-5, 3 * init_scale_base)
                 )
                 
-                numpyro.sample(
+                base_samples = numpyro.sample(
                     "base_samples",
                     dist.Normal(
                         loc=svi_loc_base,
@@ -459,7 +469,12 @@ class SuperphotPrior(SamplerPrior):
                     )
                 )
 
+            #debug.print("Mu base: {}", svi_loc_base)
+            #debug.print("Scale base: {}", svi_scale_base)
+
             # Compute the shifts for relative parameters
+            if len(self._relative_idxs_jax) == 0:
+                return
             relative_shifts = svi_loc_base[self._relative_idxs_jax]
             adjusted_locs = init_loc_rel + relative_shifts
 

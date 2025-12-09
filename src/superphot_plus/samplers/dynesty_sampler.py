@@ -67,6 +67,10 @@ class DynestySampler(SuperphotSampler):
         self._param_map = None
         self._dynamic = dynamic
 
+        self._initialize_sampler(sample_strategy, bound, nlive, dynamic)
+
+
+    def _initialize_sampler(self, sample_strategy, bound, nlive, dynamic):
         if dynamic:
             self._nested_sampler = DynamicNestedSampler(
                 self._logL, self._prior_func, (self._nparams + 3) * len(self._unique_bands),
@@ -80,6 +84,7 @@ class DynestySampler(SuperphotSampler):
                 rstate=self._rng, #walks=50
             )
 
+        
     def _logL(self, cube):
         """Define the log-likelihood function.
 
@@ -120,6 +125,25 @@ class DynestySampler(SuperphotSampler):
         self._nested_sampler.reset()
 
 
+    def _generate_param_map(self):
+        # Revise unique bands
+        new_unique_bands = []
+        for band in self._unique_bands:
+            if band in self._X[:, 1]:
+                new_unique_bands.append(band)
+        
+        self._unique_bands = new_unique_bands
+        
+        # map time steps to param values
+        self._param_map = np.zeros((self._nparams+3, len(self._X)), dtype=int)
+        for i, param in enumerate(self._base_params):
+            for b in self._unique_bands:
+                b_idxs = self._X[:,1] == b
+                self._param_map[i,b_idxs] = np.where(self._params == f'{param}_{b}')[0][0]
+        
+        self._param_map = np.array(self._param_map)
+
+
     def fit(self, X, y):
         """Runs dynesty importance nested sampling on a set of light curves; saves set
         of equally weighted posteriors (sets of fit parameters).
@@ -139,20 +163,8 @@ class DynestySampler(SuperphotSampler):
         super().fit(X, y)
         self._t = self._X[:,0].astype(np.float32)
         self._err = self._X[:,2].astype(np.float32)
-        
-        # map time steps to param values
-        self._param_map = np.zeros((self._nparams+3, len(self._X)), dtype=int)
-        for i, param in enumerate(self._base_params):
-            for b in self._unique_bands:
-                b_idxs = self._X[:,1] == b
-                self._param_map[i,b_idxs] = np.where(self._params == f'{param}_{b}')[0][0]
-        
-        self._param_map = np.array(self._param_map)
 
-        # Require data in all bands
-        for band in self._unique_bands:
-            if band not in self._X[:, 1]:
-                return None
+        self._generate_param_map()
     
         self.reset()
 
