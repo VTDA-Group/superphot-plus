@@ -8,7 +8,6 @@ from scipy.stats import truncnorm
 from snapi import SamplerResult
 from sklearn.utils import check_random_state
 
-from superphot_plus.surveys.fitting_priors import MultibandPriors
 from superphot_plus.utils import (
     flux_model, villar_fit_constraint
 )
@@ -18,7 +17,7 @@ class IminuitSampler(SuperphotSampler):
     """Negative log-likelihood optimization with iminuit's migrad."""
 
     def __init__(
-            self, priors: MultibandPriors,
+            self, priors,
             random_state: int = None,
         ):
         prior_clip_a, prior_clip_b, self._prior_mean, self._prior_std = priors.to_numpy().T.copy()

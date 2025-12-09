@@ -123,7 +123,6 @@ def flux_model(cube, t_data, b_data):
     amp, beta, gamma, t0, tau_rise, tau_fall, _ = cube.transpose(0,2,1)
     
     t_data = np.repeat(t_data[np.newaxis,:], cube.shape[2], axis=0)
-    b_data = np.repeat(b_data[np.newaxis,:], cube.shape[2], axis=0)
     phase = np.clip(t_data - t0, a_min = -50. * tau_rise, a_max = None)
     phase = np.clip(phase, a_min = gamma - 50. * tau_fall, a_max = None)
     f_model = amp / (1.0 + np.exp(-phase / tau_rise))

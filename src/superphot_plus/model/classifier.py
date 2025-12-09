@@ -4,6 +4,10 @@ import numpy as np
 import pandas as pd
 import lightgbm
 from torch.utils.data import DataLoader
+import torch
+
+torch.set_num_threads(1)
+torch.set_num_interop_threads(1)
 
 from ..constants import EPOCHS
 from ..config import SuperphotConfig

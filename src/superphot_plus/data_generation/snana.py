@@ -1,10 +1,9 @@
 import pandas as pd
 import numpy as np
-from superphot_plus.surveys.surveys import Survey
 from superphot_plus.import_utils import clip_lightcurve_end
 
 
-def import_snana(snana_fn, survey=Survey.ZTF(), clip_lightcurve=True):
+def import_snana(snana_fn, clip_lightcurve=True):
     """Import SNANA formatted ASCII file. Returns
     output in same format as import_lc.
     """
@@ -31,7 +30,7 @@ def import_snana(snana_fn, survey=Survey.ZTF(), clip_lightcurve=True):
         dec = header["DEC"]
 
         # correct for extinction
-        ext_dict = survey.get_extinctions(ra, dec)
+        #ext_dict = survey.get_extinctions(ra, dec)
     except:
         return [
             None,
@@ -51,6 +50,7 @@ def import_snana(snana_fn, survey=Survey.ZTF(), clip_lightcurve=True):
 
     unique_b = np.unique(b)
 
+    """
     for ub in unique_b:
         if ub in survey.wavelengths:
             f[b == ub] *= 10 ** (0.4 * ext_dict[ub])
@@ -59,13 +59,14 @@ def import_snana(snana_fn, survey=Survey.ZTF(), clip_lightcurve=True):
             f = f[b != ub]
             ferr = ferr[b != ub]
             b = b[b != ub]
+    """
 
     if clip_lightcurve:
         t, f, ferr, b = clip_lightcurve_end(t, f, ferr, b)
 
     snr = np.abs(f / ferr)
 
-    for band in survey.wavelengths:
+    for band in ["ZTF_r", "ZTF_g"]:
         if len(snr[(snr > 3.0) & (b == band)]) < 5:  # pragma: no cover
             return [None] * 6
         if (np.max(f[b == band]) - np.min(f[b == band])) < 3.0 * np.mean(ferr[b == band]):  # pragma: no cover
