@@ -26,7 +26,8 @@ class DynestySampler(SuperphotSampler):
             sample_strategy: str='rwalk',
             nlive: int=NLIVE,
             dynamic: bool=False,
-            verbose: bool=False
+            verbose: bool=False,
+            **kwargs,
         ):
         """Initialize the DynestySampler object.
 
