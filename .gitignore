@@ -172,3 +172,5 @@ _html/
 # dustmap directories
 src/superphot_plus/sfd/
 src/superphot_plus/planck/
+# Project initialization script
+.initialize_new_project.sh
